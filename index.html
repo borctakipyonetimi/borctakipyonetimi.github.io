@@ -222,6 +222,32 @@
         .social-icon.facebook { background: #1877F2; color: white; }
         .social-icon.email { background: #D44638; color: white; }
         
+        /* BORÇ TOPLAM KARTI */
+        .debt-summary-card {
+            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+            padding: 12px 16px;
+            border-radius: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-weight: 700;
+            color: #0c4a6e;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .debt-summary-item {
+            background: white;
+            padding: 6px 12px;
+            border-radius: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+        .debt-summary-item i { font-size: 1rem; }
+        
         .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
         .stat-card { border-radius: 24px; padding: 16px 8px; text-align: center; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.2s; cursor: pointer; }
         .stat-card:active { transform: translateY(2px); }
@@ -243,22 +269,78 @@
         .chart-container { width: 100%; min-height: 260px; position: relative; margin: 12px 0; }
         canvas { max-width: 100%; height: auto !important; width: 100% !important; }
         
-        .debt-tabs { display: flex; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
-        .debt-tab-btn { background: none; border: none; padding: 8px 20px; font-size: 0.9rem; font-weight: 600; border-radius: 40px; cursor: pointer; transition: 0.2s; color: #475569; }
+        .debt-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        .debt-tab-btn {
+            background: none;
+            border: none;
+            padding: 8px 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #475569;
+        }
         .debt-tab-btn:active { transform: scale(0.96); }
         .debt-tab-btn.active { background: linear-gradient(135deg, #0f2b4d, #1a4270); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .debt-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-        .debt-item { background: #ffffff; border-radius: 24px; padding: 16px; border: 1px solid #e9eef3; cursor: pointer; transition: all 0.2s; }
-        .debt-item:active { transform: scale(0.98); }
+        .debt-item {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 16px;
+            border: 1px solid #e9eef3;
+            transition: all 0.2s;
+        }
         .debt-item:hover { border-color: #1a4270; transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(0,0,0,0.1); }
         .debt-left { width: 100%; }
-        .debt-name { font-weight: 800; font-size: 1rem; margin-bottom: 6px; color: #0f2b4d; display: flex; justify-content: space-between; }
-        .debt-stats { font-size: 0.75rem; color: #334155; margin: 6px 0; display: flex; justify-content: space-between; }
-        .debt-status { display: inline-block; background: #eef2ff; border-radius: 30px; padding: 4px 10px; font-size: 0.65rem; font-weight: 600; }
+        .debt-name {
+            font-weight: 800;
+            font-size: 1rem;
+            margin-bottom: 6px;
+            color: #0f2b4d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .debt-stats { font-size: 0.75rem; color: #334155; margin: 6px 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+        .debt-status {
+            display: inline-block;
+            background: #eef2ff;
+            border-radius: 30px;
+            padding: 4px 10px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
         .debt-status.paid { background: #d1fae5; color: #065f46; }
         .debt-status.unpaid { background: #fee2e2; color: #991b1b; }
         .debt-progress { background: #e2e8f0; border-radius: 20px; height: 8px; margin-top: 8px; overflow: hidden; }
         .debt-progress-bar { height: 100%; background: linear-gradient(90deg, #11998e, #38ef7d); width: 0%; border-radius: 20px; transition: width 0.6s ease; }
+        
+        .toggle-status-btn {
+            background: none;
+            border: 1px solid #cbd5e1;
+            border-radius: 30px;
+            padding: 5px 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .toggle-status-btn:active { transform: scale(0.95); }
+        .toggle-status-btn.paid-toggle { background: #f0fdf4; border-color: #22c55e; color: #166534; }
+        .toggle-status-btn.unpaid-toggle { background: #fef2f2; border-color: #ef4444; color: #991b1b; }
+        
         .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
         .page-btn { background: #eef2ff; border: none; border-radius: 30px; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.1s; }
         .page-btn:active { transform: scale(0.95); }
@@ -345,6 +427,8 @@
         body.dark-mode .form-input, body.dark-mode .form-select, body.dark-mode .form-textarea { background: #2d3448; border-color: #4a5568; color: #f1f5f9; }
         body.dark-mode .debt-status.paid { background: #14532d; color: #bbf7d0; }
         body.dark-mode .debt-status.unpaid { background: #7f1d1d; color: #fecaca; }
+        body.dark-mode .debt-summary-card { background: #1e3a5f; color: #e0f2fe; }
+        body.dark-mode .debt-summary-item { background: #0f2b4d; color: #bae6fd; }
         body.dark-mode .progress-container { background: #2d3748; }
         body.dark-mode .summary-row { border-bottom-color: #334155; }
         body.dark-mode .page-btn { background: #2d3748; color: #e2e8f0; }
@@ -415,6 +499,8 @@
         
         <div id="debts" class="section-card">
             <div class="section-title" data-i18n="title_debts">📝 DEBT LIST</div>
+            <!-- Toplam ödenmiş / ödenmemiş kartı -->
+            <div id="debtSummaryContainer" class="debt-summary-card"></div>
             <button class="btn-save" id="newDebtBtn" style="margin-bottom:14px;" data-i18n="btn_new_debt">➕ NEW DEBT</button>
             <div class="debt-tabs">
                 <button class="debt-tab-btn active" data-tab="unpaid" data-i18n="tab_unpaid">🔴 UNPAID DEBTS</button>
@@ -661,6 +747,35 @@
             <div class="strategy-item">💡 <strong>${t('ai_tip')}:</strong> ${advice}</div>
             <div class="motivation-message">✨ ${mot}</div>`;
         }
+        
+        // TOPLAM ÖDENMİŞ / ÖDENMEMİŞ KART
+        function renderDebtSummary() {
+            let totalPaid = debts.reduce((sum, d) => sum + d.paid, 0);
+            let totalUnpaid = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
+            let html = `<div class="debt-summary-item"><i class="fas fa-check-circle"></i> <span data-i18n="paid">PAID</span>: ${formatMoney(totalPaid)}</div>
+                        <div class="debt-summary-item"><i class="fas fa-times-circle"></i> <span data-i18n="remaining">REMAINING</span>: ${formatMoney(totalUnpaid)}</div>`;
+            document.getElementById('debtSummaryContainer').innerHTML = html;
+            // Çoklu dil için span'leri güncelle
+            document.querySelectorAll('#debtSummaryContainer [data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if(key) el.innerText = t(key); });
+        }
+        
+        // DURUM DEĞİŞTİRME FONKSİYONU
+        function toggleDebtStatus(debtId) {
+            const debt = debts.find(d => d.id === debtId);
+            if (!debt) return;
+            if (debt.paid >= debt.amount) {
+                // Ödenmiş -> ödenmedi yap
+                debt.paid = 0;
+            } else {
+                // Ödenmemiş -> tamamen ödendi
+                debt.paid = debt.amount;
+            }
+            saveAll();
+            renderAll();
+            renderDebtSummary(); // toplam kartı güncelle
+            showToast('Status updated');
+        }
+        
         function renderPaginatedDebts() {
             let filtered = currentDebtTab === 'unpaid' ? debts.filter(d => d.paid < d.amount) : debts.filter(d => d.paid >= d.amount);
             let currentPage = currentDebtTab === 'unpaid' ? currentUnpaidPage : currentPaidPage;
@@ -670,7 +785,32 @@
             let pageItems = filtered.slice(start, start+DEBT_ITEMS_PER_PAGE);
             let container = document.getElementById('debtListContainer');
             if(pageItems.length===0) container.innerHTML = `<div class="empty-state">${currentDebtTab==='unpaid'?t('empty_unpaid'):t('empty_paid')}</div>`;
-            else container.innerHTML = pageItems.map(d => `<div class="debt-item" data-id="${d.id}"><div class="debt-left"><div class="debt-name"><span>${escapeHtml(d.name)}</span><span class="debt-status ${d.paid>=d.amount?'paid':'unpaid'}">${d.paid>=d.amount?t('status_paid'):t('status_unpaid')}</span></div><div class="debt-stats"><span>Total: ${formatMoney(d.amount)}</span><span>Paid: ${formatMoney(d.paid)}</span><span>Remaining: ${formatMoney(d.amount-d.paid)}</span></div><div class="debt-progress"><div class="debt-progress-bar" style="width:${(d.paid/d.amount*100).toFixed(0)}%"></div></div></div></div>`).join('');
+            else {
+                container.innerHTML = pageItems.map(d => {
+                    let isPaid = d.paid >= d.amount;
+                    let statusClass = isPaid ? 'paid' : 'unpaid';
+                    let statusText = isPaid ? t('status_paid') : t('status_unpaid');
+                    let toggleBtnText = isPaid ? '🔄 Ödenmedi Yap' : '✅ Ödendi Olarak İşaretle';
+                    let toggleBtnClass = isPaid ? 'toggle-status-btn paid-toggle' : 'toggle-status-btn unpaid-toggle';
+                    return `<div class="debt-item" data-id="${d.id}">
+                        <div class="debt-left">
+                            <div class="debt-name">
+                                <span>${escapeHtml(d.name)}</span>
+                                <span class="debt-status ${statusClass}">${statusText}</span>
+                            </div>
+                            <div class="debt-stats">
+                                <span>Total: ${formatMoney(d.amount)}</span>
+                                <span>Paid: ${formatMoney(d.paid)}</span>
+                                <span>Remaining: ${formatMoney(d.amount-d.paid)}</span>
+                            </div>
+                            <div class="debt-progress"><div class="debt-progress-bar" style="width:${(d.paid/d.amount*100).toFixed(0)}%"></div></div>
+                            <div style="margin-top: 10px;">
+                                <button class="${toggleBtnClass}" data-id="${d.id}">${toggleBtnText}</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
             let paginationHtml = '';
             if(totalPages>1){
                 paginationHtml += `<button class="page-btn" data-page="prev" ${currentPage===1?'disabled':''}>◀</button>`;
@@ -678,10 +818,25 @@
                 paginationHtml += `<button class="page-btn" data-page="next" ${currentPage===totalPages?'disabled':''}>▶</button>`;
             }
             document.getElementById('debtPagination').innerHTML = paginationHtml;
-            document.querySelectorAll('.debt-item').forEach(el=>el.addEventListener('click',()=>editDebtById(parseInt(el.dataset.id))));
+            // Kart tıklama (düzenleme)
+            document.querySelectorAll('.debt-item').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    if(e.target.classList.contains('toggle-status-btn')) return; // butona tıklanırsa kart düzenlemeyi tetikleme
+                    editDebtById(parseInt(el.dataset.id));
+                });
+            });
+            // Durum değiştirme butonları
+            document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.id);
+                    toggleDebtStatus(id);
+                });
+            });
+            // Pagination butonları
             document.querySelectorAll('#debtPagination .page-btn').forEach(btn=>btn.addEventListener('click',()=>{ let pg=btn.dataset.page; if(pg==='prev'){ if(currentDebtTab==='unpaid' && currentUnpaidPage>1) currentUnpaidPage--; else if(currentDebtTab==='paid' && currentPaidPage>1) currentPaidPage--; } else if(pg==='next'){ if(currentDebtTab==='unpaid' && currentUnpaidPage<totalPages) currentUnpaidPage++; else if(currentDebtTab==='paid' && currentPaidPage<totalPages) currentPaidPage++; } else{ let pageNum=parseInt(pg); if(currentDebtTab==='unpaid') currentUnpaidPage=pageNum; else currentPaidPage=pageNum; } renderPaginatedDebts(); }));
         }
-        function renderDebtList() { renderPaginatedDebts(); }
+        function renderDebtList() { renderPaginatedDebts(); renderDebtSummary(); }
         function renderDebtAlarms(){ let c=document.getElementById('debtAlarmsList'); let active=debts.filter(d=>d.reminderDateTime&&d.paid<d.amount); c.innerHTML=active.length?active.map(d=>`<div class="debt-item alarm-item"><div><strong>${escapeHtml(d.name)}</strong><br>📅 ${d.reminderDateTime.replace('T',' ')}<br>Remaining: ${formatMoney(d.amount-d.paid)}</div><button class="btn-small-delete" onclick="event.stopPropagation();removeDebtReminder(${d.id})">🗑️ DELETE</button></div>`).join(''):`<div class="empty-state">${t('empty_alarms')}</div>`; }
         function renderManualAlarms(){ let c=document.getElementById('alarmsList'); if(alarms.length){ c.innerHTML=alarms.map(a=>`<div class="notification-item alarm-item" style="display:flex;justify-content:space-between;"><div><strong>${escapeHtml(a.title)}</strong><br>${a.desc||''} ${a.dateTime?`📅 ${a.dateTime.replace('T',' ')}`:''}</div><button class="btn-small-delete" onclick="deleteManualAlarmById(${a.id})">🗑️ DELETE</button></div>`).join(''); } else c.innerHTML=`<div class="empty-state">${t('empty_manual')}</div>`; }
         function deleteManualAlarmById(id){ if(confirm('Delete?')){ alarms=alarms.filter(a=>a.id!==id); saveAll(); renderManualAlarms(); renderAll(); } }
@@ -723,6 +878,7 @@
             document.querySelectorAll('.page-content, .section-card').forEach(el=>el.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
             if(pageId === 'overview') renderStats();
+            else if(pageId === 'debts') { renderDebtList(); renderDebtSummary(); }
             else renderAll();
             toggleSidebar(false);
         }
@@ -741,29 +897,16 @@
         // ----- EVENT LISTENER'LAR (GELİŞTİRİLMİŞ) -----
         document.getElementById('hamburgerBtn').addEventListener('click',()=>toggleSidebar());
         document.getElementById('sidebarOverlay').addEventListener('click',()=>toggleSidebar(false));
-        
-        // Nav-Grid için event delegation (dinamik butonlar için en sağlam yöntem)
         document.getElementById('navGrid').addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
-            if(btn && btn.dataset.page) {
-                showPage(btn.dataset.page);
-            }
+            if(btn && btn.dataset.page) showPage(btn.dataset.page);
         });
-        
-        // Sidebar'daki statik butonlar (data-page attribute'u olanlar)
         document.querySelectorAll('.sidebar-item[data-page]').forEach(item => {
-            item.addEventListener('click', () => {
-                const page = item.dataset.page;
-                if(page) showPage(page);
-            });
+            item.addEventListener('click', () => { const page = item.dataset.page; if(page) showPage(page); });
         });
-        
-        // Header butonları
         document.getElementById('openExchangeBtn')?.addEventListener('click', openExchangeModal);
         document.getElementById('notificationBellBtn')?.addEventListener('click', () => showPage('notifications'));
         document.getElementById('themeToggleBtn')?.addEventListener('click',()=>{ setDarkMode(!document.body.classList.contains('dark-mode')); });
-        
-        // Diğer butonlar
         document.getElementById('newDebtBtn')?.addEventListener('click',()=>openDebtModal());
         document.getElementById('newIncomeBtn')?.addEventListener('click',()=>openIncomeModal());
         document.getElementById('newAlarmBtn')?.addEventListener('click',()=>openAlarmModal());
@@ -772,8 +915,6 @@
         document.getElementById('exportBtn')?.addEventListener('click',()=>{ let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({debts,incomes,alarms,notifications})],{type:'application/json'})); a.download=`debt_${new Date().toISOString().slice(0,10)}.json`; a.click(); toggleSidebar(false); });
         document.getElementById('importBtn')?.addEventListener('click',()=>{ let inp=document.createElement('input'); inp.type='file'; inp.accept='application/json'; inp.onchange=e=>{ let fr=new FileReader(); fr.onload=ev=>{ let d=JSON.parse(ev.target.result); if(d.debts) debts=d.debts; if(d.incomes) incomes=d.incomes; if(d.alarms) alarms=d.alarms; if(d.notifications) notifications=d.notifications; renderAll(); alert('Imported'); updateNotifBadge(); }; fr.readAsText(e.target.files[0]); }; inp.click(); toggleSidebar(false); });
         document.getElementById('resetBtn')?.addEventListener('click',()=>{ if(confirm('Reset all data?')){ debts=[]; incomes=[]; alarms=[]; notifications=[]; renderAll(); updateNotifBadge(); } toggleSidebar(false); });
-        
-        // Modal kontrolleri
         document.getElementById('closeDebtModalBtn')?.addEventListener('click',closeDebtModal);
         document.getElementById('saveDebtBtn')?.addEventListener('click',saveDebt);
         document.getElementById('deleteDebtBtn')?.addEventListener('click',deleteDebt);
@@ -786,10 +927,8 @@
         document.querySelector('.closeNotif')?.addEventListener('click',closeNotifModal);
         document.getElementById('saveNotifBtn')?.addEventListener('click',saveNotification);
         document.getElementById('deleteNotifBtn')?.addEventListener('click',deleteNotification);
-        
         document.querySelectorAll('.calc-btn').forEach(btn=>btn.addEventListener('click',()=>calcHandle(btn.dataset.calc)));
         document.getElementById('feedbackBtn')?.addEventListener('click',()=>showPage('feedback'));
-        
         document.querySelectorAll('.debt-tab-btn').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.debt-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDebtTab=btn.dataset.tab; renderDebtList(); }));
         
         function updateLoginUI(){ let user=localStorage.loggedUser; if(user){ document.getElementById('loggedOutView').style.display='none'; document.getElementById('loggedInView').style.display='block'; document.getElementById('displayUsername').innerText=user; } else { document.getElementById('loggedOutView').style.display='block'; document.getElementById('loggedInView').style.display='none'; } }
