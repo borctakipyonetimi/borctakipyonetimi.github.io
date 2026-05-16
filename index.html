@@ -2,11 +2,44 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    
+    <!-- SEO Meta Etiketleri -->
+    <title>Borç Takip Sistemi | Ücretsiz AI Destekli Finans Yönetimi</title>
+    <meta name="description" content="Borçlarınızı, gelir ve giderlerinizi kategorilerle takip edin, yapay zeka asistanı ile finansal risk analizi yapın, taksitli borçları yönetin. Ücretsiz ve mobil uyumlu.">
+    <meta name="keywords" content="borç takip, gelir gider takibi, taksitli borç, finansal asistan, AI, bütçe yönetimi, ücretsiz, mobil uyumlu">
+    <meta name="author" content="Serkan Sağlam">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://www.sizindomaininiz.com/">
+    
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
     <meta name="google-adsense-account" content="ca-pub-4449700232321088">
-    <title>Debt Tracker | AI Strategy + Exchange Rates | Animated</title>
+    
+    <!-- Yapılandırılmış Veri (Schema.org) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Borç Takip Sistemi",
+      "description": "Kişisel finans yönetimi ve yapay zeka destekli borç takip uygulaması",
+      "applicationCategory": "Finance",
+      "operatingSystem": "Web",
+      "creator": {
+        "@type": "Person",
+        "name": "Serkan Sağlam"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "TRY"
+      }
+    }
+    </script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -15,969 +48,541 @@
             background: #f4f6fc;
             min-height: 100vh;
             padding-bottom: 30px;
-            transition: background 0.2s;
-            overflow-x: hidden;
+            transition: all 0.2s ease;
+            line-height: 1.5;
         }
-        
-        /* HEADER */
+        body {
+            --primary-start: #0f2b4d;
+            --primary-end: #1a4270;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-light: #1e293b;
+            --border-light: #e2e8f0;
+            --shadow: 0 6px 18px rgba(0,0,0,0.04);
+            --sidebar-bg: #ffffff;
+            --header-gradient: linear-gradient(135deg, #0f2b4d, #1a4270);
+            --hover-bg: #f1f5f9;
+        }
+        body.theme-green { --primary-start: #0f4d3a; --primary-end: #1a705e; --header-gradient: linear-gradient(135deg, #0f4d3a, #1a705e); }
+        body.theme-purple { --primary-start: #4a1d6d; --primary-end: #6b3a9e; --header-gradient: linear-gradient(135deg, #4a1d6d, #6b3a9e); }
+        body.theme-orange { --primary-start: #b45f1b; --primary-end: #e08e3a; --header-gradient: linear-gradient(135deg, #b45f1b, #e08e3a); }
+        body.dark-mode {
+            --card-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-light: #cbd5e1;
+            --border-light: #475569;
+            --shadow: 0 6px 18px rgba(0,0,0,0.3);
+            --sidebar-bg: #0f172a;
+            --hover-bg: #334155;
+            background: #0a0f1a;
+        }
+        body.dark-mode .debt-summary-card { background: #0f2b4d; color: #e0f2fe; }
+        body.dark-mode .ai-chat-container { background: #1e293b; border-color: #334155; }
+        body.dark-mode .stat-card { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        body.dark-mode .section-card, body.dark-mode .page-content { border: 1px solid #334155; background: var(--card-bg); color: var(--text-main); }
+        body.dark-mode .nav-btn, body.dark-mode .filter-group select, body.dark-mode .form-input { background: #334155; color: #f1f5f9; border-color: #475569; }
+        body.dark-mode .debt-item.unpaid { background: #2d1a1a; border-left-color: #e74c3c; color: #f1f5f9; }
+        body.dark-mode .debt-item.paid { background: #1a2a1a; border-left-color: #2ecc71; color: #f1f5f9; }
+        body.dark-mode .income-item, body.dark-mode .expense-item { background: #334155; color: white; }
+        body.dark-mode .category-item { background: #334155; color: white; }
+        body.dark-mode .chat-input { background: #334155; color: white; border-color: #475569; }
+        body.dark-mode .message-bubble { background: #334155; color: white; }
         .header {
-            background: linear-gradient(135deg, #0f2b4d 0%, #1a4270 100%);
-            padding: 22px 20px 28px;
+            background: var(--header-gradient);
+            background-size: 200% 200%;
+            padding: 10px 14px 16px;
             text-align: center;
             color: white;
-            border-radius: 0 0 32px 32px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            margin-bottom: 24px;
-            position: relative;
-            z-index: 5;
-            transition: all 0.3s ease;
+            border-radius: 0 0 28px 28px;
+            margin-bottom: 16px;
+            animation: gradientFlow 8s ease infinite;
         }
-        .header-top {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            margin-bottom: 8px;
-        }
-        .hamburger {
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255,255,255,0.2);
-            border: none;
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            font-size: 1.4rem;
-            color: white;
-            cursor: pointer;
-            backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s, background 0.2s;
-            z-index: 1001;
-        }
-        .hamburger:hover { background: rgba(255,255,255,0.35); transform: translateY(-50%) scale(1.05); }
-        .hamburger:active { transform: translateY(-50%) scale(0.95); }
-        .logo-area { flex: 1; text-align: center; }
-        .logo-area h1 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.3px; text-transform: uppercase; transition: transform 0.2s; }
-        
-        .header-controls {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            justify-content: center;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-        .lang-selector, .theme-toggle, .notification-bell, .exchange-rate-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            border-radius: 40px;
-            padding: 8px 14px;
-            font-weight: 600;
-            color: white;
-            cursor: pointer;
-            backdrop-filter: blur(4px);
-            font-size: 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: transform 0.2s, background 0.2s;
-        }
-        .exchange-rate-btn:active, .theme-toggle:active, .lang-selector:active, .notification-bell:active { transform: scale(0.96); }
-        .exchange-rate-btn:hover, .theme-toggle:hover, .lang-selector:hover, .notification-bell:hover { background: rgba(255,255,255,0.35); transform: scale(1.02); }
-        .notification-bell { position: relative; }
-        .notification-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #e74c3c;
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            font-size: 0.6rem;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .header p { font-size: 0.8rem; opacity: 0.95; margin-top: 12px; margin-bottom: 0; }
-        
-        /* SIDEBAR */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: -300px;
-            width: 280px;
-            height: 100vh;
-            background: white;
-            z-index: 2000;
-            transition: left 0.3s ease-in-out;
-            box-shadow: 4px 0 20px rgba(0,0,0,0.15);
-            overflow-y: auto;
-            border-radius: 0 20px 20px 0;
-        }
+        @keyframes gradientFlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .header h1 { font-size: 1rem; font-weight: 800; }
+        .header p { font-size: 0.7rem; margin-top: 4px; opacity: 0.9; }
+        .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .hamburger { background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1rem; color: white; cursor: pointer; backdrop-filter: blur(6px); }
+        .logo-area h1 { font-size: 1rem; font-weight: 800; }
+        .clock-wrapper { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.3); border-radius: 40px; padding: 2px 6px 2px 10px; backdrop-filter: blur(4px); }
+        .header-clock { font-size: 0.65rem; font-weight: 600; font-family: monospace; }
+        .clock-flag-btn { background: rgba(255,255,255,0.3); border: none; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; }
+        .header-controls { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+        .theme-toggle, .notification-bell, .color-theme-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 30px; padding: 4px 10px; font-weight: 600; color: white; cursor: pointer; backdrop-filter: blur(4px); font-size: 0.65rem; }
+        .notification-badge { position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 0.5rem; display: flex; align-items: center; justify-content: center; }
+        .sidebar { position: fixed; top: 0; left: -300px; width: 280px; height: 100vh; background: var(--sidebar-bg); z-index: 2000; transition: left 0.25s ease; box-shadow: 4px 0 20px rgba(0,0,0,0.15); overflow-y: auto; border-radius: 0 20px 20px 0; }
         .sidebar.active { left: 0; }
-        .sidebar-header {
-            background: linear-gradient(135deg, #0f2b4d, #1a4270);
-            padding: 24px 20px;
-            color: white;
-            border-radius: 0 20px 0 0;
-        }
-        .sidebar-header h3 { font-size: 1.2rem; margin-bottom: 12px; }
+        .sidebar-header { background: var(--header-gradient); padding: 20px 16px; color: white; border-radius: 0 20px 0 0; }
         .login-area { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 12px; margin-top: 8px; }
-        .login-area input { width: 100%; padding: 8px; border-radius: 30px; border: none; margin-bottom: 8px; font-size: 0.8rem; }
-        .login-area button { background: rgba(255,255,255,0.3); border: none; padding: 6px 12px; border-radius: 30px; color: white; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
-        .login-area button:active { transform: scale(0.97); }
-        .sidebar-item {
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border-left: 3px solid transparent;
-            transition: all 0.2s;
-            color: #0f172a;
-            background: white;
-        }
-        .sidebar-item:hover { background: #eef2ff; border-left-color: #1a4270; transform: translateX(2px); }
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.4);
-            backdrop-filter: blur(2px);
-            z-index: 1500;
-            display: none;
-        }
+        .login-area input { width: 100%; padding: 6px 10px; border-radius: 30px; border: none; margin-bottom: 8px; color: #0f172a; font-size: 0.75rem; }
+        .login-area button { background: rgba(255,255,255,0.3); border: none; padding: 5px; border-radius: 30px; color: white; font-weight: bold; cursor: pointer; width: 100%; font-size: 0.7rem; }
+        .sidebar-item { padding: 12px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.8rem; font-weight: 600; border-left: 3px solid transparent; color: var(--text-main); background: var(--sidebar-bg); }
+        .sidebar-item:hover { background: var(--hover-bg); border-left-color: var(--primary-end); }
+        .sidebar-item.reset-btn { border-top: 1px solid var(--border-light); margin-top: 8px; color: #e74c3c; }
+        .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); z-index: 1500; display: none; }
         .sidebar-overlay.active { display: block; }
-        
-        .container { max-width: 700px; margin: 0 auto; padding: 0 16px; }
-        .nav-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-bottom: 24px;
-            margin-top: 8px;
-        }
-        .nav-btn {
-            background: white;
-            border: none;
-            border-radius: 60px;
-            padding: 12px 4px;
-            font-weight: 600;
-            font-size: 0.8rem;
-            color: #1e3a5f;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            transition: transform 0.2s, background 0.2s;
-        }
-        .nav-btn:active { transform: scale(0.96); }
-        .nav-btn.active { background: linear-gradient(135deg, #0f2b4d, #1a4270); color: white; }
-        
-        .social-grid {
-            display: flex;
-            justify-content: center;
-            gap: 25px;
-            margin-bottom: 24px;
-            padding: 10px 0;
-            background: rgba(255,255,255,0.5);
-            border-radius: 60px;
-        }
-        .social-icon {
-            background: white;
-            border-radius: 50%;
-            width: 48px;
-            height: 48px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            text-decoration: none;
-            color: #333;
-        }
-        .social-icon:active { transform: scale(0.9); }
-        .social-icon:hover {
-            transform: scale(1.15) rotate(8deg);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            filter: brightness(1.05);
-        }
-        .social-icon.whatsapp { background: #25D366; color: white; }
-        .social-icon.twitter { background: #000000; color: white; }
-        .social-icon.facebook { background: #1877F2; color: white; }
-        .social-icon.email { background: #D44638; color: white; }
-        
-        /* BORÇ TOPLAM KARTI */
-        .debt-summary-card {
-            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
-            padding: 12px 16px;
-            border-radius: 24px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            font-weight: 700;
-            color: #0c4a6e;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        .debt-summary-item {
-            background: white;
-            padding: 6px 12px;
-            border-radius: 40px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-        }
-        .debt-summary-item i { font-size: 1rem; }
-        
-        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
-        .stat-card { border-radius: 24px; padding: 16px 8px; text-align: center; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.2s; cursor: pointer; }
-        .stat-card:active { transform: translateY(2px); }
-        .stat-card:hover { transform: translateY(-3px); }
-        .stat-card.purple { background: linear-gradient(135deg, #667eea, #764ba2); }
-        .stat-card.green { background: linear-gradient(135deg, #11998e, #38ef7d); }
-        .stat-card.red { background: linear-gradient(135deg, #eb3349, #f45c43); }
-        .stat-card.pink { background: linear-gradient(135deg, #f093fb, #f5576c); }
-        .stat-card.blue { background: linear-gradient(135deg, #4facfe, #00f2fe); }
-        .stat-card.orange { background: linear-gradient(135deg, #fa709a, #fee140); }
-        .stat-label { font-size: 0.7rem; font-weight: 500; opacity: 0.9; margin-bottom: 4px; }
-        .stat-value { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
-        
-        .section-card, .page-content { background: white; border-radius: 28px; padding: 20px 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.04); margin-bottom: 20px; display: none; }
-        .section-card.active, .page-content.active { display: block; animation: fadeScale 0.3s ease; }
-        @keyframes fadeScale { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
-        .section-title { font-size: 1.15rem; font-weight: 700; color: #0f2b4d; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-left: 4px solid #1a4270; padding-left: 10px; }
-        
-        .chart-container { width: 100%; min-height: 260px; position: relative; margin: 12px 0; }
+        .container { max-width: 700px; margin: 0 auto; padding: 0 14px; }
+        .nav-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+        .nav-btn { background: var(--card-bg); border: none; border-radius: 50px; padding: 8px 4px; font-weight: 600; font-size: 0.7rem; color: var(--primary-start); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .social-grid { display: flex; justify-content: center; gap: 14px; margin-bottom: 16px; }
+        .social-icon { background: var(--card-bg); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); color: var(--primary-end); }
+        .debt-summary-card { background: linear-gradient(135deg, #e0f2fe, #bae6fd); padding: 10px 14px; border-radius: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-weight: 700; color: #0c4a6e; font-size: 0.8rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+        .stat-card { border-radius: 20px; padding: 12px 4px; text-align: center; cursor: pointer; transition: transform 0.15s; color: white !important; background: #1a4270; font-size: 0.75rem; }
+        .stat-value { font-size: 1rem; font-weight: 800; margin-top: 4px; }
+        .section-card, .page-content { background: var(--card-bg); border-radius: 24px; padding: 14px 12px; box-shadow: var(--shadow); margin-bottom: 16px; display: none; color: var(--text-main); }
+        .section-card.active, .page-content.active { display: block; animation: fadeScale 0.2s ease; }
+        .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; border-left: 4px solid var(--primary-end); padding-left: 10px; }
+        .chart-container { width: 100%; min-height: 200px; margin: 10px 0; }
         canvas { max-width: 100%; height: auto !important; width: 100% !important; }
-        
-        .debt-tabs {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #e2e8f0;
-            padding-bottom: 8px;
-        }
-        .debt-tab-btn {
-            background: none;
-            border: none;
-            padding: 8px 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border-radius: 40px;
-            cursor: pointer;
-            transition: 0.2s;
-            color: #475569;
-        }
-        .debt-tab-btn:active { transform: scale(0.96); }
-        .debt-tab-btn.active { background: linear-gradient(135deg, #0f2b4d, #1a4270); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .debt-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-        .debt-item {
-            background: #ffffff;
-            border-radius: 24px;
-            padding: 16px;
-            border: 1px solid #e9eef3;
-            transition: all 0.2s;
-        }
-        .debt-item:hover { border-color: #1a4270; transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(0,0,0,0.1); }
-        .debt-left { width: 100%; }
-        .debt-name {
-            font-weight: 800;
-            font-size: 1rem;
-            margin-bottom: 6px;
-            color: #0f2b4d;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .debt-stats { font-size: 0.75rem; color: #334155; margin: 6px 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-        .debt-status {
-            display: inline-block;
-            background: #eef2ff;
-            border-radius: 30px;
-            padding: 4px 10px;
-            font-size: 0.65rem;
-            font-weight: 600;
-        }
-        .debt-status.paid { background: #d1fae5; color: #065f46; }
-        .debt-status.unpaid { background: #fee2e2; color: #991b1b; }
-        .debt-progress { background: #e2e8f0; border-radius: 20px; height: 8px; margin-top: 8px; overflow: hidden; }
-        .debt-progress-bar { height: 100%; background: linear-gradient(90deg, #11998e, #38ef7d); width: 0%; border-radius: 20px; transition: width 0.6s ease; }
-        
-        .toggle-status-btn {
-            background: none;
-            border: 1px solid #cbd5e1;
-            border-radius: 30px;
-            padding: 5px 12px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.15s;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .toggle-status-btn:active { transform: scale(0.95); }
-        .toggle-status-btn.paid-toggle { background: #f0fdf4; border-color: #22c55e; color: #166534; }
-        .toggle-status-btn.unpaid-toggle { background: #fef2f2; border-color: #ef4444; color: #991b1b; }
-        
-        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
-        .page-btn { background: #eef2ff; border: none; border-radius: 30px; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.1s; }
-        .page-btn:active { transform: scale(0.95); }
-        .page-btn.active { background: #1a4270; color: white; }
-        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .income-list { display: flex; flex-direction: column; gap: 8px; }
-        .income-card { background: #f8fafd; border-radius: 18px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-left: 4px solid #1a4270; transition: 0.1s; }
-        .income-card:active { transform: scale(0.98); }
-        .notification-item { background: #f8fafd; border-radius: 18px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .alarm-item { border-left: 4px solid #f59e0b; background: #fffbeb; }
-        .empty-state { text-align: center; padding: 30px 16px; color: #8b9bb5; font-size: 0.85rem; }
-        .progress-container { background: #e2e8f0; border-radius: 30px; height: 8px; overflow: hidden; margin: 12px 0; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #11998e, #38ef7d); width: 0%; border-radius: 30px; transition: width 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1); }
-        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eef2f8; font-size: 0.85rem; }
-        .btn-save { width: 100%; background: linear-gradient(135deg, #0f2b4d, #1a4270); color: white; border: none; border-radius: 30px; padding: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; margin-top: 8px; transition: 0.2s; }
-        .btn-save:active { transform: scale(0.98); opacity: 0.9; }
-        .btn-save:hover { opacity: 0.9; }
-        .btn-delete { background: #e74c3c; width: 100%; border: none; border-radius: 30px; padding: 12px; font-weight: 700; color: white; margin-top: 10px; cursor: pointer; transition: 0.1s; }
-        .btn-delete:active { transform: scale(0.98); }
-        .btn-small-delete { background: #e74c3c; border: none; border-radius: 30px; padding: 6px 14px; font-size: 0.7rem; font-weight: 600; color: white; cursor: pointer; margin-left: 10px; transition: 0.1s; }
-        .btn-small-delete:active { transform: scale(0.95); }
-        .btn-clear-all { background: #e67e22; margin-top: 8px; margin-bottom: 12px; }
-        
-        .help-card { background: #f8fafc; border-radius: 24px; padding: 18px; border-left: 5px solid #1a4270; margin-bottom: 16px; }
-        .help-card h4 { font-size: 1rem; margin-bottom: 10px; color: #0f2b4d; }
-        .help-card p { font-size: 0.85rem; color: #1e293b; line-height: 1.4; }
-        .help-step { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
-        .help-step-num { background: linear-gradient(135deg, #0f2b4d, #1a4270); color: white; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.7rem; flex-shrink: 0; }
-        .help-warning { background: #fee2e2; padding: 8px 12px; border-radius: 20px; margin-top: 10px; font-size: 0.75rem; color: #991b1b; }
-        .about-card { background: linear-gradient(135deg, #f8fafc, #ffffff); border-radius: 28px; padding: 20px; text-align: center; border: 1px solid #e2e8f0; }
-        .about-icon { font-size: 3rem; background: linear-gradient(135deg, #0f2b4d, #1a4270); width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 16px; color: white; }
-        .feature-list { text-align: left; margin-top: 20px; background: #f1f5f9; border-radius: 20px; padding: 12px 16px; }
-        .feature-list li { list-style: none; padding: 6px 0; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
-        
-        .ai-strategy-card { background: linear-gradient(135deg, #f0f9ff 0%, #e6f2fc 100%); border-left: 5px solid #ec489a; border-radius: 28px; padding: 20px; margin-bottom: 20px; }
-        .ai-strategy-header { font-size: 1.2rem; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; color: #0f2b4d; }
-        .strategy-item { padding: 12px 0; border-bottom: 1px solid #cbd5e1; font-size: 0.9rem; color: #1e293b; }
-        .motivation-message { background: #fef3c7; border-radius: 20px; padding: 12px; margin-top: 12px; text-align: center; font-weight: 600; color: #92400e; }
-        .risk-high { color: #dc2626; font-weight: 700; }
-        .risk-medium { color: #f59e0b; font-weight: 700; }
-        .risk-low { color: #10b981; font-weight: 700; }
-        
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(3px); }
+        .debt-tabs { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+        .debt-tab-btn { background: none; border: none; padding: 5px 12px; font-size: 0.7rem; font-weight: 700; border-radius: 30px; cursor: pointer; color: var(--text-light); }
+        .debt-tab-btn.active { background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); color: white; }
+        .debt-item { border-radius: 18px; padding: 12px; border: 1px solid var(--border-light); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .debt-item.unpaid { border-left: 6px solid #e74c3c; background: #fff5f5; }
+        .debt-item.paid { border-left: 6px solid #2ecc71; background: #f0fff4; }
+        body.dark-mode .debt-item.unpaid { background: #2d1a1a; }
+        body.dark-mode .debt-item.paid { background: #1a2a1a; }
+        .debt-category { background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 20px; font-size: 0.65rem; display: inline-block; margin-left: 6px; }
+        .income-item, .expense-item { background: var(--card-bg); border-radius: 18px; padding: 10px 12px; border: 1px solid var(--border-light); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .btn-save { background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); color: white; border: none; border-radius: 30px; padding: 8px 14px; font-weight: 600; cursor: pointer; margin: 4px 0; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-small-delete { background: #e74c3c; border: none; border-radius: 30px; padding: 4px 12px; font-size: 0.65rem; font-weight: 600; color: white; cursor: pointer; }
+        .btn-edit { background: #f39c12; border: none; border-radius: 30px; padding: 4px 12px; font-size: 0.65rem; font-weight: 600; color: white; cursor: pointer; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 3000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
         .modal-overlay.active { display: flex; }
-        .modal-box { background: white; border-radius: 32px; padding: 20px; width: 100%; max-width: 380px; max-height: 90vh; overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .modal-title { font-size: 1.2rem; font-weight: 800; color: #0f2b4d; }
-        .form-group { margin-bottom: 14px; }
-        .form-label { font-size: 0.75rem; font-weight: 600; color: #334155; display: block; margin-bottom: 5px; }
-        .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; border: 1px solid #cfdfed; border-radius: 20px; font-family: inherit; font-size: 0.85rem; transition: 0.1s; }
-        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: #1a4270; transform: scale(1.01); }
-        
-        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
-        .calc-btn { background: #eef2ff; border: none; border-radius: 20px; padding: 14px 0; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: 0.1s; }
-        .calc-btn:active { transform: scale(0.96); background: #d9e2ef; }
-        .calc-display { background: #0f172a; color: #4ade80; font-size: 1.6rem; padding: 14px; border-radius: 24px; text-align: right; font-family: monospace; margin-bottom: 10px; }
-        
-        .exchange-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        .exchange-table th, .exchange-table td { padding: 10px 6px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
-        .exchange-table th { color: #1e3a5f; font-weight: 700; }
-        .currency-load { text-align: center; padding: 20px; color: #1a4270; }
-        .last-update { font-size: 0.7rem; color: #6c86a3; margin-top: 12px; text-align: center; }
-        
-        .sync-status { position: fixed; bottom: 20px; right: 20px; background: #1a4270; color: white; padding: 6px 14px; border-radius: 40px; font-size: 0.65rem; font-weight: 600; opacity: 0; transition: opacity 0.2s; z-index: 999; }
-        .sync-status.show { opacity: 1; }
-        
-        body.dark-mode { background: #0a0f1c; }
-        body.dark-mode .section-card, body.dark-mode .page-content, body.dark-mode .modal-box, body.dark-mode .sidebar { background: #1a1f2e; color: #e2e8f0; }
-        body.dark-mode .debt-item, body.dark-mode .income-card, body.dark-mode .notification-item { background: #252b3d; border-color: #3a4055; color: #e2e8f0; }
-        body.dark-mode .debt-name, body.dark-mode .debt-stats, body.dark-mode .summary-row span, 
-        body.dark-mode .debt-stats, body.dark-mode .empty-state, body.dark-mode .section-title,
-        body.dark-mode .modal-title, body.dark-mode .form-label, body.dark-mode .help-card h4,
-        body.dark-mode .help-card p, body.dark-mode .about-card h3, body.dark-mode .about-card p,
-        body.dark-mode .feature-list li, body.dark-mode .ai-strategy-header,
-        body.dark-mode .strategy-item, body.dark-mode .stat-label, body.dark-mode .stat-value { color: #f1f5f9 !important; }
-        body.dark-mode .debt-tab-btn { color: #cbd5e1; }
-        body.dark-mode .debt-tab-btn.active { background: linear-gradient(135deg, #1e4a76, #2c6288); color: white; }
-        body.dark-mode .help-card, body.dark-mode .about-card, body.dark-mode .ai-strategy-card { background: #252b3d; border-color: #3a4055; color: #e2e8f0; }
-        body.dark-mode .feature-list { background: #1e293b; color: #cbd5e6; }
-        body.dark-mode .exchange-table th, body.dark-mode .exchange-table td { border-bottom-color: #3a4055; color: #e2e8f0; }
-        body.dark-mode .currency-load { color: #cbd5e1; }
-        body.dark-mode .last-update { color: #94a3b8; }
-        body.dark-mode .form-input, body.dark-mode .form-select, body.dark-mode .form-textarea { background: #2d3448; border-color: #4a5568; color: #f1f5f9; }
-        body.dark-mode .debt-status.paid { background: #14532d; color: #bbf7d0; }
-        body.dark-mode .debt-status.unpaid { background: #7f1d1d; color: #fecaca; }
-        body.dark-mode .debt-summary-card { background: #1e3a5f; color: #e0f2fe; }
-        body.dark-mode .debt-summary-item { background: #0f2b4d; color: #bae6fd; }
-        body.dark-mode .progress-container { background: #2d3748; }
-        body.dark-mode .summary-row { border-bottom-color: #334155; }
-        body.dark-mode .page-btn { background: #2d3748; color: #e2e8f0; }
-        body.dark-mode .page-btn.active { background: #2c6288; }
-        body.dark-mode .calc-btn { background: #2d3748; color: #e2e8f0; }
-        body.dark-mode .calc-display { background: #000000; }
-        
-        @media (max-width:480px){ .stat-value { font-size: 1rem; } .nav-btn { font-size: 0.7rem; } .logo-area h1 { font-size: 1rem; } .hamburger { width: 38px; height: 38px; font-size: 1.2rem; } .header-controls { gap: 8px; } }
+        .modal-box { background: var(--card-bg); border-radius: 28px; padding: 18px; width: 100%; max-width: 360px; color: var(--text-main); max-height: 90vh; overflow-y: auto; }
+        .form-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: 30px; background: var(--card-bg); color: var(--text-main); margin-bottom: 10px; font-size: 0.8rem; }
+        .filter-group { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .filter-group select { flex: 1; padding: 6px 12px; border-radius: 30px; border: 1px solid var(--border-light); background: var(--card-bg); color: var(--text-main); font-weight: 500; font-size: 0.75rem; }
+        .ai-chat-container { background: var(--card-bg); border-radius: 24px; padding: 12px; border: 1px solid var(--border-light); margin-bottom: 16px; }
+        .chat-messages { height: 380px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .chat-message { display: flex; align-items: flex-start; gap: 6px; max-width: 90%; }
+        .chat-message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message-bubble { padding: 8px 12px; border-radius: 18px; font-size: 0.75rem; line-height: 1.3; background: var(--hover-bg); color: var(--text-main); }
+        .chat-message.user .message-bubble { background: var(--primary-end); color: white; }
+        .chat-input-area { display: flex; gap: 8px; margin-top: 8px; }
+        .chat-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-light); border-radius: 40px; background: var(--card-bg); color: var(--text-main); font-size: 0.9rem; height: 48px; }
+        .chat-send-btn { background: var(--primary-end); border: none; border-radius: 40px; width: 48px; color: white; cursor: pointer; font-size: 1.2rem; }
+        .help-card, .contact-card { background: var(--hover-bg); border-radius: 18px; padding: 12px; margin-bottom: 12px; border-left: 3px solid var(--primary-end); font-size: 0.75rem; }
+        .footer { text-align: center; padding: 12px; color: var(--text-light); font-size: 0.65rem; }
+        .category-item { display: flex; justify-content: space-between; align-items: center; background: var(--hover-bg); padding: 8px 12px; border-radius: 30px; margin-bottom: 8px; }
+        .debt-progress { background: #e2e8f0; border-radius: 30px; height: 6px; margin-top: 6px; width: 100%; }
+        .debt-progress-bar { background: #11998e; height: 6px; border-radius: 30px; }
+        .ad-container { margin: 16px 0; text-align: center; background: rgba(0,0,0,0.02); border-radius: 20px; padding: 8px; overflow-x: auto; }
+        .ad-label { font-size: 0.6rem; color: #888; margin-bottom: 4px; }
+        @media (max-width:480px){ .stat-value { font-size: 0.9rem; } .chat-messages { height: 320px; } }
     </style>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
 </head>
 <body>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    <div class="sidebar" id="sidebarPanel">
-        <div class="sidebar-header"><h3 id="sidebarTitle">💰 DEBT TRACKER</h3>
-            <div class="login-area"><div id="loggedOutView"><input type="text" id="loginUsername" placeholder="Your Name"><button id="doLoginBtn">🔑 LOGIN</button></div><div id="loggedInView" style="display:none;"><span id="displayUsername"></span> <button id="logoutBtn">🚪 LOGOUT</button></div></div>
-        </div>
-        <div class="sidebar-item" data-page="overview" data-i18n="sidebar_overview">📊 OVERVIEW</div>
-        <div class="sidebar-item" data-page="monthly" data-i18n="sidebar_monthly">📅 MONTHLY</div>
-        <div class="sidebar-item" data-page="yearly" data-i18n="sidebar_yearly">📈 YEARLY</div>
-        <div class="sidebar-item" data-page="debts" data-i18n="sidebar_debts">📝 DEBTS</div>
-        <div class="sidebar-item" data-page="income" data-i18n="sidebar_income">💵 INCOMES</div>
-        <div class="sidebar-item" data-page="alarms" data-i18n="sidebar_alarms">🔔 ALARMS</div>
-        <div class="sidebar-item" data-page="notifications" data-i18n="sidebar_notifications">✉️ NOTIFICATIONS</div>
-        <div class="sidebar-item" data-page="calculator" data-i18n="sidebar_calculator">🧮 CALCULATOR</div>
-        <div class="sidebar-item" data-page="aiStrategy" data-i18n="sidebar_ai">🤖 AI STRATEGY</div>
-        <div class="sidebar-item" data-page="help" data-i18n="sidebar_help">❓ HELP</div>
-        <div class="sidebar-item" data-page="feedback" data-i18n="sidebar_feedback">💬 FEEDBACK</div>
-        <div class="sidebar-item" data-page="about" data-i18n="sidebar_about">ℹ️ ABOUT</div>
-        <div class="sidebar-item" id="exportBtn" data-i18n="sidebar_export">📤 EXPORT</div>
-        <div class="sidebar-item" id="importBtn" data-i18n="sidebar_import">📥 IMPORT</div>
-        <div class="sidebar-item" id="resetBtn" style="color:#e74c3c;" data-i18n="sidebar_reset">🗑️ RESET</div>
-    </div>
-    <div class="header">
-        <div class="header-top">
-            <button class="hamburger" id="hamburgerBtn">☰</button>
-            <div class="logo-area"><h1 id="mainTitle">DEBT PAYMENT TRACKER</h1></div>
-        </div>
-        <p id="subtitle">Manage your income, expenses and debts</p>
-        <div class="header-controls">
-            <button class="exchange-rate-btn" id="openExchangeBtn"><i class="fas fa-chart-line"></i> <span id="exchangeBtnText">Exchange Rates</span></button>
-            <div class="notification-bell" id="notificationBellBtn"><i class="fas fa-bell"></i><span id="notifBadge" class="notification-badge" style="display:none;">0</span></div>
-            <select id="languageSelector" class="lang-selector"><option value="tr">🇹🇷 TR</option><option value="en">🇬🇧 EN</option></select>
-            <button class="theme-toggle" id="themeToggleBtn"><span id="themeIcon">🌙</span> <span id="themeText">DARK</span></button>
-        </div>
-    </div>
-
-    <div class="container">
-        <div class="nav-grid" id="navGrid"></div>
-        <div class="social-grid">
-            <div class="social-icon whatsapp" onclick="shareApp('whatsapp')"><i class="fab fa-whatsapp"></i></div>
-            <div class="social-icon twitter" onclick="shareApp('twitter')"><i class="fab fa-twitter"></i></div>
-            <div class="social-icon facebook" onclick="shareApp('facebook')"><i class="fab fa-facebook-f"></i></div>
-            <div class="social-icon email" onclick="shareApp('email')"><i class="fas fa-envelope"></i></div>
-        </div>
-        
-        <div id="overview" class="page-content active">
-            <div class="stats-grid" id="statsGrid"></div>
-            <div class="section-card"><div class="section-title" data-i18n="title_compare">💰 DEBT vs INCOME</div><div class="chart-container"><canvas id="financialCompareChart" style="width:100%; height:260px;"></canvas></div></div>
-            <div class="section-card"><div class="section-title" data-i18n="title_trend">📈 LAST 6 MONTH DEBT TREND</div><div class="chart-container"><canvas id="trendChart" style="width:100%; height:260px;"></canvas></div></div>
-            <div class="section-card"><div class="section-title" data-i18n="title_financial">📊 FINANCIAL STATUS</div><div id="finSummary"></div><div class="progress-container"><div class="progress-bar" id="mainProgress"></div></div><div><span id="progressLabel">PAYMENT PROGRESS</span> <span id="progressText">%0</span></div></div>
-            <div class="section-card"><div class="section-title" data-i18n="title_doughnut">🍩 PAID / REMAINING</div><div class="chart-container"><canvas id="debtChart" style="width:100%; height:260px;"></canvas></div></div>
-            <div class="section-card"><div class="section-title" data-i18n="title_support">📞 SUPPORT & FEEDBACK</div><button class="btn-save" id="feedbackBtn" style="background:#11998e;" data-i18n="btn_feedback">📝 SUGGESTION FORM</button></div>
-        </div>
-        
-        <div id="monthly" class="section-card"><div class="section-title" data-i18n="title_monthly">📅 MONTHLY TRACKING</div><div id="monthlyStats"></div><div class="chart-container"><canvas id="monthlyChart" style="height:200px;"></canvas></div><div id="monthlyPercentText"></div><div class="progress-container"><div class="progress-bar" id="monProgress"></div></div></div>
-        <div id="yearly" class="section-card"><div class="section-title" data-i18n="title_yearly">📈 YEARLY CHART</div><div class="chart-container"><canvas id="yearlyChart" style="height:200px;"></canvas></div><div id="yearlyStats"></div></div>
-        
-        <div id="debts" class="section-card">
-            <div class="section-title" data-i18n="title_debts">📝 DEBT LIST</div>
-            <!-- Toplam ödenmiş / ödenmemiş kartı -->
-            <div id="debtSummaryContainer" class="debt-summary-card"></div>
-            <button class="btn-save" id="newDebtBtn" style="margin-bottom:14px;" data-i18n="btn_new_debt">➕ NEW DEBT</button>
-            <div class="debt-tabs">
-                <button class="debt-tab-btn active" data-tab="unpaid" data-i18n="tab_unpaid">🔴 UNPAID DEBTS</button>
-                <button class="debt-tab-btn" data-tab="paid" data-i18n="tab_paid">✅ PAID DEBTS</button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="sidebar" id="sidebarPanel">
+    <div class="sidebar-header"><h3><i class="fas fa-coins"></i> BORÇ ASİSTANI</h3>
+        <div class="login-area" id="loginArea">
+            <div id="loggedOutView">
+                <input type="text" id="loginUsername" placeholder="Kullanıcı Adınız">
+                <button id="doLoginBtn"><i class="fas fa-key"></i> GİRİŞ YAP</button>
             </div>
-            <div id="debtListContainer"></div>
-            <div id="debtPagination" class="pagination"></div>
-        </div>
-        
-        <div id="income" class="section-card"><div class="section-title" data-i18n="title_income">💵 INCOMES</div><button class="btn-save" id="newIncomeBtn" data-i18n="btn_new_income">➕ NEW INCOME</button><div id="incomeList" class="income-list"></div><div class="chart-container"><canvas id="incomeChart" style="height:200px;"></canvas></div></div>
-        <div id="alarms" class="section-card"><div class="section-title" data-i18n="title_alarms">🔔 DEBT REMINDERS</div><div id="debtAlarmsList" class="debt-list"></div><div class="section-title" style="margin-top:16px;" data-i18n="title_manual_alarms">📌 MANUAL ALARMS</div><button class="btn-save" id="newAlarmBtn" data-i18n="btn_new_alarm">➕ NEW ALARM</button><div id="alarmsList"></div></div>
-        <div id="notifications" class="section-card"><div class="section-title" data-i18n="title_notifications">✉️ NOTIFICATIONS</div><button class="btn-save" id="newNotifBtn" data-i18n="btn_new_notif">➕ NEW NOTIFICATION</button><button class="btn-save btn-clear-all" id="clearAllNotifsBtn" style="background:#e67e22;" data-i18n="btn_clear_all">🗑️ CLEAR ALL</button><div id="notificationsList"></div></div>
-        <div id="calculator" class="section-card"><div class="section-title" data-i18n="title_calc">🧮 CALCULATOR</div><div class="calc-display" id="calcDisplay">0</div><div class="calc-grid"><button class="calc-btn" data-calc="clear">C</button><button class="calc-btn" data-calc="/">÷</button><button class="calc-btn" data-calc="*">×</button><button class="calc-btn" data-calc="back">⌫</button><button class="calc-btn" data-calc="7">7</button><button class="calc-btn" data-calc="8">8</button><button class="calc-btn" data-calc="9">9</button><button class="calc-btn" data-calc="-">-</button><button class="calc-btn" data-calc="4">4</button><button class="calc-btn" data-calc="5">5</button><button class="calc-btn" data-calc="6">6</button><button class="calc-btn" data-calc="+">+</button><button class="calc-btn" data-calc="1">1</button><button class="calc-btn" data-calc="2">2</button><button class="calc-btn" data-calc="3">3</button><button class="calc-btn" data-calc="=">=</button><button class="calc-btn" data-calc="0">0</button><button class="calc-btn" data-calc=".">.</button></div></div>
-        
-        <div id="aiStrategy" class="section-card"><div class="ai-strategy-card"><div class="ai-strategy-header"><i class="fas fa-robot" style="font-size: 1.4rem;"></i> <span data-i18n="ai_header">🤖 AI-Powered Smart Debt Assistant</span></div><div id="aiStrategyInner"></div></div></div>
-        
-        <div id="help" class="section-card">
-            <div class="section-title" data-i18n="help_title">❓ HELP / USER GUIDE</div>
-            <div class="help-card"><h4 data-i18n="help_alarm_title"><i class="fas fa-bell"></i> Timed Alarms</h4><p data-i18n="help_alarm_desc">Set a reminder date & time while adding a debt. You'll receive in-app and browser notifications when the time comes.</p></div>
-            <div class="help-card"><h4 data-i18n="help_data_title"><i class="fas fa-database"></i> Data Storage</h4><p data-i18n="help_data_desc">All data is stored in your browser (localStorage). Don't forget to take regular backups.</p><div class="help-warning" data-i18n="help_data_warning">⚠️ Clearing browser cache will delete data.</div></div>
-            <div class="help-card"><h4 data-i18n="help_start_title"><i class="fas fa-rocket"></i> Quick Start</h4><div class="help-step"><div class="help-step-num">1</div><div class="help-step-text" data-i18n="help_step1">Go to Incomes page, add your incomes.</div></div><div class="help-step"><div class="help-step-num">2</div><div class="help-step-text" data-i18n="help_step2">Go to Debts page, add your debts.</div></div><div class="help-step"><div class="help-step-num">3</div><div class="help-step-text" data-i18n="help_step3">Check your status on Overview page.</div></div></div>
-            <div class="help-card"><h4 data-i18n="help_ai_title"><i class="fas fa-chart-line"></i> AI Strategy</h4><p data-i18n="help_ai_desc">The AI-powered analysis page suggests the best payment strategy (snowball/avalanche) based on your debts.</p></div>
-        </div>
-        
-        <div id="feedback" class="section-card">
-            <div class="section-title" data-i18n="feedback_title">💬 FEEDBACK & SUPPORT</div>
-            <div class="help-card"><h4 data-i18n="feedback_form_title">📝 Suggestion & Complaint Form</h4><div class="form-group"><label class="form-label" data-i18n="feedback_name">Your Name</label><input type="text" id="feedbackName" class="form-input" placeholder="Your name"></div><div class="form-group"><label class="form-label" data-i18n="feedback_email">E-mail</label><input type="email" id="feedbackEmail" class="form-input" placeholder="example@mail.com"></div><div class="form-group"><label class="form-label" data-i18n="feedback_topic">Subject</label><select id="feedbackTopic" class="form-select"><option value="suggestion">💡 SUGGESTION</option><option value="complaint">⚠️ COMPLAINT</option><option value="bug">🐛 BUG</option></select></div><div class="form-group"><label class="form-label" data-i18n="feedback_message">Your Message</label><textarea id="feedbackMessage" class="form-textarea" rows="3" placeholder="Detailed description..."></textarea></div><button class="btn-save" onclick="sendFeedback()" data-i18n="feedback_send">📤 SEND</button></div>
-        </div>
-        
-        <div id="about" class="section-card">
-            <div class="section-title" data-i18n="about_title">ℹ️ ABOUT</div>
-            <div class="about-card">
-                <div class="about-icon"><i class="fas fa-coins"></i></div>
-                <div class="about-version" data-i18n="about_version">Version 3.6 | AI Powered + Animated</div>
-                <h3 data-i18n="about_appname">Debt Tracking System</h3>
-                <p data-i18n="about_desc">Timed reminders, multi-language, dark mode, paginated debt lists, AI strategy, live exchange rates and animated charts.</p>
-                <div class="feature-list">
-                    <ul>
-                        <li><i class="fas fa-check-circle" style="color:#11998e;"></i> <span data-i18n="feature1">Real-time graphs</span></li>
-                        <li><i class="fas fa-bell"></i> <span data-i18n="feature2">Timed notifications (max 3 times)</span></li>
-                        <li><i class="fas fa-chart-line"></i> <span data-i18n="feature3">AI strategy assistant</span></li>
-                        <li><i class="fas fa-globe"></i> <span data-i18n="feature4">Turkish / English</span></li>
-                        <li><i class="fas fa-moon"></i> <span data-i18n="feature5">Dark mode</span></li>
-                        <li><i class="fas fa-chart-simple"></i> <span data-i18n="feature6">Live exchange rates</span></li>
-                        <li><i class="fas fa-play-circle"></i> <span data-i18n="feature7">Animated charts</span></li>
-                    </ul>
-                </div>
-                <p style="margin-top:16px;"><strong data-i18n="developer">Developer: Serkan Sağlam</strong><br><span data-i18n="copyright">© 2026 All rights reserved.</span></p>
+            <div id="loggedInView" style="display:none;">
+                <span id="displayUsername"></span>
+                <button id="logoutBtn"><i class="fas fa-sign-out-alt"></i> ÇIKIŞ YAP</button>
             </div>
         </div>
-        <div class="footer" style="text-align:center; padding:16px; color:#8ba0bc; font-size:0.7rem;"><span data-i18n="footer_text">© 2026 Debt Tracking System | Developer: Serkan Sağlam</span></div>
     </div>
-    <div class="sync-status" id="syncToast">💾 SAVED</div>
+    <div class="sidebar-item" data-page="overview"><i class="fas fa-chart-line"></i> GENEL BAKIŞ</div>
+    <div class="sidebar-item" data-page="monthly"><i class="fas fa-calendar-alt"></i> AYLIK TAKİP</div>
+    <div class="sidebar-item" data-page="yearly"><i class="fas fa-chart-bar"></i> YILLIK TAKİP</div>
+    <div class="sidebar-item" data-page="debts"><i class="fas fa-file-invoice-dollar"></i> BORÇ LİSTESİ</div>
+    <div class="sidebar-item" data-page="income"><i class="fas fa-hand-holding-usd"></i> GELİRLER</div>
+    <div class="sidebar-item" data-page="expenses"><i class="fas fa-shopping-cart"></i> GİDERLER</div>
+    <div class="sidebar-item" data-page="installments"><i class="fas fa-calendar-week"></i> TAKSİTLİ BORÇLAR</div>
+    <div class="sidebar-item" data-page="alarms"><i class="fas fa-bell"></i> ALARMLAR</div>
+    <div class="sidebar-item" data-page="notifications"><i class="fas fa-envelope"></i> BİLDİRİMLER</div>
+    <div class="sidebar-item" data-page="aiStrategy"><i class="fas fa-robot"></i> AI STRATEJİ</div>
+    <div class="sidebar-item" data-page="help"><i class="fas fa-question-circle"></i> YARDIM</div>
+    <div class="sidebar-item" data-page="feedback"><i class="fas fa-headset"></i> İLETİŞİM</div>
+    <div class="sidebar-item" data-page="about"><i class="fas fa-info-circle"></i> HAKKINDA</div>
+    <div class="sidebar-item" data-page="privacy"><i class="fas fa-shield-alt"></i> GİZLİLİK POLİTİKASI</div>
+    <div class="sidebar-item" id="exportBtn"><i class="fas fa-download"></i> DIŞA AKTAR</div>
+    <div class="sidebar-item" id="importBtn"><i class="fas fa-upload"></i> İÇE AKTAR</div>
+    <div class="sidebar-item reset-btn" id="resetBtn"><i class="fas fa-trash-alt"></i> TÜM VERİLERİ SIFIRLA</div>
+    <!-- Yan menü alt reklam alanı -->
+    <div class="ad-container" style="margin-top: 16px;">
+        <div class="ad-label">Reklam</div>
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-4449700232321088"
+             data-ad-slot="3262325872"
+             data-ad-format="rectangle"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+</div>
 
-    <!-- MODALS -->
-    <div class="modal-overlay" id="debtModal"><div class="modal-box"><div class="modal-header"><span class="modal-title" data-i18n="modal_debt_title">NEW DEBT</span><button class="modal-close" id="closeDebtModalBtn">✕</button></div><div class="form-group"><label class="form-label" data-i18n="debt_name_label">Debt name</label><input type="text" id="debtNameInput" class="form-input"></div><div class="form-group"><label class="form-label" data-i18n="debt_amount_label">Amount (₺)</label><input type="number" id="debtAmountInput" class="form-input"></div><div class="form-group"><label class="form-label" data-i18n="debt_paid_label">Paid amount</label><input type="number" id="debtPaidInput" class="form-input"></div><div><input type="checkbox" id="debtFullyPaidCheck"> <span data-i18n="debt_fully_paid">Fully paid</span></div><div class="form-group"><label class="form-label" data-i18n="debt_reminder_label">Reminder date & time</label><input type="datetime-local" id="debtReminderDateTime" class="form-input"></div><button class="btn-save" id="saveDebtBtn" data-i18n="save_btn">SAVE</button><button class="btn-delete" id="deleteDebtBtn" style="display:none;" data-i18n="delete_btn">DELETE</button></div></div>
-    <div class="modal-overlay" id="incomeModal"><div class="modal-box"><div class="modal-header"><span class="modal-title" data-i18n="modal_income_title">INCOME</span><button class="modal-close closeIncome">✕</button></div><input type="text" id="incomeNameInput" placeholder="Income name" class="form-input"><input type="number" id="incomeAmountInput" placeholder="Amount" class="form-input"><button class="btn-save" id="saveIncomeBtn" data-i18n="save_btn">SAVE</button><button class="btn-delete" id="deleteIncomeBtn" style="display:none;" data-i18n="delete_btn">DELETE</button></div></div>
-    <div class="modal-overlay" id="alarmModal"><div class="modal-box"><div class="modal-header"><span class="modal-title" data-i18n="modal_alarm_title">MANUAL ALARM</span><button class="modal-close closeAlarm">✕</button></div><input type="text" id="alarmTitleInput" placeholder="Title" class="form-input"><textarea id="alarmDescInput" placeholder="Description" class="form-textarea" rows="2"></textarea><input type="number" id="alarmAmountInput" placeholder="Amount" class="form-input"><input type="datetime-local" id="alarmDateTimeInput" class="form-input"><button class="btn-save" id="saveAlarmBtn" data-i18n="save_btn">SAVE</button><button class="btn-delete" id="deleteAlarmBtn" style="display:none;" data-i18n="delete_btn">DELETE</button></div></div>
-    <div class="modal-overlay" id="notifModal"><div class="modal-box"><div class="modal-header"><span class="modal-title" data-i18n="modal_notif_title">NOTIFICATION</span><button class="modal-close closeNotif">✕</button></div><input type="text" id="notifTitleInput" placeholder="Title" class="form-input"><textarea id="notifDescInput" placeholder="Description" class="form-textarea" rows="2"></textarea><select id="notifTypeInput" class="form-select"><option value="success">SUCCESS</option><option value="info">INFO</option><option value="alarm">WARNING</option></select><button class="btn-save" id="saveNotifBtn" data-i18n="save_btn">SAVE</button><button class="btn-delete" id="deleteNotifBtn" style="display:none;" data-i18n="delete_btn">DELETE</button></div></div>
+<div class="header">
+    <div class="header-top">
+        <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+        <div class="logo-area"><h1>🇹🇷 BORÇ TAKİP YÖNETİM SİSTEMİ</h1></div>
+        <div class="clock-wrapper"><div class="header-clock" id="liveClock">--:--:--</div><button class="clock-flag-btn" id="clockToggleBtn">🕒</button></div>
+    </div>
+    <p><i class="fas fa-chart-line"></i> Gelir, gider, taksitli borçlar ve yapay zeka destekli finansal asistan</p>
+    <div class="header-controls">
+        <div class="notification-bell" id="notificationBellBtn"><i class="fas fa-bell"></i><span id="notifBadge" class="notification-badge" style="display:none;">0</span></div>
+        <button class="theme-toggle" id="themeToggleBtn"><i class="fas fa-moon"></i> KARANLIK</button>
+        <select id="colorThemeSelect" class="color-theme-btn"><option value="default">MAVİ</option><option value="green">YEŞİL</option><option value="purple">MOR</option><option value="orange">TURUNCU</option></select>
+    </div>
+</div>
 
-    <!-- DÖVİZ MODAL -->
-    <div class="modal-overlay" id="exchangeModal">
-        <div class="modal-box" style="max-width: 420px;">
-            <div class="modal-header">
-                <span class="modal-title"><i class="fas fa-coins"></i> <span data-i18n="exchange_title">Live Exchange Rates</span></span>
-                <button class="modal-close" id="closeExchangeModalBtn">✕</button>
-            </div>
-            <div id="exchangeContent"><div class="currency-load"><i class="fas fa-spinner fa-pulse"></i> Loading rates...</div></div>
-            <div class="last-update" id="exchangeLastUpdate"></div>
+<div class="container" id="mainApp">
+    <!-- Üst menü butonlarından önce reklam -->
+    <div class="ad-container">
+        <div class="ad-label">Reklam</div>
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-4449700232321088"
+             data-ad-slot="3262325872"
+             data-ad-format="auto"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    
+    <div class="nav-grid" id="navGrid"></div>
+    <div class="social-grid"><div class="social-icon whatsapp" onclick="shareApp('whatsapp')"><i class="fab fa-whatsapp"></i></div><div class="social-icon twitter" onclick="shareApp('twitter')"><i class="fab fa-twitter"></i></div><div class="social-icon facebook" onclick="shareApp('facebook')"><i class="fab fa-facebook-f"></i></div><div class="social-icon email" onclick="shareApp('email')"><i class="fas fa-envelope"></i></div></div>
+    
+    <div id="overview" class="page-content active">
+        <div class="stats-grid" id="statsGrid"></div>
+        <!-- İstatistiklerden hemen sonra reklam -->
+        <div class="ad-container">
+            <div class="ad-label">Reklam</div>
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-4449700232321088"
+                 data-ad-slot="3262325872"
+                 data-ad-format="rectangle"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+        <div class="debt-summary-card" id="installmentExtraCards" style="background: linear-gradient(135deg, #f97316, #eab308); color: white;"><div><i class="fas fa-calendar-week"></i> 📌 Toplam Taksitli Borç (Kalan): <span id="totalInstallmentRemaining">0 ₺</span></div><div><i class="fas fa-clock"></i> Bu Ay Ödenecek Taksit: <span id="monthlyInstallmentDue">0 ₺</span></div></div>
+        <div class="section-card"><div class="section-title"> BORÇ vs GELİR/GİDER</div><div class="chart-container"><canvas id="financialCompareChart"></canvas></div></div>
+        <div class="section-card"><div class="section-title"> SON 6 AY BORÇ TRENDİ</div><div class="chart-container"><canvas id="trendChart"></canvas></div></div>
+        <div class="section-card"><div class="section-title"> ÖDEME İLERLEMESİ</div><div style="background:#e2e8f0; border-radius:30px;"><div id="mainProgress" style="background:linear-gradient(90deg,#11998e,#38ef7d); height:8px; width:0%; border-radius:30px;"></div></div><div style="margin-top:8px;">ÖDENEN ORAN: <span id="progressText">%0</span></div></div>
+        <div class="section-card"><div class="section-title"> ÖDENEN / KALAN</div><div class="chart-container"><canvas id="debtChart"></canvas></div></div>
+    </div>
+    
+    <div id="monthly" class="section-card"><div class="section-title"> AYLIK ÖDEME TAKİBİ</div><div class="filter-group"><select id="monthYearSelect"></select></div><div id="monthlyStats" class="debt-summary-card"></div><div class="chart-container"><canvas id="monthlyChart"></canvas></div><div class="chart-container"><canvas id="monthlyIncomeExpenseChart"></canvas></div><div id="monthlyDetailText" style="margin-top:12px; padding:10px; background:var(--hover-bg); border-radius:20px;"></div></div>
+    <div id="yearly" class="section-card"><div class="section-title"> YILLIK ÖDEME ANALİZİ</div><div class="filter-group"><select id="yearSelect"></select></div><div id="yearlyStats" class="debt-summary-card"></div><div class="chart-container"><canvas id="yearlyChart"></canvas></div><div id="yearlyDetailText"></div></div>
+    
+    <div id="debts" class="section-card">
+        <div class="section-title"> BORÇ LİSTESİ</div>
+        <div id="debtSummaryContainer" class="debt-summary-card"></div>
+        <button class="btn-save" id="newDebtBtn"><i class="fas fa-plus-circle"></i> YENİ BORÇ EKLE</button>
+        <div class="debt-tabs">
+            <button class="debt-tab-btn active" data-tab="unpaid"> ÖDENMEMİŞ</button>
+            <button class="debt-tab-btn" data-tab="paid"> ÖDENMİŞ</button>
+            <button class="debt-tab-btn" data-tab="all"> TÜM BORÇLAR</button>
+        </div>
+        <!-- Filtre butonlarının altına reklam -->
+        <div class="ad-container">
+            <div class="ad-label">Reklam</div>
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-4449700232321088"
+                 data-ad-slot="3262325872"
+                 data-ad-format="auto"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+        <div id="debtListContainer"></div>
+        <div style="display: flex; gap: 12px; margin-top: 12px;"><button id="pdfDebtBtn" class="btn-save" style="background:#e67e22;"><i class="fas fa-file-pdf"></i> PDF</button><button id="printDebtBtn" class="btn-save" style="background:#2c3e50;"><i class="fas fa-print"></i> YAZDIR</button></div>
+    </div>
+    
+    <div id="income" class="section-card"><div class="section-title"> GELİRLER</div><button class="btn-save" id="newIncomeBtn"> YENİ GELİR</button><div id="incomeList"></div><div class="chart-container"><canvas id="incomeChart"></canvas></div><div class="chart-container"><canvas id="incomeTrendChart"></canvas></div></div>
+    <div id="expenses" class="section-card"><div class="section-title"> GİDERLER</div><div style="display: flex; gap: 12px;"><button class="btn-save" id="newExpenseBtn"> GİDER EKLE</button><button class="btn-save" id="newCategoryBtn"> KATEGORİ EKLE</button></div><div id="expenseCategoriesList" class="debt-summary-card"></div><div id="expensesListContainer"></div><div class="chart-container"><canvas id="expenseChart"></canvas></div></div>
+    <div id="installments" class="section-card"><div class="section-title"> TAKSİTLİ BORÇLAR</div><div id="installmentSummary" class="debt-summary-card"></div><button class="btn-save" id="newInstallmentBtn"> YENİ TAKSİTLİ BORÇ</button><div id="installmentsListContainer"></div></div>
+    <div id="alarms" class="section-card"><div class="section-title"> ALARMLAR</div><button class="btn-save" id="newAlarmBtn"> YENİ ALARM</button><div id="alarmsList"></div></div>
+    <div id="notifications" class="section-card"><div class="section-title"> BİLDİRİMLER</div><button class="btn-save" id="newNotifBtn"> YENİ BİLDİRİM</button><button class="btn-save" id="clearAllNotifsBtn"> TÜMÜNÜ TEMİZLE</button><div id="notificationsList"></div></div>
+    
+    <div id="aiStrategy" class="section-card">
+        <div class="section-title"><i class="fas fa-robot"></i> YAPAY ZEKA ASİSTANI</div>
+        <div class="ai-chat-container">
+            <div class="chat-messages" id="chatMessages"><div class="chat-message bot"><div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">Merhaba! Borç, gelir, gider, taksitler hakkında sorular sorabilirsiniz.</div></div></div>
+            <div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Soru sor... (örnek: toplam borç, risk durumu, kalan net gelir)"><button id="chatSendBtn" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button></div>
+        </div>
+        <div class="ad-container">
+            <div class="ad-label">Reklam</div>
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-4449700232321088"
+                 data-ad-slot="3262325872"
+                 data-ad-format="rectangle"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
     </div>
+    
+    <div id="help" class="section-card"><div class="section-title"><i class="fas fa-question-circle"></i> KULLANIM KILAVUZU</div>
+        <div class="help-card"><h4>📘 BAŞLANGIÇ</h4><p>Önce gelirlerinizi ekleyin, ardından borçlarınızı (tek seferlik veya taksitli) girin. Giderlerinizi kategorilerle takip edin. Sol menüden tüm sayfalara erişebilirsiniz.</p></div>
+        <div class="help-card"><h4>💰 BORÇ YÖNETİMİ</h4><p>Borç Listesi sayfasında tüm borçlarınızı görün, düzenleyin, silin, kategori değiştirin. "Ödendi" butonu ile borcu kapatabilir veya geri alabilirsiniz. Taksitli borçlarda her ay taksit öde butonu ile ilerleyin.</p></div>
+        <div class="help-card"><h4>📊 RAPORLAMA</h4><p>Aylık Takip sayfasında yıl ve ay seçerek o aya ait ödemeleri, gelir-gider dengesini grafiklerle inceleyin. Yıllık Takip sayfasında yıl bazında ödeme eğilimlerini görün. Tüm grafikler animasyonludur.</p></div>
+        <div class="help-card"><h4>🤖 AI ASİSTAN</h4><p>Mevcut borç, gelir ve gider verilerinizi analiz eder, risk seviyenizi belirtir, "toplam borç", "risk", "kalan net gelir" gibi sorulara yanıt verir.</p></div>
+        <div class="help-card"><h4>🖨️ PDF & YAZDIRMA</h4><p>Borç Listesi sayfasında "PDF Oluştur" veya "Yazdır" butonları ile mevcut filtrenize (ödenmiş/ödenmemiş/tüm) göre rapor alabilirsiniz.</p></div>
+        <div class="help-card"><h4>💾 VERİ YEDEKLEME</h4><p>Yan menüden "Dışa Aktar" ile tüm verilerinizi JSON dosyası olarak kaydedin, "İçe Aktar" ile geri yükleyin. Kullanıcı girişi yaparak farklı hesaplar oluşturabilirsiniz.</p></div>
+        <div class="help-card"><h4>🎨 TEMA & SAAT</h4><p>Başlıkta bulunan saat simgesi ile saati gizleyip gösterebilirsiniz. Aydınlık/Karanlık mod ve 4 farklı renk teması mevcuttur.</p></div>
+        <div class="help-card"><h4>📱 MOBİL UYUMLU</h4><p>Responsive tasarım sayesinde telefon ve tabletlerde rahat kullanım. Tüm özellikler dokunmatik ekranlar için optimize edilmiştir.</p></div>
+    </div>
+    
+    <div id="feedback" class="section-card"><div class="section-title"> İLETİŞİM</div><input type="text" id="contactName" class="form-input" placeholder="Adınız"><textarea id="contactMessage" class="form-input" rows="3" placeholder="Mesajınız"></textarea><button class="btn-save" id="sendContactBtn"> MESAJ GÖNDER</button></div>
+    
+    <div id="about" class="section-card"><div class="section-title"><i class="fas fa-info-circle"></i> HAKKINDA</div>
+        <div style="line-height:1.6">
+            <p><strong><i class="fas fa-chart-pie"></i> Borç Takip Sistemi 5.0</strong> - Kişisel finans yönetiminde devrim yaratan, yapay zeka destekli kapsamlı bir çözüm.</p><br>
+            <p><i class="fas fa-user-circle"></i> <strong>Geliştirici:</strong> Serkan Sağlam</p>
+            <p><i class="fas fa-code-branch"></i> <strong>Versiyon:</strong> 5.0 (2026) - Ultimate Edition</p><br>
+            <p><strong><i class="fas fa-star"></i> Öne Çıkan Özellikler:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 8px;">
+                <li><i class="fas fa-check-circle"></i> Tek seferlik ve taksitli borç takibi (düzenleme/silme/durum değiştirme)</li>
+                <li><i class="fas fa-check-circle"></i> Kategorili gelir & gider yönetimi (gelişmiş kategori düzenleme)</li>
+                <li><i class="fas fa-check-circle"></i> Aylık ve yıllık grafiksel raporlama (animasyonlu Chart.js grafikleri)</li>
+                <li><i class="fas fa-check-circle"></i> Yapay zeka ile akıllı finansal asistan ve risk analizi</li>
+                <li><i class="fas fa-check-circle"></i> Filtreli PDF çıktısı ve yazdırma desteği</li>
+                <li><i class="fas fa-check-circle"></i> 4 farklı renk teması + Karanlık/aydınlık mod (yüksek kontrast)</li>
+                <li><i class="fas fa-check-circle"></i> Zamanlı alarmlar ve bildirimler</li>
+                <li><i class="fas fa-check-circle"></i> Veri yedekleme (JSON içe/dışa aktar) ve çoklu kullanıcı desteği</li>
+                <li><i class="fas fa-check-circle"></i> Canlı saat ve Türk bayrağı ile saat gizleme</li>
+                <li><i class="fas fa-check-circle"></i> Tam mobil uyumlu, dokunmatik dostu arayüz</li>
+            </ul><br>
+            <p>Bu uygulama, bireylerin borçlarını kontrol altına almasına, harcama alışkanlıklarını iyileştirmesine ve finansal hedeflerine ulaşmasına yardımcı olmak için tasarlanmıştır. Tüm veriler tarayıcınızın yerel deposunda saklanır, hiçbir sunucuya aktarılmaz. Güvenli ve hızlıdır.</p>
+            <p style="margin-top: 12px;"><i class="far fa-copyright"></i> 2026 Serkan Sağlam - Tüm hakları saklıdır. Lisans: MIT</p>
+        </div>
+    </div>
+    
+    <!-- Gizlilik Politikası Sayfası -->
+    <div id="privacy" class="section-card">
+        <div class="section-title"><i class="fas fa-shield-alt"></i> GİZLİLİK POLİTİKASI</div>
+        <div style="line-height: 1.6; font-size: 0.85rem;">
+            <p><strong>Son güncelleme:</strong> 16 Mayıs 2026</p>
+            <p>Bu uygulama (“Borç Takip Sistemi”) kişisel verilerinizin güvenliğine önem vermektedir. İşte verilerinizin nasıl işlendiğine dair özet bilgiler:</p>
+            <ul style="margin-left: 20px; margin-top: 8px;">
+                <li><strong>Veri Toplanmaz:</strong> Tüm borç, gelir, gider ve diğer finansal verileriniz <strong>yalnızca sizin tarayıcınızın yerel deposunda (localStorage)</strong> saklanır. Hiçbir veri sunucuya gönderilmez veya üçüncü taraflarla paylaşılmaz.</li>
+                <li><strong>Çerezler ve Reklamlar:</strong> Sitemizde yayınlanan Google AdSense reklamları, size özel reklamlar sunmak için çerezler kullanabilir. Google’ın çerez kullanımı hakkında bilgi almak için <a href="https://policies.google.com/technologies/ads" target="_blank">Google Reklam Politikası</a> sayfasını ziyaret edebilirsiniz.</li>
+                <li><strong>Kullanıcı Girişi:</strong> Farklı kullanıcı profilleri oluşturmanız durumunda bile tüm veriler yalnızca tarayıcınızdaki localStorage’da tutulur. Uygulama dışına aktarılmaz.</li>
+                <li><strong>Harici Bağlantılar:</strong> Yardım, iletişim ve sosyal paylaşım butonları üçüncü taraf sitelere yönlendirme yapabilir; bu sitelerin gizlilik uygulamalarından sorumlu değiliz.</li>
+                <li><strong>Çocukların Kullanımı:</strong> Uygulama 13 yaş altı çocuklar için tasarlanmamıştır ve kasıtlı olarak onlardan veri toplamaz.</li>
+                <li><strong>Politika Değişiklikleri:</strong> Bu sayfayı dilediğimiz zaman güncelleyebiliriz. Değişiklikler yayınlandığı anda yürürlüğe girer.</li>
+            </ul>
+            <p><strong>İletişim:</strong> Gizlilikle ilgili sorularınız için <a href="mailto:destek@borctakip.com">destek@borctakip.com</a> adresine yazabilirsiniz.</p>
+            <p><i class="fas fa-database"></i> Bu uygulama <strong>sunucu barındırmaz</strong> – tamamen istemci taraflıdır. Verileriniz size aittir.</p>
+        </div>
+    </div>
+    
+    <div class="footer">Akıllı Bütçe Asistanı | Sürüm 5.0</div>
+</div>
+<div class="sync-status" id="syncToast"><i class="fas fa-save"></i> KAYDEDİLDİ</div>
 
-    <script>
-        // ---------------------------- TAM ÇOKLU DİL SİSTEMİ (Tüm metinler dinamik) ----------------------------
-        const translations = {
-            tr: {
-                sidebar_overview: "📊 GENEL BAKIŞ", sidebar_monthly: "📅 AYLIK TAKİP", sidebar_yearly: "📈 YILLIK TAKİP", sidebar_debts: "📝 BORÇ LİSTESİ",
-                sidebar_income: "💵 GELİRLER", sidebar_alarms: "🔔 ALARMLAR", sidebar_notifications: "✉️ BİLDİRİMLER", sidebar_calculator: "🧮 HESAP MAKİNESİ",
-                sidebar_ai: "🤖 AI STRATEJİ", sidebar_help: "❓ YARDIM", sidebar_feedback: "💬 İLETİŞİM", sidebar_about: "ℹ️ HAKKINDA",
-                sidebar_export: "📤 DIŞA AKTAR", sidebar_import: "📥 İÇE AKTAR", sidebar_reset: "🗑️ SIFIRLA",
-                btn_feedback: "📝 ÖNERİ & ŞİKAYET FORMU", btn_new_debt: "➕ YENİ BORÇ EKLE", btn_new_income: "➕ YENİ GELİR EKLE", btn_new_alarm: "➕ YENİ ALARM EKLE",
-                btn_new_notif: "➕ YENİ BİLDİRİM", btn_clear_all: "🗑️ TÜM BİLDİRİMLERİ TEMİZLE",
-                tab_unpaid: "🔴 Ödenmemiş Borçlar", tab_paid: "✅ Ödenmiş Borçlar", save_btn: "KAYDET", delete_btn: "SİL",
-                status_paid: "ÖDENDİ", status_unpaid: "BEKLİYOR", empty_unpaid: "📭 Ödenmemiş borç bulunmuyor.", empty_paid: "📭 Ödenmiş borç bulunmuyor.",
-                empty_income: "💵 Gelir yok", empty_alarms: "🔔 Aktif hatırlatıcı yok", empty_manual: "📌 Manuel alarm yok", empty_notif: "✉️ Bildirim yok",
-                total_debt: "TOPLAM BORÇ", paid: "ÖDENEN", remaining: "KALAN", ratio: "ORAN", income: "GELİR", deficit: "EKSİK", progress_label: "ÖDEME İLERLEMESİ",
-                ai_debt_burden: "Borç Yükü", ai_risk: "Risk Seviyesi", ai_strategy_label: "Önerilen Strateji", ai_tip: "AI İpucu", ai_motivation: "Motivasyon",
-                risk_high: "YÜKSEK RİSK", risk_medium: "ORTA RİSK", risk_low: "DÜŞÜK RİSK", risk_high_desc: "Acil aksiyon alın!", risk_medium_desc: "Dengeli ilerleyin", risk_low_desc: "Kontrollü durum",
-                all_debts_paid: "🎉 Tüm borçlar bitti! Tebrikler!", snowball_strategy: "Kartopu ile en küçük kalan borç", step_by_step: "Her ödeme sizi hedefe yaklaştırır 💪", advice_save: "Borçlarınızı küçük parçalara bölüp düzenli ödeme alışkanlığı edinin.",
-                title_compare: "💰 BORÇ & GELİR KARŞILAŞTIRMASI", title_trend: "📈 SON 6 AY BORÇ DEĞİŞİMİ", title_financial: "📊 FİNANSAL DURUM", title_doughnut: "🍩 ÖDENEN / KALAN", title_support: "📞 İLETİŞİM & DESTEK",
-                title_monthly: "📅 AYLIK TAKİP", title_yearly: "📈 YILLIK GRAFİK", title_debts: "📝 BORÇ LİSTESİ", title_income: "💵 GELİRLER", title_alarms: "🔔 BORÇ HATIRLATICILARI", title_manual_alarms: "📌 MANUEL ALARMLAR",
-                title_notifications: "✉️ BİLDİRİMLER", title_calc: "🧮 HESAP MAKİNESİ", ai_header: "🤖 AI Destekli Akıllı Borç Yönetim Asistanı",
-                help_title: "❓ YARDIM / KULLANIM KILAVUZU", help_alarm_title: "Saatli Alarmlar", help_alarm_desc: "Borç eklerken “Hatırlatma Tarihi & Saati” seçin. Zamanı geldiğinde hem uygulama içi hem de tarayıcı bildirimi alırsınız.",
-                help_data_title: "Veri Saklama", help_data_desc: "Tüm veriler tarayıcınızda (localStorage) saklanır. Düzenli yedek almayı unutmayın.", help_data_warning: "⚠️ Tarayıcı önbelleği temizlenirse veriler silinir.",
-                help_start_title: "Hızlı Başlangıç", help_step1: "Gelirler sayfasına gidin, gelirlerinizi ekleyin.", help_step2: "Borç Listesi sayfasına gidin, borçlarınızı ekleyin.", help_step3: "Genel Bakış sayfasında durumunuzu görün.",
-                help_ai_title: "AI Strateji", help_ai_desc: "AI destekli analiz sayfası, borçlarınıza göre size en uygun ödeme stratejisini önerir (kartopu/çığ yöntemi).",
-                feedback_title: "💬 İLETİŞİM & DESTEK", feedback_form_title: "📝 Öneri & Şikayet Formu", feedback_name: "Adınız", feedback_email: "E-posta", feedback_topic: "Konu", feedback_message: "Mesajınız", feedback_send: "📤 GÖNDER",
-                about_title: "ℹ️ HAKKINDA", about_version: "Versiyon 3.6 | AI Destekli + Animasyonlu", about_appname: "Borç Takip Sistemi", about_desc: "Saatli hatırlatıcı, çoklu dil, karanlık mod, ayrılmış & sayfalanmış borç listeleri, AI strateji, canlı döviz ve animasyonlu grafikler.",
-                feature1: "Gerçek zamanlı grafikler", feature2: "Zamanlı bildirimler (max 3 kez)", feature3: "AI strateji asistanı", feature4: "İngilizce / Türkçe", feature5: "Karanlık mod", feature6: "Anlık Döviz Kurları", feature7: "Animasyonlu Grafikler",
-                developer: "Geliştirici: Serkan Sağlam", copyright: "© 2026 Tüm hakları saklıdır.", footer_text: "© 2026 Borç Takip Sistemi | Geliştirici: Serkan Sağlam",
-                exchange_title: "Güncel Döviz Kurları", modal_debt_title: "YENİ BORÇ", modal_income_title: "GELİR", modal_alarm_title: "MANUEL ALARM", modal_notif_title: "BİLDİRİM",
-                debt_name_label: "Borç adı", debt_amount_label: "Miktar (₺)", debt_paid_label: "Ödenen tutar", debt_fully_paid: "Tamamen ödendi", debt_reminder_label: "Hatırlatma tarihi & saati"
-            },
-            en: {
-                sidebar_overview: "📊 OVERVIEW", sidebar_monthly: "📅 MONTHLY", sidebar_yearly: "📈 YEARLY", sidebar_debts: "📝 DEBT LIST",
-                sidebar_income: "💵 INCOMES", sidebar_alarms: "🔔 ALARMS", sidebar_notifications: "✉️ NOTIFICATIONS", sidebar_calculator: "🧮 CALCULATOR",
-                sidebar_ai: "🤖 AI STRATEGY", sidebar_help: "❓ HELP", sidebar_feedback: "💬 FEEDBACK", sidebar_about: "ℹ️ ABOUT",
-                sidebar_export: "📤 EXPORT", sidebar_import: "📥 IMPORT", sidebar_reset: "🗑️ RESET",
-                btn_feedback: "📝 SUGGESTION FORM", btn_new_debt: "➕ ADD DEBT", btn_new_income: "➕ ADD INCOME", btn_new_alarm: "➕ ADD ALARM",
-                btn_new_notif: "➕ ADD NOTIFICATION", btn_clear_all: "🗑️ CLEAR ALL",
-                tab_unpaid: "🔴 UNPAID DEBTS", tab_paid: "✅ PAID DEBTS", save_btn: "SAVE", delete_btn: "DELETE",
-                status_paid: "PAID", status_unpaid: "PENDING", empty_unpaid: "📭 No unpaid debts.", empty_paid: "📭 No paid debts.",
-                empty_income: "💵 No income", empty_alarms: "🔔 No active reminders", empty_manual: "📌 No manual alarms", empty_notif: "✉️ No notifications",
-                total_debt: "TOTAL DEBT", paid: "PAID", remaining: "REMAINING", ratio: "RATIO", income: "INCOME", deficit: "DEFICIT", progress_label: "PAYMENT PROGRESS",
-                ai_debt_burden: "Debt Burden", ai_risk: "Risk Level", ai_strategy_label: "Suggested Strategy", ai_tip: "AI Tip", ai_motivation: "Motivation",
-                risk_high: "HIGH RISK", risk_medium: "MEDIUM RISK", risk_low: "LOW RISK", risk_high_desc: "Take urgent action!", risk_medium_desc: "Stay balanced", risk_low_desc: "Controlled situation",
-                all_debts_paid: "🎉 All debts paid! Congratulations!", snowball_strategy: "Snowball method with smallest remaining debt", step_by_step: "Every payment brings you closer to the goal 💪", advice_save: "Break debts into small pieces and build regular payment habits.",
-                title_compare: "💰 DEBT vs INCOME", title_trend: "📈 LAST 6 MONTH DEBT TREND", title_financial: "📊 FINANCIAL STATUS", title_doughnut: "🍩 PAID / REMAINING", title_support: "📞 SUPPORT & FEEDBACK",
-                title_monthly: "📅 MONTHLY TRACKING", title_yearly: "📈 YEARLY CHART", title_debts: "📝 DEBT LIST", title_income: "💵 INCOMES", title_alarms: "🔔 DEBT REMINDERS", title_manual_alarms: "📌 MANUAL ALARMS",
-                title_notifications: "✉️ NOTIFICATIONS", title_calc: "🧮 CALCULATOR", ai_header: "🤖 AI-Powered Smart Debt Assistant",
-                help_title: "❓ HELP / USER GUIDE", help_alarm_title: "Timed Alarms", help_alarm_desc: "Set a reminder date & time while adding a debt. You'll receive in-app and browser notifications when the time comes.",
-                help_data_title: "Data Storage", help_data_desc: "All data is stored in your browser (localStorage). Don't forget to take regular backups.", help_data_warning: "⚠️ Clearing browser cache will delete data.",
-                help_start_title: "Quick Start", help_step1: "Go to Incomes page, add your incomes.", help_step2: "Go to Debts page, add your debts.", help_step3: "Check your status on Overview page.",
-                help_ai_title: "AI Strategy", help_ai_desc: "The AI-powered analysis page suggests the best payment strategy (snowball/avalanche) based on your debts.",
-                feedback_title: "💬 FEEDBACK & SUPPORT", feedback_form_title: "📝 Suggestion & Complaint Form", feedback_name: "Your Name", feedback_email: "E-mail", feedback_topic: "Subject", feedback_message: "Your Message", feedback_send: "📤 SEND",
-                about_title: "ℹ️ ABOUT", about_version: "Version 3.6 | AI Powered + Animated", about_appname: "Debt Tracking System", about_desc: "Timed reminders, multi-language, dark mode, paginated debt lists, AI strategy, live exchange rates and animated charts.",
-                feature1: "Real-time graphs", feature2: "Timed notifications (max 3 times)", feature3: "AI strategy assistant", feature4: "Turkish / English", feature5: "Dark mode", feature6: "Live exchange rates", feature7: "Animated charts",
-                developer: "Developer: Serkan Sağlam", copyright: "© 2026 All rights reserved.", footer_text: "© 2026 Debt Tracking System | Developer: Serkan Sağlam",
-                exchange_title: "Live Exchange Rates", modal_debt_title: "NEW DEBT", modal_income_title: "INCOME", modal_alarm_title: "MANUAL ALARM", modal_notif_title: "NOTIFICATION",
-                debt_name_label: "Debt name", debt_amount_label: "Amount (₺)", debt_paid_label: "Paid amount", debt_fully_paid: "Fully paid", debt_reminder_label: "Reminder date & time"
-            }
-        };
-        let currentLang = localStorage.getItem('appLang') || 'en';
-        function t(key) { return translations[currentLang]?.[key] || translations['en'][key] || key; }
-        
-        function applyStaticTranslations() {
-            document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if(key && !el.classList.contains('no-translate')) el.innerText = t(key); });
-            document.getElementById('mainTitle').innerText = currentLang === 'tr' ? 'BORÇ ÖDEME TAKİP PROGRAMI' : 'DEBT PAYMENT TRACKER';
-            document.getElementById('subtitle').innerText = currentLang === 'tr' ? 'Gelir, gider ve borçlarınızı yönetin' : 'Manage your income, expenses and debts';
-            document.getElementById('exchangeBtnText').innerText = currentLang === 'tr' ? 'Döviz Kurları' : 'Exchange Rates';
-            document.getElementById('sidebarTitle').innerText = currentLang === 'tr' ? '💰 BORÇ TAKİP' : '💰 DEBT TRACKER';
-            const isDark = document.body.classList.contains('dark-mode');
-            document.getElementById('themeText').innerText = isDark ? (currentLang === 'tr' ? 'AYDINLIK' : 'LIGHT') : (currentLang === 'tr' ? 'KARANLIK' : 'DARK');
-            document.getElementById('progressLabel').innerText = t('progress_label');
-            const pagesNav = ['overview','monthly','yearly','debts','income','alarms','notifications','calculator','aiStrategy','help','feedback','about'];
-            const navMapTr = { overview:'📊 GENEL', monthly:'📅 AYLIK', yearly:'📈 YILLIK', debts:'📝 BORÇLAR', income:'💵 GELİRLER', alarms:'🔔 ALARMLAR', notifications:'✉️ BİLDİRİMLER', calculator:'🧮 HESAP', aiStrategy:'🤖 AI', help:'❓ YARDIM', feedback:'💬 İLETİŞİM', about:'ℹ️ HAKKINDA' };
-            const navMapEn = { overview:'📊 OVERVIEW', monthly:'📅 MONTHLY', yearly:'📈 YEARLY', debts:'📝 DEBTS', income:'💵 INCOMES', alarms:'🔔 ALARMS', notifications:'✉️ NOTIFICATIONS', calculator:'🧮 CALC', aiStrategy:'🤖 AI', help:'❓ HELP', feedback:'💬 FEEDBACK', about:'ℹ️ ABOUT' };
-            const navMap = currentLang === 'tr' ? navMapTr : navMapEn;
-            document.getElementById('navGrid').innerHTML = pagesNav.map(p => `<button class="nav-btn" data-page="${p}">${navMap[p]}</button>`).join('');
-            if(document.querySelector('.debt-tab-btn')) {
-                document.querySelectorAll('.debt-tab-btn').forEach(btn => { let key = btn.getAttribute('data-i18n'); if(key) btn.innerText = t(key); });
-            }
-            document.querySelectorAll('.modal-title').forEach(el => { let key = el.getAttribute('data-i18n'); if(key) el.innerText = t(key); });
+<!-- MODALLAR -->
+<div class="modal-overlay" id="debtModal"><div class="modal-box"><h4 id="debtModalTitle">BORÇ EKLE/DÜZENLE</h4><input type="text" id="debtName" placeholder="Borç Adı" class="form-input"><input type="number" id="debtAmount" placeholder="Toplam Tutar" class="form-input"><input type="number" id="debtPaid" placeholder="Ödenen Tutar (0)" class="form-input" value="0"><select id="debtCategory" class="form-input"></select><button class="btn-save" id="saveDebtBtn">KAYDET</button><button class="btn-save" id="closeDebtModalBtn">İPTAL</button><input type="hidden" id="editDebtId"></div></div>
+<div class="modal-overlay" id="categoryModal"><div class="modal-box"><h4>KATEGORİ EKLE/DÜZENLE</h4><input type="text" id="categoryName" placeholder="Kategori Adı" class="form-input"><button class="btn-save" id="saveCategoryBtn">EKLE/GÜNCELLE</button><button class="btn-save" id="closeCategoryModalBtn">KAPAT</button><input type="hidden" id="editCategoryId"></div></div>
+<div class="modal-overlay" id="incomeEditModal"><div class="modal-box"><h4>GELİR DÜZENLE</h4><input type="text" id="editIncomeName" placeholder="Ad" class="form-input"><input type="number" id="editIncomeAmount" placeholder="Tutar" class="form-input"><button class="btn-save" id="saveIncomeEditBtn">KAYDET</button><button class="btn-save" id="closeIncomeModalBtn">İPTAL</button><input type="hidden" id="editIncomeId"></div></div>
+<div class="modal-overlay" id="expenseModal"><div class="modal-box"><h4>GİDER EKLE/DÜZENLE</h4><select id="expenseCategorySelect" class="form-input"></select><input type="number" id="expenseAmount" placeholder="Tutar" class="form-input"><input type="text" id="expenseDesc" placeholder="Açıklama" class="form-input"><input type="date" id="expenseDate" class="form-input"><button class="btn-save" id="saveExpenseBtn">KAYDET</button><button class="btn-save" id="closeExpenseModalBtn">KAPAT</button><input type="hidden" id="editExpenseId"></div></div>
+<div class="modal-overlay" id="installmentModal"><div class="modal-box"><h4>TAKSİTLİ BORÇ DÜZENLE</h4><input type="text" id="installmentName" placeholder="Borç Adı" class="form-input"><input type="number" id="installmentTotal" placeholder="Toplam Tutar" class="form-input"><input type="number" id="installmentCount" placeholder="Taksit Sayısı" class="form-input"><input type="number" id="installmentPaidCount" placeholder="Ödenen Taksit Sayısı" class="form-input"><button class="btn-save" id="saveInstallmentBtn">KAYDET</button><button class="btn-save" id="closeInstallmentModalBtn">İPTAL</button><input type="hidden" id="editInstallmentId"></div></div>
+
+<script>
+// ------------------ GLOBAL DEĞİŞKENLER ------------------
+let currentUser = null;
+let debts = [], incomes = [], alarms = [], notifications = [], installmentDebts = [], payments = [], expenses = [], expenseCategories = [];
+let currentDebtTab = 'unpaid';
+let selectedMonth = new Date().getMonth(), selectedYear = new Date().getFullYear();
+const debtCategories = ["Kredi Kartı", "Konut", "Araç", "Sağlık", "Eğitim", "Diğer"];
+
+function formatMoney(n){ return '₺' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function generateId(arr){ return arr.length ? Math.max(...arr.map(x=>x.id)) + 1 : 1; }
+function showToast(msg){ let t=document.getElementById('syncToast'); t.innerText=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1500); }
+function escapeHtml(str){ return String(str).replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+function getStorageKey() { return currentUser ? `user_${currentUser}` : 'user_anonymous'; }
+function saveAllToUser() { let userData = { debts, incomes, alarms, notifications, installmentDebts, payments, expenses, expenseCategories }; localStorage.setItem(getStorageKey(), JSON.stringify(userData)); showToast('Kaydedildi'); }
+
+function loadUserData() {
+    let data = localStorage.getItem(getStorageKey());
+    if(data) { try { let parsed = JSON.parse(data); debts = parsed.debts || []; incomes = parsed.incomes || []; alarms = parsed.alarms || []; notifications = parsed.notifications || []; installmentDebts = parsed.installmentDebts || []; payments = parsed.payments || []; expenses = parsed.expenses || []; expenseCategories = parsed.expenseCategories || [{id:1,name:"Kira"},{id:2,name:"Market"},{id:3,name:"Ulaşım"},{id:4,name:"Yeme İçme"},{id:5,name:"Fatura"}]; debts.forEach(d => { if(!d.category) d.category = "Diğer"; }); } catch(e) { console.error(e); } } else { debts = []; incomes = []; alarms = []; notifications = []; installmentDebts = []; payments = []; expenses = []; expenseCategories = [{id:1,name:"Kira"},{id:2,name:"Market"},{id:3,name:"Ulaşım"},{id:4,name:"Yeme İçme"},{id:5,name:"Fatura"}]; if(!currentUser && debts.length===0) debts.push({id:1, name:"Örnek Borç", amount:5000, paid:0, category:"Diğer"}); if(!currentUser && incomes.length===0) incomes.push({id:1, name:"Maaş", amount:10000, date:new Date().toISOString()}); saveAllToUser(); }
+    renderActivePage(); updateNotifBadge();
+}
+
+// Hesaplamalar
+function getTotalNormalDebt() { return debts.reduce((s,d)=>s+d.amount,0); }
+function getTotalNormalPaid() { return debts.reduce((s,d)=>s+d.paid,0); }
+function getTotalInstallmentRemaining() { return installmentDebts.reduce((s,i)=>{ let t=i.totalAmount/i.installmentCount; return s+((i.installmentCount-i.paidInstallmentCount)*t); },0); }
+function getCurrentMonthInstallmentDue() { let now=new Date(); let upcoming=installmentDebts.reduce((s,i)=>{ if(i.paidInstallmentCount<i.installmentCount) return s+(i.totalAmount/i.installmentCount); return s; },0); let paidThis=payments.filter(p=>{let d=new Date(p.date); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear() && p.type==='installment';}).reduce((s,p)=>s+p.amount,0); return Math.max(0, upcoming-paidThis); }
+function getStats() { let normalTotal=getTotalNormalDebt(); let normalPaid=getTotalNormalPaid(); let totalDebt=normalTotal+getCurrentMonthInstallmentDue(); let totalPaid=normalPaid+payments.filter(p=>p.type==='installment' && new Date(p.date).getMonth()===new Date().getMonth() && new Date(p.date).getFullYear()===new Date().getFullYear()).reduce((s,p)=>s+p.amount,0); let remaining=(normalTotal-normalPaid)+getCurrentMonthInstallmentDue(); let totalIncome=incomes.reduce((s,i)=>s+i.amount,0); let totalExpense=expenses.reduce((s,e)=>s+e.amount,0); let netIncome=totalIncome-(totalExpense+totalPaid); return {totalDebt, totalPaid, remaining, totalIncome, totalExpense, netIncome}; }
+
+function renderStats(){ let s=getStats(); let oran=s.totalDebt?((s.totalPaid/s.totalDebt)*100).toFixed(1):0; document.getElementById('statsGrid').innerHTML=`<div class="stat-card" style="background:#1a4270;"><div> TOPLAM BORÇ*</div><div class="stat-value">${formatMoney(s.totalDebt)}</div></div><div class="stat-card" style="background:#11998e;"><div> ÖDENEN</div><div class="stat-value">${formatMoney(s.totalPaid)}</div></div><div class="stat-card" style="background:#eb3349;"><div> KALAN</div><div class="stat-value">${formatMoney(s.remaining)}</div></div><div class="stat-card" style="background:#1e3a8a;"><div> GELİR</div><div class="stat-value">${formatMoney(s.totalIncome)}</div></div><div class="stat-card" style="background:#e67e22;"><div> GİDER</div><div class="stat-value">${formatMoney(s.totalExpense)}</div></div><div class="stat-card" style="background:#f39c12;"><div> NET KALAN</div><div class="stat-value">${formatMoney(s.netIncome)}</div></div>`; document.getElementById('progressText').innerText=`%${oran}`; document.getElementById('mainProgress').style.width=oran+'%'; document.getElementById('totalInstallmentRemaining').innerText=formatMoney(getTotalInstallmentRemaining()); document.getElementById('monthlyInstallmentDue').innerText=formatMoney(getCurrentMonthInstallmentDue()); }
+
+function drawCharts(){ 
+    let s=getStats(); 
+    if(window.financialChart) window.financialChart.destroy(); 
+    let ctx=document.getElementById('financialCompareChart')?.getContext('2d'); 
+    if(ctx) window.financialChart=new Chart(ctx,{type:'bar',data:{labels:['Toplam Borç','Gelir','Gider','Net'], datasets:[{label:'₺', data:[s.totalDebt, s.totalIncome, s.totalExpense, s.netIncome], backgroundColor:['#1a4270','#11998e','#e67e22','#f39c12']}]}, options:{animation:{duration:1000}}}); 
+    if(window.debtChart) window.debtChart.destroy(); 
+    let ctx2=document.getElementById('debtChart')?.getContext('2d'); 
+    if(ctx2) window.debtChart=new Chart(ctx2,{type:'doughnut',data:{labels:['Ödenen','Kalan'], datasets:[{data:[s.totalPaid, s.remaining], backgroundColor:['#11998e','#eb3349']}]}, options:{animation:{duration:1000}}}); 
+    if(window.trendChart) window.trendChart.destroy(); 
+    let ctx3=document.getElementById('trendChart')?.getContext('2d'); 
+    if(ctx3) window.trendChart=new Chart(ctx3,{type:'line',data:{labels:['6 ay önce','Bugün'], datasets:[{label:'Borç Seviyesi', data:[s.totalDebt*1.2, s.totalDebt], borderColor:'#1a4270'}]}, options:{animation:{duration:1000}}}); 
+    drawIncomeChart(); drawExpenseChart(); drawIncomeTrend(); 
+}
+function drawIncomeChart(){ if(window.incomeChart) window.incomeChart.destroy(); let ctx=document.getElementById('incomeChart')?.getContext('2d'); if(ctx && incomes.length) window.incomeChart=new Chart(ctx,{type:'doughnut',data:{labels:incomes.map(i=>i.name), datasets:[{data:incomes.map(i=>i.amount)}]}, options:{animation:{duration:1000}}}); }
+function drawIncomeTrend(){ if(window.incomeTrendChart) window.incomeTrendChart.destroy(); let ctx=document.getElementById('incomeTrendChart')?.getContext('2d'); if(ctx && incomes.length){ let sorted=[...incomes].sort((a,b)=>new Date(a.date)-new Date(b.date)); window.incomeTrendChart=new Chart(ctx,{type:'line',data:{labels:sorted.map(i=>i.name), datasets:[{label:'Gelir', data:sorted.map(i=>i.amount), borderColor:'#11998e'}]}, options:{animation:{duration:1000}}}); } }
+function drawExpenseChart(){ if(window.expenseChartInstance) window.expenseChartInstance.destroy(); let ctx=document.getElementById('expenseChart')?.getContext('2d'); if(ctx){ let totals={}; expenseCategories.forEach(c=>totals[c.id]=0); expenses.forEach(e=>totals[e.categoryId]=(totals[e.categoryId]||0)+e.amount); window.expenseChartInstance=new Chart(ctx,{type:'doughnut',data:{labels:expenseCategories.map(c=>c.name), datasets:[{data:expenseCategories.map(c=>totals[c.id]||0)}]}, options:{animation:{duration:1000}}}); } }
+
+// AYLIK TAKİP (Tüm aylar eklendi)
+function fillMonthYearSelect() {
+    let select = document.getElementById('monthYearSelect');
+    select.innerHTML = '';
+    let currentYear = new Date().getFullYear();
+    for(let y = 2026; y <= currentYear+2; y++) {
+        for(let m = 0; m < 12; m++) {
+            let option = document.createElement('option');
+            option.value = `${y}-${m}`;
+            option.textContent = `${y} - ${(m+1).toString().padStart(2,'0')}. Ay (${['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'][m]})`;
+            if(y === selectedYear && m === selectedMonth) option.selected = true;
+            select.appendChild(option);
         }
-        function setLanguage(lang) {
-            currentLang = lang;
-            localStorage.setItem('appLang', lang);
-            document.getElementById('languageSelector').value = lang;
-            applyStaticTranslations();
-            renderAll();
-            refreshCharts();
-        }
-        document.getElementById('languageSelector').addEventListener('change', (e) => setLanguage(e.target.value));
-        
-        // ---------------------------- VERİ ve TEMEL İŞLEVLER ----------------------------
-        let debts = [], incomes = [], alarms = [], notifications = [];
-        let editingDebtId = null, editingIncomeId = null, editingAlarmId = null, editingNotifId = null;
-        let debtChart, yearlyChart, incomeChart, monthlyChart, trendChart, financialCompareChart;
-        let currentDebtTab = 'unpaid', currentUnpaidPage = 1, currentPaidPage = 1;
-        const DEBT_ITEMS_PER_PAGE = 8;
-        function getLocalISODateTime(date = new Date()) { const tz=date.getTimezoneOffset(); const local=new Date(date.getTime()-tz*60000); return local.toISOString().slice(0,16); }
-        if ("Notification" in window) Notification.requestPermission();
-        function showBrowserNotification(title, body) { if (Notification.permission === "granted") new Notification(title, { body }); }
-        function formatMoney(n){ return '₺' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
-        function escapeHtml(str){ return str?.replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) || ''; }
-        function generateId(arr){ return arr.length ? Math.max(...arr.map(x=>x.id)) + 1 : 1; }
-        function updateNotifBadge() { let c=notifications.length; let b=document.getElementById('notifBadge'); if(c>0){ b.innerText=c>99?'99+':c; b.style.display='flex'; } else b.style.display='none'; }
-        function checkAndShowDueAlarms() {
-            const now = getLocalISODateTime(); let updated=false;
-            debts.forEach(d=>{ if(d.reminderDateTime && d.reminderDateTime<=now && d.paid<d.amount && (d.reminderCount||0)<3) { notifications.push({id:generateId(notifications), title:`⏰ Reminder: ${d.name}`, desc:`Remaining: ${formatMoney(d.amount-d.paid)}`, type:'alarm', dateTime:now}); showBrowserNotification(`Reminder: ${d.name}`, `Remaining: ${formatMoney(d.amount-d.paid)}`); d.reminderCount=(d.reminderCount||0)+1; updated=true; } });
-            alarms.forEach(a=>{ if(a.dateTime && a.dateTime<=now && (a.reminderCount||0)<3) { notifications.push({id:generateId(notifications), title:`🔔 ${a.title}`, desc:a.desc||'', type:'alarm', dateTime:now}); showBrowserNotification(`Alarm: ${a.title}`, a.desc||''); a.reminderCount=(a.reminderCount||0)+1; updated=true; } });
-            if(updated) { saveAll(); renderAll(); updateNotifBadge(); }
-        }
-        function loadData() {
-            debts = JSON.parse(localStorage.getItem('debts') || '[]');
-            incomes = JSON.parse(localStorage.getItem('incomes') || '[]');
-            alarms = JSON.parse(localStorage.getItem('alarms') || '[]');
-            notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-            renderAll(); checkAndShowDueAlarms(); updateNotifBadge();
-        }
-        function saveAll() { localStorage.setItem('debts', JSON.stringify(debts)); localStorage.setItem('incomes', JSON.stringify(incomes)); localStorage.setItem('alarms', JSON.stringify(alarms)); localStorage.setItem('notifications', JSON.stringify(notifications)); showToast('💾 Saved'); updateNotifBadge(); }
-        function showToast(msg) { let t=document.getElementById('syncToast'); t.innerText=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1200); }
-        function getStats() { let totalDebt=debts.reduce((s,d)=>s+d.amount,0); let totalPaid=debts.reduce((s,d)=>s+d.paid,0); let rem=totalDebt-totalPaid; let rate=totalDebt?(totalPaid/totalDebt*100).toFixed(1):0; let totalIncome=incomes.reduce((s,i)=>s+i.amount,0); let deficit=totalDebt-totalIncome; return {totalDebt,totalPaid,remaining:rem,rate,totalIncome,deficit}; }
-        function createChartWithAnimation(ctx, type, data, customAnimation = {}) {
-            const defaultAnimation = { duration: 1400, easing: 'easeOutCubic', delay: 100 };
-            let animationConfig = { ...defaultAnimation, ...customAnimation };
-            return new Chart(ctx, { type, data, options: { responsive: true, maintainAspectRatio: true, animation: animationConfig, plugins: { tooltip: { enabled: true }, legend: { labels: { font: { size: 11 } } } }, scales: type === 'bar' ? { y: { beginAtZero: true, grid: { color: '#e2e8f0' } } } : {} } });
-        }
-        function refreshCharts() {
-            setTimeout(() => {
-                let s = getStats();
-                if(financialCompareChart) financialCompareChart.destroy();
-                const fcCanvas = document.getElementById('financialCompareChart');
-                if(fcCanvas) financialCompareChart = createChartWithAnimation(fcCanvas, 'bar', { labels:[t('total_debt'), t('income'), t('remaining')], datasets:[{ label:currentLang==='tr'?'Tutar (₺)':'Amount (₺)', data:[s.totalDebt,s.totalIncome,s.remaining], backgroundColor:['#1a4270','#11998e','#eb3349'], borderRadius:8 }] });
-                if(trendChart) trendChart.destroy();
-                const trCanvas = document.getElementById('trendChart');
-                if(trCanvas) trendChart = createChartWithAnimation(trCanvas, 'line', { labels:[ '6m ago','5m','4m','3m','2m','Last month','This month' ], datasets:[{ label:currentLang==='tr'?'Toplam Borç (Tahmini)':'Total Debt (Estimate)', data:[s.totalDebt*1.2,s.totalDebt*1.15,s.totalDebt*1.1,s.totalDebt*1.05,s.totalDebt*1.02,s.totalDebt,s.totalDebt], borderColor:'#1a4270', tension:0.3, fill:false, pointBackgroundColor:'#1a4270' }] });
-                if(debtChart) debtChart.destroy();
-                const debtPie = document.getElementById('debtChart');
-                if(debtPie) debtChart = createChartWithAnimation(debtPie, 'doughnut', { labels:[t('paid'), t('remaining')], datasets:[{ data:[s.totalPaid,s.remaining], backgroundColor:['#11998e','#eb3349'], borderWidth:0 }] });
-                if(monthlyChart) monthlyChart.destroy();
-                const monCanvas = document.getElementById('monthlyChart');
-                if(monCanvas) monthlyChart = createChartWithAnimation(monCanvas, 'doughnut', { labels:[t('paid'), t('remaining')], datasets:[{ data:[s.totalPaid,s.remaining], backgroundColor:['#11998e','#eb3349'] }] });
-                if(yearlyChart) yearlyChart.destroy();
-                const yearCanvas = document.getElementById('yearlyChart');
-                if(yearCanvas) yearlyChart = createChartWithAnimation(yearCanvas, 'bar', { labels:[t('total_debt'), t('paid'), t('income')], datasets:[{ data:[s.totalDebt,s.totalPaid,s.totalIncome], backgroundColor:['#0f2b4d','#11998e','#4facfe'], borderRadius:8 }] });
-                if(incomeChart) incomeChart.destroy();
-                const incCanvas = document.getElementById('incomeChart');
-                if(incCanvas && incomes.length) incomeChart = createChartWithAnimation(incCanvas, 'doughnut', { labels:incomes.map(i=>i.name), datasets:[{ data:incomes.map(i=>i.amount), backgroundColor:['#0f2b4d','#11998e','#f093fb','#f5576c','#4facfe'] }] });
-                else if(incCanvas) incomeChart = createChartWithAnimation(incCanvas, 'doughnut', { labels:['No income'], datasets:[{ data:[1], backgroundColor:['#cccccc'] }] });
-            }, 50);
-        }
-        function renderStats() {
-            let s=getStats();
-            document.getElementById('statsGrid').innerHTML = `<div class="stat-card purple"><div class="stat-label">${t('total_debt')}</div><div class="stat-value">${formatMoney(s.totalDebt)}</div></div><div class="stat-card green"><div class="stat-label">${t('paid')}</div><div class="stat-value">${formatMoney(s.totalPaid)}</div></div><div class="stat-card red"><div class="stat-label">${t('remaining')}</div><div class="stat-value">${formatMoney(s.remaining)}</div></div><div class="stat-card pink"><div class="stat-label">${t('ratio')}</div><div class="stat-value">%${s.rate}</div></div><div class="stat-card blue"><div class="stat-label">${t('income')}</div><div class="stat-value">${formatMoney(s.totalIncome)}</div></div><div class="stat-card orange"><div class="stat-label">${t('deficit')}</div><div class="stat-value">${formatMoney(s.deficit)}</div></div>`;
-            document.getElementById('finSummary').innerHTML = `<div class="summary-row"><span>${t('total_debt')}</span><span>${formatMoney(s.totalDebt)}</span></div><div class="summary-row"><span>${t('paid')}</span><span>${formatMoney(s.totalPaid)}</span></div><div class="summary-row"><span>${t('remaining')}</span><span>${formatMoney(s.remaining)}</span></div><div class="summary-row"><span>${t('income')}</span><span>${formatMoney(s.totalIncome)}</span></div>`;
-            document.getElementById('progressText').innerHTML = `%${s.rate}`; document.getElementById('mainProgress').style.width = s.rate+'%';
-            document.getElementById('monthlyStats').innerHTML = `<div class="summary-row"><span>${t('total_debt')}</span><span>${formatMoney(s.totalDebt)}</span></div><div class="summary-row"><span>${t('paid')}</span><span>${formatMoney(s.totalPaid)}</span></div><div class="summary-row"><span>${t('remaining')}</span><span>${formatMoney(s.remaining)}</span></div><div class="summary-row"><span>${t('income')}</span><span>${formatMoney(s.totalIncome)}</span></div>`;
-            document.getElementById('monProgress').style.width = s.rate+'%'; document.getElementById('monthlyPercentText').innerHTML = `${t('progress_label')}: %${s.rate}`;
-            document.getElementById('yearlyStats').innerHTML = `<div class="summary-row"><span>${t('total_debt')}</span><span>${formatMoney(s.totalDebt)}</span></div><div class="summary-row"><span>${t('paid')}</span><span>${formatMoney(s.totalPaid)}</span></div><div class="summary-row"><span>${t('income')}</span><span>${formatMoney(s.totalIncome)}</span></div>`;
-            refreshCharts();
-        }
-        function renderAIStrategy() {
-            let s=getStats(); let unpaid=debts.filter(d=>d.paid<d.amount); let burden=s.totalIncome?(s.remaining/s.totalIncome*100).toFixed(1):100;
-            let riskText = burden>80?t('risk_high'):(burden>40?t('risk_medium'):t('risk_low'));
-            let riskClass = burden>80?'risk-high':(burden>40?'risk-medium':'risk-low');
-            let riskDesc = burden>80?t('risk_high_desc'):(burden>40?t('risk_medium_desc'):t('risk_low_desc'));
-            let strat = unpaid.length ? `${t('snowball_strategy')}: ${unpaid.sort((a,b)=>(a.amount-a.paid)-(b.amount-b.paid))[0]?.name}` : t('all_debts_paid');
-            let mot = s.rate>80 ? (currentLang==='tr'?'Harika gidiyorsunuz! 🚀':'Great progress! 🚀') : (s.rate>0 ? t('step_by_step') : (currentLang==='tr'?'Küçük adımlarla başlayın, başaracaksınız!':'Start small, you will succeed!'));
-            let advice = s.remaining>0 ? t('advice_save') : (currentLang==='tr'?'Borçsuz bir yaşam, tasarrufa yönelin.':'Debt-free life, focus on savings.');
-            document.getElementById('aiStrategyInner').innerHTML = `<div class="strategy-item">📊 <strong>${t('ai_debt_burden')}:</strong> ${s.totalIncome ? `Your debt is <strong>%${burden}</strong> of your income.` : `Total debt: ${formatMoney(s.totalDebt)}`}</div>
-            <div class="strategy-item">⚠️ <strong>${t('ai_risk')}:</strong> <span class="${riskClass}">${riskText}</span> ${riskDesc}</div>
-            <div class="strategy-item">🎯 <strong>${t('ai_strategy_label')}:</strong> ${strat}</div>
-            <div class="strategy-item">💡 <strong>${t('ai_tip')}:</strong> ${advice}</div>
-            <div class="motivation-message">✨ ${mot}</div>`;
-        }
-        
-        // TOPLAM ÖDENMİŞ / ÖDENMEMİŞ KART
-        function renderDebtSummary() {
-            let totalPaid = debts.reduce((sum, d) => sum + d.paid, 0);
-            let totalUnpaid = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
-            let html = `<div class="debt-summary-item"><i class="fas fa-check-circle"></i> <span data-i18n="paid">PAID</span>: ${formatMoney(totalPaid)}</div>
-                        <div class="debt-summary-item"><i class="fas fa-times-circle"></i> <span data-i18n="remaining">REMAINING</span>: ${formatMoney(totalUnpaid)}</div>`;
-            document.getElementById('debtSummaryContainer').innerHTML = html;
-            // Çoklu dil için span'leri güncelle
-            document.querySelectorAll('#debtSummaryContainer [data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if(key) el.innerText = t(key); });
-        }
-        
-        // DURUM DEĞİŞTİRME FONKSİYONU
-        function toggleDebtStatus(debtId) {
-            const debt = debts.find(d => d.id === debtId);
-            if (!debt) return;
-            if (debt.paid >= debt.amount) {
-                // Ödenmiş -> ödenmedi yap
-                debt.paid = 0;
-            } else {
-                // Ödenmemiş -> tamamen ödendi
-                debt.paid = debt.amount;
-            }
-            saveAll();
-            renderAll();
-            renderDebtSummary(); // toplam kartı güncelle
-            showToast('Status updated');
-        }
-        
-        function renderPaginatedDebts() {
-            let filtered = currentDebtTab === 'unpaid' ? debts.filter(d => d.paid < d.amount) : debts.filter(d => d.paid >= d.amount);
-            let currentPage = currentDebtTab === 'unpaid' ? currentUnpaidPage : currentPaidPage;
-            let totalPages = Math.ceil(filtered.length / DEBT_ITEMS_PER_PAGE) || 1;
-            if(currentPage > totalPages) { if(currentDebtTab === 'unpaid') currentUnpaidPage = totalPages; else currentPaidPage = totalPages; return renderPaginatedDebts(); }
-            let start = (currentPage-1)*DEBT_ITEMS_PER_PAGE;
-            let pageItems = filtered.slice(start, start+DEBT_ITEMS_PER_PAGE);
-            let container = document.getElementById('debtListContainer');
-            if(pageItems.length===0) container.innerHTML = `<div class="empty-state">${currentDebtTab==='unpaid'?t('empty_unpaid'):t('empty_paid')}</div>`;
-            else {
-                container.innerHTML = pageItems.map(d => {
-                    let isPaid = d.paid >= d.amount;
-                    let statusClass = isPaid ? 'paid' : 'unpaid';
-                    let statusText = isPaid ? t('status_paid') : t('status_unpaid');
-                    let toggleBtnText = isPaid ? '🔄 Ödenmedi Yap' : '✅ Ödendi Olarak İşaretle';
-                    let toggleBtnClass = isPaid ? 'toggle-status-btn paid-toggle' : 'toggle-status-btn unpaid-toggle';
-                    return `<div class="debt-item" data-id="${d.id}">
-                        <div class="debt-left">
-                            <div class="debt-name">
-                                <span>${escapeHtml(d.name)}</span>
-                                <span class="debt-status ${statusClass}">${statusText}</span>
-                            </div>
-                            <div class="debt-stats">
-                                <span>Total: ${formatMoney(d.amount)}</span>
-                                <span>Paid: ${formatMoney(d.paid)}</span>
-                                <span>Remaining: ${formatMoney(d.amount-d.paid)}</span>
-                            </div>
-                            <div class="debt-progress"><div class="debt-progress-bar" style="width:${(d.paid/d.amount*100).toFixed(0)}%"></div></div>
-                            <div style="margin-top: 10px;">
-                                <button class="${toggleBtnClass}" data-id="${d.id}">${toggleBtnText}</button>
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('');
-            }
-            let paginationHtml = '';
-            if(totalPages>1){
-                paginationHtml += `<button class="page-btn" data-page="prev" ${currentPage===1?'disabled':''}>◀</button>`;
-                for(let i=1;i<=totalPages;i++) paginationHtml += `<button class="page-btn ${i===currentPage?'active':''}" data-page="${i}">${i}</button>`;
-                paginationHtml += `<button class="page-btn" data-page="next" ${currentPage===totalPages?'disabled':''}>▶</button>`;
-            }
-            document.getElementById('debtPagination').innerHTML = paginationHtml;
-            // Kart tıklama (düzenleme)
-            document.querySelectorAll('.debt-item').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    if(e.target.classList.contains('toggle-status-btn')) return; // butona tıklanırsa kart düzenlemeyi tetikleme
-                    editDebtById(parseInt(el.dataset.id));
-                });
-            });
-            // Durum değiştirme butonları
-            document.querySelectorAll('.toggle-status-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = parseInt(btn.dataset.id);
-                    toggleDebtStatus(id);
-                });
-            });
-            // Pagination butonları
-            document.querySelectorAll('#debtPagination .page-btn').forEach(btn=>btn.addEventListener('click',()=>{ let pg=btn.dataset.page; if(pg==='prev'){ if(currentDebtTab==='unpaid' && currentUnpaidPage>1) currentUnpaidPage--; else if(currentDebtTab==='paid' && currentPaidPage>1) currentPaidPage--; } else if(pg==='next'){ if(currentDebtTab==='unpaid' && currentUnpaidPage<totalPages) currentUnpaidPage++; else if(currentDebtTab==='paid' && currentPaidPage<totalPages) currentPaidPage++; } else{ let pageNum=parseInt(pg); if(currentDebtTab==='unpaid') currentUnpaidPage=pageNum; else currentPaidPage=pageNum; } renderPaginatedDebts(); }));
-        }
-        function renderDebtList() { renderPaginatedDebts(); renderDebtSummary(); }
-        function renderDebtAlarms(){ let c=document.getElementById('debtAlarmsList'); let active=debts.filter(d=>d.reminderDateTime&&d.paid<d.amount); c.innerHTML=active.length?active.map(d=>`<div class="debt-item alarm-item"><div><strong>${escapeHtml(d.name)}</strong><br>📅 ${d.reminderDateTime.replace('T',' ')}<br>Remaining: ${formatMoney(d.amount-d.paid)}</div><button class="btn-small-delete" onclick="event.stopPropagation();removeDebtReminder(${d.id})">🗑️ DELETE</button></div>`).join(''):`<div class="empty-state">${t('empty_alarms')}</div>`; }
-        function renderManualAlarms(){ let c=document.getElementById('alarmsList'); if(alarms.length){ c.innerHTML=alarms.map(a=>`<div class="notification-item alarm-item" style="display:flex;justify-content:space-between;"><div><strong>${escapeHtml(a.title)}</strong><br>${a.desc||''} ${a.dateTime?`📅 ${a.dateTime.replace('T',' ')}`:''}</div><button class="btn-small-delete" onclick="deleteManualAlarmById(${a.id})">🗑️ DELETE</button></div>`).join(''); } else c.innerHTML=`<div class="empty-state">${t('empty_manual')}</div>`; }
-        function deleteManualAlarmById(id){ if(confirm('Delete?')){ alarms=alarms.filter(a=>a.id!==id); saveAll(); renderManualAlarms(); renderAll(); } }
-        function renderIncomeList(){ let c=document.getElementById('incomeList'); c.innerHTML=incomes.length?incomes.map(i=>`<div class="income-card" data-id="${i.id}"><span>${escapeHtml(i.name)}</span><span>${formatMoney(i.amount)}</span></div>`).join(''):`<div class="empty-state">${t('empty_income')}</div>`; document.querySelectorAll('.income-card').forEach(el=>el.addEventListener('click',()=>editIncomeById(parseInt(el.dataset.id)))); }
-        function renderNotifications(){ let c=document.getElementById('notificationsList'); c.innerHTML=notifications.length?notifications.slice().reverse().map(n=>`<div class="notification-item"><div><strong>${escapeHtml(n.title)}</strong><br>${n.desc||''}</div><button class="btn-small-delete" onclick="deleteNotificationById(${n.id})">🗑️</button></div>`).join(''):`<div class="empty-state">${t('empty_notif')}</div>`; }
-        function deleteNotificationById(id){ notifications=notifications.filter(n=>n.id!==id); saveAll(); renderNotifications(); updateNotifBadge(); }
-        function removeDebtReminder(id){ let d=debts.find(d=>d.id===id); if(d){ d.reminderDateTime=null; saveAll(); renderDebtAlarms(); renderAll(); } }
-        function renderAll() { renderStats(); renderDebtList(); renderIncomeList(); renderDebtAlarms(); renderManualAlarms(); renderNotifications(); renderAIStrategy(); saveAll(); updateNotifBadge(); }
-        
-        // CRUD işlemleri (modal aç/kapa/kaydet/sil)
-        function openDebtModal(id=null){ editingDebtId=id; let d=id?debts.find(x=>x.id===id):null; if(d){ document.getElementById('debtNameInput').value=d.name; document.getElementById('debtAmountInput').value=d.amount; document.getElementById('debtPaidInput').value=d.paid; document.getElementById('debtReminderDateTime').value=d.reminderDateTime||''; document.getElementById('deleteDebtBtn').style.display='block'; } else { document.getElementById('debtNameInput').value=''; document.getElementById('debtAmountInput').value=''; document.getElementById('debtPaidInput').value=''; document.getElementById('debtReminderDateTime').value=''; document.getElementById('deleteDebtBtn').style.display='none'; } document.getElementById('debtModal').classList.add('active'); }
-        function closeDebtModal(){ document.getElementById('debtModal').classList.remove('active'); editingDebtId=null; }
-        function saveDebt(){ let name=document.getElementById('debtNameInput').value.trim(); let amount=parseFloat(document.getElementById('debtAmountInput').value)||0; let paid=parseFloat(document.getElementById('debtPaidInput').value)||0; if(document.getElementById('debtFullyPaidCheck').checked) paid=amount; let dt=document.getElementById('debtReminderDateTime').value; if(!name||amount<=0) return alert('Invalid debt'); if(editingDebtId){ let idx=debts.findIndex(d=>d.id===editingDebtId); if(idx>=0) debts[idx]={...debts[idx], name, amount, paid, reminderDateTime:dt}; } else debts.push({id:generateId(debts), name, amount, paid, reminderDateTime:dt, reminderCount:0}); closeDebtModal(); renderAll(); }
-        function deleteDebt(){ if(editingDebtId && confirm('Delete debt?')){ debts=debts.filter(d=>d.id!==editingDebtId); closeDebtModal(); renderAll(); } }
-        function editDebtById(id){ openDebtModal(id); }
-        function openIncomeModal(id=null){ editingIncomeId=id; let i=id?incomes.find(x=>x.id===id):null; if(i){ document.getElementById('incomeNameInput').value=i.name; document.getElementById('incomeAmountInput').value=i.amount; document.getElementById('deleteIncomeBtn').style.display='block'; } else { document.getElementById('incomeNameInput').value=''; document.getElementById('incomeAmountInput').value=''; document.getElementById('deleteIncomeBtn').style.display='none'; } document.getElementById('incomeModal').classList.add('active'); }
-        function closeIncomeModal(){ document.getElementById('incomeModal').classList.remove('active'); editingIncomeId=null; }
-        function saveIncome(){ let name=document.getElementById('incomeNameInput').value.trim(); let amount=parseFloat(document.getElementById('incomeAmountInput').value)||0; if(!name||amount<=0) return alert('Invalid income'); if(editingIncomeId){ let idx=incomes.findIndex(i=>i.id===editingIncomeId); if(idx>=0) incomes[idx]={...incomes[idx], name, amount}; } else incomes.push({id:generateId(incomes), name, amount}); closeIncomeModal(); renderAll(); }
-        function deleteIncome(){ if(editingIncomeId && confirm('Delete income?')){ incomes=incomes.filter(i=>i.id!==editingIncomeId); closeIncomeModal(); renderAll(); } }
-        function editIncomeById(id){ openIncomeModal(id); }
-        function openAlarmModal(id=null){ editingAlarmId=id; let a=id?alarms.find(x=>x.id===id):null; if(a){ document.getElementById('alarmTitleInput').value=a.title; document.getElementById('alarmDescInput').value=a.desc||''; document.getElementById('alarmAmountInput').value=a.amount||''; document.getElementById('alarmDateTimeInput').value=a.dateTime||''; document.getElementById('deleteAlarmBtn').style.display='block'; } else { document.getElementById('alarmTitleInput').value=''; document.getElementById('alarmDescInput').value=''; document.getElementById('alarmAmountInput').value=''; document.getElementById('alarmDateTimeInput').value=''; document.getElementById('deleteAlarmBtn').style.display='none'; } document.getElementById('alarmModal').classList.add('active'); }
-        function closeAlarmModal(){ document.getElementById('alarmModal').classList.remove('active'); editingAlarmId=null; }
-        function saveAlarm(){ let title=document.getElementById('alarmTitleInput').value.trim(); if(!title) return; let desc=document.getElementById('alarmDescInput').value; let amount=parseFloat(document.getElementById('alarmAmountInput').value)||0; let dt=document.getElementById('alarmDateTimeInput').value; if(editingAlarmId){ let idx=alarms.findIndex(a=>a.id===editingAlarmId); if(idx>=0) alarms[idx]={...alarms[idx], title, desc, amount, dateTime:dt}; } else alarms.push({id:generateId(alarms), title, desc, amount, dateTime:dt, reminderCount:0}); closeAlarmModal(); renderAll(); checkAndShowDueAlarms(); }
-        function deleteAlarm(){ if(editingAlarmId && confirm('Delete alarm?')){ alarms=alarms.filter(a=>a.id!==editingAlarmId); closeAlarmModal(); renderAll(); } }
-        function openNotifModal(id=null){ editingNotifId=id; let n=id?notifications.find(x=>x.id===id):null; if(n){ document.getElementById('notifTitleInput').value=n.title; document.getElementById('notifDescInput').value=n.desc||''; document.getElementById('notifTypeInput').value=n.type; document.getElementById('deleteNotifBtn').style.display='block'; } else { document.getElementById('notifTitleInput').value=''; document.getElementById('notifDescInput').value=''; document.getElementById('notifTypeInput').value='success'; document.getElementById('deleteNotifBtn').style.display='none'; } document.getElementById('notifModal').classList.add('active'); }
-        function closeNotifModal(){ document.getElementById('notifModal').classList.remove('active'); editingNotifId=null; }
-        function saveNotification(){ let title=document.getElementById('notifTitleInput').value.trim(); if(!title) return; let desc=document.getElementById('notifDescInput').value; let type=document.getElementById('notifTypeInput').value; if(editingNotifId){ let idx=notifications.findIndex(n=>n.id===editingNotifId); if(idx>=0) notifications[idx]={...notifications[idx], title, desc, type}; } else notifications.push({id:generateId(notifications), title, desc, type}); closeNotifModal(); renderAll(); updateNotifBadge(); }
-        function deleteNotification(){ if(editingNotifId && confirm('Delete notification?')){ notifications=notifications.filter(n=>n.id!==editingNotifId); closeNotifModal(); renderAll(); updateNotifBadge(); } }
-        function clearAllNotifications() { if(confirm('Clear all notifications?')){ notifications=[]; saveAll(); renderNotifications(); updateNotifBadge(); showToast('Cleared'); } }
-        
-        let calcStr='0', calcPrev='', calcOp='', calcReset=false;
-        function updateCalc(){ document.getElementById('calcDisplay').innerText=calcStr; }
-        function calcHandle(v){ if(v==='clear'){ calcStr='0'; calcPrev=''; calcOp=''; calcReset=false; updateCalc(); return; } if(v==='back'){ calcStr=calcStr.length>1?calcStr.slice(0,-1):'0'; updateCalc(); return; } if(['+','-','*','/'].includes(v)){ calcPrev=calcStr; calcOp=v; calcReset=true; return; } if(v==='='){ if(!calcOp||!calcPrev) return; let a=parseFloat(calcPrev), b=parseFloat(calcStr); let r=0; if(calcOp==='+') r=a+b; else if(calcOp==='-') r=a-b; else if(calcOp==='*') r=a*b; else if(calcOp==='/') r=b!==0?a/b:NaN; calcStr=r.toString().slice(0,12); calcOp=''; calcPrev=''; calcReset=true; updateCalc(); return; } if(calcReset){ calcStr='0'; calcReset=false; } if(calcStr==='0' && v!=='.') calcStr=v; else calcStr+=v; updateCalc(); }
-        
-        function shareApp(platform){ let url=encodeURIComponent(location.href), text='Debt Tracker App'; let link={whatsapp:`https://wa.me/?text=${text} ${decodeURIComponent(url)}`, twitter:`https://twitter.com/intent/tweet?text=${text}&url=${decodeURIComponent(url)}`, facebook:`https://www.facebook.com/sharer/sharer.php?u=${decodeURIComponent(url)}`, email:`mailto:?subject=Debt Tracker&body=${text} ${decodeURIComponent(url)}`}[platform]; if(link) window.open(link,'_blank'); }
-        function sendFeedback(){ let msg=document.getElementById('feedbackMessage').value.trim(); if(!msg) return alert('Please write a message'); alert('Thanks!'); window.location.href=`mailto:destek@borctakip.com?subject=Feedback&body=${encodeURIComponent(msg)}`; }
-        
-        function showPage(pageId){
-            document.querySelectorAll('.page-content, .section-card').forEach(el=>el.classList.remove('active'));
-            document.getElementById(pageId).classList.add('active');
-            if(pageId === 'overview') renderStats();
-            else if(pageId === 'debts') { renderDebtList(); renderDebtSummary(); }
-            else renderAll();
-            toggleSidebar(false);
-        }
-        function toggleSidebar(force){
-            let s=document.getElementById('sidebarPanel');
-            let o=document.getElementById('sidebarOverlay');
-            if(force===false){
-                s.classList.remove('active');
-                o.classList.remove('active');
-                return;
-            }
-            s.classList.toggle('active');
-            o.classList.toggle('active');
-        }
-        
-        // ----- EVENT LISTENER'LAR (GELİŞTİRİLMİŞ) -----
-        document.getElementById('hamburgerBtn').addEventListener('click',()=>toggleSidebar());
-        document.getElementById('sidebarOverlay').addEventListener('click',()=>toggleSidebar(false));
-        document.getElementById('navGrid').addEventListener('click', (e) => {
-            const btn = e.target.closest('.nav-btn');
-            if(btn && btn.dataset.page) showPage(btn.dataset.page);
-        });
-        document.querySelectorAll('.sidebar-item[data-page]').forEach(item => {
-            item.addEventListener('click', () => { const page = item.dataset.page; if(page) showPage(page); });
-        });
-        document.getElementById('openExchangeBtn')?.addEventListener('click', openExchangeModal);
-        document.getElementById('notificationBellBtn')?.addEventListener('click', () => showPage('notifications'));
-        document.getElementById('themeToggleBtn')?.addEventListener('click',()=>{ setDarkMode(!document.body.classList.contains('dark-mode')); });
-        document.getElementById('newDebtBtn')?.addEventListener('click',()=>openDebtModal());
-        document.getElementById('newIncomeBtn')?.addEventListener('click',()=>openIncomeModal());
-        document.getElementById('newAlarmBtn')?.addEventListener('click',()=>openAlarmModal());
-        document.getElementById('newNotifBtn')?.addEventListener('click',()=>openNotifModal());
-        document.getElementById('clearAllNotifsBtn')?.addEventListener('click',clearAllNotifications);
-        document.getElementById('exportBtn')?.addEventListener('click',()=>{ let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({debts,incomes,alarms,notifications})],{type:'application/json'})); a.download=`debt_${new Date().toISOString().slice(0,10)}.json`; a.click(); toggleSidebar(false); });
-        document.getElementById('importBtn')?.addEventListener('click',()=>{ let inp=document.createElement('input'); inp.type='file'; inp.accept='application/json'; inp.onchange=e=>{ let fr=new FileReader(); fr.onload=ev=>{ let d=JSON.parse(ev.target.result); if(d.debts) debts=d.debts; if(d.incomes) incomes=d.incomes; if(d.alarms) alarms=d.alarms; if(d.notifications) notifications=d.notifications; renderAll(); alert('Imported'); updateNotifBadge(); }; fr.readAsText(e.target.files[0]); }; inp.click(); toggleSidebar(false); });
-        document.getElementById('resetBtn')?.addEventListener('click',()=>{ if(confirm('Reset all data?')){ debts=[]; incomes=[]; alarms=[]; notifications=[]; renderAll(); updateNotifBadge(); } toggleSidebar(false); });
-        document.getElementById('closeDebtModalBtn')?.addEventListener('click',closeDebtModal);
-        document.getElementById('saveDebtBtn')?.addEventListener('click',saveDebt);
-        document.getElementById('deleteDebtBtn')?.addEventListener('click',deleteDebt);
-        document.querySelector('.closeIncome')?.addEventListener('click',closeIncomeModal);
-        document.getElementById('saveIncomeBtn')?.addEventListener('click',saveIncome);
-        document.getElementById('deleteIncomeBtn')?.addEventListener('click',deleteIncome);
-        document.querySelector('.closeAlarm')?.addEventListener('click',closeAlarmModal);
-        document.getElementById('saveAlarmBtn')?.addEventListener('click',saveAlarm);
-        document.getElementById('deleteAlarmBtn')?.addEventListener('click',deleteAlarm);
-        document.querySelector('.closeNotif')?.addEventListener('click',closeNotifModal);
-        document.getElementById('saveNotifBtn')?.addEventListener('click',saveNotification);
-        document.getElementById('deleteNotifBtn')?.addEventListener('click',deleteNotification);
-        document.querySelectorAll('.calc-btn').forEach(btn=>btn.addEventListener('click',()=>calcHandle(btn.dataset.calc)));
-        document.getElementById('feedbackBtn')?.addEventListener('click',()=>showPage('feedback'));
-        document.querySelectorAll('.debt-tab-btn').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.debt-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDebtTab=btn.dataset.tab; renderDebtList(); }));
-        
-        function updateLoginUI(){ let user=localStorage.loggedUser; if(user){ document.getElementById('loggedOutView').style.display='none'; document.getElementById('loggedInView').style.display='block'; document.getElementById('displayUsername').innerText=user; } else { document.getElementById('loggedOutView').style.display='block'; document.getElementById('loggedInView').style.display='none'; } }
-        document.getElementById('doLoginBtn')?.addEventListener('click',()=>{ let name=document.getElementById('loginUsername').value.trim(); if(name){ localStorage.loggedUser=name; updateLoginUI(); toggleSidebar(false); } else alert('Enter name'); });
-        document.getElementById('logoutBtn')?.addEventListener('click',()=>{ localStorage.removeItem('loggedUser'); updateLoginUI(); toggleSidebar(false); });
-        
-        function setDarkMode(val){ if(val){ document.body.classList.add('dark-mode'); localStorage.darkMode='1'; document.getElementById('themeIcon').innerHTML='☀️'; document.getElementById('themeText').innerHTML=currentLang==='tr'?'AYDINLIK':'LIGHT'; } else { document.body.classList.remove('dark-mode'); localStorage.darkMode='0'; document.getElementById('themeIcon').innerHTML='🌙'; document.getElementById('themeText').innerHTML=currentLang==='tr'?'KARANLIK':'DARK'; } }
-        if(localStorage.darkMode==='1') setDarkMode(true);
-        
-        // Döviz API ve modal
-        let exchangeInterval = null;
-        async function fetchExchangeRates() {
-            const contentDiv = document.getElementById('exchangeContent');
-            const updateSpan = document.getElementById('exchangeLastUpdate');
-            if(!contentDiv) return;
-            contentDiv.innerHTML = `<div class="currency-load"><i class="fas fa-spinner fa-pulse"></i> ${currentLang === 'tr' ? 'Kurlar yükleniyor...' : 'Loading rates...'}</div>`;
-            try {
-                const [usdRes, eurRes, gbpRes] = await Promise.all([
-                    fetch('https://api.exchangerate.host/latest?base=USD&symbols=TRY'),
-                    fetch('https://api.exchangerate.host/latest?base=EUR&symbols=TRY'),
-                    fetch('https://api.exchangerate.host/latest?base=GBP&symbols=TRY')
-                ]);
-                if(!usdRes.ok || !eurRes.ok || !gbpRes.ok) throw new Error('API error');
-                const usdData = await usdRes.json();
-                const eurData = await eurRes.json();
-                const gbpData = await gbpRes.json();
-                const usdTry = usdData.rates.TRY;
-                const eurTry = eurData.rates.TRY;
-                const gbpTry = gbpData.rates.TRY;
-                if(!usdTry || !eurTry || !gbpTry) throw new Error('No data');
-                const now = new Date().toLocaleTimeString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
-                const html = `<table class="exchange-table"><thead><tr><th>Currency</th><th>Buy (₺)</th><th>Sell (₺)</th></thead><tbody><tr><td><i class="fas fa-dollar-sign"></i> USD</td><td>${usdTry.toFixed(4)}</td><td>${usdTry.toFixed(4)}</td></tr><tr><td><i class="fas fa-euro-sign"></i> EUR</td><td>${eurTry.toFixed(4)}</td><td>${eurTry.toFixed(4)}</td></tr><tr><td><i class="fas fa-pound-sign"></i> GBP</td><td>${gbpTry.toFixed(4)}</td><td>${gbpTry.toFixed(4)}</td></tr></tbody></table><div style="margin-top:12px; font-size:0.7rem; color:#6c86a3;">💰 Gold rate not available.</div>`;
-                contentDiv.innerHTML = html;
-                if(updateSpan) updateSpan.innerText = `🕒 ${currentLang === 'tr' ? 'Son güncelleme' : 'Last update'}: ${now}`;
-            } catch(err) {
-                contentDiv.innerHTML = `<div class="currency-load" style="color:#e74c3c;">⚠️ ${currentLang === 'tr' ? 'Kurlar alınamadı.' : 'Could not fetch rates.'}</div>`;
-            }
-        }
-        function openExchangeModal() { document.getElementById('exchangeModal').classList.add('active'); fetchExchangeRates(); if(exchangeInterval) clearInterval(exchangeInterval); exchangeInterval = setInterval(() => { if(document.getElementById('exchangeModal').classList.contains('active')) fetchExchangeRates(); else if(exchangeInterval) clearInterval(exchangeInterval); }, 60000); }
-        function closeExchangeModal() { document.getElementById('exchangeModal').classList.remove('active'); if(exchangeInterval) { clearInterval(exchangeInterval); exchangeInterval = null; } }
-        document.getElementById('openExchangeBtn')?.addEventListener('click', openExchangeModal);
-        document.getElementById('closeExchangeModalBtn')?.addEventListener('click', closeExchangeModal);
-        
-        // Başlangıç
-        updateLoginUI();
-        loadData();
-        setLanguage(localStorage.getItem('appLang') || 'en');
-        setInterval(()=>{ checkAndShowDueAlarms(); renderAll(); }, 30000);
-        window.addEventListener('resize', () => refreshCharts());
-    </script>
+    }
+}
+function renderMonthlyStats(){ 
+    let y=selectedYear, m=selectedMonth; 
+    let filtered=payments.filter(p=>new Date(p.date).getFullYear()===y && new Date(p.date).getMonth()===m); 
+    let totalPaid=filtered.reduce((s,p)=>s+p.amount,0); 
+    let s=getStats(); 
+    document.getElementById('monthlyStats').innerHTML=`<div> ${m+1}/${y}</div><div> Ödenen: ${formatMoney(totalPaid)}</div><div> Kalan: ${formatMoney(s.remaining)}</div>`; 
+    if(window.monthlyChart) window.monthlyChart.destroy(); 
+    let ctx=document.getElementById('monthlyChart')?.getContext('2d'); 
+    if(ctx) window.monthlyChart=new Chart(ctx,{type:'bar',data:{labels:['Bu Ay Ödenen'], datasets:[{data:[totalPaid], backgroundColor:'#11998e'}]}, options:{animation:{duration:1000}}}); 
+    let aylikGelir=incomes.filter(i=>new Date(i.date).getFullYear()===y && new Date(i.date).getMonth()===m).reduce((s,i)=>s+i.amount,0); 
+    let aylikGider=expenses.filter(e=>new Date(e.date).getFullYear()===y && new Date(e.date).getMonth()===m).reduce((s,e)=>s+e.amount,0); 
+    if(window.monthlyIncomeExpenseChart) window.monthlyIncomeExpenseChart.destroy(); 
+    let ctx2=document.getElementById('monthlyIncomeExpenseChart')?.getContext('2d'); 
+    if(ctx2) window.monthlyIncomeExpenseChart=new Chart(ctx2,{type:'bar',data:{labels:['Gelir','Gider'], datasets:[{data:[aylikGelir, aylikGider], backgroundColor:['#11998e','#e67e22']}]}, options:{animation:{duration:1000}}}); 
+    document.getElementById('monthlyDetailText').innerHTML=`📊 Gelir:${formatMoney(aylikGelir)} &nbsp; | &nbsp; 🛒 Gider:${formatMoney(aylikGider)} &nbsp; | &nbsp; 💸 Ödeme:${formatMoney(totalPaid)}`; 
+}
+function renderYearlyStats(){ 
+    let year=selectedYear; 
+    let paymentsYear=payments.filter(p=>new Date(p.date).getFullYear()===year); 
+    let monthlyData=Array(12).fill(0); 
+    paymentsYear.forEach(p=>monthlyData[new Date(p.date).getMonth()]+=p.amount); 
+    let totalPaidYear=paymentsYear.reduce((s,p)=>s+p.amount,0); 
+    let s=getStats(); 
+    document.getElementById('yearlyStats').innerHTML=`<div> Yıl: ${year}</div><div> Toplam Ödeme: ${formatMoney(totalPaidYear)}</div><div> Kalan: ${formatMoney(s.remaining)}</div>`; 
+    if(window.yearlyChart) window.yearlyChart.destroy(); 
+    let ctx=document.getElementById('yearlyChart')?.getContext('2d'); 
+    if(ctx) window.yearlyChart=new Chart(ctx,{type:'line',data:{labels:['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'], datasets:[{label:`${year} Ödemeler`, data:monthlyData, borderColor:'#1a4270', fill:false, tension:0.2}]}, options:{animation:{duration:1000}}}); 
+}
+
+// BORÇ İŞLEMLERİ
+window.toggleDebtPaid = function(id){ let d=debts.find(d=>d.id===id); if(d){ if(d.paid>=d.amount) d.paid=0; else{ let odenecek=d.amount-d.paid; d.paid=d.amount; payments.push({id:generateId(payments),debtId:id,amount:odenecek,date:new Date().toISOString(),type:'manual'}); } saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); updateMonthlyYearly(); } };
+window.deleteDebt = function(id){ if(confirm('Borç silinecek, emin misiniz?')){ debts=debts.filter(d=>d.id!==id); payments=payments.filter(p=>p.debtId!==id); saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); updateMonthlyYearly(); showToast('Borç silindi'); } };
+window.editDebt = function(id){ let debt=debts.find(d=>d.id===id); if(debt){ document.getElementById('debtModalTitle').innerText='BORÇ DÜZENLE'; document.getElementById('debtName').value=debt.name; document.getElementById('debtAmount').value=debt.amount; document.getElementById('debtPaid').value=debt.paid; let catSelect=document.getElementById('debtCategory'); catSelect.innerHTML=debtCategories.map(c=>`<option value="${c}" ${debt.category===c?'selected':''}>${c}</option>`).join(''); document.getElementById('editDebtId').value=debt.id; document.getElementById('debtModal').classList.add('active'); } };
+function openAddDebtModal(){ document.getElementById('debtModalTitle').innerText='YENİ BORÇ EKLE'; document.getElementById('debtName').value=''; document.getElementById('debtAmount').value=''; document.getElementById('debtPaid').value='0'; document.getElementById('debtCategory').innerHTML=debtCategories.map(c=>`<option value="${c}">${c}</option>`).join(''); document.getElementById('editDebtId').value=''; document.getElementById('debtModal').classList.add('active'); }
+document.getElementById('saveDebtBtn').onclick=()=>{ let name=document.getElementById('debtName').value.trim(); let amount=parseFloat(document.getElementById('debtAmount').value); let paid=parseFloat(document.getElementById('debtPaid').value)||0; let category=document.getElementById('debtCategory').value; let editId=document.getElementById('editDebtId').value; if(!name || isNaN(amount) || amount<=0){ alert('Geçerli borç adı ve tutar girin'); return; } if(paid>amount){ alert('Ödenen tutar toplam tutardan büyük olamaz'); return; } if(editId){ let idx=debts.findIndex(d=>d.id==parseInt(editId)); if(idx!==-1){ debts[idx]={...debts[idx], name, amount, paid, category}; saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); showToast('Borç güncellendi'); } } else { let newId=generateId(debts); debts.push({id:newId, name, amount, paid, category}); if(paid>0) payments.push({id:generateId(payments), debtId:newId, amount:paid, date:new Date().toISOString(), type:'manual'}); saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); showToast('Borç eklendi'); } document.getElementById('debtModal').classList.remove('active'); };
+document.getElementById('closeDebtModalBtn').onclick=()=>document.getElementById('debtModal').classList.remove('active');
+function renderDebtList(){ 
+    let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts);
+    let container=document.getElementById('debtListContainer'); 
+    container.innerHTML=filtered.map(d=>{ let isPaid=d.paid>=d.amount; return `<div class="debt-item ${isPaid?'paid':'unpaid'}"><div><strong>${escapeHtml(d.name)}</strong> <span class="debt-category">📁 ${escapeHtml(d.category)}</span><br>${formatMoney(d.amount)} | Ödenen:${formatMoney(d.paid)} | Kalan:${formatMoney(d.amount-d.paid)}<div class="debt-progress"><div class="debt-progress-bar" style="width:${(d.paid/d.amount*100)}%"></div></div></div><div><button class="btn-edit" onclick="editDebt(${d.id})"><i class="fas fa-pen"></i> Düzenle</button><button class="btn-small-delete" onclick="deleteDebt(${d.id})"><i class="fas fa-trash"></i> Sil</button><button class="btn-save" onclick="toggleDebtPaid(${d.id})" style="background:#11998e; padding:4px 8px;">${isPaid?'Ödenmedi Yap':'Ödendi'}</button></div></div>`; }).join('')||'Borç yok'; 
+    let total=debts.reduce((s,d)=>s+d.amount,0); let paid=debts.reduce((s,d)=>s+d.paid,0); document.getElementById('debtSummaryContainer').innerHTML=`<div>Toplam:${formatMoney(total)} Ödenen:${formatMoney(paid)} Kalan:${formatMoney(total-paid)}</div>`; 
+}
+
+// KATEGORİ YÖNETİMİ
+function renderExpenseCategories(){ let container=document.getElementById('expenseCategoriesList'); container.innerHTML=expenseCategories.map(c=>`<div class="category-item"><span>📂 ${escapeHtml(c.name)}</span><div><button class="btn-edit" onclick="editCategory(${c.id})"><i class="fas fa-pen"></i></button><button class="btn-small-delete" onclick="deleteCategory(${c.id})"><i class="fas fa-trash"></i></button></div></div>`).join(''); }
+window.editCategory = function(id){ let cat=expenseCategories.find(c=>c.id===id); if(cat){ document.getElementById('categoryName').value=cat.name; document.getElementById('editCategoryId').value=cat.id; document.getElementById('categoryModal').classList.add('active'); } };
+window.deleteCategory = function(id){ if(expenseCategories.length<=1){ alert('En az bir kategori kalmalı'); return; } if(confirm('Kategori silinecek, bu kategoriye ait giderler de silinecek!')){ expenses=expenses.filter(e=>e.categoryId!==id); expenseCategories=expenseCategories.filter(c=>c.id!==id); saveAllToUser(); renderExpenseCategories(); renderExpenses(); renderStats(); } };
+document.getElementById('saveCategoryBtn').onclick=()=>{ let name=document.getElementById('categoryName').value.trim(); let editId=document.getElementById('editCategoryId').value; if(!name) return; if(editId){ let idx=expenseCategories.findIndex(c=>c.id==parseInt(editId)); if(idx!==-1) expenseCategories[idx].name=name; } else { expenseCategories.push({id:generateId(expenseCategories), name}); } saveAllToUser(); renderExpenseCategories(); renderExpenses(); document.getElementById('categoryModal').classList.remove('active'); document.getElementById('editCategoryId').value=''; };
+document.getElementById('closeCategoryModalBtn').onclick=()=>document.getElementById('categoryModal').classList.remove('active');
+document.getElementById('newCategoryBtn').onclick=()=>{ document.getElementById('categoryName').value=''; document.getElementById('editCategoryId').value=''; document.getElementById('categoryModal').classList.add('active'); };
+
+// GELİR
+function renderIncomeList(){ document.getElementById('incomeList').innerHTML=incomes.map(i=>`<div class="income-item"><div><span>${escapeHtml(i.name)}</span> <span>${formatMoney(i.amount)}</span></div><div><button class="btn-edit" onclick="editIncome(${i.id})">✏️</button><button class="btn-small-delete" onclick="deleteIncome(${i.id})">🗑️</button></div></div>`).join('')||'Gelir yok'; drawIncomeChart(); drawIncomeTrend(); }
+window.deleteIncome = function(id){ incomes=incomes.filter(i=>i.id!==id); saveAllToUser(); renderIncomeList(); renderStats(); drawCharts(); };
+window.editIncome = function(id){ let inc=incomes.find(i=>i.id===id); if(inc){ document.getElementById('editIncomeName').value=inc.name; document.getElementById('editIncomeAmount').value=inc.amount; document.getElementById('editIncomeId').value=inc.id; document.getElementById('incomeEditModal').classList.add('active'); } };
+function saveIncomeEdit(){ let id=parseInt(document.getElementById('editIncomeId').value); let name=document.getElementById('editIncomeName').value.trim(); let amount=parseFloat(document.getElementById('editIncomeAmount').value); if(name && !isNaN(amount) && amount>0){ let idx=incomes.findIndex(i=>i.id===id); if(idx!==-1) incomes[idx]={...incomes[idx], name, amount}; saveAllToUser(); renderIncomeList(); renderStats(); drawCharts(); } document.getElementById('incomeEditModal').classList.remove('active'); }
+document.getElementById('saveIncomeEditBtn').onclick=saveIncomeEdit;
+document.getElementById('closeIncomeModalBtn').onclick=()=>document.getElementById('incomeEditModal').classList.remove('active');
+
+// GİDER
+function renderExpenses(){ let container=document.getElementById('expensesListContainer'); container.innerHTML=expenses.map(e=>{ let cat=expenseCategories.find(c=>c.id===e.categoryId); return `<div class="expense-item"><div><span class="category-badge">${escapeHtml(cat?.name)}</span> ${escapeHtml(e.description||'')}</div><span>${formatMoney(e.amount)}</span><div><button class="btn-edit" onclick="editExpense(${e.id})">✏️</button><button class="btn-small-delete" onclick="deleteExpense(${e.id})">🗑️</button></div></div>`; }).join('')||'Gider yok'; drawExpenseChart(); }
+window.deleteExpense = function(id){ expenses=expenses.filter(e=>e.id!==id); saveAllToUser(); renderExpenses(); renderStats(); drawCharts(); };
+function addExpense(catId,amt,desc,date, editId=null){ if(editId){ let idx=expenses.findIndex(e=>e.id==editId); if(idx!==-1) expenses[idx]={...expenses[idx], categoryId:catId, amount:amt, description:desc, date:date}; } else { expenses.push({id:generateId(expenses),categoryId:catId,amount:amt,description:desc,date}); } saveAllToUser(); renderExpenses(); renderStats(); drawCharts(); }
+window.editExpense = function(id){ let exp=expenses.find(e=>e.id===id); if(exp){ document.getElementById('expenseCategorySelect').innerHTML=expenseCategories.map(c=>`<option value="${c.id}" ${c.id===exp.categoryId?'selected':''}>${escapeHtml(c.name)}</option>`).join(''); document.getElementById('expenseAmount').value=exp.amount; document.getElementById('expenseDesc').value=exp.description||''; document.getElementById('expenseDate').value=exp.date||new Date().toISOString().slice(0,10); document.getElementById('editExpenseId').value=exp.id; document.getElementById('expenseModal').classList.add('active'); } };
+document.getElementById('newExpenseBtn').onclick=()=>{ document.getElementById('expenseCategorySelect').innerHTML=expenseCategories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join(''); document.getElementById('expenseAmount').value=''; document.getElementById('expenseDesc').value=''; document.getElementById('expenseDate').value=new Date().toISOString().slice(0,10); document.getElementById('editExpenseId').value=''; document.getElementById('expenseModal').classList.add('active'); };
+document.getElementById('saveExpenseBtn').onclick=()=>{ let catId=parseInt(document.getElementById('expenseCategorySelect').value); let amt=parseFloat(document.getElementById('expenseAmount').value); let desc=document.getElementById('expenseDesc').value; let date=document.getElementById('expenseDate').value; let editId=document.getElementById('editExpenseId').value; if(!isNaN(amt) && amt>0){ if(editId) addExpense(catId,amt,desc,date, parseInt(editId)); else addExpense(catId,amt,desc,date); } document.getElementById('expenseModal').classList.remove('active'); };
+document.getElementById('closeExpenseModalBtn').onclick=()=>document.getElementById('expenseModal').classList.remove('active');
+
+// TAKSİTLİ BORÇLAR
+function renderInstallments(){ let div=document.getElementById('installmentsListContainer'); div.innerHTML=installmentDebts.map(inst=>{ let taksit=inst.totalAmount/inst.installmentCount; let yuzde=(inst.paidInstallmentCount/inst.installmentCount)*100; let isPaid=inst.paidInstallmentCount===inst.installmentCount; return `<div class="debt-item ${isPaid?'paid':'unpaid'}"><div><strong>${escapeHtml(inst.name)}</strong> (${inst.paidInstallmentCount}/${inst.installmentCount})<br>Toplam:${formatMoney(inst.totalAmount)} Kalan:${formatMoney((inst.installmentCount-inst.paidInstallmentCount)*taksit)}<div class="debt-progress"><div style="width:${yuzde}%; height:6px; background:#11998e;"></div></div></div><div><button class="btn-save" onclick="payInstallment(${inst.id})" style="background:#11998e;">Taksit Öde</button><button class="btn-edit" onclick="editInstallment(${inst.id})">Düzenle</button><button class="btn-small-delete" onclick="deleteInstallment(${inst.id})">Sil</button></div></div>`; }).join('')||'Taksitli borç yok'; let ist={total:0,paidTotal:0}; installmentDebts.forEach(i=>{ let t=i.totalAmount/i.installmentCount; ist.paidTotal+=i.paidInstallmentCount*t; ist.total+=i.totalAmount; }); document.getElementById('installmentSummary').innerHTML=`<div>Toplam:${formatMoney(ist.total)} Ödenen:${formatMoney(ist.paidTotal)} Kalan:${formatMoney(ist.total-ist.paidTotal)}</div>`; }
+window.payInstallment = function(id){ let inst=installmentDebts.find(i=>i.id===id); if(inst && inst.paidInstallmentCount<inst.installmentCount){ let taksit=inst.totalAmount/inst.installmentCount; inst.paidInstallmentCount++; payments.push({id:generateId(payments),debtId:id,amount:taksit,date:new Date().toISOString(),type:'installment'}); saveAllToUser(); renderInstallments(); renderStats(); drawCharts(); updateMonthlyYearly(); showToast('Taksit ödendi'); } };
+window.deleteInstallment = function(id){ installmentDebts=installmentDebts.filter(i=>i.id!==id); saveAllToUser(); renderInstallments(); renderStats(); drawCharts(); };
+window.editInstallment = function(id){ let inst=installmentDebts.find(i=>i.id===id); if(inst){ document.getElementById('installmentName').value=inst.name; document.getElementById('installmentTotal').value=inst.totalAmount; document.getElementById('installmentCount').value=inst.installmentCount; document.getElementById('installmentPaidCount').value=inst.paidInstallmentCount; document.getElementById('editInstallmentId').value=inst.id; document.getElementById('installmentModal').classList.add('active'); } };
+document.getElementById('saveInstallmentBtn').onclick=()=>{ let id=parseInt(document.getElementById('editInstallmentId').value); let name=document.getElementById('installmentName').value.trim(); let total=parseFloat(document.getElementById('installmentTotal').value); let count=parseInt(document.getElementById('installmentCount').value); let paid=parseInt(document.getElementById('installmentPaidCount').value); if(!name || isNaN(total) || total<=0 || isNaN(count) || count<=0 || paid<0 || paid>count){ alert('Geçerli değerler girin'); return; } let idx=installmentDebts.findIndex(i=>i.id===id); if(idx!==-1){ installmentDebts[idx]={...installmentDebts[idx], name, totalAmount:total, installmentCount:count, paidInstallmentCount:paid}; saveAllToUser(); renderInstallments(); renderStats(); drawCharts(); showToast('Taksitli borç güncellendi'); } document.getElementById('installmentModal').classList.remove('active'); };
+document.getElementById('closeInstallmentModalBtn').onclick=()=>document.getElementById('installmentModal').classList.remove('active');
+document.getElementById('newInstallmentBtn').onclick=()=>{ let name=prompt('Taksitli borç adı'); let total=parseFloat(prompt('Toplam tutar')); let count=parseInt(prompt('Taksit sayısı')); if(name&&total&&count){ installmentDebts.push({id:generateId(installmentDebts),name,totalAmount:total,installmentCount:count,paidInstallmentCount:0}); saveAllToUser(); showPage('installments'); } };
+
+// ALARM & BİLDİRİM
+function renderNotifs(){ document.getElementById('notificationsList').innerHTML=notifications.map(n=>`<div class="debt-item"><span>${escapeHtml(n.title)}</span><button class="btn-small-delete" onclick="deleteNotif(${n.id})">Sil</button></div>`).join('')||'Bildirim yok'; }
+function renderAlarms(){ document.getElementById('alarmsList').innerHTML=alarms.map(a=>`<div class="debt-item"><span>🔔 ${escapeHtml(a.title)}</span><button class="btn-small-delete" onclick="deleteAlarm(${a.id})">Sil</button></div>`).join('')||'Alarm yok'; }
+window.deleteNotif = function(id){ notifications=notifications.filter(n=>n.id!==id); saveAllToUser(); renderNotifs(); updateNotifBadge(); };
+window.deleteAlarm = function(id){ alarms=alarms.filter(a=>a.id!==id); saveAllToUser(); renderAlarms(); };
+function updateNotifBadge(){ let c=notifications.length; let b=document.getElementById('notifBadge'); if(c>0){ b.innerText=c>99?'99+':c; b.style.display='flex'; } else b.style.display='none'; }
+document.getElementById('newAlarmBtn').onclick=()=>{ let title=prompt('Alarm adı'); if(title){ alarms.push({id:generateId(alarms),title,desc:'',dateTime:new Date().toISOString()}); saveAllToUser(); renderAlarms(); } };
+document.getElementById('newNotifBtn').onclick=()=>{ let title=prompt('Bildirim başlığı'); if(title){ notifications.push({id:generateId(notifications),title,desc:''}); saveAllToUser(); renderNotifs(); } };
+document.getElementById('clearAllNotifsBtn').onclick=()=>{ notifications=[]; saveAllToUser(); renderNotifs(); };
+
+// SAYFA GEÇİŞLERİ
+function updateMonthlyYearly(){ if(document.getElementById('monthly').classList.contains('active')) renderMonthlyStats(); if(document.getElementById('yearly').classList.contains('active')) renderYearlyStats(); }
+function renderActivePage(){ let active=document.querySelector('.page-content.active, .section-card.active'); if(active){ if(active.id==='overview'){ renderStats(); drawCharts(); } else if(active.id==='debts') renderDebtList(); else if(active.id==='income') renderIncomeList(); else if(active.id==='expenses') { renderExpenses(); renderExpenseCategories(); } else if(active.id==='installments') renderInstallments(); else if(active.id==='monthly') renderMonthlyStats(); else if(active.id==='yearly') renderYearlyStats(); else if(active.id==='notifications') renderNotifs(); else if(active.id==='alarms') renderAlarms(); } else { renderStats(); drawCharts(); } }
+function showPage(id){ document.querySelectorAll('.page-content, .section-card').forEach(el=>el.classList.remove('active')); document.getElementById(id).classList.add('active'); renderActivePage(); toggleSidebar(false); }
+function toggleSidebar(force){ let s=document.getElementById('sidebarPanel'), o=document.getElementById('sidebarOverlay'); if(force===false){ s.classList.remove('active'); o.classList.remove('active'); return; } s.classList.toggle('active'); o.classList.toggle('active'); }
+
+// AI ASİSTAN
+function addChatMessage(text, isUser) { let div=document.getElementById('chatMessages'); let msgDiv=document.createElement('div'); msgDiv.className=`chat-message ${isUser?'user':'bot'}`; msgDiv.innerHTML=isUser?`<div class="chat-avatar"><i class="fas fa-user"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`:`<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`; div.appendChild(msgDiv); div.scrollTop=div.scrollHeight; }
+function getAIResponse(q){ let s=getStats(); if(q.includes('toplam borç')) return `💰 Toplam borç: ${formatMoney(s.totalDebt)} (Bu ayki taksit dahil)`; if(q.includes('kalan net gelir')) return `💵 Kalan Net Gelir: ${formatMoney(s.netIncome)}`; if(q.includes('risk')){ let oran=s.totalIncome>0?(s.remaining/s.totalIncome)*100:100; return `⚠️ Risk: ${oran>80?'Yüksek':oran>40?'Orta':'Düşük'} (Borç/Gelir %${oran.toFixed(1)})`; } return `Sorular: toplam borç, kalan net gelir, risk, taksitler.`; }
+function sendQuestion(){ let inp=document.getElementById('chatInput'); let q=inp.value.trim(); if(!q) return; addChatMessage(q,true); inp.value=''; setTimeout(()=>{ let ans=getAIResponse(q); addChatMessage(ans,false); }, 200); }
+
+// DIŞA/İÇE AKTAR, PDF, YAZDIR
+function exportDebtsToPDF() { let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Raporlanacak borç yok'); return; } let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><table><tr><th>Ad</th><th>Kategori</th><th>Toplam</th><th>Ödenen</th><th>Kalan</th></tr>${filtered.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')}</table></body></html>`; let temp=document.createElement('div'); temp.innerHTML=html; document.body.appendChild(temp); html2pdf().from(temp).set({margin:0.5,filename:`borc_raporu.pdf`}).save().then(()=>temp.remove()); }
+function printDebts(){ let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Yazdırılacak borç yok'); return; } let w=window.open('','_blank'); w.document.write(`<html><head><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><ul>${filtered.map(d=>`<li>${escapeHtml(d.name)} (${escapeHtml(d.category)}): ${formatMoney(d.amount)} (Ödenen:${formatMoney(d.paid)} Kalan:${formatMoney(d.amount-d.paid)})</li>`).join('')}</ul></body></html>`); w.document.close(); w.print(); }
+function shareApp(platform){ let url=encodeURIComponent(location.href); let links={whatsapp:`https://wa.me/?text=Borç%20Takip%20${decodeURIComponent(url)}`,twitter:`https://twitter.com/intent/tweet?text=BorçTakip&url=${decodeURIComponent(url)}`,facebook:`https://www.facebook.com/sharer/sharer.php?u=${decodeURIComponent(url)}`,email:`mailto:?subject=Borç Takip&body=${decodeURIComponent(url)}`}; window.open(links[platform],'_blank'); }
+
+// GİRİŞ/ÇIKIŞ
+function login(username) { if(!username || username.trim() === "") { alert('Lütfen bir kullanıcı adı girin'); return false; } let newUser = username.trim(); if(currentUser !== newUser){ let confirmMerge = confirm('Mevcut misafir verilerini bu kullanıcıya aktarmak ister misiniz? "İptal" derseniz temiz hesap başlatılır.'); if(confirmMerge && currentUser===null){ let oldData = localStorage.getItem('user_anonymous'); if(oldData){ localStorage.setItem(`user_${newUser}`, oldData); } } } currentUser = newUser; localStorage.setItem('currentUser', currentUser); document.getElementById('loggedOutView').style.display = 'none'; document.getElementById('loggedInView').style.display = 'block'; document.getElementById('displayUsername').innerText = currentUser; loadUserData(); showToast(`Hoş geldin, ${currentUser}`); return true; }
+function logout() { currentUser = null; localStorage.removeItem('currentUser'); document.getElementById('loggedOutView').style.display = 'block'; document.getElementById('loggedInView').style.display = 'none'; loadUserData(); showToast('Çıkış yapıldı, misafir moduna geçildi'); }
+
+// BAŞLANGIÇ
+document.getElementById('hamburgerBtn').onclick=()=>toggleSidebar(); document.getElementById('sidebarOverlay').onclick=()=>toggleSidebar(false);
+document.querySelectorAll('.sidebar-item[data-page]').forEach(el=>el.onclick=()=>showPage(el.dataset.page));
+let pages = ['overview','monthly','yearly','debts','income','expenses','installments','alarms','notifications','aiStrategy','help','feedback','about','privacy'];
+document.getElementById('navGrid').innerHTML=pages.map(p=>`<button class="nav-btn" data-page="${p}"><i class="fas ${p==='overview'?'fa-chart-line':p==='monthly'?'fa-calendar-alt':p==='yearly'?'fa-chart-bar':p==='debts'?'fa-file-invoice-dollar':p==='income'?'fa-hand-holding-usd':p==='expenses'?'fa-shopping-cart':p==='installments'?'fa-calendar-week':p==='alarms'?'fa-bell':p==='notifications'?'fa-envelope':p==='aiStrategy'?'fa-robot':p==='help'?'fa-question-circle':p==='feedback'?'fa-headset':p==='about'?'fa-info-circle':'fa-shield-alt'}"></i> ${p==='overview'?'GENEL':p==='monthly'?'AYLIK':p==='yearly'?'YILLIK':p==='debts'?'BORÇLAR':p==='income'?'GELİR':p==='expenses'?'GİDER':p==='installments'?'TAKSİT':p==='alarms'?'ALARM':p==='notifications'?'BİLDİRİM':p==='aiStrategy'?'AI':p==='help'?'YARDIM':p==='feedback'?'İLETİŞİM':p==='about'?'HAKKINDA':'GİZLİLİK'}</button>`).join('');
+document.getElementById('navGrid').addEventListener('click',e=>{ let btn=e.target.closest('.nav-btn'); if(btn) showPage(btn.dataset.page); });
+document.getElementById('newDebtBtn').onclick=openAddDebtModal;
+document.getElementById('newIncomeBtn').onclick=()=>{ let name=prompt('Gelir adı'); let amt=parseFloat(prompt('Miktar (₺)')); if(name&&amt){ incomes.push({id:generateId(incomes),name,amount:amt,date:new Date().toISOString()}); saveAllToUser(); showPage('income'); } };
+document.getElementById('sendContactBtn').onclick=()=>{ let msg=document.getElementById('contactMessage').value; if(msg) window.location.href='mailto:destek@borctakip.com?subject=İletişim&body='+encodeURIComponent(msg); };
+document.getElementById('notificationBellBtn').onclick=()=>showPage('notifications');
+document.getElementById('pdfDebtBtn').addEventListener('click', exportDebtsToPDF);
+document.getElementById('printDebtBtn').addEventListener('click', printDebts);
+document.querySelectorAll('.debt-tab-btn').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.debt-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDebtTab=btn.dataset.tab; renderDebtList(); }));
+document.getElementById('exportBtn').onclick=()=>{ let data=JSON.stringify({debts,incomes,alarms,notifications,installmentDebts,payments,expenses,expenseCategories}); let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data])); a.download=`borc_yedek_${currentUser||'anonim'}.json`; a.click(); };
+document.getElementById('importBtn').onclick=()=>{ let inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=e=>{ let file=inp.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=ev=>{ try{ let importedData=JSON.parse(ev.target.result); if(importedData.debts) debts=importedData.debts; if(importedData.incomes) incomes=importedData.incomes; if(importedData.expenses) expenses=importedData.expenses; if(importedData.expenseCategories) expenseCategories=importedData.expenseCategories; if(importedData.installmentDebts) installmentDebts=importedData.installmentDebts; if(importedData.payments) payments=importedData.payments; if(importedData.alarms) alarms=importedData.alarms; if(importedData.notifications) notifications=importedData.notifications; saveAllToUser(); renderActivePage(); showToast('İçe aktarma başarılı!'); }catch(err){ alert('Dosya okunamadı: '+err.message); } }; reader.readAsText(file); }; inp.click(); };
+document.getElementById('resetBtn').onclick=()=>{ if(confirm('TÜM VERİLERİ SİL? (Bu kullanıcı için)')){ localStorage.removeItem(getStorageKey()); loadUserData(); renderActivePage(); showToast('Sıfırlandı'); } };
+document.getElementById('chatSendBtn').addEventListener('click', sendQuestion);
+document.getElementById('chatInput').addEventListener('keypress', (e)=>{ if(e.key==='Enter') sendQuestion(); });
+function updateClock(){ let now=new Date(); document.getElementById('liveClock').innerText=`${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`; }
+setInterval(updateClock,1000); updateClock();
+fillMonthYearSelect();
+for(let y=2026; y<=new Date().getFullYear()+2; y++) document.getElementById('yearSelect').innerHTML+=`<option value="${y}" ${y===selectedYear?'selected':''}>${y}</option>`;
+document.getElementById('monthYearSelect').addEventListener('change',(e)=>{ let [y,m]=e.target.value.split('-'); selectedYear=parseInt(y); selectedMonth=parseInt(m); renderMonthlyStats(); });
+document.getElementById('yearSelect').addEventListener('change',(e)=>{ selectedYear=parseInt(e.target.value); renderYearlyStats(); });
+function setTheme(th){ document.body.classList.remove('theme-green','theme-purple','theme-orange'); if(th!=='default') document.body.classList.add(`theme-${th}`); localStorage.setItem('colorTheme',th); }
+document.getElementById('colorThemeSelect').addEventListener('change',e=>setTheme(e.target.value));
+function setDarkMode(en){ if(en){ document.body.classList.add('dark-mode'); localStorage.setItem('darkMode','1'); document.getElementById('themeToggleBtn').innerHTML='<i class="fas fa-sun"></i> AYDINLIK'; } else { document.body.classList.remove('dark-mode'); localStorage.setItem('darkMode','0'); document.getElementById('themeToggleBtn').innerHTML='<i class="fas fa-moon"></i> KARANLIK'; } }
+document.getElementById('themeToggleBtn').addEventListener('click',()=>setDarkMode(!document.body.classList.contains('dark-mode')));
+if(localStorage.getItem('darkMode')==='1') setDarkMode(true);
+let savedTheme=localStorage.getItem('colorTheme'); if(savedTheme&&savedTheme!=='default') setTheme(savedTheme);
+document.getElementById('clockToggleBtn').onclick=()=>document.getElementById('liveClock').classList.toggle('hide-clock');
+document.getElementById('doLoginBtn').onclick=()=>{ let username=document.getElementById('loginUsername').value.trim(); if(username) login(username); };
+document.getElementById('logoutBtn').onclick=()=>{ logout(); };
+let savedUser2 = localStorage.getItem('currentUser'); if(savedUser2) { currentUser = savedUser2; document.getElementById('loggedOutView').style.display = 'none'; document.getElementById('loggedInView').style.display = 'block'; document.getElementById('displayUsername').innerText = savedUser2; } else { currentUser = null; document.getElementById('loggedOutView').style.display = 'block'; document.getElementById('loggedInView').style.display = 'none'; }
+loadUserData();
+</script>
 </body>
 </html>
