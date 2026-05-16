@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://borctakipyonetimi.github.io/sitemap.xml
