@@ -8,9 +8,9 @@
     <meta name="keywords" content="borç takip, gelir gider takibi, taksitli borç, finansal asistan, AI, bütçe yönetimi, ücretsiz, mobil uyumlu">
     <meta name="author" content="Serkan Sağlam">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://www.sizindomaininiz.com/">
+    <link rel="canonical" href="https://borctakipyonetimi.github.io/">
     
-    <!-- Google AdSense (küçültülmüş görünüm için ek CSS eklendi) -->
+    <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
     <meta name="google-adsense-account" content="ca-pub-4449700232321088">
     
@@ -163,7 +163,6 @@
         .category-item { display: flex; justify-content: space-between; align-items: center; background: var(--hover-bg); padding: 8px 12px; border-radius: 30px; margin-bottom: 8px; }
         .debt-progress { background: #e2e8f0; border-radius: 30px; height: 6px; margin-top: 6px; width: 100%; }
         .debt-progress-bar { background: #11998e; height: 6px; border-radius: 30px; }
-        /* Reklam alanları küçültüldü */
         .ad-container {
             margin: 12px 0;
             text-align: center;
@@ -210,9 +209,6 @@
     </style>
 </head>
 <body>
-    <amp-auto-ads type="adsense"
-        data-ad-client="ca-pub-4449700232321088">
-</amp-auto-ads>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="sidebar" id="sidebarPanel">
     <div class="sidebar-header"><h3><i class="fas fa-coins"></i> BORÇ ASİSTANI</h3>
@@ -238,6 +234,7 @@
     <div class="sidebar-item" data-page="notifications"><i class="fas fa-envelope"></i> BİLDİRİMLER</div>
     <div class="sidebar-item" data-page="aiStrategy"><i class="fas fa-robot"></i> AI STRATEJİ</div>
     <div class="sidebar-item" data-page="help"><i class="fas fa-question-circle"></i> YARDIM</div>
+    <div class="sidebar-item" data-page="blog"><i class="fas fa-book-open"></i> REHBER</div>
     <div class="sidebar-item" data-page="feedback"><i class="fas fa-headset"></i> İLETİŞİM</div>
     <div class="sidebar-item" data-page="about"><i class="fas fa-info-circle"></i> HAKKINDA</div>
     <div class="sidebar-item" data-page="privacy"><i class="fas fa-shield-alt"></i> GİZLİLİK POLİTİKASI</div>
@@ -280,7 +277,7 @@
     <div id="notifications" class="section-card"><div class="section-title"> BİLDİRİMLER</div><button class="btn-save" id="newNotifBtn"> YENİ BİLDİRİM</button><button class="btn-save" id="clearAllNotifsBtn"> TÜMÜNÜ TEMİZLE</button><div id="notificationsList"></div></div>
     <div id="aiStrategy" class="section-card"><div class="section-title"><i class="fas fa-robot"></i> YAPAY ZEKA ASİSTANI</div><div class="ai-chat-container"><div class="chat-messages" id="chatMessages"><div class="chat-message bot"><div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">Merhaba! Borç, gelir, gider, taksitler hakkında sorular sorabilirsiniz.</div></div></div><div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Soru sor... (örnek: toplam borç, risk durumu, kalan net gelir)"><button id="chatSendBtn" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button></div></div><div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div></div>
     
-    <!-- UZUN YARDIM (KULLANIM KILAVUZU) -->
+    <!-- YARDIM SAYFASI (sadece orijinal yardım kartları) -->
     <div id="help" class="section-card"><div class="section-title"><i class="fas fa-question-circle"></i> KULLANIM KILAVUZU</div>
         <div class="help-card"><h4>📘 BAŞLANGIÇ</h4><p>Önce gelirlerinizi ekleyin, ardından borçlarınızı (tek seferlik veya taksitli) girin. Giderlerinizi kategorilerle takip edin. Sol menüden tüm sayfalara erişebilirsiniz.</p></div>
         <div class="help-card"><h4>💰 BORÇ YÖNETİMİ</h4><p>Borç Listesi sayfasında tüm borçlarınızı görün, düzenleyin, silin, kategori değiştirin. "Ödendi" butonu ile borcu kapatabilir veya geri alabilirsiniz. Taksitli borçlarda her ay taksit öde butonu ile ilerleyin.</p></div>
@@ -290,11 +287,80 @@
         <div class="help-card"><h4>💾 VERİ YEDEKLEME</h4><p>Yan menüden "Dışa Aktar" ile tüm verilerinizi JSON dosyası olarak kaydedin, "İçe Aktar" ile geri yükleyin. Kullanıcı girişi yaparak farklı hesaplar oluşturabilirsiniz.</p></div>
         <div class="help-card"><h4>🎨 TEMA & SAAT</h4><p>Başlıkta bulunan saat simgesi ile saati gizleyip gösterebilirsiniz. Aydınlık/Karanlık mod ve 4 farklı renk teması mevcuttur.</p></div>
         <div class="help-card"><h4>📱 MOBİL UYUMLU</h4><p>Responsive tasarım sayesinde telefon ve tabletlerde rahat kullanım. Tüm özellikler dokunmatik ekranlar için optimize edilmiştir.</p></div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="btn-save" onclick="showPage('blog')" style="background: linear-gradient(135deg, #11998e, #38ef7d);"><i class="fas fa-book-open"></i> Finans Rehberlerimizi Keşfet</button>
+        </div>
+    </div>
+    
+    <!-- REHBER SAYFASI (6 MAKALE + REKLAM ALANLARI) -->
+    <div id="blog" class="section-card">
+        <div class="section-title"><i class="fas fa-book-open"></i> FİNANS REHBERLERİ</div>
+        
+        <!-- Makale 1 -->
+        <div class="help-card">
+            <h4>💰 Borçlardan Kurtulmanın 5 Etkili Yolu</h4>
+            <p><strong>1. Borç Envanteri Çıkarın:</strong> Tüm borçlarınızı (kredi kartı, konut, araç, taksitli alışveriş) tek bir listede toplayın. Borç Takip Sistemi ile bunu saniyeler içinde yapabilirsiniz.</p>
+            <p><strong>2. Karlı İlk Stratejisi (Avalanche Method):</strong> En yüksek faizli borcunuzu önce kapatmaya odaklanın.</p>
+            <p><strong>3. Kartopu Yöntemi (Snowball Method):</strong> Psikolojik motivasyon için en küçük borcunuzdan başlayın.</p>
+            <p><strong>4. Gelir-Gider Dengesi Kurun:</strong> Uygulamamızın gelir/gider takibi sayesinde gereksiz harcamalarınızı tespit edin.</p>
+            <p><strong>5. Taksitli Borçları Yeniden Yapılandırın:</strong> Yüksek faizli taksitleri erken kapatarak faiz yükünden kurtulun.</p>
+        </div>
+        
+        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        
+        <!-- Makale 2 -->
+        <div class="help-card">
+            <h4>📊 Bütçe Yönetimi Rehberi (2026 Güncel)</h4>
+            <p><strong>1. 50/30/20 Kuralını Uygulayın:</strong> Net gelirinizin %50'sini zorunlu ihtiyaçlar, %30'unu istekler, %20'sini tasarruf ve borç ödemelerine ayırın.</p>
+            <p><strong>2. Acil Durum Fonu Oluşturun:</strong> 3-6 aylık yaşam giderinizi kapsayan bir acil durum fonu hedefleyin.</p>
+            <p><strong>3. Otomatik Ödeme ve Hatırlatıcılar:</strong> Uygulamamızın alarm ve bildirim özelliklerini kullanarak ödeme tarihlerini kaçırmayın.</p>
+            <p><strong>4. Aylık Harcama Limitleri Belirleyin:</strong> Gider kategorilerine aylık limit koyun.</p>
+            <p><strong>5. Düzenli Bütçe Gözden Geçirme:</strong> Her ay sonunda gelir/gider raporunuzu inceleyin.</p>
+        </div>
+        
+        <!-- Makale 3 -->
+        <div class="help-card">
+            <h4>📈 Kredi Notu Nedir, Nasıl Yükseltilir?</h4>
+            <p>Kredi notu (Findeks KKR), bankaların size kredi verip vermeyeceğine karar verdiği en önemli kriterdir. 0-1900 puan arasında değişir.</p>
+            <ul style="margin-left: 20px; margin-top: 6px;">
+                <li>✅ Faturalarınızı ve kredi kartı borçlarınızı <strong>zamanında ödeyin</strong>.</li>
+                <li>✅ Kredi kartı limitinizin <strong>%25'ini aşmayın</strong>.</li>
+                <li>✅ <strong>Kredi başvurusu sıklığını azaltın</strong>.</li>
+                <li>✅ Uzun süreli ve düzenli ödeme alışkanlığı gösterin.</li>
+            </ul>
+        </div>
+        
+        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        
+        <!-- Makale 4 -->
+        <div class="help-card">
+            <h4>🛒 Taksitli Alışverişin Artıları ve Eksileri</h4>
+            <p><strong>Artıları (+):</strong> Yüksek tutarlı ürünleri hemen alabilmek, faizsiz taksit kampanyaları, acil ihtiyaçlarda imdadınıza yetişmesi.</p>
+            <p><strong>Eksileri (-):</strong> Faizli taksitler toplam ödeme tutarını artırır, birden fazla taksitli borç bütçeyi sıkıştırabilir, geç ödemelerde yüksek faizler.</p>
+            <p><strong>Önerimiz:</strong> Taksitli borçlarınızın toplam aylık ödemesi, gelirinizin %20'sini geçmesin.</p>
+        </div>
+        
+        <!-- YENİ MAKALE 5: Kredi Kartı Borcundan Kurtulmanın 3 Stratejisi -->
+        <div class="help-card">
+            <h4>💳 Kredi Kartı Borcundan Kurtulmanın 3 Stratejisi</h4>
+            <p><strong>1. Balance Transfer (Borç Transferi):</strong> Yüksek faizli kredi kartı borcunuzu, daha düşük faizli veya faizsiz bir karta transfer edin. Bankaların kampanyalarını takip ederek aylık faiz yükünden kurtulabilirsiniz.</p>
+            <p><strong>2. Asgari Ödemenin Üzerine Çıkın:</strong> Sadece asgari tutarı ödemek, borcunuzu yıllarca süründürür. Her ay asgari tutarın en az 2-3 katını ödemeye çalışın. Örneğin 5.000 TL borcun asgarisi 500 TL ise, 1.500 TL ödeyin.</p>
+            <p><strong>3. Harcama Durdurma (Spending Freeze):</strong> Kredi kartınızı bir süre tamamen kullanmayın. Sadece nakit veya banka kartı ile harcama yapın. Bu sayede yeni borç oluşturmaz, mevcut borcu eritmeye odaklanırsınız.</p>
+        </div>
+        
+        <!-- YENİ MAKALE 6: Acil Durum Fonu Rehberi -->
+        <div class="help-card">
+            <h4>🛡️ Acil Durum Fonu Nasıl Oluşturulur? Adım Adım Rehber</h4>
+            <p><strong>Adım 1 – Hedef Belirleyin:</strong> 3 aylık yaşam giderinizi hesaplayın (kira, fatura, gıda, ulaşım). Örneğin aylık 15.000 TL harcıyorsanız hedef 45.000 TL olmalıdır.</p>
+            <p><strong>Adım 2 – Otomatik Tasarruf:</strong> Maaşınız yatar yatmaz, belirlediğiniz bir tutarı (örneğin %10) otomatik olarak bir kenara ayırın. Bunu bankanızın otomatik ödeme talimatı ile yapabilirsiniz.</p>
+            <p><strong>Adım 3 – Ek Gelir Yaratın:</strong> Freelance işler, eski eşyaların satışı, anketler gibi ek gelirleri doğrudan acil durum fonuna aktarın.</p>
+            <p><strong>Adım 4 – Fonu Dokunulmaz Tutun:</strong> Bu para sadece gerçek acil durumlar için kullanılmalı (iş kaybı, sağlık sorunu, büyük arıza). Alışveriş veya tatil için kesinlikle kullanmayın.</p>
+            <p><strong>Adım 5 – Fonu Büyütün:</strong> 3 aylık hedefe ulaştıktan sonra 6 aya, ardından 12 aya çıkarın. Bu sayede her türlü ekonomik zorluğa karşı hazırlıklı olursunuz.</p>
+        </div>
     </div>
     
     <div id="feedback" class="section-card"><div class="section-title"> İLETİŞİM</div><input type="text" id="contactName" class="form-input" placeholder="Adınız"><textarea id="contactMessage" class="form-input" rows="3" placeholder="Mesajınız"></textarea><button class="btn-save" id="sendContactBtn"> MESAJ GÖNDER</button></div>
     
-    <!-- UZUN HAKKINDA -->
     <div id="about" class="section-card"><div class="section-title"><i class="fas fa-info-circle"></i> HAKKINDA</div>
         <div style="line-height:1.6">
             <p><strong><i class="fas fa-chart-pie"></i> Borç Takip Sistemi 5.0</strong> - Kişisel finans yönetiminde devrim yaratan, yapay zeka destekli kapsamlı bir çözüm.</p><br>
@@ -318,7 +384,6 @@
         </div>
     </div>
     
-    <!-- UZUN GİZLİLİK POLİTİKASI -->
     <div id="privacy" class="section-card">
         <div class="section-title"><i class="fas fa-shield-alt"></i> GİZLİLİK POLİTİKASI</div>
         <div style="line-height: 1.6; font-size: 0.85rem;">
@@ -495,7 +560,7 @@ function addChatMessage(text, isUser) { let div=document.getElementById('chatMes
 function getAIResponse(q){ let s=getStats(); if(q.includes('toplam borç')) return `💰 Toplam borç: ${formatMoney(s.totalDebt)} (Bu ayki taksit dahil)`; if(q.includes('kalan net gelir')) return `💵 Kalan Net Gelir: ${formatMoney(s.netIncome)}`; if(q.includes('risk')){ let oran=s.totalIncome>0?(s.remaining/s.totalIncome)*100:100; return `⚠️ Risk: ${oran>80?'Yüksek':oran>40?'Orta':'Düşük'} (Borç/Gelir %${oran.toFixed(1)})`; } return `Sorular: toplam borç, kalan net gelir, risk, taksitler.`; }
 function sendQuestion(){ let inp=document.getElementById('chatInput'); let q=inp.value.trim(); if(!q) return; addChatMessage(q,true); inp.value=''; setTimeout(()=>{ let ans=getAIResponse(q); addChatMessage(ans,false); }, 200); }
 
-function exportDebtsToPDF() { let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Raporlanacak borç yok'); return; } let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><table><th>Ad</th><th>Kategori</th><th>Toplam</th><th>Ödenen</th><th>Kalan</th></tr>${filtered.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')} </table></body></html>`; let temp=document.createElement('div'); temp.innerHTML=html; document.body.appendChild(temp); html2pdf().from(temp).set({margin:0.5,filename:`borc_raporu.pdf`}).save().then(()=>temp.remove()); }
+function exportDebtsToPDF() { let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Raporlanacak borç yok'); return; } let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><table><th>Ad</th><th>Kategori</th><th>Toplam</th><th>Ödenen</th><th>Kalan</th><tr>${filtered.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')} </table></body></html>`; let temp=document.createElement('div'); temp.innerHTML=html; document.body.appendChild(temp); html2pdf().from(temp).set({margin:0.5,filename:`borc_raporu.pdf`}).save().then(()=>temp.remove()); }
 function printDebts(){ let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Yazdırılacak borç yok'); return; } let w=window.open('','_blank'); w.document.write(`<html><head><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><ul>${filtered.map(d=>`<li>${escapeHtml(d.name)} (${escapeHtml(d.category)}): ${formatMoney(d.amount)} (Ödenen:${formatMoney(d.paid)} Kalan:${formatMoney(d.amount-d.paid)})</li>`).join('')}</ul></body></html>`); w.document.close(); w.print(); }
 function shareApp(platform){ let url=encodeURIComponent(location.href); let links={whatsapp:`https://wa.me/?text=Borç%20Takip%20${decodeURIComponent(url)}`,twitter:`https://twitter.com/intent/tweet?text=BorçTakip&url=${decodeURIComponent(url)}`,facebook:`https://www.facebook.com/sharer/sharer.php?u=${decodeURIComponent(url)}`,email:`mailto:?subject=Borç Takip&body=${decodeURIComponent(url)}`}; window.open(links[platform],'_blank'); }
 
@@ -507,9 +572,9 @@ document.getElementById('hamburgerBtn').onclick=()=>toggleSidebar();
 document.getElementById('sidebarOverlay').onclick=()=>toggleSidebar(false);
 document.querySelectorAll('.sidebar-item[data-page]').forEach(el=>{ el.onclick = (e) => { e.stopPropagation(); showPage(el.dataset.page); toggleSidebar(false); }; });
 
-let pages = ['overview','monthly','yearly','debts','income','expenses','installments','alarms','notifications','aiStrategy','help','feedback','about','privacy'];
-const pageIcons = { overview:'fa-chart-line', monthly:'fa-calendar-alt', yearly:'fa-chart-bar', debts:'fa-file-invoice-dollar', income:'fa-hand-holding-usd', expenses:'fa-shopping-cart', installments:'fa-calendar-week', alarms:'fa-bell', notifications:'fa-envelope', aiStrategy:'fa-robot', help:'fa-question-circle', feedback:'fa-headset', about:'fa-info-circle', privacy:'fa-shield-alt' };
-const pageNames = { overview:'GENEL', monthly:'AYLIK', yearly:'YILLIK', debts:'BORÇLAR', income:'GELİR', expenses:'GİDER', installments:'TAKSİT', alarms:'ALARM', notifications:'BİLDİRİM', aiStrategy:'AI', help:'YARDIM', feedback:'İLETİŞİM', about:'HAKKINDA', privacy:'GİZLİLİK' };
+let pages = ['overview','monthly','yearly','debts','income','expenses','installments','alarms','notifications','aiStrategy','help','blog','feedback','about','privacy'];
+const pageIcons = { overview:'fa-chart-line', monthly:'fa-calendar-alt', yearly:'fa-chart-bar', debts:'fa-file-invoice-dollar', income:'fa-hand-holding-usd', expenses:'fa-shopping-cart', installments:'fa-calendar-week', alarms:'fa-bell', notifications:'fa-envelope', aiStrategy:'fa-robot', help:'fa-question-circle', blog:'fa-book-open', feedback:'fa-headset', about:'fa-info-circle', privacy:'fa-shield-alt' };
+const pageNames = { overview:'GENEL', monthly:'AYLIK', yearly:'YILLIK', debts:'BORÇLAR', income:'GELİR', expenses:'GİDER', installments:'TAKSİT', alarms:'ALARM', notifications:'BİLDİRİM', aiStrategy:'AI', help:'YARDIM', blog:'REHBER', feedback:'İLETİŞİM', about:'HAKKINDA', privacy:'GİZLİLİK' };
 document.getElementById('navGrid').innerHTML = pages.map(p => `<button class="nav-btn" data-page="${p}"><i class="fas ${pageIcons[p]}"></i> ${pageNames[p]}</button>`).join('');
 document.getElementById('navGrid').addEventListener('click', (e) => { let btn = e.target.closest('.nav-btn'); if(btn && btn.dataset.page) { showPage(btn.dataset.page); toggleSidebar(false); } });
 
