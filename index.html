@@ -3,39 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
-    
-    <!-- SEO Meta Etiketleri -->
-    <title>Borç Takip Sistemi | Ücretsiz AI Destekli Finans Yönetimi</title>
+    <title>Borç Takip Sistemi | Kategorili Borç + AI | Tam Sürüm</title>
     <meta name="description" content="Borçlarınızı, gelir ve giderlerinizi kategorilerle takip edin, yapay zeka asistanı ile finansal risk analizi yapın, taksitli borçları yönetin. Ücretsiz ve mobil uyumlu.">
     <meta name="keywords" content="borç takip, gelir gider takibi, taksitli borç, finansal asistan, AI, bütçe yönetimi, ücretsiz, mobil uyumlu">
     <meta name="author" content="Serkan Sağlam">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://www.sizindomaininiz.com/">
     
-    <!-- Google AdSense -->
+    <!-- Google AdSense (küçültülmüş görünüm için ek CSS eklendi) -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
     <meta name="google-adsense-account" content="ca-pub-4449700232321088">
-    
-    <!-- Yapılandırılmış Veri (Schema.org) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Borç Takip Sistemi",
-      "description": "Kişisel finans yönetimi ve yapay zeka destekli borç takip uygulaması",
-      "applicationCategory": "Finance",
-      "operatingSystem": "Web",
-      "creator": {
-        "@type": "Person",
-        "name": "Serkan Sağlam"
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "TRY"
-      }
-    }
-    </script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -105,6 +82,7 @@
         .logo-area h1 { font-size: 1rem; font-weight: 800; }
         .clock-wrapper { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.3); border-radius: 40px; padding: 2px 6px 2px 10px; backdrop-filter: blur(4px); }
         .header-clock { font-size: 0.65rem; font-weight: 600; font-family: monospace; }
+        .hide-clock { display: none; }
         .clock-flag-btn { background: rgba(255,255,255,0.3); border: none; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; }
         .header-controls { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
         .theme-toggle, .notification-bell, .color-theme-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 30px; padding: 4px 10px; font-weight: 600; color: white; cursor: pointer; backdrop-filter: blur(4px); font-size: 0.65rem; }
@@ -121,8 +99,25 @@
         .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); z-index: 1500; display: none; }
         .sidebar-overlay.active { display: block; }
         .container { max-width: 700px; margin: 0 auto; padding: 0 14px; }
-        .nav-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
-        .nav-btn { background: var(--card-bg); border: none; border-radius: 50px; padding: 8px 4px; font-weight: 600; font-size: 0.7rem; color: var(--primary-start); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .nav-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .nav-btn {
+            background: var(--card-bg);
+            border: none;
+            border-radius: 60px;
+            padding: 10px 6px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: var(--primary-start);
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .nav-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); color: white; }
+        .nav-btn:active { transform: scale(0.96); }
         .social-grid { display: flex; justify-content: center; gap: 14px; margin-bottom: 16px; }
         .social-icon { background: var(--card-bg); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); color: var(--primary-end); }
         .debt-summary-card { background: linear-gradient(135deg, #e0f2fe, #bae6fd); padding: 10px 14px; border-radius: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-weight: 700; color: #0c4a6e; font-size: 0.8rem; }
@@ -132,7 +127,7 @@
         .section-card, .page-content { background: var(--card-bg); border-radius: 24px; padding: 14px 12px; box-shadow: var(--shadow); margin-bottom: 16px; display: none; color: var(--text-main); }
         .section-card.active, .page-content.active { display: block; animation: fadeScale 0.2s ease; }
         .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; border-left: 4px solid var(--primary-end); padding-left: 10px; }
-        .chart-container { width: 100%; min-height: 200px; margin: 10px 0; }
+        .chart-container { width: 100%; min-height: 220px; margin: 10px 0; }
         canvas { max-width: 100%; height: auto !important; width: 100% !important; }
         .debt-tabs { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
         .debt-tab-btn { background: none; border: none; padding: 5px 12px; font-size: 0.7rem; font-weight: 700; border-radius: 30px; cursor: pointer; color: var(--text-light); }
@@ -144,7 +139,8 @@
         body.dark-mode .debt-item.paid { background: #1a2a1a; }
         .debt-category { background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 20px; font-size: 0.65rem; display: inline-block; margin-left: 6px; }
         .income-item, .expense-item { background: var(--card-bg); border-radius: 18px; padding: 10px 12px; border: 1px solid var(--border-light); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-        .btn-save { background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); color: white; border: none; border-radius: 30px; padding: 8px 14px; font-weight: 600; cursor: pointer; margin: 4px 0; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-save { background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); color: white; border: none; border-radius: 30px; padding: 8px 14px; font-weight: 600; cursor: pointer; margin: 4px 0; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; transition: transform 0.1s; }
+        .btn-save:active { transform: scale(0.96); }
         .btn-small-delete { background: #e74c3c; border: none; border-radius: 30px; padding: 4px 12px; font-size: 0.65rem; font-weight: 600; color: white; cursor: pointer; }
         .btn-edit { background: #f39c12; border: none; border-radius: 30px; padding: 4px 12px; font-size: 0.65rem; font-weight: 600; color: white; cursor: pointer; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 3000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
@@ -167,8 +163,49 @@
         .category-item { display: flex; justify-content: space-between; align-items: center; background: var(--hover-bg); padding: 8px 12px; border-radius: 30px; margin-bottom: 8px; }
         .debt-progress { background: #e2e8f0; border-radius: 30px; height: 6px; margin-top: 6px; width: 100%; }
         .debt-progress-bar { background: #11998e; height: 6px; border-radius: 30px; }
-        .ad-container { margin: 16px 0; text-align: center; background: rgba(0,0,0,0.02); border-radius: 20px; padding: 8px; overflow-x: auto; }
-        .ad-label { font-size: 0.6rem; color: #888; margin-bottom: 4px; }
+        /* Reklam alanları küçültüldü */
+        .ad-container {
+            margin: 12px 0;
+            text-align: center;
+            background: rgba(0,0,0,0.02);
+            border-radius: 16px;
+            padding: 4px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        .ad-container ins.adsbygoogle {
+            display: inline-block;
+            max-width: 100%;
+            height: auto;
+            min-height: 60px;
+            max-height: 90px;
+        }
+        .ad-label {
+            font-size: 0.55rem;
+            color: #888;
+            margin-bottom: 2px;
+        }
+        .sync-status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            background: #2c3e50;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+            z-index: 5000;
+            white-space: nowrap;
+        }
+        .sync-status.show {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
         @media (max-width:480px){ .stat-value { font-size: 0.9rem; } .chat-messages { height: 320px; } }
     </style>
 </head>
@@ -204,59 +241,24 @@
     <div class="sidebar-item" id="exportBtn"><i class="fas fa-download"></i> DIŞA AKTAR</div>
     <div class="sidebar-item" id="importBtn"><i class="fas fa-upload"></i> İÇE AKTAR</div>
     <div class="sidebar-item reset-btn" id="resetBtn"><i class="fas fa-trash-alt"></i> TÜM VERİLERİ SIFIRLA</div>
-    <!-- Yan menü alt reklam alanı -->
-    <div class="ad-container" style="margin-top: 16px;">
-        <div class="ad-label">Reklam</div>
-        <ins class="adsbygoogle"
-             style="display:block"
-             data-ad-client="ca-pub-4449700232321088"
-             data-ad-slot="3262325872"
-             data-ad-format="rectangle"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
+    <div class="ad-container" style="margin-top: 16px;"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
 </div>
 
 <div class="header">
-    <div class="header-top">
-        <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
-        <div class="logo-area"><h1>🇹🇷 BORÇ TAKİP YÖNETİM SİSTEMİ</h1></div>
-        <div class="clock-wrapper"><div class="header-clock" id="liveClock">--:--:--</div><button class="clock-flag-btn" id="clockToggleBtn">🕒</button></div>
-    </div>
+    <div class="header-top"><button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button><div class="logo-area"><h1>🇹🇷 BORÇ TAKİP YÖNETİM SİSTEMİ</h1></div><div class="clock-wrapper"><div class="header-clock" id="liveClock">--:--:--</div><button class="clock-flag-btn" id="clockToggleBtn">🕒</button></div></div>
     <p><i class="fas fa-chart-line"></i> Gelir, gider, taksitli borçlar ve yapay zeka destekli finansal asistan</p>
-    <div class="header-controls">
-        <div class="notification-bell" id="notificationBellBtn"><i class="fas fa-bell"></i><span id="notifBadge" class="notification-badge" style="display:none;">0</span></div>
-        <button class="theme-toggle" id="themeToggleBtn"><i class="fas fa-moon"></i> KARANLIK</button>
-        <select id="colorThemeSelect" class="color-theme-btn"><option value="default">MAVİ</option><option value="green">YEŞİL</option><option value="purple">MOR</option><option value="orange">TURUNCU</option></select>
-    </div>
+    <div class="header-controls"><div class="notification-bell" id="notificationBellBtn"><i class="fas fa-bell"></i><span id="notifBadge" class="notification-badge" style="display:none;">0</span></div><button class="theme-toggle" id="themeToggleBtn"><i class="fas fa-moon"></i> KARANLIK</button><select id="colorThemeSelect" class="color-theme-btn"><option value="default">MAVİ</option><option value="green">YEŞİL</option><option value="purple">MOR</option><option value="orange">TURUNCU</option></select></div>
 </div>
 
 <div class="container" id="mainApp">
-    <!-- Üst menü butonlarından önce reklam -->
-    <div class="ad-container">
-        <div class="ad-label">Reklam</div>
-        <ins class="adsbygoogle"
-             style="display:block"
-             data-ad-client="ca-pub-4449700232321088"
-             data-ad-slot="3262325872"
-             data-ad-format="auto"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
+    <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="auto"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
     
     <div class="nav-grid" id="navGrid"></div>
     <div class="social-grid"><div class="social-icon whatsapp" onclick="shareApp('whatsapp')"><i class="fab fa-whatsapp"></i></div><div class="social-icon twitter" onclick="shareApp('twitter')"><i class="fab fa-twitter"></i></div><div class="social-icon facebook" onclick="shareApp('facebook')"><i class="fab fa-facebook-f"></i></div><div class="social-icon email" onclick="shareApp('email')"><i class="fas fa-envelope"></i></div></div>
     
     <div id="overview" class="page-content active">
         <div class="stats-grid" id="statsGrid"></div>
-        <!-- İstatistiklerden hemen sonra reklam -->
-        <div class="ad-container">
-            <div class="ad-label">Reklam</div>
-            <ins class="adsbygoogle"
-                 style="display:block"
-                 data-ad-client="ca-pub-4449700232321088"
-                 data-ad-slot="3262325872"
-                 data-ad-format="rectangle"></ins>
-            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-        </div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
         <div class="debt-summary-card" id="installmentExtraCards" style="background: linear-gradient(135deg, #f97316, #eab308); color: white;"><div><i class="fas fa-calendar-week"></i> 📌 Toplam Taksitli Borç (Kalan): <span id="totalInstallmentRemaining">0 ₺</span></div><div><i class="fas fa-clock"></i> Bu Ay Ödenecek Taksit: <span id="monthlyInstallmentDue">0 ₺</span></div></div>
         <div class="section-card"><div class="section-title"> BORÇ vs GELİR/GİDER</div><div class="chart-container"><canvas id="financialCompareChart"></canvas></div></div>
         <div class="section-card"><div class="section-title"> SON 6 AY BORÇ TRENDİ</div><div class="chart-container"><canvas id="trendChart"></canvas></div></div>
@@ -267,52 +269,15 @@
     <div id="monthly" class="section-card"><div class="section-title"> AYLIK ÖDEME TAKİBİ</div><div class="filter-group"><select id="monthYearSelect"></select></div><div id="monthlyStats" class="debt-summary-card"></div><div class="chart-container"><canvas id="monthlyChart"></canvas></div><div class="chart-container"><canvas id="monthlyIncomeExpenseChart"></canvas></div><div id="monthlyDetailText" style="margin-top:12px; padding:10px; background:var(--hover-bg); border-radius:20px;"></div></div>
     <div id="yearly" class="section-card"><div class="section-title"> YILLIK ÖDEME ANALİZİ</div><div class="filter-group"><select id="yearSelect"></select></div><div id="yearlyStats" class="debt-summary-card"></div><div class="chart-container"><canvas id="yearlyChart"></canvas></div><div id="yearlyDetailText"></div></div>
     
-    <div id="debts" class="section-card">
-        <div class="section-title"> BORÇ LİSTESİ</div>
-        <div id="debtSummaryContainer" class="debt-summary-card"></div>
-        <button class="btn-save" id="newDebtBtn"><i class="fas fa-plus-circle"></i> YENİ BORÇ EKLE</button>
-        <div class="debt-tabs">
-            <button class="debt-tab-btn active" data-tab="unpaid"> ÖDENMEMİŞ</button>
-            <button class="debt-tab-btn" data-tab="paid"> ÖDENMİŞ</button>
-            <button class="debt-tab-btn" data-tab="all"> TÜM BORÇLAR</button>
-        </div>
-        <!-- Filtre butonlarının altına reklam -->
-        <div class="ad-container">
-            <div class="ad-label">Reklam</div>
-            <ins class="adsbygoogle"
-                 style="display:block"
-                 data-ad-client="ca-pub-4449700232321088"
-                 data-ad-slot="3262325872"
-                 data-ad-format="auto"></ins>
-            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-        </div>
-        <div id="debtListContainer"></div>
-        <div style="display: flex; gap: 12px; margin-top: 12px;"><button id="pdfDebtBtn" class="btn-save" style="background:#e67e22;"><i class="fas fa-file-pdf"></i> PDF</button><button id="printDebtBtn" class="btn-save" style="background:#2c3e50;"><i class="fas fa-print"></i> YAZDIR</button></div>
-    </div>
-    
+    <div id="debts" class="section-card"><div class="section-title"> BORÇ LİSTESİ</div><div id="debtSummaryContainer" class="debt-summary-card"></div><button class="btn-save" id="newDebtBtn"><i class="fas fa-plus-circle"></i> YENİ BORÇ EKLE</button><div class="debt-tabs"><button class="debt-tab-btn active" data-tab="unpaid"> ÖDENMEMİŞ</button><button class="debt-tab-btn" data-tab="paid"> ÖDENMİŞ</button><button class="debt-tab-btn" data-tab="all"> TÜM BORÇLAR</button></div><div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="auto"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div><div id="debtListContainer"></div><div style="display: flex; gap: 12px; margin-top: 12px;"><button id="pdfDebtBtn" class="btn-save" style="background:#e67e22;"><i class="fas fa-file-pdf"></i> PDF</button><button id="printDebtBtn" class="btn-save" style="background:#2c3e50;"><i class="fas fa-print"></i> YAZDIR</button></div></div>
     <div id="income" class="section-card"><div class="section-title"> GELİRLER</div><button class="btn-save" id="newIncomeBtn"> YENİ GELİR</button><div id="incomeList"></div><div class="chart-container"><canvas id="incomeChart"></canvas></div><div class="chart-container"><canvas id="incomeTrendChart"></canvas></div></div>
     <div id="expenses" class="section-card"><div class="section-title"> GİDERLER</div><div style="display: flex; gap: 12px;"><button class="btn-save" id="newExpenseBtn"> GİDER EKLE</button><button class="btn-save" id="newCategoryBtn"> KATEGORİ EKLE</button></div><div id="expenseCategoriesList" class="debt-summary-card"></div><div id="expensesListContainer"></div><div class="chart-container"><canvas id="expenseChart"></canvas></div></div>
     <div id="installments" class="section-card"><div class="section-title"> TAKSİTLİ BORÇLAR</div><div id="installmentSummary" class="debt-summary-card"></div><button class="btn-save" id="newInstallmentBtn"> YENİ TAKSİTLİ BORÇ</button><div id="installmentsListContainer"></div></div>
     <div id="alarms" class="section-card"><div class="section-title"> ALARMLAR</div><button class="btn-save" id="newAlarmBtn"> YENİ ALARM</button><div id="alarmsList"></div></div>
     <div id="notifications" class="section-card"><div class="section-title"> BİLDİRİMLER</div><button class="btn-save" id="newNotifBtn"> YENİ BİLDİRİM</button><button class="btn-save" id="clearAllNotifsBtn"> TÜMÜNÜ TEMİZLE</button><div id="notificationsList"></div></div>
+    <div id="aiStrategy" class="section-card"><div class="section-title"><i class="fas fa-robot"></i> YAPAY ZEKA ASİSTANI</div><div class="ai-chat-container"><div class="chat-messages" id="chatMessages"><div class="chat-message bot"><div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">Merhaba! Borç, gelir, gider, taksitler hakkında sorular sorabilirsiniz.</div></div></div><div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Soru sor... (örnek: toplam borç, risk durumu, kalan net gelir)"><button id="chatSendBtn" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button></div></div><div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div></div>
     
-    <div id="aiStrategy" class="section-card">
-        <div class="section-title"><i class="fas fa-robot"></i> YAPAY ZEKA ASİSTANI</div>
-        <div class="ai-chat-container">
-            <div class="chat-messages" id="chatMessages"><div class="chat-message bot"><div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">Merhaba! Borç, gelir, gider, taksitler hakkında sorular sorabilirsiniz.</div></div></div>
-            <div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Soru sor... (örnek: toplam borç, risk durumu, kalan net gelir)"><button id="chatSendBtn" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button></div>
-        </div>
-        <div class="ad-container">
-            <div class="ad-label">Reklam</div>
-            <ins class="adsbygoogle"
-                 style="display:block"
-                 data-ad-client="ca-pub-4449700232321088"
-                 data-ad-slot="3262325872"
-                 data-ad-format="rectangle"></ins>
-            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-        </div>
-    </div>
-    
+    <!-- UZUN YARDIM (KULLANIM KILAVUZU) -->
     <div id="help" class="section-card"><div class="section-title"><i class="fas fa-question-circle"></i> KULLANIM KILAVUZU</div>
         <div class="help-card"><h4>📘 BAŞLANGIÇ</h4><p>Önce gelirlerinizi ekleyin, ardından borçlarınızı (tek seferlik veya taksitli) girin. Giderlerinizi kategorilerle takip edin. Sol menüden tüm sayfalara erişebilirsiniz.</p></div>
         <div class="help-card"><h4>💰 BORÇ YÖNETİMİ</h4><p>Borç Listesi sayfasında tüm borçlarınızı görün, düzenleyin, silin, kategori değiştirin. "Ödendi" butonu ile borcu kapatabilir veya geri alabilirsiniz. Taksitli borçlarda her ay taksit öde butonu ile ilerleyin.</p></div>
@@ -326,6 +291,7 @@
     
     <div id="feedback" class="section-card"><div class="section-title"> İLETİŞİM</div><input type="text" id="contactName" class="form-input" placeholder="Adınız"><textarea id="contactMessage" class="form-input" rows="3" placeholder="Mesajınız"></textarea><button class="btn-save" id="sendContactBtn"> MESAJ GÖNDER</button></div>
     
+    <!-- UZUN HAKKINDA -->
     <div id="about" class="section-card"><div class="section-title"><i class="fas fa-info-circle"></i> HAKKINDA</div>
         <div style="line-height:1.6">
             <p><strong><i class="fas fa-chart-pie"></i> Borç Takip Sistemi 5.0</strong> - Kişisel finans yönetiminde devrim yaratan, yapay zeka destekli kapsamlı bir çözüm.</p><br>
@@ -349,7 +315,7 @@
         </div>
     </div>
     
-    <!-- Gizlilik Politikası Sayfası -->
+    <!-- UZUN GİZLİLİK POLİTİKASI -->
     <div id="privacy" class="section-card">
         <div class="section-title"><i class="fas fa-shield-alt"></i> GİZLİLİK POLİTİKASI</div>
         <div style="line-height: 1.6; font-size: 0.85rem;">
@@ -400,33 +366,27 @@ function loadUserData() {
     renderActivePage(); updateNotifBadge();
 }
 
-// Hesaplamalar
 function getTotalNormalDebt() { return debts.reduce((s,d)=>s+d.amount,0); }
 function getTotalNormalPaid() { return debts.reduce((s,d)=>s+d.paid,0); }
 function getTotalInstallmentRemaining() { return installmentDebts.reduce((s,i)=>{ let t=i.totalAmount/i.installmentCount; return s+((i.installmentCount-i.paidInstallmentCount)*t); },0); }
 function getCurrentMonthInstallmentDue() { let now=new Date(); let upcoming=installmentDebts.reduce((s,i)=>{ if(i.paidInstallmentCount<i.installmentCount) return s+(i.totalAmount/i.installmentCount); return s; },0); let paidThis=payments.filter(p=>{let d=new Date(p.date); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear() && p.type==='installment';}).reduce((s,p)=>s+p.amount,0); return Math.max(0, upcoming-paidThis); }
 function getStats() { let normalTotal=getTotalNormalDebt(); let normalPaid=getTotalNormalPaid(); let totalDebt=normalTotal+getCurrentMonthInstallmentDue(); let totalPaid=normalPaid+payments.filter(p=>p.type==='installment' && new Date(p.date).getMonth()===new Date().getMonth() && new Date(p.date).getFullYear()===new Date().getFullYear()).reduce((s,p)=>s+p.amount,0); let remaining=(normalTotal-normalPaid)+getCurrentMonthInstallmentDue(); let totalIncome=incomes.reduce((s,i)=>s+i.amount,0); let totalExpense=expenses.reduce((s,e)=>s+e.amount,0); let netIncome=totalIncome-(totalExpense+totalPaid); return {totalDebt, totalPaid, remaining, totalIncome, totalExpense, netIncome}; }
 
-function renderStats(){ let s=getStats(); let oran=s.totalDebt?((s.totalPaid/s.totalDebt)*100).toFixed(1):0; document.getElementById('statsGrid').innerHTML=`<div class="stat-card" style="background:#1a4270;"><div> TOPLAM BORÇ*</div><div class="stat-value">${formatMoney(s.totalDebt)}</div></div><div class="stat-card" style="background:#11998e;"><div> ÖDENEN</div><div class="stat-value">${formatMoney(s.totalPaid)}</div></div><div class="stat-card" style="background:#eb3349;"><div> KALAN</div><div class="stat-value">${formatMoney(s.remaining)}</div></div><div class="stat-card" style="background:#1e3a8a;"><div> GELİR</div><div class="stat-value">${formatMoney(s.totalIncome)}</div></div><div class="stat-card" style="background:#e67e22;"><div> GİDER</div><div class="stat-value">${formatMoney(s.totalExpense)}</div></div><div class="stat-card" style="background:#f39c12;"><div> NET KALAN</div><div class="stat-value">${formatMoney(s.netIncome)}</div></div>`; document.getElementById('progressText').innerText=`%${oran}`; document.getElementById('mainProgress').style.width=oran+'%'; document.getElementById('totalInstallmentRemaining').innerText=formatMoney(getTotalInstallmentRemaining()); document.getElementById('monthlyInstallmentDue').innerText=formatMoney(getCurrentMonthInstallmentDue()); }
+function renderStats(){ let s=getStats(); let oran=s.totalDebt?((s.totalPaid/s.totalDebt)*100).toFixed(1):0; document.getElementById('statsGrid').innerHTML=`<div class="stat-card" style="background:#1a4270;"><div> TOPLAM BORÇ</div><div class="stat-value">${formatMoney(s.totalDebt)}</div></div><div class="stat-card" style="background:#11998e;"><div> ÖDENEN</div><div class="stat-value">${formatMoney(s.totalPaid)}</div></div><div class="stat-card" style="background:#eb3349;"><div> KALAN</div><div class="stat-value">${formatMoney(s.remaining)}</div></div><div class="stat-card" style="background:#1e3a8a;"><div> GELİR</div><div class="stat-value">${formatMoney(s.totalIncome)}</div></div><div class="stat-card" style="background:#e67e22;"><div> GİDER</div><div class="stat-value">${formatMoney(s.totalExpense)}</div></div><div class="stat-card" style="background:#f39c12;"><div> NET KALAN</div><div class="stat-value">${formatMoney(s.netIncome)}</div></div>`; document.getElementById('progressText').innerText=`%${oran}`; document.getElementById('mainProgress').style.width=oran+'%'; document.getElementById('totalInstallmentRemaining').innerText=formatMoney(getTotalInstallmentRemaining()); document.getElementById('monthlyInstallmentDue').innerText=formatMoney(getCurrentMonthInstallmentDue()); }
+
+function safeDestroy(chartVar) { if(chartVar && typeof chartVar.destroy === 'function') { chartVar.destroy(); return null; } return null; }
 
 function drawCharts(){ 
     let s=getStats(); 
-    if(window.financialChart) window.financialChart.destroy(); 
-    let ctx=document.getElementById('financialCompareChart')?.getContext('2d'); 
-    if(ctx) window.financialChart=new Chart(ctx,{type:'bar',data:{labels:['Toplam Borç','Gelir','Gider','Net'], datasets:[{label:'₺', data:[s.totalDebt, s.totalIncome, s.totalExpense, s.netIncome], backgroundColor:['#1a4270','#11998e','#e67e22','#f39c12']}]}, options:{animation:{duration:1000}}}); 
-    if(window.debtChart) window.debtChart.destroy(); 
-    let ctx2=document.getElementById('debtChart')?.getContext('2d'); 
-    if(ctx2) window.debtChart=new Chart(ctx2,{type:'doughnut',data:{labels:['Ödenen','Kalan'], datasets:[{data:[s.totalPaid, s.remaining], backgroundColor:['#11998e','#eb3349']}]}, options:{animation:{duration:1000}}}); 
-    if(window.trendChart) window.trendChart.destroy(); 
-    let ctx3=document.getElementById('trendChart')?.getContext('2d'); 
-    if(ctx3) window.trendChart=new Chart(ctx3,{type:'line',data:{labels:['6 ay önce','Bugün'], datasets:[{label:'Borç Seviyesi', data:[s.totalDebt*1.2, s.totalDebt], borderColor:'#1a4270'}]}, options:{animation:{duration:1000}}}); 
+    safeDestroy(window.financialChart); let ctx=document.getElementById('financialCompareChart')?.getContext('2d'); if(ctx) window.financialChart=new Chart(ctx,{type:'bar',data:{labels:['Toplam Borç','Gelir','Gider','Net'], datasets:[{label:'₺', data:[s.totalDebt, s.totalIncome, s.totalExpense, s.netIncome], backgroundColor:['#1a4270','#11998e','#e67e22','#f39c12'], borderRadius:8}]}, options:{responsive:true, animation:{duration:1200}}});
+    safeDestroy(window.debtChart); let ctx2=document.getElementById('debtChart')?.getContext('2d'); if(ctx2) window.debtChart=new Chart(ctx2,{type:'doughnut',data:{labels:['Ödenen','Kalan'], datasets:[{data:[s.totalPaid, s.remaining], backgroundColor:['#11998e','#eb3349']}]}});
+    safeDestroy(window.trendChart); let ctx3=document.getElementById('trendChart')?.getContext('2d'); if(ctx3) window.trendChart=new Chart(ctx3,{type:'line',data:{labels:['6 ay önce','Bugün'], datasets:[{label:'Borç Seviyesi', data:[s.totalDebt*1.2, s.totalDebt], borderColor:'#1a4270', fill:true}]}});
     drawIncomeChart(); drawExpenseChart(); drawIncomeTrend(); 
 }
-function drawIncomeChart(){ if(window.incomeChart) window.incomeChart.destroy(); let ctx=document.getElementById('incomeChart')?.getContext('2d'); if(ctx && incomes.length) window.incomeChart=new Chart(ctx,{type:'doughnut',data:{labels:incomes.map(i=>i.name), datasets:[{data:incomes.map(i=>i.amount)}]}, options:{animation:{duration:1000}}}); }
-function drawIncomeTrend(){ if(window.incomeTrendChart) window.incomeTrendChart.destroy(); let ctx=document.getElementById('incomeTrendChart')?.getContext('2d'); if(ctx && incomes.length){ let sorted=[...incomes].sort((a,b)=>new Date(a.date)-new Date(b.date)); window.incomeTrendChart=new Chart(ctx,{type:'line',data:{labels:sorted.map(i=>i.name), datasets:[{label:'Gelir', data:sorted.map(i=>i.amount), borderColor:'#11998e'}]}, options:{animation:{duration:1000}}}); } }
-function drawExpenseChart(){ if(window.expenseChartInstance) window.expenseChartInstance.destroy(); let ctx=document.getElementById('expenseChart')?.getContext('2d'); if(ctx){ let totals={}; expenseCategories.forEach(c=>totals[c.id]=0); expenses.forEach(e=>totals[e.categoryId]=(totals[e.categoryId]||0)+e.amount); window.expenseChartInstance=new Chart(ctx,{type:'doughnut',data:{labels:expenseCategories.map(c=>c.name), datasets:[{data:expenseCategories.map(c=>totals[c.id]||0)}]}, options:{animation:{duration:1000}}}); } }
+function drawIncomeChart(){ safeDestroy(window.incomeChart); let ctx=document.getElementById('incomeChart')?.getContext('2d'); if(ctx && incomes.length) window.incomeChart=new Chart(ctx,{type:'doughnut',data:{labels:incomes.map(i=>i.name), datasets:[{data:incomes.map(i=>i.amount)}]}}); }
+function drawIncomeTrend(){ safeDestroy(window.incomeTrendChart); let ctx=document.getElementById('incomeTrendChart')?.getContext('2d'); if(ctx && incomes.length){ let sorted=[...incomes].sort((a,b)=>new Date(a.date)-new Date(b.date)); window.incomeTrendChart=new Chart(ctx,{type:'line',data:{labels:sorted.map(i=>i.name), datasets:[{label:'Gelir', data:sorted.map(i=>i.amount), borderColor:'#11998e', fill:true}]}}); } }
+function drawExpenseChart(){ safeDestroy(window.expenseChartInstance); let ctx=document.getElementById('expenseChart')?.getContext('2d'); if(ctx){ let totals={}; expenseCategories.forEach(c=>totals[c.id]=0); expenses.forEach(e=>totals[e.categoryId]=(totals[e.categoryId]||0)+e.amount); window.expenseChartInstance=new Chart(ctx,{type:'doughnut',data:{labels:expenseCategories.map(c=>c.name), datasets:[{data:expenseCategories.map(c=>totals[c.id]||0)}]}}); } }
 
-// AYLIK TAKİP (Tüm aylar eklendi)
 function fillMonthYearSelect() {
     let select = document.getElementById('monthYearSelect');
     select.innerHTML = '';
@@ -447,14 +407,10 @@ function renderMonthlyStats(){
     let totalPaid=filtered.reduce((s,p)=>s+p.amount,0); 
     let s=getStats(); 
     document.getElementById('monthlyStats').innerHTML=`<div> ${m+1}/${y}</div><div> Ödenen: ${formatMoney(totalPaid)}</div><div> Kalan: ${formatMoney(s.remaining)}</div>`; 
-    if(window.monthlyChart) window.monthlyChart.destroy(); 
-    let ctx=document.getElementById('monthlyChart')?.getContext('2d'); 
-    if(ctx) window.monthlyChart=new Chart(ctx,{type:'bar',data:{labels:['Bu Ay Ödenen'], datasets:[{data:[totalPaid], backgroundColor:'#11998e'}]}, options:{animation:{duration:1000}}}); 
+    safeDestroy(window.monthlyChart); let ctx=document.getElementById('monthlyChart')?.getContext('2d'); if(ctx) window.monthlyChart=new Chart(ctx,{type:'bar',data:{labels:['Bu Ay Ödenen'], datasets:[{data:[totalPaid], backgroundColor:'#11998e', borderRadius:12}]}, options:{responsive:true, animation:{duration:1000}}});
     let aylikGelir=incomes.filter(i=>new Date(i.date).getFullYear()===y && new Date(i.date).getMonth()===m).reduce((s,i)=>s+i.amount,0); 
     let aylikGider=expenses.filter(e=>new Date(e.date).getFullYear()===y && new Date(e.date).getMonth()===m).reduce((s,e)=>s+e.amount,0); 
-    if(window.monthlyIncomeExpenseChart) window.monthlyIncomeExpenseChart.destroy(); 
-    let ctx2=document.getElementById('monthlyIncomeExpenseChart')?.getContext('2d'); 
-    if(ctx2) window.monthlyIncomeExpenseChart=new Chart(ctx2,{type:'bar',data:{labels:['Gelir','Gider'], datasets:[{data:[aylikGelir, aylikGider], backgroundColor:['#11998e','#e67e22']}]}, options:{animation:{duration:1000}}}); 
+    safeDestroy(window.monthlyIncomeExpenseChart); let ctx2=document.getElementById('monthlyIncomeExpenseChart')?.getContext('2d'); if(ctx2) window.monthlyIncomeExpenseChart=new Chart(ctx2,{type:'bar',data:{labels:['Gelir','Gider'], datasets:[{data:[aylikGelir, aylikGider], backgroundColor:['#11998e','#e67e22']}]}});
     document.getElementById('monthlyDetailText').innerHTML=`📊 Gelir:${formatMoney(aylikGelir)} &nbsp; | &nbsp; 🛒 Gider:${formatMoney(aylikGider)} &nbsp; | &nbsp; 💸 Ödeme:${formatMoney(totalPaid)}`; 
 }
 function renderYearlyStats(){ 
@@ -465,12 +421,9 @@ function renderYearlyStats(){
     let totalPaidYear=paymentsYear.reduce((s,p)=>s+p.amount,0); 
     let s=getStats(); 
     document.getElementById('yearlyStats').innerHTML=`<div> Yıl: ${year}</div><div> Toplam Ödeme: ${formatMoney(totalPaidYear)}</div><div> Kalan: ${formatMoney(s.remaining)}</div>`; 
-    if(window.yearlyChart) window.yearlyChart.destroy(); 
-    let ctx=document.getElementById('yearlyChart')?.getContext('2d'); 
-    if(ctx) window.yearlyChart=new Chart(ctx,{type:'line',data:{labels:['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'], datasets:[{label:`${year} Ödemeler`, data:monthlyData, borderColor:'#1a4270', fill:false, tension:0.2}]}, options:{animation:{duration:1000}}}); 
+    safeDestroy(window.yearlyChart); let ctx=document.getElementById('yearlyChart')?.getContext('2d'); if(ctx) window.yearlyChart=new Chart(ctx,{type:'line',data:{labels:['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'], datasets:[{label:`${year} Ödemeler`, data:monthlyData, borderColor:'#1a4270', fill:true, tension:0.3}]}});
 }
 
-// BORÇ İŞLEMLERİ
 window.toggleDebtPaid = function(id){ let d=debts.find(d=>d.id===id); if(d){ if(d.paid>=d.amount) d.paid=0; else{ let odenecek=d.amount-d.paid; d.paid=d.amount; payments.push({id:generateId(payments),debtId:id,amount:odenecek,date:new Date().toISOString(),type:'manual'}); } saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); updateMonthlyYearly(); } };
 window.deleteDebt = function(id){ if(confirm('Borç silinecek, emin misiniz?')){ debts=debts.filter(d=>d.id!==id); payments=payments.filter(p=>p.debtId!==id); saveAllToUser(); renderDebtList(); renderStats(); drawCharts(); updateMonthlyYearly(); showToast('Borç silindi'); } };
 window.editDebt = function(id){ let debt=debts.find(d=>d.id===id); if(debt){ document.getElementById('debtModalTitle').innerText='BORÇ DÜZENLE'; document.getElementById('debtName').value=debt.name; document.getElementById('debtAmount').value=debt.amount; document.getElementById('debtPaid').value=debt.paid; let catSelect=document.getElementById('debtCategory'); catSelect.innerHTML=debtCategories.map(c=>`<option value="${c}" ${debt.category===c?'selected':''}>${c}</option>`).join(''); document.getElementById('editDebtId').value=debt.id; document.getElementById('debtModal').classList.add('active'); } };
@@ -484,7 +437,6 @@ function renderDebtList(){
     let total=debts.reduce((s,d)=>s+d.amount,0); let paid=debts.reduce((s,d)=>s+d.paid,0); document.getElementById('debtSummaryContainer').innerHTML=`<div>Toplam:${formatMoney(total)} Ödenen:${formatMoney(paid)} Kalan:${formatMoney(total-paid)}</div>`; 
 }
 
-// KATEGORİ YÖNETİMİ
 function renderExpenseCategories(){ let container=document.getElementById('expenseCategoriesList'); container.innerHTML=expenseCategories.map(c=>`<div class="category-item"><span>📂 ${escapeHtml(c.name)}</span><div><button class="btn-edit" onclick="editCategory(${c.id})"><i class="fas fa-pen"></i></button><button class="btn-small-delete" onclick="deleteCategory(${c.id})"><i class="fas fa-trash"></i></button></div></div>`).join(''); }
 window.editCategory = function(id){ let cat=expenseCategories.find(c=>c.id===id); if(cat){ document.getElementById('categoryName').value=cat.name; document.getElementById('editCategoryId').value=cat.id; document.getElementById('categoryModal').classList.add('active'); } };
 window.deleteCategory = function(id){ if(expenseCategories.length<=1){ alert('En az bir kategori kalmalı'); return; } if(confirm('Kategori silinecek, bu kategoriye ait giderler de silinecek!')){ expenses=expenses.filter(e=>e.categoryId!==id); expenseCategories=expenseCategories.filter(c=>c.id!==id); saveAllToUser(); renderExpenseCategories(); renderExpenses(); renderStats(); } };
@@ -492,7 +444,6 @@ document.getElementById('saveCategoryBtn').onclick=()=>{ let name=document.getEl
 document.getElementById('closeCategoryModalBtn').onclick=()=>document.getElementById('categoryModal').classList.remove('active');
 document.getElementById('newCategoryBtn').onclick=()=>{ document.getElementById('categoryName').value=''; document.getElementById('editCategoryId').value=''; document.getElementById('categoryModal').classList.add('active'); };
 
-// GELİR
 function renderIncomeList(){ document.getElementById('incomeList').innerHTML=incomes.map(i=>`<div class="income-item"><div><span>${escapeHtml(i.name)}</span> <span>${formatMoney(i.amount)}</span></div><div><button class="btn-edit" onclick="editIncome(${i.id})">✏️</button><button class="btn-small-delete" onclick="deleteIncome(${i.id})">🗑️</button></div></div>`).join('')||'Gelir yok'; drawIncomeChart(); drawIncomeTrend(); }
 window.deleteIncome = function(id){ incomes=incomes.filter(i=>i.id!==id); saveAllToUser(); renderIncomeList(); renderStats(); drawCharts(); };
 window.editIncome = function(id){ let inc=incomes.find(i=>i.id===id); if(inc){ document.getElementById('editIncomeName').value=inc.name; document.getElementById('editIncomeAmount').value=inc.amount; document.getElementById('editIncomeId').value=inc.id; document.getElementById('incomeEditModal').classList.add('active'); } };
@@ -500,7 +451,6 @@ function saveIncomeEdit(){ let id=parseInt(document.getElementById('editIncomeId
 document.getElementById('saveIncomeEditBtn').onclick=saveIncomeEdit;
 document.getElementById('closeIncomeModalBtn').onclick=()=>document.getElementById('incomeEditModal').classList.remove('active');
 
-// GİDER
 function renderExpenses(){ let container=document.getElementById('expensesListContainer'); container.innerHTML=expenses.map(e=>{ let cat=expenseCategories.find(c=>c.id===e.categoryId); return `<div class="expense-item"><div><span class="category-badge">${escapeHtml(cat?.name)}</span> ${escapeHtml(e.description||'')}</div><span>${formatMoney(e.amount)}</span><div><button class="btn-edit" onclick="editExpense(${e.id})">✏️</button><button class="btn-small-delete" onclick="deleteExpense(${e.id})">🗑️</button></div></div>`; }).join('')||'Gider yok'; drawExpenseChart(); }
 window.deleteExpense = function(id){ expenses=expenses.filter(e=>e.id!==id); saveAllToUser(); renderExpenses(); renderStats(); drawCharts(); };
 function addExpense(catId,amt,desc,date, editId=null){ if(editId){ let idx=expenses.findIndex(e=>e.id==editId); if(idx!==-1) expenses[idx]={...expenses[idx], categoryId:catId, amount:amt, description:desc, date:date}; } else { expenses.push({id:generateId(expenses),categoryId:catId,amount:amt,description:desc,date}); } saveAllToUser(); renderExpenses(); renderStats(); drawCharts(); }
@@ -509,7 +459,6 @@ document.getElementById('newExpenseBtn').onclick=()=>{ document.getElementById('
 document.getElementById('saveExpenseBtn').onclick=()=>{ let catId=parseInt(document.getElementById('expenseCategorySelect').value); let amt=parseFloat(document.getElementById('expenseAmount').value); let desc=document.getElementById('expenseDesc').value; let date=document.getElementById('expenseDate').value; let editId=document.getElementById('editExpenseId').value; if(!isNaN(amt) && amt>0){ if(editId) addExpense(catId,amt,desc,date, parseInt(editId)); else addExpense(catId,amt,desc,date); } document.getElementById('expenseModal').classList.remove('active'); };
 document.getElementById('closeExpenseModalBtn').onclick=()=>document.getElementById('expenseModal').classList.remove('active');
 
-// TAKSİTLİ BORÇLAR
 function renderInstallments(){ let div=document.getElementById('installmentsListContainer'); div.innerHTML=installmentDebts.map(inst=>{ let taksit=inst.totalAmount/inst.installmentCount; let yuzde=(inst.paidInstallmentCount/inst.installmentCount)*100; let isPaid=inst.paidInstallmentCount===inst.installmentCount; return `<div class="debt-item ${isPaid?'paid':'unpaid'}"><div><strong>${escapeHtml(inst.name)}</strong> (${inst.paidInstallmentCount}/${inst.installmentCount})<br>Toplam:${formatMoney(inst.totalAmount)} Kalan:${formatMoney((inst.installmentCount-inst.paidInstallmentCount)*taksit)}<div class="debt-progress"><div style="width:${yuzde}%; height:6px; background:#11998e;"></div></div></div><div><button class="btn-save" onclick="payInstallment(${inst.id})" style="background:#11998e;">Taksit Öde</button><button class="btn-edit" onclick="editInstallment(${inst.id})">Düzenle</button><button class="btn-small-delete" onclick="deleteInstallment(${inst.id})">Sil</button></div></div>`; }).join('')||'Taksitli borç yok'; let ist={total:0,paidTotal:0}; installmentDebts.forEach(i=>{ let t=i.totalAmount/i.installmentCount; ist.paidTotal+=i.paidInstallmentCount*t; ist.total+=i.totalAmount; }); document.getElementById('installmentSummary').innerHTML=`<div>Toplam:${formatMoney(ist.total)} Ödenen:${formatMoney(ist.paidTotal)} Kalan:${formatMoney(ist.total-ist.paidTotal)}</div>`; }
 window.payInstallment = function(id){ let inst=installmentDebts.find(i=>i.id===id); if(inst && inst.paidInstallmentCount<inst.installmentCount){ let taksit=inst.totalAmount/inst.installmentCount; inst.paidInstallmentCount++; payments.push({id:generateId(payments),debtId:id,amount:taksit,date:new Date().toISOString(),type:'installment'}); saveAllToUser(); renderInstallments(); renderStats(); drawCharts(); updateMonthlyYearly(); showToast('Taksit ödendi'); } };
 window.deleteInstallment = function(id){ installmentDebts=installmentDebts.filter(i=>i.id!==id); saveAllToUser(); renderInstallments(); renderStats(); drawCharts(); };
@@ -518,7 +467,6 @@ document.getElementById('saveInstallmentBtn').onclick=()=>{ let id=parseInt(docu
 document.getElementById('closeInstallmentModalBtn').onclick=()=>document.getElementById('installmentModal').classList.remove('active');
 document.getElementById('newInstallmentBtn').onclick=()=>{ let name=prompt('Taksitli borç adı'); let total=parseFloat(prompt('Toplam tutar')); let count=parseInt(prompt('Taksit sayısı')); if(name&&total&&count){ installmentDebts.push({id:generateId(installmentDebts),name,totalAmount:total,installmentCount:count,paidInstallmentCount:0}); saveAllToUser(); showPage('installments'); } };
 
-// ALARM & BİLDİRİM
 function renderNotifs(){ document.getElementById('notificationsList').innerHTML=notifications.map(n=>`<div class="debt-item"><span>${escapeHtml(n.title)}</span><button class="btn-small-delete" onclick="deleteNotif(${n.id})">Sil</button></div>`).join('')||'Bildirim yok'; }
 function renderAlarms(){ document.getElementById('alarmsList').innerHTML=alarms.map(a=>`<div class="debt-item"><span>🔔 ${escapeHtml(a.title)}</span><button class="btn-small-delete" onclick="deleteAlarm(${a.id})">Sil</button></div>`).join('')||'Alarm yok'; }
 window.deleteNotif = function(id){ notifications=notifications.filter(n=>n.id!==id); saveAllToUser(); renderNotifs(); updateNotifBadge(); };
@@ -528,32 +476,40 @@ document.getElementById('newAlarmBtn').onclick=()=>{ let title=prompt('Alarm ad�
 document.getElementById('newNotifBtn').onclick=()=>{ let title=prompt('Bildirim başlığı'); if(title){ notifications.push({id:generateId(notifications),title,desc:''}); saveAllToUser(); renderNotifs(); } };
 document.getElementById('clearAllNotifsBtn').onclick=()=>{ notifications=[]; saveAllToUser(); renderNotifs(); };
 
-// SAYFA GEÇİŞLERİ
 function updateMonthlyYearly(){ if(document.getElementById('monthly').classList.contains('active')) renderMonthlyStats(); if(document.getElementById('yearly').classList.contains('active')) renderYearlyStats(); }
 function renderActivePage(){ let active=document.querySelector('.page-content.active, .section-card.active'); if(active){ if(active.id==='overview'){ renderStats(); drawCharts(); } else if(active.id==='debts') renderDebtList(); else if(active.id==='income') renderIncomeList(); else if(active.id==='expenses') { renderExpenses(); renderExpenseCategories(); } else if(active.id==='installments') renderInstallments(); else if(active.id==='monthly') renderMonthlyStats(); else if(active.id==='yearly') renderYearlyStats(); else if(active.id==='notifications') renderNotifs(); else if(active.id==='alarms') renderAlarms(); } else { renderStats(); drawCharts(); } }
-function showPage(id){ document.querySelectorAll('.page-content, .section-card').forEach(el=>el.classList.remove('active')); document.getElementById(id).classList.add('active'); renderActivePage(); toggleSidebar(false); }
+
+function showPage(id){ 
+    document.querySelectorAll('.page-content, .section-card').forEach(el=>el.classList.remove('active')); 
+    let target = document.getElementById(id);
+    if(target) target.classList.add('active'); 
+    renderActivePage(); 
+    toggleSidebar(false); 
+}
 function toggleSidebar(force){ let s=document.getElementById('sidebarPanel'), o=document.getElementById('sidebarOverlay'); if(force===false){ s.classList.remove('active'); o.classList.remove('active'); return; } s.classList.toggle('active'); o.classList.toggle('active'); }
 
-// AI ASİSTAN
 function addChatMessage(text, isUser) { let div=document.getElementById('chatMessages'); let msgDiv=document.createElement('div'); msgDiv.className=`chat-message ${isUser?'user':'bot'}`; msgDiv.innerHTML=isUser?`<div class="chat-avatar"><i class="fas fa-user"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`:`<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`; div.appendChild(msgDiv); div.scrollTop=div.scrollHeight; }
 function getAIResponse(q){ let s=getStats(); if(q.includes('toplam borç')) return `💰 Toplam borç: ${formatMoney(s.totalDebt)} (Bu ayki taksit dahil)`; if(q.includes('kalan net gelir')) return `💵 Kalan Net Gelir: ${formatMoney(s.netIncome)}`; if(q.includes('risk')){ let oran=s.totalIncome>0?(s.remaining/s.totalIncome)*100:100; return `⚠️ Risk: ${oran>80?'Yüksek':oran>40?'Orta':'Düşük'} (Borç/Gelir %${oran.toFixed(1)})`; } return `Sorular: toplam borç, kalan net gelir, risk, taksitler.`; }
 function sendQuestion(){ let inp=document.getElementById('chatInput'); let q=inp.value.trim(); if(!q) return; addChatMessage(q,true); inp.value=''; setTimeout(()=>{ let ans=getAIResponse(q); addChatMessage(ans,false); }, 200); }
 
-// DIŞA/İÇE AKTAR, PDF, YAZDIR
-function exportDebtsToPDF() { let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Raporlanacak borç yok'); return; } let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><table><tr><th>Ad</th><th>Kategori</th><th>Toplam</th><th>Ödenen</th><th>Kalan</th></tr>${filtered.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')}</table></body></html>`; let temp=document.createElement('div'); temp.innerHTML=html; document.body.appendChild(temp); html2pdf().from(temp).set({margin:0.5,filename:`borc_raporu.pdf`}).save().then(()=>temp.remove()); }
+function exportDebtsToPDF() { let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Raporlanacak borç yok'); return; } let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><table><th>Ad</th><th>Kategori</th><th>Toplam</th><th>Ödenen</th><th>Kalan</th></tr>${filtered.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')} </table></body></html>`; let temp=document.createElement('div'); temp.innerHTML=html; document.body.appendChild(temp); html2pdf().from(temp).set({margin:0.5,filename:`borc_raporu.pdf`}).save().then(()=>temp.remove()); }
 function printDebts(){ let filtered = currentDebtTab==='unpaid'?debts.filter(d=>d.paid<d.amount):(currentDebtTab==='paid'?debts.filter(d=>d.paid>=d.amount):debts); if(filtered.length===0){ alert('Yazdırılacak borç yok'); return; } let w=window.open('','_blank'); w.document.write(`<html><head><title>Borç Raporu</title><style>body{font-family:Inter;padding:20px;}</style></head><body><h2>Borç Raporu</h2><p>${new Date().toLocaleString()}</p><ul>${filtered.map(d=>`<li>${escapeHtml(d.name)} (${escapeHtml(d.category)}): ${formatMoney(d.amount)} (Ödenen:${formatMoney(d.paid)} Kalan:${formatMoney(d.amount-d.paid)})</li>`).join('')}</ul></body></html>`); w.document.close(); w.print(); }
 function shareApp(platform){ let url=encodeURIComponent(location.href); let links={whatsapp:`https://wa.me/?text=Borç%20Takip%20${decodeURIComponent(url)}`,twitter:`https://twitter.com/intent/tweet?text=BorçTakip&url=${decodeURIComponent(url)}`,facebook:`https://www.facebook.com/sharer/sharer.php?u=${decodeURIComponent(url)}`,email:`mailto:?subject=Borç Takip&body=${decodeURIComponent(url)}`}; window.open(links[platform],'_blank'); }
 
-// GİRİŞ/ÇIKIŞ
 function login(username) { if(!username || username.trim() === "") { alert('Lütfen bir kullanıcı adı girin'); return false; } let newUser = username.trim(); if(currentUser !== newUser){ let confirmMerge = confirm('Mevcut misafir verilerini bu kullanıcıya aktarmak ister misiniz? "İptal" derseniz temiz hesap başlatılır.'); if(confirmMerge && currentUser===null){ let oldData = localStorage.getItem('user_anonymous'); if(oldData){ localStorage.setItem(`user_${newUser}`, oldData); } } } currentUser = newUser; localStorage.setItem('currentUser', currentUser); document.getElementById('loggedOutView').style.display = 'none'; document.getElementById('loggedInView').style.display = 'block'; document.getElementById('displayUsername').innerText = currentUser; loadUserData(); showToast(`Hoş geldin, ${currentUser}`); return true; }
 function logout() { currentUser = null; localStorage.removeItem('currentUser'); document.getElementById('loggedOutView').style.display = 'block'; document.getElementById('loggedInView').style.display = 'none'; loadUserData(); showToast('Çıkış yapıldı, misafir moduna geçildi'); }
 
-// BAŞLANGIÇ
-document.getElementById('hamburgerBtn').onclick=()=>toggleSidebar(); document.getElementById('sidebarOverlay').onclick=()=>toggleSidebar(false);
-document.querySelectorAll('.sidebar-item[data-page]').forEach(el=>el.onclick=()=>showPage(el.dataset.page));
+// BAŞLANGIÇ - BUTONLARI OLUŞTUR
+document.getElementById('hamburgerBtn').onclick=()=>toggleSidebar(); 
+document.getElementById('sidebarOverlay').onclick=()=>toggleSidebar(false);
+document.querySelectorAll('.sidebar-item[data-page]').forEach(el=>{ el.onclick = (e) => { e.stopPropagation(); showPage(el.dataset.page); toggleSidebar(false); }; });
+
 let pages = ['overview','monthly','yearly','debts','income','expenses','installments','alarms','notifications','aiStrategy','help','feedback','about','privacy'];
-document.getElementById('navGrid').innerHTML=pages.map(p=>`<button class="nav-btn" data-page="${p}"><i class="fas ${p==='overview'?'fa-chart-line':p==='monthly'?'fa-calendar-alt':p==='yearly'?'fa-chart-bar':p==='debts'?'fa-file-invoice-dollar':p==='income'?'fa-hand-holding-usd':p==='expenses'?'fa-shopping-cart':p==='installments'?'fa-calendar-week':p==='alarms'?'fa-bell':p==='notifications'?'fa-envelope':p==='aiStrategy'?'fa-robot':p==='help'?'fa-question-circle':p==='feedback'?'fa-headset':p==='about'?'fa-info-circle':'fa-shield-alt'}"></i> ${p==='overview'?'GENEL':p==='monthly'?'AYLIK':p==='yearly'?'YILLIK':p==='debts'?'BORÇLAR':p==='income'?'GELİR':p==='expenses'?'GİDER':p==='installments'?'TAKSİT':p==='alarms'?'ALARM':p==='notifications'?'BİLDİRİM':p==='aiStrategy'?'AI':p==='help'?'YARDIM':p==='feedback'?'İLETİŞİM':p==='about'?'HAKKINDA':'GİZLİLİK'}</button>`).join('');
-document.getElementById('navGrid').addEventListener('click',e=>{ let btn=e.target.closest('.nav-btn'); if(btn) showPage(btn.dataset.page); });
+const pageIcons = { overview:'fa-chart-line', monthly:'fa-calendar-alt', yearly:'fa-chart-bar', debts:'fa-file-invoice-dollar', income:'fa-hand-holding-usd', expenses:'fa-shopping-cart', installments:'fa-calendar-week', alarms:'fa-bell', notifications:'fa-envelope', aiStrategy:'fa-robot', help:'fa-question-circle', feedback:'fa-headset', about:'fa-info-circle', privacy:'fa-shield-alt' };
+const pageNames = { overview:'GENEL', monthly:'AYLIK', yearly:'YILLIK', debts:'BORÇLAR', income:'GELİR', expenses:'GİDER', installments:'TAKSİT', alarms:'ALARM', notifications:'BİLDİRİM', aiStrategy:'AI', help:'YARDIM', feedback:'İLETİŞİM', about:'HAKKINDA', privacy:'GİZLİLİK' };
+document.getElementById('navGrid').innerHTML = pages.map(p => `<button class="nav-btn" data-page="${p}"><i class="fas ${pageIcons[p]}"></i> ${pageNames[p]}</button>`).join('');
+document.getElementById('navGrid').addEventListener('click', (e) => { let btn = e.target.closest('.nav-btn'); if(btn && btn.dataset.page) { showPage(btn.dataset.page); toggleSidebar(false); } });
+
 document.getElementById('newDebtBtn').onclick=openAddDebtModal;
 document.getElementById('newIncomeBtn').onclick=()=>{ let name=prompt('Gelir adı'); let amt=parseFloat(prompt('Miktar (₺)')); if(name&&amt){ incomes.push({id:generateId(incomes),name,amount:amt,date:new Date().toISOString()}); saveAllToUser(); showPage('income'); } };
 document.getElementById('sendContactBtn').onclick=()=>{ let msg=document.getElementById('contactMessage').value; if(msg) window.location.href='mailto:destek@borctakip.com?subject=İletişim&body='+encodeURIComponent(msg); };
@@ -561,9 +517,9 @@ document.getElementById('notificationBellBtn').onclick=()=>showPage('notificatio
 document.getElementById('pdfDebtBtn').addEventListener('click', exportDebtsToPDF);
 document.getElementById('printDebtBtn').addEventListener('click', printDebts);
 document.querySelectorAll('.debt-tab-btn').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.debt-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDebtTab=btn.dataset.tab; renderDebtList(); }));
-document.getElementById('exportBtn').onclick=()=>{ let data=JSON.stringify({debts,incomes,alarms,notifications,installmentDebts,payments,expenses,expenseCategories}); let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data])); a.download=`borc_yedek_${currentUser||'anonim'}.json`; a.click(); };
-document.getElementById('importBtn').onclick=()=>{ let inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=e=>{ let file=inp.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=ev=>{ try{ let importedData=JSON.parse(ev.target.result); if(importedData.debts) debts=importedData.debts; if(importedData.incomes) incomes=importedData.incomes; if(importedData.expenses) expenses=importedData.expenses; if(importedData.expenseCategories) expenseCategories=importedData.expenseCategories; if(importedData.installmentDebts) installmentDebts=importedData.installmentDebts; if(importedData.payments) payments=importedData.payments; if(importedData.alarms) alarms=importedData.alarms; if(importedData.notifications) notifications=importedData.notifications; saveAllToUser(); renderActivePage(); showToast('İçe aktarma başarılı!'); }catch(err){ alert('Dosya okunamadı: '+err.message); } }; reader.readAsText(file); }; inp.click(); };
-document.getElementById('resetBtn').onclick=()=>{ if(confirm('TÜM VERİLERİ SİL? (Bu kullanıcı için)')){ localStorage.removeItem(getStorageKey()); loadUserData(); renderActivePage(); showToast('Sıfırlandı'); } };
+document.getElementById('exportBtn').addEventListener('click', () => { let data=JSON.stringify({debts,incomes,alarms,notifications,installmentDebts,payments,expenses,expenseCategories}); let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data])); a.download=`borc_yedek_${currentUser||'anonim'}.json`; a.click(); toggleSidebar(false); });
+document.getElementById('importBtn').addEventListener('click', () => { let inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=e=>{ let file=inp.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=ev=>{ try{ let importedData=JSON.parse(ev.target.result); if(importedData.debts) debts=importedData.debts; if(importedData.incomes) incomes=importedData.incomes; if(importedData.expenses) expenses=importedData.expenses; if(importedData.expenseCategories) expenseCategories=importedData.expenseCategories; if(importedData.installmentDebts) installmentDebts=importedData.installmentDebts; if(importedData.payments) payments=importedData.payments; if(importedData.alarms) alarms=importedData.alarms; if(importedData.notifications) notifications=importedData.notifications; if(!expenseCategories || expenseCategories.length===0) expenseCategories=[{id:1,name:"Kira"},{id:2,name:"Market"},{id:3,name:"Ulaşım"},{id:4,name:"Yeme İçme"},{id:5,name:"Fatura"}]; saveAllToUser(); renderActivePage(); showToast('İçe aktarma başarılı!'); } catch(err){ alert('Hata: '+err.message+' - Veriler kısmen aktarılmış olabilir'); } }; reader.readAsText(file); }; inp.click(); toggleSidebar(false); });
+document.getElementById('resetBtn').onclick=()=>{ if(confirm('TÜM VERİLERİ SİL? (Bu kullanıcı için)')){ localStorage.removeItem(getStorageKey()); loadUserData(); renderActivePage(); showToast('Sıfırlandı'); } toggleSidebar(false); };
 document.getElementById('chatSendBtn').addEventListener('click', sendQuestion);
 document.getElementById('chatInput').addEventListener('keypress', (e)=>{ if(e.key==='Enter') sendQuestion(); });
 function updateClock(){ let now=new Date(); document.getElementById('liveClock').innerText=`${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`; }
@@ -578,7 +534,7 @@ function setDarkMode(en){ if(en){ document.body.classList.add('dark-mode'); loca
 document.getElementById('themeToggleBtn').addEventListener('click',()=>setDarkMode(!document.body.classList.contains('dark-mode')));
 if(localStorage.getItem('darkMode')==='1') setDarkMode(true);
 let savedTheme=localStorage.getItem('colorTheme'); if(savedTheme&&savedTheme!=='default') setTheme(savedTheme);
-document.getElementById('clockToggleBtn').onclick=()=>document.getElementById('liveClock').classList.toggle('hide-clock');
+document.getElementById('clockToggleBtn').onclick=()=>{ document.getElementById('liveClock').classList.toggle('hide-clock'); };
 document.getElementById('doLoginBtn').onclick=()=>{ let username=document.getElementById('loginUsername').value.trim(); if(username) login(username); };
 document.getElementById('logoutBtn').onclick=()=>{ logout(); };
 let savedUser2 = localStorage.getItem('currentUser'); if(savedUser2) { currentUser = savedUser2; document.getElementById('loggedOutView').style.display = 'none'; document.getElementById('loggedInView').style.display = 'block'; document.getElementById('displayUsername').innerText = savedUser2; } else { currentUser = null; document.getElementById('loggedOutView').style.display = 'block'; document.getElementById('loggedInView').style.display = 'none'; }
