@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "600336619096",
+    "project_id": "borcodemetakip-451f1",
+    "storage_bucket": "borcodemetakip-451f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600336619096:android:f3d3e6f964e05608905c2d",
+        "android_client_info": {
+          "package_name": "com.borctakip.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXco19YyW6sHXKedMTYhaIVWLF2lc8q-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
