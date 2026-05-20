@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <script id="aclib" type="text/javascript" src="//acscdn.com/script/aclib.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
     <title>Borç Takip Sistemi | Kategorili Borç + AI | Tam Sürüm</title>
     <meta name="description" content="Borçlarınızı, gelir ve giderlerinizi kategorilerle takip edin, yapay zeka asistanı ile finansal risk analizi yapın, taksitli borçları yönetin. Ücretsiz ve mobil uyumlu.">
     <meta name="author" content="Serkan SAĞLAM">
     <link rel="canonical" href="https://borctakipyonetimi.github.io/">
+    
+    <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
+    
+    <!-- aclib reklam kütüphanesi -->
+    <script id="aclib" type="text/javascript" src="//acscdn.com/script/aclib.js"></script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Tüm stiller aynen korunmuştur (öncekiyle aynı) */
+        /* Tüm stiller aynen korunmuştur */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f4f6fc; min-height: 100vh; padding-bottom: 30px; transition: all 0.2s ease; line-height: 1.5; }
         body { --primary-start: #0f2b4d; --primary-end: #1a4270; --card-bg: #ffffff; --text-main: #0f172a; --text-light: #1e293b; --border-light: #e2e8f0; --shadow: 0 6px 18px rgba(0,0,0,0.04); --sidebar-bg: #ffffff; --header-gradient: linear-gradient(135deg, #0f2b4d, #1a4270); --hover-bg: #f1f5f9; }
@@ -121,11 +126,6 @@
     </style>
 </head>
 <body>
-    <script type="text/javascript">
-    aclib.runAutoTag({
-        zoneId: 'xd0muzfl9u',
-    });
-    </script>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="sidebar" id="sidebarPanel">
     <div class="sidebar-header"><h3><i class="fas fa-coins"></i> BORÇ ASİSTANI</h3>
@@ -152,7 +152,18 @@
     <div class="sidebar-item" id="exportBtn"><i class="fas fa-download"></i> DIŞA AKTAR</div>
     <div class="sidebar-item" id="importBtn"><i class="fas fa-upload"></i> İÇE AKTAR</div>
     <div class="sidebar-item reset-btn" id="resetBtn"><i class="fas fa-trash-alt"></i> TÜM VERİLERİ SIFIRLA</div>
-    <div class="ad-container" style="margin-top: 16px;"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+    
+    <!-- 300x250 Reklam Alanı (Sidebar içinde) -->
+    <div class="ad-container" style="margin-top: 16px;">
+        <div class="ad-label">Reklam</div>
+        <div>
+            <script type="text/javascript">
+                if (typeof aclib !== 'undefined') {
+                    aclib.runBanner({ zoneId: '11338466' });
+                }
+            </script>
+        </div>
+    </div>
 </div>
 
 <div class="header">
@@ -162,7 +173,17 @@
 </div>
 
 <div class="container" id="mainApp">
-    <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="auto"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+    <!-- 468x60 Reklam Alanı (üst) -->
+    <div class="ad-container">
+        <div class="ad-label">Reklam</div>
+        <div>
+            <script type="text/javascript">
+                if (typeof aclib !== 'undefined') {
+                    aclib.runBanner({ zoneId: '11338374' });
+                }
+            </script>
+        </div>
+    </div>
     
     <div class="nav-grid" id="navGrid"></div>
     <div class="social-grid"><div class="social-icon whatsapp" onclick="shareApp('whatsapp')"><i class="fab fa-whatsapp"></i></div><div class="social-icon twitter" onclick="shareApp('twitter')"><i class="fab fa-twitter"></i></div><div class="social-icon facebook" onclick="shareApp('facebook')"><i class="fab fa-facebook-f"></i></div><div class="social-icon email" onclick="shareApp('email')"><i class="fas fa-envelope"></i></div></div>
@@ -186,7 +207,6 @@
             </div>
         </div>
         
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
         <div class="section-card"><div class="section-title"> BORÇ vs GELİR/GİDER</div><div class="chart-container"><canvas id="financialCompareChart"></canvas></div></div>
         <div class="section-card"><div class="section-title"> SON 6 AY BORÇ TRENDİ</div><div class="chart-container"><canvas id="trendChart"></canvas></div></div>
         <div class="section-card"><div class="section-title"> ÖDEME İLERLEMESİ</div><div style="background:#e2e8f0; border-radius:30px;"><div id="mainProgress" style="background:linear-gradient(90deg,#11998e,#38ef7d); height:8px; width:0%; border-radius:30px;"></div></div><div style="margin-top:8px;">ÖDENEN ORAN: <span id="progressText">%0</span></div></div>
@@ -200,7 +220,8 @@
         <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
         <div class="chart-container"><canvas id="monthlyIncomeExpenseChart"></canvas></div>
         <div id="monthlyDetailText" style="margin-top:12px; padding:10px; background:var(--hover-bg); border-radius:20px;"></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <!-- 468x60 Reklam Alanı (iç) -->
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     <div id="yearly" class="section-card">
         <div class="section-title"> YILLIK ÖDEME ANALİZİ</div>
@@ -208,7 +229,7 @@
         <div id="yearlyStats" class="debt-summary-card"></div>
         <div class="chart-container"><canvas id="yearlyChart"></canvas></div>
         <div id="yearlyDetailText"></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     
     <div id="debts" class="section-card">
@@ -216,9 +237,10 @@
         <div id="debtSummaryContainer" class="debt-summary-card"></div>
         <button class="btn-save" id="newDebtBtn"><i class="fas fa-plus-circle"></i> YENİ BORÇ EKLE</button>
         <div class="debt-tabs"><button class="debt-tab-btn active" data-tab="unpaid"> ÖDENMEMİŞ</button><button class="debt-tab-btn" data-tab="paid"> ÖDENMİŞ</button><button class="debt-tab-btn" data-tab="all"> TÜM BORÇLAR</button></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="auto"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
         <div id="debtListContainer"></div>
         <div style="display: flex; gap: 12px; margin-top: 12px;"><button id="pdfDebtBtn" class="btn-save" style="background:#e67e22;"><i class="fas fa-file-pdf"></i> PDF</button><button id="printDebtBtn" class="btn-save" style="background:#2c3e50;"><i class="fas fa-print"></i> YAZDIR</button></div>
+        <!-- 300x250 Reklam Alanı -->
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     <div id="income" class="section-card">
         <div class="section-title"> GELİRLER</div>
@@ -226,7 +248,7 @@
         <div id="incomeList"></div>
         <div class="chart-container"><canvas id="incomeChart"></canvas></div>
         <div class="chart-container"><canvas id="incomeTrendChart"></canvas></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     <div id="expenses" class="section-card">
         <div class="section-title"> GİDERLER</div>
@@ -234,27 +256,27 @@
         <div id="expenseCategoriesList" class="debt-summary-card"></div>
         <div id="expensesListContainer"></div>
         <div class="chart-container"><canvas id="expenseChart"></canvas></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     <div id="installments" class="section-card">
         <div class="section-title"> TAKSİTLİ BORÇLAR</div>
         <div id="installmentSummary" class="debt-summary-card"></div>
         <button class="btn-save" id="newInstallmentBtn"> YENİ TAKSİTLİ BORÇ</button>
         <div id="installmentsListContainer"></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     <div id="alarms" class="section-card">
         <div class="section-title"> ALARMLAR</div>
         <button class="btn-save" id="newAlarmBtn"> YENİ ALARM</button>
         <div id="alarmsList"></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     <div id="notifications" class="section-card">
         <div class="section-title"> BİLDİRİMLER</div>
         <button class="btn-save" id="newNotifBtn"> YENİ BİLDİRİM</button>
         <button class="btn-save" id="clearAllNotifsBtn"> TÜMÜNÜ TEMİZLE</button>
         <div id="notificationsList"></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     <div id="aiStrategy" class="section-card">
         <div class="section-title"><i class="fas fa-robot"></i> YAPAY ZEKA ASİSTANI</div>
@@ -264,7 +286,7 @@
             </div>
             <div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Örn: Bu ay ne kadar harcadım? / Hangi borcu önce ödemeliyim? / Bana bir bütçe planı yapar mısın?"><button id="chatSendBtn" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button></div>
         </div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     
     <div id="help" class="section-card">
@@ -278,20 +300,18 @@
         <div class="help-card"><h4>🎨 TEMA & SAAT</h4><p>Başlıkta bulunan saat simgesi ile saati gizleyip gösterebilirsiniz. Aydınlık/Karanlık mod ve 4 farklı renk teması mevcuttur.</p></div>
         <div class="help-card"><h4>📱 MOBİL UYUMLU</h4><p>Responsive tasarım sayesinde telefon ve tabletlerde rahat kullanım. Tüm özellikler dokunmatik ekranlar için optimize edilmiştir.</p></div>
         <div style="text-align: center; margin-top: 20px;"><button class="btn-save" onclick="showPage('blog')" style="background: linear-gradient(135deg, #11998e, #38ef7d);"><i class="fas fa-book-open"></i> Finans Rehberlerimizi Keşfet</button></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     
     <div id="blog" class="section-card">
         <div class="section-title"><i class="fas fa-book-open"></i> FİNANS REHBERLERİ</div>
         <div class="help-card"><h4>💰 Borçlardan Kurtulmanın 5 Etkili Yolu</h4><p><strong>1. Borç Envanteri Çıkarın:</strong> Tüm borçlarınızı (kredi kartı, konut, araç, taksitli alışveriş) tek bir listede toplayın. Borç Takip Sistemi ile bunu saniyeler içinde yapabilirsiniz.</p><p><strong>2. Karlı İlk Stratejisi (Avalanche Method):</strong> En yüksek faizli borcunuzu önce kapatmaya odaklanın.</p><p><strong>3. Kartopu Yöntemi (Snowball Method):</strong> Psikolojik motivasyon için en küçük borcunuzdan başlayın.</p><p><strong>4. Gelir-Gider Dengesi Kurun:</strong> Uygulamamızın gelir/gider takibi sayesinde gereksiz harcamalarınızı tespit edin.</p><p><strong>5. Taksitli Borçları Yeniden Yapılandırın:</strong> Yüksek faizli taksitleri erken kapatarak faiz yükünden kurtulun.</p></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
         <div class="help-card"><h4>📊 Bütçe Yönetimi Rehberi (2026 Güncel)</h4><p><strong>1. 50/30/20 Kuralını Uygulayın:</strong> Net gelirinizin %50'sini zorunlu ihtiyaçlar, %30'unu istekler, %20'sini tasarruf ve borç ödemelerine ayırın.</p><p><strong>2. Acil Durum Fonu Oluşturun:</strong> 3-6 aylık yaşam giderinizi kapsayan bir acil durum fonu hedefleyin.</p><p><strong>3. Otomatik Ödeme ve Hatırlatıcılar:</strong> Uygulamamızın alarm ve bildirim özelliklerini kullanarak ödeme tarihlerini kaçırmayın.</p><p><strong>4. Aylık Harcama Limitleri Belirleyin:</strong> Gider kategorilerine aylık limit koyun.</p><p><strong>5. Düzenli Bütçe Gözden Geçirme:</strong> Her ay sonunda gelir/gider raporunuzu inceleyin.</p></div>
         <div class="help-card"><h4>📈 Kredi Notu Nedir, Nasıl Yükseltilir?</h4><p>Kredi notu (Findeks KKR), bankaların size kredi verip vermeyeceğine karar verdiği en önemli kriterdir. 0-1900 puan arasında değişir.</p><ul style="margin-left: 20px; margin-top: 6px;"><li>✅ Faturalarınızı ve kredi kartı borçlarınızı <strong>zamanında ödeyin</strong>.</li><li>✅ Kredi kartı limitinizin <strong>%25'ini aşmayın</strong>.</li><li>✅ <strong>Kredi başvurusu sıklığını azaltın</strong>.</li><li>✅ Uzun süreli ve düzenli ödeme alışkanlığı gösterin.</li></ul></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
         <div class="help-card"><h4>🛒 Taksitli Alışverişin Artıları ve Eksileri</h4><p><strong>Artıları (+):</strong> Yüksek tutarlı ürünleri hemen alabilmek, faizsiz taksit kampanyaları, acil ihtiyaçlarda imdadınıza yetişmesi.</p><p><strong>Eksileri (-):</strong> Faizli taksitler toplam ödeme tutarını artırır, birden fazla taksitli borç bütçeyi sıkıştırabilir, geç ödemelerde yüksek faizler.</p><p><strong>Önerimiz:</strong> Taksitli borçlarınızın toplam aylık ödemesi, gelirinizin %20'sini geçmesin.</p></div>
         <div class="help-card"><h4>💳 Kredi Kartı Borcundan Kurtulmanın 3 Stratejisi</h4><p><strong>1. Balance Transfer (Borç Transferi):</strong> Yüksek faizli kredi kartı borcunuzu, daha düşük faizli veya faizsiz bir karta transfer edin. Bankaların kampanyalarını takip ederek aylık faiz yükünden kurtulabilirsiniz.</p><p><strong>2. Asgari Ödemenin Üzerine Çıkın:</strong> Sadece asgari tutarı ödemek, borcunuzu yıllarca süründürür. Her ay asgari tutarın en az 2-3 katını ödemeye çalışın. Örneğin 5.000 TL borcun asgarisi 500 TL ise, 1.500 TL ödeyin.</p><p><strong>3. Harcama Durdurma (Spending Freeze):</strong> Kredi kartınızı bir süre tamamen kullanmayın. Sadece nakit veya banka kartı ile harcama yapın. Bu sayede yeni borç oluşturmaz, mevcut borcu eritmeye odaklanırsınız.</p></div>
         <div class="help-card"><h4>🛡️ Acil Durum Fonu Nasıl Oluşturulur? Adım Adım Rehber</h4><p><strong>Adım 1 – Hedef Belirleyin:</strong> 3 aylık yaşam giderinizi hesaplayın (kira, fatura, gıda, ulaşım). Örneğin aylık 15.000 TL harcıyorsanız hedef 45.000 TL olmalıdır.</p><p><strong>Adım 2 – Otomatik Tasarruf:</strong> Maaşınız yatar yatmaz, belirlediğiniz bir tutarı (örneğin %10) otomatik olarak bir kenara ayırın. Bunu bankanızın otomatik ödeme talimatı ile yapabilirsiniz.</p><p><strong>Adım 3 – Ek Gelir Yaratın:</strong> Freelance işler, eski eşyaların satışı, anketler gibi ek gelirleri doğrudan acil durum fonuna aktarın.</p><p><strong>Adım 4 – Fonu Dokunulmaz Tutun:</strong> Bu para sadece gerçek acil durumlar için kullanılmalı (iş kaybı, sağlık sorunu, büyük arıza). Alışveriş veya tatil için kesinlikle kullanmayın.</p><p><strong>Adım 5 – Fonu Büyütün:</strong> 3 aylık hedefe ulaştıktan sonra 6 aya, ardından 12 aya çıkarın. Bu sayede her türlü ekonomik zorluğa karşı hazırlıklı olursunuz.</p></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     
     <div id="feedback" class="section-card">
@@ -300,7 +320,7 @@
         <textarea id="contactMessage" class="form-input" rows="3" placeholder="Mesajınız"></textarea>
         <button class="btn-save" id="sendContactBtn"> MESAJ GÖNDER</button>
         <div class="help-card" style="margin-top:12px;"><i class="fas fa-envelope"></i> E-posta: <strong>info.borctakipyonetimi@gmail.com</strong></div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     
     <div id="about" class="section-card">
@@ -310,22 +330,11 @@
             <p><i class="fas fa-user-circle"></i> <strong>Geliştirici:</strong> Serkan SAĞLAM</p>
             <p><i class="fas fa-code-branch"></i> <strong>Versiyon:</strong> 5.0 (2026) - Ultimate Edition</p><br>
             <p><strong><i class="fas fa-star"></i> Öne Çıkan Özellikler:</strong></p>
-            <ul style="margin-left: 20px; margin-top: 8px;">
-                <li><i class="fas fa-check-circle"></i> Tek seferlik ve taksitli borç takibi (düzenleme/silme/durum değiştirme)</li>
-                <li><i class="fas fa-check-circle"></i> Kategorili gelir & gider yönetimi (gelişmiş kategori düzenleme)</li>
-                <li><i class="fas fa-check-circle"></i> Aylık ve yıllık grafiksel raporlama (animasyonlu Chart.js grafikleri)</li>
-                <li><i class="fas fa-check-circle"></i> Yapay zeka ile akıllı finansal asistan ve risk analizi</li>
-                <li><i class="fas fa-check-circle"></i> Filtreli PDF çıktısı ve yazdırma desteği</li>
-                <li><i class="fas fa-check-circle"></i> 4 farklı renk teması + Karanlık/aydınlık mod (yüksek kontrast)</li>
-                <li><i class="fas fa-check-circle"></i> Zamanlı alarmlar ve bildirimler</li>
-                <li><i class="fas fa-check-circle"></i> Veri yedekleme (JSON içe/dışa aktar) ve çoklu kullanıcı desteği</li>
-                <li><i class="fas fa-check-circle"></i> Canlı saat ve Türk bayrağı ile saat gizleme</li>
-                <li><i class="fas fa-check-circle"></i> Tam mobil uyumlu, dokunmatik dostu arayüz</li>
-            </ul><br>
+            <ul style="margin-left: 20px; margin-top: 8px;"><li><i class="fas fa-check-circle"></i> Tek seferlik ve taksitli borç takibi (düzenleme/silme/durum değiştirme)</li><li><i class="fas fa-check-circle"></i> Kategorili gelir & gider yönetimi (gelişmiş kategori düzenleme)</li><li><i class="fas fa-check-circle"></i> Aylık ve yıllık grafiksel raporlama (animasyonlu Chart.js grafikleri)</li><li><i class="fas fa-check-circle"></i> Yapay zeka ile akıllı finansal asistan ve risk analizi</li><li><i class="fas fa-check-circle"></i> Filtreli PDF çıktısı ve yazdırma desteği</li><li><i class="fas fa-check-circle"></i> 4 farklı renk teması + Karanlık/aydınlık mod (yüksek kontrast)</li><li><i class="fas fa-check-circle"></i> Zamanlı alarmlar ve bildirimler</li><li><i class="fas fa-check-circle"></i> Veri yedekleme (JSON içe/dışa aktar) ve çoklu kullanıcı desteği</li><li><i class="fas fa-check-circle"></i> Canlı saat ve Türk bayrağı ile saat gizleme</li><li><i class="fas fa-check-circle"></i> Tam mobil uyumlu, dokunmatik dostu arayüz</li></ul><br>
             <p>Bu uygulama, bireylerin borçlarını kontrol altına almasına, harcama alışkanlıklarını iyileştirmesine ve finansal hedeflerine ulaşmasına yardımcı olmak için tasarlanmıştır. Tüm veriler tarayıcınızın yerel deposunda saklanır, hiçbir sunucuya aktarılmaz. Güvenli ve hızlıdır.</p>
             <p style="margin-top: 12px;"><i class="far fa-copyright"></i> 2026 Serkan SAĞLAM - Tüm hakları saklıdır. Lisans: MIT</p>
         </div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338466'});</script></div></div>
     </div>
     
     <div id="privacy" class="section-card">
@@ -333,25 +342,18 @@
         <div style="line-height: 1.6; font-size: 0.85rem;">
             <p><strong>Son güncelleme:</strong> 18 Mayıs 2026</p>
             <p>Bu uygulama (“Borç Takip Sistemi”) kişisel verilerinizin güvenliğine önem vermektedir. İşte verilerinizin nasıl işlendiğine dair özet bilgiler:</p>
-            <ul style="margin-left: 20px; margin-top: 8px;">
-                <li><strong>Veri Toplanmaz:</strong> Tüm borç, gelir, gider ve diğer finansal verileriniz <strong>yalnızca sizin tarayıcınızın yerel deposunda (localStorage)</strong> saklanır. Hiçbir veri sunucuya gönderilmez veya üçüncü taraflarla paylaşılmaz.</li>
-                <li><strong>Çerezler ve Reklamlar:</strong> Sitemizde yayınlanan Google AdSense reklamları, size özel reklamlar sunmak için çerezler kullanabilir. Google’ın çerez kullanımı hakkında bilgi almak için <a href="https://policies.google.com/technologies/ads" target="_blank">Google Reklam Politikası</a> sayfasını ziyaret edebilirsiniz.</li>
-                <li><strong>Kullanıcı Girişi:</strong> Farklı kullanıcı profilleri oluşturmanız durumunda bile tüm veriler yalnızca tarayıcınızdaki localStorage’da tutulur. Uygulama dışına aktarılmaz.</li>
-                <li><strong>Harici Bağlantılar:</strong> Yardım, iletişim ve sosyal paylaşım butonları üçüncü taraf sitelere yönlendirme yapabilir; bu sitelerin gizlilik uygulamalarından sorumlu değiliz.</li>
-                <li><strong>Çocukların Kullanımı:</strong> Uygulama 13 yaş altı çocuklar için tasarlanmamıştır ve kasıtlı olarak onlardan veri toplamaz.</li>
-                <li><strong>Politika Değişiklikleri:</strong> Bu sayfayı dilediğimiz zaman güncelleyebiliriz. Değişiklikler yayınlandığı anda yürürlüğe girer.</li>
-            </ul>
+            <ul style="margin-left: 20px; margin-top: 8px;"><li><strong>Veri Toplanmaz:</strong> Tüm borç, gelir, gider ve diğer finansal verileriniz <strong>yalnızca sizin tarayıcınızın yerel deposunda (localStorage)</strong> saklanır. Hiçbir veri sunucuya gönderilmez veya üçüncü taraflarla paylaşılmaz.</li><li><strong>Çerezler ve Reklamlar:</strong> Sitemizde yayınlanan Google AdSense reklamları, size özel reklamlar sunmak için çerezler kullanabilir. Google’ın çerez kullanımı hakkında bilgi almak için <a href="https://policies.google.com/technologies/ads" target="_blank">Google Reklam Politikası</a> sayfasını ziyaret edebilirsiniz.</li><li><strong>Kullanıcı Girişi:</strong> Farklı kullanıcı profilleri oluşturmanız durumunda bile tüm veriler yalnızca tarayıcınızdaki localStorage’da tutulur. Uygulama dışına aktarılmaz.</li><li><strong>Harici Bağlantılar:</strong> Yardım, iletişim ve sosyal paylaşım butonları üçüncü taraf sitelere yönlendirme yapabilir; bu sitelerin gizlilik uygulamalarından sorumlu değiliz.</li><li><strong>Çocukların Kullanımı:</strong> Uygulama 13 yaş altı çocuklar için tasarlanmamıştır ve kasıtlı olarak onlardan veri toplamaz.</li><li><strong>Politika Değişiklikleri:</strong> Bu sayfayı dilediğimiz zaman güncelleyebiliriz. Değişiklikler yayınlandığı anda yürürlüğe girer.</li></ul>
             <p><strong>İletişim:</strong> Gizlilikle ilgili sorularınız için <a href="mailto:info.borctakipyonetimi@gmail.com">info.borctakipyonetimi@gmail.com</a> adresine yazabilirsiniz.</p>
             <p><i class="fas fa-database"></i> Bu uygulama <strong>sunucu barındırmaz</strong> – tamamen istemci taraflıdır. Verileriniz size aittir.</p>
         </div>
-        <div class="ad-container"><div class="ad-label">Reklam</div><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4449700232321088" data-ad-slot="3262325872" data-ad-format="rectangle"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>
+        <div class="ad-container"><div class="ad-label">Reklam</div><div><script>if(typeof aclib!=='undefined') aclib.runBanner({zoneId:'11338374'});</script></div></div>
     </div>
     
     <div class="footer">Akıllı Bütçe Asistanı | Sürüm 5.0</div>
 </div>
 <div class="sync-status" id="syncToast"><i class="fas fa-save"></i> KAYDEDİLDİ</div>
 
-<!-- MODALLAR (kısa tutuldu) -->
+<!-- MODALLAR -->
 <div class="modal-overlay" id="debtModal"><div class="modal-box"><h4 id="debtModalTitle">BORÇ EKLE/DÜZENLE</h4><input type="text" id="debtName" placeholder="Borç Adı" class="form-input"><input type="number" id="debtAmount" placeholder="Toplam Tutar" class="form-input"><input type="number" id="debtPaid" placeholder="Ödenen Tutar (0)" class="form-input" value="0"><select id="debtCategory" class="form-input"></select><input type="date" id="debtDueDate" class="form-input" placeholder="Son Ödeme Tarihi"><label><input type="checkbox" id="debtAlarmCheck"> Hatırlatma Alarmı Kur</label><button class="btn-save" id="saveDebtBtn">KAYDET</button><button class="btn-save" id="closeDebtModalBtn">İPTAL</button><input type="hidden" id="editDebtId"></div></div>
 <div class="modal-overlay" id="categoryModal"><div class="modal-box"><h4>KATEGORİ EKLE/DÜZENLE</h4><input type="text" id="categoryName" placeholder="Kategori Adı" class="form-input"><button class="btn-save" id="saveCategoryBtn">EKLE/GÜNCELLE</button><button class="btn-save" id="closeCategoryModalBtn">KAPAT</button><input type="hidden" id="editCategoryId"></div></div>
 <div class="modal-overlay" id="incomeEditModal"><div class="modal-box"><h4>GELİR DÜZENLE</h4><input type="text" id="editIncomeName" placeholder="Ad" class="form-input"><input type="number" id="editIncomeAmount" placeholder="Tutar" class="form-input"><button class="btn-save" id="saveIncomeEditBtn">KAYDET</button><button class="btn-save" id="closeIncomeModalBtn">İPTAL</button><input type="hidden" id="editIncomeId"></div></div>
@@ -488,22 +490,20 @@ function renderYearlyStats(){
     document.getElementById('yearlyStats').innerHTML=`<div> Yıl: ${year}</div><div> Toplam Ödeme: ${formatMoney(totalPaidYear)}</div><div> Kalan: ${formatMoney(s.remaining)}</div>`; 
     safeDestroy(window.yearlyChart); let ctx=document.getElementById('yearlyChart')?.getContext('2d'); if(ctx) window.yearlyChart=new Chart(ctx,{type:'line',data:{labels:['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'], datasets:[{label:`${year} Ödemeler`, data:monthlyData, borderColor:'#1a4270', fill:true, tension:0.3}]}});
 }
-// ---- YAPAY ZEKA ASİSTANI (TAM) ----
+// AI Asistan
 function getAIResponse(q) {
-    let s = getStats();
-    let qLower = q.toLowerCase();
+    let s = getStats(); let qLower = q.toLowerCase();
     if(qLower.includes('toplam borç')) return `💰 Toplam borcunuz: ${formatMoney(s.totalDebt)}`;
     if(qLower.includes('risk')) { let oran = s.totalIncome>0?(s.remaining/s.totalIncome)*100:100; return `⚠️ Risk: ${oran>70?'Yüksek':oran>40?'Orta':'Düşük'} (${oran.toFixed(1)}%)`; }
     if(qLower.includes('taksit')) return `📌 Kalan taksitli borç: ${formatMoney(getTotalInstallmentRemaining())}, Bu ay: ${formatMoney(getCurrentMonthInstallmentDue())}`;
-    if(qLower.includes('bütçe')) return `📋 Öneri: Gelirinizin %20'sini tasarrufa ayırın.`;
-    return `🤖 Yardım: "toplam borç", "risk durumu", "taksitli borçlar", "bütçe planı" yazabilirsiniz.`;
+    return `🤖 Yardım: "toplam borç", "risk durumu", "taksitli borçlar", "bütçe planı" gibi sorular sorabilirsiniz.`;
 }
 function addChatMessage(text, isUser) { let div=document.getElementById('chatMessages'); let msgDiv=document.createElement('div'); msgDiv.className=`chat-message ${isUser?'user':'bot'}`; msgDiv.innerHTML=isUser?`<div class="chat-avatar"><i class="fas fa-user"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`:`<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="message-bubble">${escapeHtml(text)}</div>`; div.appendChild(msgDiv); div.scrollTop=div.scrollHeight; }
 function sendQuestion(){ let inp=document.getElementById('chatInput'); let q=inp.value.trim(); if(!q) return; addChatMessage(q,true); inp.value=''; setTimeout(()=>{ let ans=getAIResponse(q); addChatMessage(ans,false); }, 200); }
 document.getElementById('chatSendBtn').addEventListener('click', sendQuestion);
 document.getElementById('chatInput').addEventListener('keypress', (e)=>{ if(e.key==='Enter') sendQuestion(); });
 
-// PDF DÜZELTİLDİ - İÇERİK DOLU
+// PDF
 async function exportDebtsToPDF() {
     let filtered = currentDebtTab==='unpaid' ? debts.filter(d=>d.paid<d.amount) : (currentDebtTab==='paid' ? debts.filter(d=>d.paid>=d.amount) : debts);
     if(filtered.length===0){ alert('Raporlanacak borç yok'); return; }
@@ -527,7 +527,7 @@ async function exportDebtsToPDF() {
             <thead><tr><th>Borç Adı</th><th>Kategori</th><th>Toplam (₺)</th><th>Ödenen (₺)</th><th>Kalan (₺)</th></tr></thead>
             <tbody>
                 ${filtered.map(d => `<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.category)}</td><td>${formatMoney(d.amount)}</td><td>${formatMoney(d.paid)}</td><td>${formatMoney(d.amount-d.paid)}</td></tr>`).join('')}
-                <tr class="total-row"><td colspan="2"><strong>Toplam</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+d.amount,0))}</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+d.paid,0))}</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+(d.amount-d.paid),0))}</strong></td><tr>
+                <tr class="total-row"><td colspan="2"><strong>Toplam</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+d.amount,0))}</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+d.paid,0))}</strong></td><td><strong>${formatMoney(filtered.reduce((s,d)=>s+(d.amount-d.paid),0))}</strong></td></tr>
             </tbody>
         </table>
         <div class="footer">Borç Takip Sistemi | Serkan SAĞLAM</div>
