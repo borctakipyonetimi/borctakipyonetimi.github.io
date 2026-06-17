@@ -445,6 +445,26 @@ export const PublicBlog: React.FC<PublicBlogProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Elegant policy footer at bottom of blog page */}
+        <footer className="mt-16 pt-8 border-t border-slate-200 dark:border-slate-800 pb-6 text-center text-xs space-y-4">
+          <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-[10px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
+            <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition underline">
+              Gizlilik Politikası (Privacy Policy)
+            </a>
+            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <a href="mailto:info.borctakipyonetimi@gmail.com" className="hover:text-indigo-500 transition underline">
+              İletişim / Destek
+            </a>
+            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition underline">
+              Sitemap
+            </a>
+          </div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">
+            © 2026 BÜTÇEM PRO • Yapay Zeka Destekli Finans ve Borç Yönetim Platformu
+          </p>
+        </footer>
       </div>
     </div>
   );

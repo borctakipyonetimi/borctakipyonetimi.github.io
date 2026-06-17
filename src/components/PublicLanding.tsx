@@ -551,15 +551,31 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
       </motion.section>
 
       {/* Footer Branding Area */}
-      <footer className="py-12 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-xs space-y-3">
+      <footer className="py-12 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-xs space-y-4">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-2">
-          <h4 className="text-white font-black tracking-widest text-sm uppercase">💰 BÜTÇEM</h4>
+          <h4 className="text-white font-black tracking-widest text-sm uppercase">💰 BÜTÇEM PRO</h4>
           <p className="text-[11px] font-semibold text-slate-500 leading-relaxed max-w-md mx-auto">
             Harcama alışkanlıklarınızı dönüştürün, borçlarınızı bilimsel olarak yönetin ve finansal bağımsızlığın tadını çıkarın. %100 güvenli, yerel öncelikli bütçeleme platformu.
           </p>
         </div>
+        
+        {/* Compliance & Regulatory Links required by Google Play and AdSense */}
+        <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-[10px] font-bold tracking-wider uppercase text-indigo-400">
+          <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 transition underline">
+            Gizlilik Politikası (Privacy Policy)
+          </a>
+          <span className="text-slate-700 hidden sm:inline">•</span>
+          <a href="mailto:info.borctakipyonetimi@gmail.com" className="hover:text-indigo-300 transition underline">
+            Destek / İletişim (Contact)
+          </a>
+          <span className="text-slate-700 hidden sm:inline">•</span>
+          <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 transition underline">
+            Site Haritası (Sitemap)
+          </a>
+        </div>
+
         <div className="pt-6 border-t border-slate-800 text-[10px] font-bold text-slate-500 tracking-wider">
-          © 2026 BÜTÇEM • TÜM HAKLARI SAKLIDIR.
+          © 2026 BÜTÇEM PRO • ALL RIGHTS RESERVED.
         </div>
       </footer>
     </div>

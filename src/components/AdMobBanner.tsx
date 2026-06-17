@@ -16,21 +16,30 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   className = ""
 }) => {
   const [isPremium, setIsPremium] = useState(false);
+  const [isWebView, setIsWebView] = useState(false);
   const adInited = useRef(false);
 
-  // Dynamically check premium status from localStorage to instantly hide ads
+  // Dynamically check premium status and WebView environment
   useEffect(() => {
     const checkPremium = () => {
       setIsPremium(localStorage.getItem("is_premium") === "true");
     };
     checkPremium();
     const interval = setInterval(checkPremium, 1500);
+
+    // Detect if we are running inside an Android WebView context (APK wrapper)
+    if (typeof window !== "undefined" && navigator) {
+      const ua = navigator.userAgent || "";
+      const webViewActive = /Android/i.test(ua) && (ua.includes("; wv") || /Version\/[0-9.]+/i.test(ua));
+      setIsWebView(webViewActive);
+    }
+
     return () => clearInterval(interval);
   }, []);
 
   // Initialize Google AdSense responsive ad units safely inside React lifecycle
   useEffect(() => {
-    if (isPremium) return;
+    if (isPremium || isWebView) return;
 
     const delay = setTimeout(() => {
       try {
@@ -50,7 +59,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     }, 600);
 
     return () => clearTimeout(delay);
-  }, [isPremium, unitType]);
+  }, [isPremium, isWebView, unitType]);
 
   if (isPremium) return null;
 
@@ -92,27 +101,29 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         {/* Banner Label & Branding */}
         <div className="flex items-center justify-between mb-3.5 select-none">
           <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[8px] sm:text-[9px] font-black uppercase tracking-widest rounded border border-indigo-500/15">
-            Sponsorlu Reklam & Google AdSense
+            {isWebView ? "Sponsorlu Reklam & Mobil Entegrasyon" : "Sponsorlu Reklam & Google AdSense"}
           </span>
           <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 font-mono">
             Bütçem Pro Geliştirici Destek
           </span>
         </div>
 
-        {/* Real Live Google AdSense responsive unit */}
-        <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-white/50 dark:bg-slate-950/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-2 relative z-10 transition">
-          <ins 
-            className="adsbygoogle"
-            style={{ display: "block", width: "100%", minHeight: "90px" }}
-            data-ad-client="ca-pub-4449700232321088"
-            data-ad-slot="9010886121"
-            data-ad-format="auto"
-            data-full-width-responsive="true"
-          />
-        </div>
+        {/* Real Live Google AdSense responsive unit - Hidden in APK WebView to satisfy Google Policy */}
+        {!isWebView && (
+          <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-white/50 dark:bg-slate-950/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-2 relative z-10 transition mb-4">
+            <ins 
+              className="adsbygoogle"
+              style={{ display: "block", width: "100%", minHeight: "90px" }}
+              data-ad-client="ca-pub-4449700232321088"
+              data-ad-slot="9010886121"
+              data-ad-format="auto"
+              data-full-width-responsive="true"
+            />
+          </div>
+        )}
 
         {/* Polished Visual Sponsor Backup Campaign beneath AdSense */}
-        <div className="mt-4 pt-3.5 border-t border-slate-200/50 dark:border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
+        <div className={`${!isWebView ? "pt-3.5 border-t border-slate-200/50 dark:border-slate-800/60" : ""} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left`}>
           <div className="min-w-0 flex-1 leading-snug">
             <h4 className="text-[10.5px] sm:text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-1">
               <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
