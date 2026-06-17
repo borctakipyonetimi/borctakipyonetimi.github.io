@@ -37,15 +37,15 @@ export const translations = {
     active_installments: "Aylık Taksit Yükü",
 
     // Google Drive / Cloud
-    drive_title: "Güvenli Bulut Senkronizasyonu (Google Drive)",
-    drive_desc: "Tüm finansal verilerinizi kendi Google Drive hesabınızda şifreli ve güvenli olarak yedekleyin, dilediğiniz an geri yükleyin.",
-    drive_connect: "Google Hesabını Bağla",
+    drive_title: "Güvenli Yedekleme ve Bulut Senkronizasyonu",
+    drive_desc: "Tüm finansal verilerinizi yerel dosya (.json) olarak yedekleyebilir veya bulut hesabınızla güvenle eşitleyerek dilediğiniz an geri yükleyebilirsiniz.",
+    drive_connect: "Yedek Hesabını Bağla",
     drive_disconnect: "Yedekleme Bağlantısını Kes",
     drive_syncing: "Bulut ile eşitleniyor...",
-    drive_success: "Verileriniz Google bulut yedekleme alanına başarıyla aktarıldı!",
-    drive_auto_backup: "Her Değişiklikte Otomatik Arka Plan Yedekleme",
+    drive_success: "Verileriniz bulut yedekleme alanına başarıyla aktarıldı!",
+    drive_auto_backup: "Otomatik Arka Plan Yedekleme",
     drive_last_sync: "Son Başarılı Yedekleme",
-    drive_files: "Buluttaki Güncel Yedek Dosyalarınız",
+    drive_files: "Güncel Yedek Dosyaları",
 
     // Categories and Limits
     limit_warning: "Akıllı Akış & Harcama Limit Alarmları",
@@ -105,7 +105,7 @@ export const translations = {
     lang_selection: "Language Selector",
     currency: "Currency Code",
     pro_features: "PRO VERSION EXCLUSIVES",
-    sync_active: "Google Sync Active",
+    sync_active: "Cloud Sync Active",
 
     // Quick indicators & titles
     total_debt: "Total Debt Burden",
@@ -117,13 +117,13 @@ export const translations = {
     active_installments: "Monthly Installments",
 
     // Google Drive / Cloud
-    drive_title: "Secure Cloud Backup (Google Drive)",
-    drive_desc: "Encrypt and back up all your budget records to your private Google Drive account safely. Restore any time.",
-    drive_connect: "Link Google Account",
+    drive_title: "Secure Cloud & Local Backups",
+    drive_desc: "Export and back up all your budget records locally (.json) or sync with your cloud account safely. Restore any time.",
+    drive_connect: "Link Backup Account",
     drive_disconnect: "Sever Sync Link",
     drive_syncing: "Synchronizing with Cloud...",
-    drive_success: "Your budget history was successfully synchronized to the secure cloud locker!",
-    drive_auto_backup: "Continuous Background Sync on All Changes",
+    drive_success: "Your budget history was successfully synchronized to the secure cloud!",
+    drive_auto_backup: "Continuous Background Sync",
     drive_last_sync: "Last Successful Backup",
     drive_files: "Active Cloud Stored Backups",
 

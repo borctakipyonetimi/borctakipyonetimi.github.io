@@ -95,11 +95,11 @@
                 </ul>
             </div>
 
-            <!-- Verilerin Saklanması ve Google Drive -->
+            <!-- Verilerin Saklanması ve Yedekleme -->
             <div class="space-y-3">
-                <h3 class="text-lg font-bold text-slate-850 dark:text-white">💾 3. Verilerin Saklanması, Güvenliği ve Google Drive Yedekleme</h3>
+                <h3 class="text-lg font-bold text-slate-850 dark:text-white">💾 3. Verilerin Saklanması, Güvenliği ve Yedekleme Altyapısı</h3>
                 <p class="text-sm text-slate-600 dark:text-slate-300">
-                    Finansal verilerinizin mahremiyeti bizim en yüksek önceliğimizdir. Bu doğrultuda veri depolama prensiplerimiz şöyledir:
+                    Finansal verilerinizin mahremiyeti bizim en yüksek önceliğimizdir. Gerek web sürümümüzde gerekse APK uygulamalarımızda veri depolama prensiplerimiz şöyledir:
                 </p>
                 <div class="grid md:grid-cols-2 gap-4 pt-2">
                     <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 text-xs">
@@ -107,8 +107,8 @@
                         Bütün gelir, gider, bütçe aşım hedefleri, alarm saatleri ve borç listeleri cihazınızda şifreli yerel veritabanında (Local Storage / SQLite altyapısı) barındırılır. Cihazınızı temizlemediğiniz sürece dışarı sızması engellenmiştir.
                     </div>
                     <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 text-xs">
-                        <span class="font-extrabold text-slate-900 dark:text-white uppercase tracking-wider block">☁️ Google Drive Entgrasyonu</span>
-                        Uygulama, verilerinizi güvenle yedeklemeniz için sadece sizin yetkilendirdiğiniz <strong>Google Drive AppData</strong> klasörünü kullanır. Uygulamanın Drive yedekleme özelliği, kendi Gmail hesabınızın korumalı tüneli üzerinden çalışır ve yedek dosyalarınıza biz dahil hiç kimse erişemez.
+                        <span class="font-extrabold text-slate-900 dark:text-white uppercase tracking-wider block">☁️ Bulut ve Yerel Yedekleme</span>
+                        Uygulama, verilerinizi güvenle yedeklemeniz için cihazınızda saklayabileceğiniz şifreli yerel yedek dosyaları (.json) oluşturma ve dilediğinizde geri yükleme imkanı sunar. Ayrıca isteğe bağlı olarak Firebase entegrasyonu ile oturum açtığınızda verileriniz bulut tabanlı olarak web ve mobil sürümler arasında tam senkronize şekilde güvenle yedeklenir.
                     </div>
                 </div>
             </div>
@@ -156,7 +156,7 @@
             <div class="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <h3 class="text-lg font-bold text-slate-850 dark:text-white">✉️ 8. KVKK Haklarınız ve İletişim</h3>
                 <p class="text-sm text-slate-600 dark:text-slate-300">
-                    Dilediğiniz zaman uygulama içerisinden "Verileri Tamamen Temizle" diyerek tüm yerel verilerinizi kalıcı olarak silebilir, Google Drive bağlantınızı kesebilirsiniz. Sorularınız veya geri bildirimleriniz için bizimle <strong>nettenkazanma2@gmail.com</strong> e-posta adresi üzerinden irtibata geçebilirsiniz.
+                    Dilediğiniz zaman uygulama içerisinden "Verileri Tamamen Temizle" diyerek tüm yerel verilerinizi ve şifreli yedek dosyalarınızı kalıcı olarak silebilirsiniz. Sorularınız veya geri bildirimleriniz için bizimle <strong>info.borctakipyonetimi@gmail.com</strong> e-posta adresi üzerinden irtibata geçebilirsiniz.
                 </p>
             </div>
         </section>
@@ -194,11 +194,11 @@
                 </ul>
             </div>
 
-            <!-- Storage and Google Drive Backup -->
+            <!-- Storage and Backup -->
             <div class="space-y-3">
-                <h3 class="text-lg font-bold text-slate-850 dark:text-white">💾 3. Data Confidentiality & Google Drive Backups</h3>
+                <h3 class="text-lg font-bold text-slate-850 dark:text-white">💾 3. Data Confidentiality & Cloud/Local Backups</h3>
                 <p class="text-sm text-slate-600 dark:text-slate-300">
-                    The security of your budget history is our absolute highest priority. We implement a localized architecture:
+                    The security of your budget history is our absolute highest priority. For both our web version and APK applications, we implement a secure architecture:
                 </p>
                 <div class="grid md:grid-cols-2 gap-4 pt-2">
                     <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 text-xs">
@@ -206,8 +206,8 @@
                         All income streams, categorizations, budget thresholds, and payment alarms reside in encrypted local sandboxed memory databases (Local Storage / SQLite frameworks). Unless you clear your app client, your financial details remain hidden.
                     </div>
                     <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 text-xs">
-                        <span class="font-extrabold text-slate-900 dark:text-white uppercase tracking-wider block">☁️ Google Drive Backup</span>
-                        To secure your data, Bütçem Pro supports automated exports to your own <strong>Google Drive AppData folder</strong>. Backup actions use a direct, secure connection to your personal Google cloud. We have absolute zero visibility or access to your backup files.
+                        <span class="font-extrabold text-slate-900 dark:text-white uppercase tracking-wider block">☁️ Cloud & Local Backups</span>
+                        To secure your data, Bütçem Pro supports exporting encrypted offline backup files (.json) which you can save locally and restore at any time. Additionally, you can choose to authenticate via Firebase to automatically and securely sync your financial records across web and mobile platforms.
                     </div>
                 </div>
             </div>
@@ -255,7 +255,7 @@
             <div class="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <h3 class="text-lg font-bold text-slate-850 dark:text-white">✉️ 8. Your Privacy Rights & Contact</h3>
                 <p class="text-sm text-slate-600 dark:text-slate-300">
-                    Since Bütçem Pro is dedicated to zero data hoarding, you can wipe all your information instantly and permanently using the "Reset Application" button inside the program. For inquiries regarding GDPR compliance or storage security, email us directly at <strong>nettenkazanma2@gmail.com</strong>.
+                    Since Bütçem Pro is dedicated to zero data hoarding, you can wipe all your information instantly and permanently using the "Reset Application" button inside the program. For inquiries regarding GDPR compliance or storage security, email us directly at <strong>info.borctakipyonetimi@gmail.com</strong>.
                 </p>
             </div>
         </section>
