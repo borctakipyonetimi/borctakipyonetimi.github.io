@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+/* Enable selector-based dark mode in Tailwind CSS v4 */
+@variant dark (&:where(.dark, .dark *));
+
+html, body {
+  min-height: 100%;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Global high-performance transitions and high-contrast color styles */
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.dark {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Global fluidity for all components during theme switch */
+* {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Theme overrides mapping Indigo scale to the selected user theme style */
+.theme-green {
+  --color-indigo-50: #f0fdf4 !important;
+  --color-indigo-100: #dcfce7 !important;
+  --color-indigo-200: #bbf7d0 !important;
+  --color-indigo-300: #86efac !important;
+  --color-indigo-400: #4ade80 !important;
+  --color-indigo-500: #22c55e !important;
+  --color-indigo-600: #10b981 !important;
+  --color-indigo-700: #047857 !important;
+  --color-indigo-800: #065f46 !important;
+  --color-indigo-900: #064e3b !important;
+  --color-indigo-950: #022c22 !important;
+}
+
+.theme-purple {
+  --color-indigo-50: #faf5ff !important;
+  --color-indigo-100: #f3e8ff !important;
+  --color-indigo-200: #e9d5ff !important;
+  --color-indigo-300: #d8b4fe !important;
+  --color-indigo-400: #c084fc !important;
+  --color-indigo-500: #a855f7 !important;
+  --color-indigo-600: #8b5cf6 !important;
+  --color-indigo-700: #6d28d9 !important;
+  --color-indigo-800: #5b21b6 !important;
+  --color-indigo-900: #4c1d95 !important;
+  --color-indigo-950: #2e1065 !important;
+}
+
+.theme-orange {
+  --color-indigo-50: #fff7ed !important;
+  --color-indigo-100: #ffedd5 !important;
+  --color-indigo-200: #fed7aa !important;
+  --color-indigo-300: #fdbb74 !important;
+  --color-indigo-400: #fb923c !important;
+  --color-indigo-500: #f97316 !important;
+  --color-indigo-600: #ea580c !important;
+  --color-indigo-700: #c2410c !important;
+  --color-indigo-800: #9a3412 !important;
+  --color-indigo-900: #7c2d12 !important;
+  --color-indigo-950: #431407 !important;
+}
+
+/* Custom animations helper */
+@keyframes clock-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.98); }
+}
+
+.animate-clock-pulse {
+  animation: clock-pulse 2s infinite ease-in-out;
+}
+
+/* Premium dashboard card mesh background gradients and animations */
+@keyframes float-ball {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(15px, -15px) scale(1.15); }
+}
+
+@keyframes gradient-shift {
+  0% { bg-gradient-position: 0% 50%; }
+  50% { bg-gradient-position: 100% 50%; }
+  100% { bg-gradient-position: 0% 50%; }
+}
+
+.animate-float-slow {
+  animation: float-ball 8s infinite ease-in-outAlt;
+}
+
+.animate-float-reverse {
+  animation: float-ball 12s infinite ease-in-out reverse;
+}
+
+.banner-premium-gradient {
+  background: linear-gradient(135deg, #1e1b4b 0%, #311042 40%, #032b30 100%);
+  background-size: 200% 200%;
+}
+
+/* Simulated Phone Native Slide Alert Keyframe */
+@keyframes slide-phone-alert {
+  0% { transform: translateY(-130%); opacity: 0; }
+  12% { transform: translateY(0); opacity: 1; }
+  88% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-130%); opacity: 0; }
+}
+
+.animate-phone-alert {
+  animation: slide-phone-alert 4.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Turkish waving flag animation */
+@keyframes wave-flag {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  25% { transform: translateY(-1px) rotate(2deg); }
+  50% { transform: translateY(1px) rotate(-2deg); }
+  75% { transform: translateY(-0.5px) rotate(1deg); }
+}
+
+.animate-wave-flag {
+  display: inline-block;
+  animation: wave-flag 2.5s infinite ease-in-out;
+  transform-origin: bottom center;
+}
+
+/* ==========================================================================
+   HIGH-CONTRAST LIGHT MODE EXTRA-VISIBILITY STYLE OVERRIDES
+   ========================================================================== */
+
+/* Target the layout wrapper and background and make it pop out beautifully */
+html:not(.dark) body,
+html:not(.dark) .bg-\[\#f8fafc\] {
+  background-color: #f1f5f9 !important; /* Richer gray-slate background for perfect contrast with cards */
+}
+
+/* Elevate and outline card containers beautifully in Light Mode */
+html:not(.dark) .bg-white {
+  border: 1px solid #cbd5e1 !important; /* Visible clean outline */
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 17, 32, 0.04) !important; /* Distinct shadow depth */
+}
+
+/* Ensure secondary slate dividers and backgrounds are highly visible */
+html:not(.dark) .bg-slate-50,
+html:not(.dark) .bg-slate-100\/40,
+html:not(.dark) .bg-slate-50\/50 {
+  background-color: rgba(226, 232, 240, 0.7) !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Precise list of light slate border custom overrides to guarantee visibility */
+html:not(.dark) .border-slate-100,
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-slate-200\/40,
+html:not(.dark) .border-slate-250\/30,
+html:not(.dark) .border-slate-200\/55,
+html:not(.dark) .border-slate-200\/50,
+html:not(.dark) .border-slate-200\/60,
+html:not(.dark) .border-slate-205\/60,
+html:not(.dark) .border-slate-200\/80,
+html:not(.dark) .border-slate-300,
+html:not(.dark) .border-slate-100\/60,
+html:not(.dark) .border-slate-100\/80 {
+  border-color: #cbd5e1 !important; /* Solid Slate-300 */
+}
+
+/* Make tables, input groups and list dividers highly prominent in Light Mode */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  border: 1.5px solid #cbd5e1 !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) input:focus,
+html:not(.dark) select:focus,
+html:not(.dark) textarea:focus {
+  border-color: #6366f1 !important; /* Indigo brand outline on focus */
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+}
+
+html:not(.dark) .border-b {
+  border-bottom-color: #cbd5e1 !important;
+}
+
+html:not(.dark) .border-t {
+  border-top-color: #cbd5e1 !important;
+}
+
+html:not(.dark) .divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: #cbd5e1 !important;
+}
+
+/* Make icons and metadata inside Light Mode distinct */
+html:not(.dark) .text-slate-400 {
+  color: #64748b !important; /* Deepen to Slate-500 for better contrast */
+}
+
+html:not(.dark) .text-slate-500 {
+  color: #475569 !important; /* Deepen to Slate-600 */
+}
+
+/* Category cards CSS-based hover scale, shadow, and soft color transitions */
+.category-card-animated {
+  background-color: var(--cat-bg);
+  transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out, transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.category-card-animated:hover:not(.inline-editing) {
+  background-color: var(--cat-bg-hover) !important;
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+

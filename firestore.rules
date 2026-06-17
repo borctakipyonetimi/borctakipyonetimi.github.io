@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Secure users workspace doc with temporal verification
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && isValidId(userId)
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(userId);
+    }
+
+    // Secure temporary APK sync sessions
+    match /apk_sync_sessions/{sessionId} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /?page=landing
+Allow: /?page=blog
+Allow: /?page=blog-post*
+
+Sitemap: https://butcempro.com/sitemap.xml

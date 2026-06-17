@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "User Workspace",
+      "description": "Consolidated workspace configuration and transactions list for a user",
+      "type": "object",
+      "properties": {
+        "debts": {
+          "type": "array",
+          "description": "List of active financial debts"
+        },
+        "incomes": {
+          "type": "array",
+          "description": "List of source incomes"
+        },
+        "alarms": {
+          "type": "array",
+          "description": "User defined alarm reminders"
+        },
+        "notifications": {
+          "type": "array",
+          "description": "Logged in-app notification events"
+        },
+        "installmentDebts": {
+          "type": "array",
+          "description": "Active installment-based debts"
+        },
+        "payments": {
+          "type": "array",
+          "description": "History logs of debt payment events"
+        },
+        "expenses": {
+          "type": "array",
+          "description": "Custom user daily expenses records"
+        },
+        "expenseCategories": {
+          "type": "array",
+          "description": "Selected expense categories configuration"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "High resolution server timestamp of the last write"
+        }
+      },
+      "required": ["updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserWorkspace",
+      "description": "Dynamic workspace for matching owner profile"
+    }
+  }
+}

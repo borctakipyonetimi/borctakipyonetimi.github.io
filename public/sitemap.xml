@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Ana Sayfa (Public Landing) -->
+  <url>
+    <loc>https://butcempro.com/</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <!-- Genel Tanıtım Sayfası -->
+  <url>
+    <loc>https://butcempro.com/?page=landing</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <!-- Finans Blog Listesi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- Kartopu vs Çığ Makalesi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=snowball-avalanche</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- 50/30/20 Bütçe Metodu Makalesi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=budgeting-rules</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- Kredi Skoru Yükseltme Rehberi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=credit-score</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- Enflasyonla Mücadele Rehberi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=inflation-defense</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- Yapay Zeka Finans Asistanlığı Makalesi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=ai-finance</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- Bütçe Sızıntısı Makalesi -->
+  <url>
+    <loc>https://butcempro.com/?page=blog-post&amp;id=budget-leak</loc>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>
