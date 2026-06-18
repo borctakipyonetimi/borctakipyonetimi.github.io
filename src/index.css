@@ -3,12 +3,16 @@
 /* Enable selector-based dark mode in Tailwind CSS v4 */
 @variant dark (&:where(.dark, .dark *));
 
-html, body {
-  min-height: 100%;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  -webkit-overflow-scrolling: touch !important;
+html {
   scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 #root {

@@ -3167,6 +3167,20 @@ export default function App() {
     return () => window.removeEventListener("nav-to-ai", handleNavToAi);
   }, []);
 
+  // Scroll back to top on navigation to prevent scroll restoration issues inside Web/iFrame environments and ensure all page content is visible
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      
+      const mainElement = document.querySelector("main");
+      if (mainElement) {
+        mainElement.scrollTop = 0;
+      }
+    }
+  }, [activeTab, showPublicView]);
+
   // Navigation target mappings
   const sidebarItems = [
     { id: "overview", label: "GENEL BAKIŞ", icon: LayoutDashboard },
