@@ -392,6 +392,13 @@ export default function App() {
     }
   }, [oneSignalAppId]);
 
+  // Scroll to top unconditionally on tab transition or public view switch to prevent screen scroll lockups
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab, showPublicView]);
+
   // Register Service Worker and inject Android WebView Polyfill for System Tray Push Notifications and Audio Gesture Unlocker
   useEffect(() => {
     if (typeof window !== "undefined") {
