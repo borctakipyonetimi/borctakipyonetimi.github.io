@@ -182,7 +182,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   if (activeTab === "help") {
     return (
-      <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+      <div className="space-y-6">
         {/* Centered & Animated Page Title */}
         <div className="flex flex-col items-center justify-center text-center py-4 select-none">
           <motion.h2
@@ -280,7 +280,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   if (activeTab === "blog") {
     return (
-      <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+      <div className="space-y-6">
         {/* Centered & Animated Page Title */}
         <div className="flex flex-col items-center justify-center text-center py-4 select-none">
           <motion.h2
@@ -398,7 +398,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   if (activeTab === "feedback") {
     return (
-      <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+      <div className="space-y-6">
         {/* Editorial Subheader */}
         <div className="border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
           <h2 className="text-lg font-black flex items-center gap-2 text-slate-800 dark:text-slate-100 uppercase tracking-tight">
@@ -559,7 +559,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   if (activeTab === "privacy") {
     return (
-      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+      <div className="space-y-4">
         {/* Centered & Animated Page Title */}
         <div className="flex flex-col items-center justify-center text-center py-4 select-none">
           <motion.h2
@@ -572,7 +572,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
           <div className="w-16 h-1 bg-indigo-500 rounded-full mt-2 opacity-80" />
         </div>
 
-        <div className="space-y-4 text-xs md:text-sm text-slate-600 dark:text-slate-400 leading-relaxed overflow-y-auto pr-2">
+        <div className="space-y-4 text-xs md:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pr-2">
           <p className="font-semibold text-slate-700 dark:text-slate-300">Son Güncelleme: 2 Haziran 2026</p>
           
           <p>
@@ -637,7 +637,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   // default to About ("about")
   return (
-    <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+    <div className="space-y-6">
       {/* Centered & Animated Page Title */}
       <div className="flex flex-col items-center justify-center text-center py-4 select-none">
         <motion.h2
