@@ -119,13 +119,11 @@ body.dark {
 /* Simulated Phone Native Slide Alert Keyframe */
 @keyframes slide-phone-alert {
   0% { transform: translateY(-130%); opacity: 0; }
-  12% { transform: translateY(0); opacity: 1; }
-  88% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-130%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 .animate-phone-alert {
-  animation: slide-phone-alert 4.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slide-phone-alert 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Turkish waving flag animation */

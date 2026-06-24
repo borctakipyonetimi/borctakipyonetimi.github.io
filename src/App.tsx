@@ -911,10 +911,6 @@ export default function App() {
 
     // 4. Fallback and visually reinforce with sliding phone-alert graphic
     setIsPhoneAlert({ visible: true, title, body });
-    // Dismiss after 4 seconds
-    setTimeout(() => {
-      setIsPhoneAlert((prev) => (prev.title === title ? { visible: false, title: "", body: "" } : prev));
-    }, 4500);
 
     // 4. Record to "Bildirim Paneli" feed if requested
     if (persist) {
@@ -3623,6 +3619,17 @@ export default function App() {
               <h4 className="text-xs font-black text-slate-100 truncate">{isPhoneAlert.title}</h4>
               <p className="text-[10px] text-slate-300 font-medium leading-relaxed">{isPhoneAlert.body}</p>
             </div>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPhoneAlert({ visible: false, title: "", body: "" });
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-white/10 transition shrink-0 cursor-pointer self-center"
+              title="Kapat"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -5736,10 +5743,10 @@ export default function App() {
                   ) : (
                     <>
                       {/* Filter Details Alert */}
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-750 flex items-center justify-between">
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] text-slate-400 font-extrabold block">FİLTRELENEN TARİH ARALIĞI</span>
-                          <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-100">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold block">FİLTRELENEN TARİH ARALIĞI</span>
+                          <span className="font-extrabold text-[11px] text-slate-950 dark:text-white">
                             {csvStartDate || csvEndDate ? `${csvStartDate || "Öncesi"} ile ${csvEndDate || "Sonrası"}` : "Tüm Dönemler (Filtresiz)"}
                           </span>
                         </div>
@@ -5749,38 +5756,38 @@ export default function App() {
                       </div>
 
                       {/* Summary breakdown details inside a beautiful nested Card */}
-                      <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-850 space-y-3">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider leading-none">METRİKLER VE VERİ GÖSTERGELERİ</span>
+                      <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block tracking-wider leading-none">METRİKLER VE VERİ GÖSTERGELERİ</span>
                         
                         <div className="space-y-2">
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-250/20 dark:border-slate-800/60">
-                            <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">🟢 Toplam Gelir ({previewIncomes.length} işlem)</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-150">{format(previewTotalIncome)}</span>
+                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🟢 Toplam Gelir ({previewIncomes.length} işlem)</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalIncome)}</span>
                           </div>
                           
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-250/20 dark:border-slate-800/60">
-                            <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">🔴 Toplam Gider ({previewExpenses.length} işlem)</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-150">{format(previewTotalExpense)}</span>
+                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🔴 Toplam Gider ({previewExpenses.length} işlem)</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalExpense)}</span>
                           </div>
 
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-250/20 dark:border-slate-800/60">
-                            <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">🏦 Toplam Borç ({previewDebts.length} işlem)</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-150">{format(previewTotalDebt)}</span>
+                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🏦 Toplam Borç ({previewDebts.length} işlem)</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalDebt)}</span>
                           </div>
 
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-250/20 dark:border-slate-800/60">
-                            <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium">↳ Ödenen Borç Payı</span>
+                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">↳ Ödenen Borç Payı</span>
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{format(previewTotalPaid)}</span>
                           </div>
 
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium">↳ Kalan Kapsam</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-150">{format(previewRemainingDebt)}</span>
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">↳ Kalan Kapsam</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewRemainingDebt)}</span>
                           </div>
                         </div>
 
                         {/* Combined Result Balance Indicator */}
-                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/60 flex justify-between items-center">
+                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                           <span className="font-bold text-slate-700 dark:text-slate-300">Net Kalan Rezerv:</span>
                           <span className={`font-black text-xs px-2.5 py-1 rounded-xl ${previewNetReserve >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'}`}>
                             {format(previewNetReserve)}
@@ -5789,10 +5796,10 @@ export default function App() {
                       </div>
 
                       {/* Check confirmation note */}
-                      <div className="p-3 bg-amber-55/15 dark:bg-amber-950/20 rounded-2xl border border-amber-500/20 text-amber-800 dark:text-amber-400 text-[10.5px] leading-relaxed flex gap-2">
+                      <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-500/30 text-amber-900 dark:text-amber-300 text-[10.5px] leading-relaxed flex gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                         <div>
-                          <p className="font-bold">Dosyayı İndir Onayı:</p>
+                          <p className="font-bold text-amber-950 dark:text-amber-200">Dosyayı İndir Onayı:</p>
                           <p className="opacity-90">Yukarıda saptanan {totalRecords} satırlık veri, Excel, Numbers ve tüm diğer tablolama analiz programlarıyla Türkçe karakterleri koruyarak çalışacak bir CSV dosyasına çevrilecektir. Onaylıyor musunuz?</p>
                         </div>
                       </div>
