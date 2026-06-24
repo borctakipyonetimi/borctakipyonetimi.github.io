@@ -83,6 +83,7 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
 
   // Custom Delete and Edit states
   const [contactToDeleteId, setContactToDeleteId] = useState<string | null>(null);
+  const [isConfirmClearAllContactsOpen, setIsConfirmClearAllContactsOpen] = useState(false);
   const [contactToEdit, setContactToEdit] = useState<Contact | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -254,6 +255,48 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
     setIsSimulatedPickerOpen(true);
   };
 
+  const decodeVcardValue = (paramPart: string, valuePart: string): string => {
+    let decoded = valuePart.trim();
+    
+    // Check if it is quoted printable
+    const isQp = /ENCODING=QUOTED-PRINTABLE/i.test(paramPart) || /ENCODING=Q/i.test(paramPart);
+    
+    if (isQp) {
+      decoded = decoded.replace(/=\r?\n/g, "");
+      try {
+        const percentEncoded = decoded.replace(/=([0-9A-F]{2})/gi, "%$1");
+        decoded = decodeURIComponent(percentEncoded);
+      } catch (e) {
+        try {
+          decoded = decodeURI(decoded.replace(/=([0-9A-F]{2})/gi, "%$1"));
+        } catch {
+          const qpMap: { [key: string]: string } = {
+            "=C3=9C": "Ü", "=C3=BC": "ü",
+            "=C4=B0": "İ", "=C4=B1": "ı",
+            "=C3=96": "Ö", "=C3=B6": "ö",
+            "=C5=9E": "Ş", "=C5=9F": "ş",
+            "=C3=87": "Ç", "=C3=A7": "ç",
+            "=C4=9E": "Ğ", "=C4=9F": "ğ"
+          };
+          let temp = decoded;
+          Object.entries(qpMap).forEach(([qp, char]) => {
+            temp = temp.replace(new RegExp(qp, "g"), char);
+          });
+          decoded = temp;
+        }
+      }
+    }
+
+    decoded = decoded
+      .replace(/\\;/g, ";")
+      .replace(/\\,/g, ",")
+      .replace(/\\N/gi, " ")
+      .replace(/\\/g, "")
+      .trim();
+
+    return decoded;
+  };
+
   const handleVcfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -264,8 +307,11 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
         const text = event.target?.result as string;
         if (!text) return;
 
+        // Unfold multi-line folded values (RFC 2426)
+        const unfoldedText = text.replace(/\r?\n[ \t]/g, "");
+
         const vcardRegex = /BEGIN:VCARD[\s\S]*?END:VCARD/ig;
-        const cards = text.match(vcardRegex) || [];
+        const cards = unfoldedText.match(vcardRegex) || [];
 
         if (cards.length === 0) {
           showLocalToast("Geçerli bir rehber yedek dosyası (.vcf) bulunamadı! ⚠️");
@@ -275,31 +321,60 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
         const parsedContacts: Array<{ name: string; phone: string; category: "friend" | "family" | "work" | "other" }> = [];
 
         cards.forEach((card: string) => {
+          const lines = card.split(/\r?\n/);
+          let fnLine = "";
+          let nLine = "";
+          const telLines: string[] = [];
+
+          lines.forEach(line => {
+            const upperLine = line.toUpperCase();
+            if (upperLine.startsWith("FN")) {
+              fnLine = line;
+            } else if (upperLine.startsWith("N:") || upperLine.startsWith("N;")) {
+              nLine = line;
+            } else if (upperLine.startsWith("TEL")) {
+              telLines.push(line);
+            }
+          });
+
           let name = "";
-          const fnMatch = card.match(/FN(?:;[^:]*)?:(.*)/i);
-          if (fnMatch && fnMatch[1]) {
-            name = fnMatch[1].trim();
-          } else {
-            const nMatch = card.match(/N(?:;[^:]*)?:([^;]+);([^;\r\n]+)?/i);
-            if (nMatch) {
-              const lastName = nMatch[1] ? nMatch[1].trim() : "";
-              const firstName = nMatch[2] ? nMatch[2].trim() : "";
+          if (fnLine) {
+            const colonIndex = fnLine.indexOf(":");
+            if (colonIndex !== -1) {
+              const paramPart = fnLine.substring(0, colonIndex);
+              const valuePart = fnLine.substring(colonIndex + 1);
+              name = decodeVcardValue(paramPart, valuePart);
+            }
+          }
+
+          if (!name && nLine) {
+            const colonIndex = nLine.indexOf(":");
+            if (colonIndex !== -1) {
+              const paramPart = nLine.substring(0, colonIndex);
+              const valuePart = nLine.substring(colonIndex + 1);
+              const parts = valuePart.split(";");
+              const decodedParts = parts.map(p => decodeVcardValue(paramPart, p));
+              const lastName = decodedParts[0] || "";
+              const firstName = decodedParts[1] || "";
               name = `${firstName} ${lastName}`.trim();
             }
           }
 
-          let tel = "";
-          const telMatch = card.match(/TEL(?:;[^:]*)?:([^;\r\n]+)/i);
-          if (telMatch && telMatch[1]) {
-            tel = telMatch[1].trim();
+          let phone = "";
+          if (telLines.length > 0) {
+            const chosenTelLine = telLines.find(tl => tl.toUpperCase().includes("CELL") || tl.toUpperCase().includes("PREF")) || telLines[0];
+            const colonIndex = chosenTelLine.indexOf(":");
+            if (colonIndex !== -1) {
+              const paramPart = chosenTelLine.substring(0, colonIndex);
+              const valuePart = chosenTelLine.substring(colonIndex + 1);
+              phone = decodeVcardValue(paramPart, valuePart);
+            }
           }
 
-          name = name.replace(/\\;/g, ";").replace(/\\,/g, ",").replace(/\\/g, "").replace(/\r/g, "");
-          
           if (name) {
             parsedContacts.push({
               name,
-              phone: tel ? tel.replace(/\r/g, "") : "Belirtilmemiş 📞",
+              phone: phone ? phone : "Belirtilmemiş 📞",
               category: "friend",
             });
           }
@@ -404,6 +479,15 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
   const handleDeleteTx = (id: string) => {
     const updated = transactions.filter((t) => t.id !== id);
     saveTxsData(updated);
+  };
+
+  // Clear All Contacts and Transactions
+  const handleClearAllContacts = () => {
+    saveContactsData([]);
+    saveTxsData([]);
+    setSelectedContactId(null);
+    setIsConfirmClearAllContactsOpen(false);
+    showLocalToast("Tüm kişi listesi ve cari hareketler sıfırlandı! 🧹👤");
   };
 
   // Calculate stats
@@ -599,6 +683,15 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
               <Users className="w-4 h-4 text-indigo-500" />
               Kişi Listesi ({contacts.length})
             </h3>
+            {contacts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsConfirmClearAllContactsOpen(true)}
+                className="px-2 py-1 text-[10px] font-black text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-500/30 dark:border-rose-500/10 rounded-xl transition cursor-pointer flex items-center gap-1"
+              >
+                <Trash2 className="w-3 h-3" /> LİSTEYİ TEMİZLE 🗑️
+              </button>
+            )}
           </div>
 
           {/* Search Box */}
@@ -614,7 +707,7 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
           </div>
 
           {/* Directory Contact List Items */}
-          <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[300px] overflow-y-auto overscroll-contain pr-1">
             {filteredContacts.length === 0 ? (
               <div className="p-6 text-center text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700 font-bold text-xs italic">
                 Arama kriterlerine uygun kişi bulunamadı.
@@ -1062,7 +1155,7 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                   </AnimatePresence>
 
                   {/* Ledger transactions list container */}
-                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-72 overflow-y-auto overscroll-contain pr-1">
                     {cTxs.length === 0 ? (
                       <div className="text-center py-8 bg-slate-550/5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-1.5 p-4">
                         <p className="text-xs font-bold text-slate-600 dark:text-slate-300 italic">Kişiye ait alışveriş ve finansal kayıt bulunmuyor.</p>
@@ -1313,20 +1406,36 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                   </div>
 
                   {/* Search filter for simulated contacts */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={simulatedSearchText}
-                      onChange={(e) => setSimulatedSearchText(e.target.value)}
-                      placeholder={simulatedDeviceContacts.length > 0 ? "Rehberde kişi arayın... 🔎" : "Önce .vcf dosyası yükleyin 🔎"}
-                      disabled={simulatedDeviceContacts.length === 0}
-                      className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold disabled:opacity-50"
-                    />
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={simulatedSearchText}
+                        onChange={(e) => setSimulatedSearchText(e.target.value)}
+                        placeholder={simulatedDeviceContacts.length > 0 ? "Rehberde kişi arayın... 🔎" : "Önce .vcf dosyası yükleyin 🔎"}
+                        disabled={simulatedDeviceContacts.length === 0}
+                        className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold disabled:opacity-50"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    </div>
+                    {simulatedDeviceContacts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSimulatedDeviceContacts([]);
+                          localStorage.removeItem(`${spaceKey}_parsed_vcf_device_contacts`);
+                          showLocalToast("Yüklenen geçici telefon rehberi temizlendi! 📱🧹");
+                        }}
+                        className="px-3 bg-rose-50 dark:bg-rose-950/20 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-500/20 dark:border-rose-500/10 rounded-xl text-[10px] font-black uppercase transition cursor-pointer shrink-0 flex items-center justify-center gap-1"
+                        title="Yüklenen geçici rehberi temizle"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Temizle
+                      </button>
+                    )}
                   </div>
 
                   {/* Contacts Row selection */}
-                  <div className="space-y-1.5 overflow-y-auto flex-1 pr-1 max-h-80">
+                  <div className="space-y-1.5 overflow-y-auto overscroll-contain flex-1 pr-1 max-h-80">
                     {simulatedDeviceContacts.length === 0 ? (
                       <div className="text-center py-8 text-slate-400 font-semibold space-y-2">
                         <span className="text-3xl block text-slate-500">📁</span>
@@ -1431,6 +1540,53 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                       className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition"
                     >
                       SİL VE TEMİZLE 🗑️
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* Custom Clear All Contacts Confirmation Modal */}
+          <AnimatePresence>
+            {isConfirmClearAllContactsOpen && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-[9999] flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-sm w-full p-6 space-y-4 text-left"
+                >
+                  <div className="flex items-center gap-3 text-rose-500">
+                    <div className="p-3 bg-rose-500/10 rounded-full">
+                      <Trash2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-wider">Tüm Listeyi Temizle</h3>
+                      <p className="text-[10px] text-slate-400 font-bold">Bu işlem geri alınamaz!</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <p>
+                      Kişi listenizdeki <strong className="font-extrabold text-slate-800 dark:text-slate-100">tüm kişileri</strong> ve bu kişilere ait <span className="text-rose-500 font-black">bütün borç, alacak ve bakiye kayıtlarını</span> tamamen silmek istediğinizden emin misiniz?
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => setIsConfirmClearAllContactsOpen(false)}
+                      type="button"
+                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition cursor-pointer"
+                    >
+                      VAZGEÇ
+                    </button>
+                    <button
+                      onClick={handleClearAllContacts}
+                      type="button"
+                      className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition cursor-pointer"
+                    >
+                      HEPSİNİ TEMİZLE 🗑️
                     </button>
                   </div>
                 </motion.div>
