@@ -40,7 +40,7 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
   const total = data.reduce((sum, item) => sum + item.value, 0);
   if (total === 0) {
     return (
-      <div className="flex h-52 items-center justify-center text-sm font-medium text-slate-400">
+      <div className="flex h-52 items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300">
         Gösterilecek veri yok
       </div>
     );
@@ -195,7 +195,7 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-50 font-mono block leading-none pt-1">
                 {format(activeItem.value)}
               </span>
-              <span className="text-[10px] font-black text-slate-550 dark:text-slate-400 block leading-none">
+              <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 block leading-none">
                 %{activePercent} pay
               </span>
             </motion.div>
@@ -206,13 +206,13 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
               animate={{ opacity: 1 }}
               className="space-y-0.5"
             >
-              <span className="text-[9px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block">
+              <span className="text-[9px] text-slate-600 dark:text-slate-300 font-black uppercase tracking-widest block">
                 {type === "income" ? "TOPLAM GELİR" : "TOPLAM GİDER"}
               </span>
               <span className="text-base font-black text-slate-900 dark:text-white font-mono block leading-none">
                 {format(total)}
               </span>
-              <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 block">
+              <span className="text-[9.5px] font-black text-slate-600 dark:text-slate-300 block">
                 {data.length} {type === "income" ? "Gelir Grubu" : "Kategori Masrafı"}
               </span>
             </motion.div>
@@ -233,7 +233,7 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
               className={`p-2.5 rounded-2xl transition-all duration-300 border cursor-pointer ${
                 isHovered 
                   ? "bg-white dark:bg-slate-850 scale-[1.03] shadow-md border-slate-200 dark:border-slate-800" 
-                  : "bg-slate-50/40 dark:bg-slate-900/40 border-transparent hover:bg-slate-50 dark:hover:bg-slate-850/50"
+                  : "bg-slate-50/45 dark:bg-slate-900/60 border-transparent hover:bg-slate-50 dark:hover:bg-slate-850/50"
               }`}
               onMouseEnter={() => setHoveredIndex(idx)}
               onMouseLeave={() => setHoveredIndex(null)}
@@ -254,14 +254,14 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
                   <span className={`text-xs truncate transition-all duration-300 ${
                     isHovered 
                       ? "font-black text-slate-900 dark:text-white" 
-                      : "text-slate-650 dark:text-slate-350 font-bold"
+                      : "text-slate-800 dark:text-slate-100 font-bold"
                   }`}>
                     {item.label}
                   </span>
                 </div>
                 <div className="text-right shrink-0">
                   <span className={`text-xs font-mono font-black transition-all duration-305 ${
-                    isHovered ? "text-indigo-600 dark:text-indigo-400" : "text-slate-800 dark:text-slate-250"
+                    isHovered ? "text-indigo-600 dark:text-indigo-400" : "text-slate-900 dark:text-slate-100"
                   }`}>
                     {format(item.value)}
                   </span>
@@ -287,9 +287,9 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
                   %{displayPercentage}
                 </span>
               </div>
-              <div className="flex items-center justify-between mt-1 text-[8.5px] font-bold text-slate-400 dark:text-slate-500 font-mono">
+              <div className="flex items-center justify-between mt-1 text-[8.5px] font-black text-slate-600 dark:text-slate-300 font-mono">
                 <span>PAY DEĞERİ</span>
-                <span className={isHovered ? "text-indigo-500 font-black" : ""}>%{displayPercentage} HARCAMA</span>
+                <span className={isHovered ? "text-indigo-500 font-black" : "text-indigo-600 dark:text-indigo-400 font-black"}>%{displayPercentage} PAY</span>
               </div>
             </div>
           );
@@ -444,7 +444,7 @@ export const LineChart: React.FC<LineChartProps> = ({ labels, values, lineColor 
               x={x}
               y={h - 10}
               textAnchor="middle"
-              className="text-[9px] font-semibold fill-slate-400 dark:fill-slate-500"
+              className="text-[9.5px] font-extrabold fill-slate-600 dark:fill-slate-200"
             >
               {lbl}
             </text>
@@ -468,7 +468,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
 
   if (!installmentDebts || installmentDebts.length === 0) {
     return (
-      <div className="p-8 text-center text-xs text-slate-400 dark:text-slate-500 font-medium bg-slate-50/20 dark:bg-slate-800/20 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
+      <div className="p-8 text-center text-xs text-slate-600 dark:text-slate-300 font-bold bg-slate-50/20 dark:bg-slate-800/20 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
         📈 Grafik ve Zaman Projeksiyonu için yukarıdaki "Taksit Planı Ekle" butonuyla yeni bir plan kaydedebilirsiniz.
       </div>
     );
@@ -581,7 +581,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
           <h3 className="text-xs font-black uppercase text-indigo-400 tracking-widest flex items-center gap-1.5 leading-none">
             ⚡ TAKSİT ZAMAN MAKİNESİ
           </h3>
-          <p className="text-[10px] text-slate-400 mt-0.5 leading-tight font-medium">
+          <p className="text-[10px] text-slate-300 mt-0.5 leading-tight font-bold">
             Taksitlerinizin zaman içindeki gelecekteki erime durumunu interaktif olarak simüle edin!
           </p>
         </div>
@@ -608,7 +608,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
         <div className="p-3.5 bg-slate-850/60 rounded-2xl border border-slate-850 flex items-center justify-between">
           <div>
-            <span className="text-[8.5px] text-slate-400 font-extrabold uppercase tracking-widest block leading-none mb-1">
+            <span className="text-[8.5px] text-slate-300 font-extrabold uppercase tracking-widest block leading-none mb-1">
               TOPLAM TAKSİTLİ BORÇ
             </span>
             <span className="text-base font-black text-indigo-400 font-mono">
@@ -620,7 +620,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
 
         <div className="p-3.5 bg-slate-850/60 rounded-2xl border border-slate-850 flex items-center justify-between">
           <div>
-            <span className="text-[8.5px] text-slate-400 font-extrabold uppercase tracking-widest block leading-none mb-1">
+            <span className="text-[8.5px] text-slate-300 font-extrabold uppercase tracking-widest block leading-none mb-1">
               KALAN TAKSİTLİ BORÇ
             </span>
             <span className="text-base font-black text-rose-400 font-mono">
@@ -731,7 +731,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center pointer-events-none">
               {activeHoveredDebt ? (
                 <div className="animate-fade-in space-y-0.5">
-                  <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider leading-none">
+                  <span className="text-[9px] font-black uppercase text-slate-300 block tracking-wider leading-none">
                     SEÇİLEN
                   </span>
                   <span 
@@ -740,10 +740,10 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
                   >
                     {activeHoveredDebt.name}
                   </span>
-                  <span className="text-[12px] font-black font-mono block leading-none">
+                  <span className="text-[12px] font-black font-mono block leading-none text-white">
                     {format(activeHoveredDebt.totalAmount / activeHoveredDebt.installmentCount)}/ay
                   </span>
-                  <span className="text-[9px] font-bold text-slate-400 block leading-none">
+                  <span className="text-[9px] font-extrabold text-slate-300 block leading-none">
                     {Math.min(activeHoveredDebt.installmentCount, activeHoveredDebt.paidInstallmentCount + selectedMonthOffset)}/{activeHoveredDebt.installmentCount} Ay
                   </span>
                 </div>
@@ -754,10 +754,10 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
                       <span className="text-[9px] font-black text-rose-400 block tracking-wider uppercase leading-none">
                         +{selectedMonthOffset} AY SONRA
                       </span>
-                      <span className="text-xs text-rose-500 font-black font-mono block animate-pulse">
+                      <span className="text-xs text-rose-400 font-black font-mono block animate-pulse">
                         {format(simulatedRemainingTotal)}
                       </span>
-                      <span className="text-[8px] font-bold text-slate-400 block leading-none">
+                      <span className="text-[8px] font-extrabold text-slate-300 block leading-none">
                         Azalma: %{currentRemainingTotal > 0 ? (((currentRemainingTotal - simulatedRemainingTotal) / currentRemainingTotal) * 100).toFixed(0) : 0}
                       </span>
                     </>
@@ -766,10 +766,10 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
                       <span className="text-[9px] font-black text-indigo-400 block tracking-wider uppercase leading-none">
                         BUGÜN
                       </span>
-                      <span className="text-xs text-indigo-300 font-black font-mono block">
+                      <span className="text-xs text-indigo-200 font-black font-mono block">
                         {format(currentRemainingTotal)}
                       </span>
-                      <span className="text-[8px] font-bold text-slate-400 block leading-none">
+                      <span className="text-[8px] font-extrabold text-slate-300 block leading-none">
                         Kalan Toplam Borç
                       </span>
                     </>
@@ -779,7 +779,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
             </div>
           </div>
 
-          <div className="text-[9px] text-slate-400 font-extrabold tracking-wide mt-2">
+          <div className="text-[9px] text-slate-300 font-extrabold tracking-wide mt-2">
             * İnteraktif halkalar üzerine gelip detay inceleyin
           </div>
         </div>
@@ -885,7 +885,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
                         x={coord.x}
                         y={curveH - 4}
                         textAnchor="middle"
-                        className="text-[8px] fill-slate-400 font-bold"
+                        className="text-[8.5px] fill-slate-200 font-extrabold"
                       >
                         {coord.pt.label}
                       </text>
@@ -922,7 +922,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
                   <span className="text-[10px] font-semibold truncate flex-1 text-slate-300">
                     {inst.name}
                   </span>
-                  <span className="text-[9px] font-bold font-mono text-slate-400 shrink-0">
+                  <span className="text-[9px] font-bold font-mono text-slate-200 shrink-0">
                     {inst.paidInstallmentCount}/{inst.installmentCount}
                   </span>
                 </div>
