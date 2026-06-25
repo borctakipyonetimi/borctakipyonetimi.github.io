@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, getRedirectResult, signInWithPopup, GoogleAuthProvider, updatePassword } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
@@ -190,6 +190,8 @@ export default function App() {
     return localStorage.getItem("currentUser") || null;
   });
 
+  const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+
   // Automatically load the avatar linked to the new active user profile
   useEffect(() => {
     const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
@@ -223,9 +225,12 @@ export default function App() {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
+  const [focusedDebtId, setFocusedDebtId] = useState<number | null>(null);
+  const [focusedInstallmentId, setFocusedInstallmentId] = useState<number | null>(null);
   const [payments, setPayments] = useState<PaymentLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [contactsRevision, setContactsRevision] = useState(0);
 
   // Period Scoper States (All-Time is represented by null)
   const [selectedMonth, setSelectedMonth] = useState<number | null>(new Date().getMonth());
@@ -1177,6 +1182,15 @@ export default function App() {
     return () => window.removeEventListener("trigger-toast", handleGlobalToast);
   }, []);
 
+  // Listen for contacts updates to sync computations
+  useEffect(() => {
+    const handleContactsUpdate = () => {
+      setContactsRevision((prev) => prev + 1);
+    };
+    window.addEventListener("contacts-updated", handleContactsUpdate);
+    return () => window.removeEventListener("contacts-updated", handleContactsUpdate);
+  }, []);
+
   // Live Clock loop
   useEffect(() => {
     const handleClock = () => {
@@ -1394,8 +1408,11 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const emailOrUid = user.email || user.uid;
-        setCurrentUser(emailOrUid);
-        localStorage.setItem("currentUser", emailOrUid);
+        const displayName = emailOrUid.endsWith("@borctakip.app") 
+          ? emailOrUid.replace("@borctakip.app", "") 
+          : emailOrUid;
+        setCurrentUser(displayName);
+        localStorage.setItem("currentUser", displayName);
       } else {
         const savedUser = localStorage.getItem("currentUser");
         if (savedUser) {
@@ -1933,340 +1950,366 @@ export default function App() {
     }
   };
 
-  // ---------------- Financial Calculations ----------------
-  const activeMonthIdx = selectedMonth !== null ? selectedMonth : new Date().getMonth();
-  const activeYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
+  // ---------------- Financial Calculations (Memoized) ----------------
+  const {
+    statsBag,
+    filteredIncomesByMonth,
+    filteredExpensesByMonth,
+    currentMonthTotalPaymentsCount,
+    monthlyInstallmentsDue,
+  } = useMemo(() => {
+    const activeMonthIdx = selectedMonth !== null ? selectedMonth : new Date().getMonth();
+    const activeYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
 
-  // 1. Incomes scoped to chosen period (including recurring incomes carry forward)
-  const filteredIncomesForStats = incomes.filter((i) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const iDate = new Date(i.date);
-      const iMonth = iDate.getMonth();
-      const iYear = iDate.getFullYear();
+    // 1. Incomes scoped to chosen period (including recurring incomes carry forward)
+    const filteredIncomesForStats = incomes.filter((i) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const iDate = new Date(i.date);
+        const iMonth = iDate.getMonth();
+        const iYear = iDate.getFullYear();
 
-      if (i.isRecurring !== false) {
-        // Recurring/fixed incomes carry over to any subsequent period
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const incomeTime = iYear * 12 + iMonth;
-        return selectedTime >= incomeTime;
-      } else {
-        // One-time extra incomes only show up in their exact month
-        return iMonth === selectedMonth && iYear === selectedYear;
-      }
-    } catch { return false; }
-  });
+        if (i.isRecurring !== false) {
+          // Recurring/fixed incomes carry over to any subsequent period
+          const selectedTime = selectedYear * 12 + selectedMonth;
+          const incomeTime = iYear * 12 + iMonth;
+          return selectedTime >= incomeTime;
+        } else {
+          // One-time extra incomes only show up in their exact month
+          return iMonth === selectedMonth && iYear === selectedYear;
+        }
+      } catch { return false; }
+    });
 
-  // 2. Expenses scoped to chosen period
-  const filteredExpensesForStats = expenses.filter((e) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const eDate = new Date(e.date);
-      return eDate.getMonth() === selectedMonth && eDate.getFullYear() === selectedYear;
-    } catch { return false; }
-  });
+    // 2. Expenses scoped to chosen period
+    const filteredExpensesForStats = expenses.filter((e) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const eDate = new Date(e.date);
+        return eDate.getMonth() === selectedMonth && eDate.getFullYear() === selectedYear;
+      } catch { return false; }
+    });
 
-  // 3. Payments scoped to chosen period
-  const filteredPaymentsForStats = payments.filter((p) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const pDate = new Date(p.date);
-      return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-    } catch { return false; }
-  });
+    // 3. Payments scoped to chosen period
+    const filteredPaymentsForStats = payments.filter((p) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const pDate = new Date(p.date);
+        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
+      } catch { return false; }
+    });
 
-  // 4. Lifetime totals for cumulative overall debt widgets (un-filtered by period, integrating contact-based payables as well)
-  const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-  const savedContactTxsStr = localStorage.getItem(`${spaceKey}_contacts_transactions`);
-  let contactPayablesTotal = 0;
-  let contactPayablesPaid = 0;
-  if (savedContactTxsStr) {
-    try {
-      const txs = JSON.parse(savedContactTxsStr);
-      if (Array.isArray(txs)) {
-        txs.forEach((t: any) => {
-          if (t.type === "payable") {
-            const amt = Number(t.amount) || 0;
-            contactPayablesTotal += amt;
-            if (t.isPaid) {
-              contactPayablesPaid += amt;
-            }
-          }
-        });
-      }
-    } catch (e) {
-      console.error("Error loading contact transactions:", e);
-    }
-  }
-  const contactPayablesRemaining = contactPayablesTotal - contactPayablesPaid;
-
-  const trueOverallDebt = debts.reduce((sum, d) => sum + d.amount, 0) + 
-    installmentDebts.reduce((sum, inst) => sum + inst.totalAmount, 0) +
-    contactPayablesTotal;
-
-  const trueOverallPaid = debts.reduce((sum, d) => sum + d.paid, 0) + 
-    installmentDebts.reduce((sum, inst) => sum + (inst.paidInstallmentCount * (inst.totalAmount / (inst.installmentCount || 1))), 0) +
-    contactPayablesPaid;
-
-  const trueOverallRemaining = trueOverallDebt - trueOverallPaid;
-
-  // 5. Selected period's specific monthly debt calculation (for "BU AYKİ BORÇ TOPLAMI" & "BU AY KALAN BORÇ")
-  const simpleDebtsInSelectedMonth = debts.filter((d) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    if (!d.dueDate) return false;
-    try {
-      const dDate = new Date(d.dueDate);
-      const dMonth = dDate.getMonth();
-      const dYear = dDate.getFullYear();
-      
-      if (dYear === selectedYear && dMonth === selectedMonth) return true;
-      
-      const selectedTime = selectedYear * 12 + selectedMonth;
-      const dueTime = dYear * 12 + dMonth;
-      const isUnpaid = d.paid < d.amount;
-      return selectedTime > dueTime && isUnpaid;
-    } catch { return false; }
-  });
-
-  const periodSimpleDebtRemaining = simpleDebtsInSelectedMonth.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
-
-  // Actual payments logged during this month for simple debts
-  const periodSimpleDebtPaidThisMonth = payments.filter((p) => {
-    if (p.type !== "manual") return false;
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const pDate = new Date(p.date);
-      return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-    } catch { return false; }
-  }).reduce((sum, p) => sum + p.amount, 0);
-
-  const periodSimpleDebtTotal = periodSimpleDebtRemaining + periodSimpleDebtPaidThisMonth;
-
-  const periodInstallmentRemaining = installmentDebts.reduce((sum, inst) => {
-    if (selectedMonth === null || selectedYear === null) {
-      return sum + (inst.totalAmount - (inst.paidInstallmentCount * (inst.totalAmount / inst.installmentCount)));
-    }
-    const startDate = new Date(inst.firstDueDate);
-    const startYear = startDate.getFullYear();
-    const startMonth = startDate.getMonth();
-    const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-    const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-    const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-    if (isActiveThisMonth && !isPaidThisMonth) {
-      return sum + (inst.totalAmount / inst.installmentCount);
-    }
-    return sum;
-  }, 0);
-
-  const periodInstallmentPaidThisMonth = payments.filter((p) => {
-    if (p.type !== "installment") return false;
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const pDate = new Date(p.date);
-      return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-    } catch { return false; }
-  }).reduce((sum, p) => sum + p.amount, 0);
-
-  const periodInstallmentTotal = periodInstallmentRemaining + periodInstallmentPaidThisMonth;
-
-  // Calculate monthly contact-based payables (unpaid/payable due in current month or overdue)
-  let periodContactPayablesTotal = 0;
-  let periodContactPayablesRemaining = 0;
-  if (savedContactTxsStr) {
-    try {
-      const txs = JSON.parse(savedContactTxsStr);
-      if (Array.isArray(txs)) {
-        txs.forEach((t: any) => {
-          if (t.type === "payable") {
-            const amt = Number(t.amount) || 0;
-            if (selectedMonth === null || selectedYear === null) {
-              periodContactPayablesTotal += amt;
-              if (!t.isPaid) {
-                periodContactPayablesRemaining += amt;
+    // 4. Lifetime totals for cumulative overall debt widgets (un-filtered by period, integrating contact-based payables as well)
+    const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+    const savedContactTxsStr = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+    let contactPayablesTotal = 0;
+    let contactPayablesPaid = 0;
+    if (savedContactTxsStr) {
+      try {
+        const txs = JSON.parse(savedContactTxsStr);
+        if (Array.isArray(txs)) {
+          txs.forEach((t: any) => {
+            if (t.type === "payable") {
+              const amt = Number(t.amount) || 0;
+              contactPayablesTotal += amt;
+              if (t.isPaid) {
+                contactPayablesPaid += amt;
               }
-            } else {
-              if (t.dueDate) {
-                try {
-                  const dDate = new Date(t.dueDate);
-                  const dMonth = dDate.getMonth();
-                  const dYear = dDate.getFullYear();
-                  if (dYear === selectedYear && dMonth === selectedMonth) {
-                    periodContactPayablesTotal += amt;
-                    if (!t.isPaid) {
-                      periodContactPayablesRemaining += amt;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Error loading contact transactions:", e);
+      }
+    }
+    const contactPayablesRemaining = contactPayablesTotal - contactPayablesPaid;
+
+    const trueOverallDebt = debts.reduce((sum, d) => sum + d.amount, 0) + 
+      installmentDebts.reduce((sum, inst) => sum + inst.totalAmount, 0) +
+      contactPayablesTotal;
+
+    const trueOverallPaid = debts.reduce((sum, d) => sum + d.paid, 0) + 
+      installmentDebts.reduce((sum, inst) => sum + (inst.paidInstallmentCount * (inst.totalAmount / (inst.installmentCount || 1))), 0) +
+      contactPayablesPaid;
+
+    const trueOverallRemaining = trueOverallDebt - trueOverallPaid;
+
+    // 5. Selected period's specific monthly debt calculation (for "BU AYKİ BORÇ TOPLAMI" & "BU AY KALAN BORÇ")
+    const simpleDebtsInSelectedMonth = debts.filter((d) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      if (!d.dueDate) return false;
+      try {
+        const dDate = new Date(d.dueDate);
+        const dMonth = dDate.getMonth();
+        const dYear = dDate.getFullYear();
+        
+        if (dYear === selectedYear && dMonth === selectedMonth) return true;
+        
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const dueTime = dYear * 12 + dMonth;
+        const isUnpaid = d.paid < d.amount;
+        return selectedTime > dueTime && isUnpaid;
+      } catch { return false; }
+    });
+
+    const periodSimpleDebtRemaining = simpleDebtsInSelectedMonth.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+
+    // Actual payments logged during this month for simple debts
+    const periodSimpleDebtPaidThisMonth = payments.filter((p) => {
+      if (p.type !== "manual") return false;
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const pDate = new Date(p.date);
+        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
+      } catch { return false; }
+    }).reduce((sum, p) => sum + p.amount, 0);
+
+    const periodSimpleDebtTotal = periodSimpleDebtRemaining + periodSimpleDebtPaidThisMonth;
+
+    const periodInstallmentRemaining = installmentDebts.reduce((sum, inst) => {
+      if (selectedMonth === null || selectedYear === null) {
+        return sum + (inst.totalAmount - (inst.paidInstallmentCount * (inst.totalAmount / inst.installmentCount)));
+      }
+      const startDate = new Date(inst.firstDueDate);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
+      const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
+      const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
+      if (isActiveThisMonth && !isPaidThisMonth) {
+        return sum + (inst.totalAmount / inst.installmentCount);
+      }
+      return sum;
+    }, 0);
+
+    const periodInstallmentPaidThisMonth = payments.filter((p) => {
+      if (p.type !== "installment") return false;
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const pDate = new Date(p.date);
+        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
+      } catch { return false; }
+    }).reduce((sum, p) => sum + p.amount, 0);
+
+    const periodInstallmentTotal = periodInstallmentRemaining + periodInstallmentPaidThisMonth;
+
+    // Calculate monthly contact-based payables (unpaid/payable due in current month or overdue)
+    let periodContactPayablesTotal = 0;
+    let periodContactPayablesRemaining = 0;
+    if (savedContactTxsStr) {
+      try {
+        const txs = JSON.parse(savedContactTxsStr);
+        if (Array.isArray(txs)) {
+          txs.forEach((t: any) => {
+            if (t.type === "payable") {
+              const amt = Number(t.amount) || 0;
+              if (selectedMonth === null || selectedYear === null) {
+                periodContactPayablesTotal += amt;
+                if (!t.isPaid) {
+                  periodContactPayablesRemaining += amt;
+                }
+              } else {
+                if (t.dueDate) {
+                  try {
+                    const dDate = new Date(t.dueDate);
+                    const dMonth = dDate.getMonth();
+                    const dYear = dDate.getFullYear();
+                    if (dYear === selectedYear && dMonth === selectedMonth) {
+                      periodContactPayablesTotal += amt;
+                      if (!t.isPaid) {
+                        periodContactPayablesRemaining += amt;
+                      }
+                    } else {
+                      const selectedTime = selectedYear * 12 + selectedMonth;
+                      const dueTime = dYear * 12 + dMonth;
+                      if (selectedTime > dueTime && !t.isPaid) {
+                        periodContactPayablesTotal += amt;
+                        periodContactPayablesRemaining += amt;
+                      }
                     }
-                  } else {
-                    const selectedTime = selectedYear * 12 + selectedMonth;
-                    const dueTime = dYear * 12 + dMonth;
-                    if (selectedTime > dueTime && !t.isPaid) {
+                  } catch {
+                    if (!t.isPaid) {
                       periodContactPayablesTotal += amt;
                       periodContactPayablesRemaining += amt;
                     }
                   }
-                } catch {
+                } else {
                   if (!t.isPaid) {
                     periodContactPayablesTotal += amt;
                     periodContactPayablesRemaining += amt;
                   }
                 }
-              } else {
-                if (!t.isPaid) {
-                  periodContactPayablesTotal += amt;
-                  periodContactPayablesRemaining += amt;
-                }
               }
             }
-          }
-        });
-      }
-    } catch {}
-  }
-
-  const computedThisMonthKalanBorc = periodSimpleDebtRemaining + periodInstallmentRemaining + periodContactPayablesRemaining;
-  const computedThisMonthPaidBorc = periodSimpleDebtPaidThisMonth + periodInstallmentPaidThisMonth + (periodContactPayablesTotal - periodContactPayablesRemaining);
-  const computedThisMonthTotalBorc = computedThisMonthKalanBorc + computedThisMonthPaidBorc;
-
-  const totalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
-  const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
-
-  // Carryover balance (Devreden Bakiye) accumulator from all months prior to selectedMonth & selectedYear
-  let carryOverBalance = 0;
-  if (selectedMonth !== null && selectedYear !== null) {
-    let startYearComp = 2025;
-    let startMonthComp = 0;
-
-    const allDatesComp: Date[] = [];
-    incomes.forEach((i) => { try { allDatesComp.push(new Date(i.date)); } catch {} });
-    expenses.forEach((e) => { try { allDatesComp.push(new Date(e.date)); } catch {} });
-    payments.forEach((p) => { try { allDatesComp.push(new Date(p.date)); } catch {} });
-
-    if (allDatesComp.length > 0) {
-      const minDate = new Date(Math.min(...allDatesComp.map(d => d.getTime())));
-      startYearComp = minDate.getFullYear();
-      startMonthComp = minDate.getMonth();
+          });
+        }
+      } catch {}
     }
 
-    let loopYearComp = startYearComp;
-    let loopMonthComp = startMonthComp;
-    const targetTimeComp = selectedYear * 12 + selectedMonth;
+    const computedThisMonthKalanBorc = periodSimpleDebtRemaining + periodInstallmentRemaining + periodContactPayablesRemaining;
+    const computedThisMonthPaidBorc = periodSimpleDebtPaidThisMonth + periodInstallmentPaidThisMonth + (periodContactPayablesTotal - periodContactPayablesRemaining);
+    const computedThisMonthTotalBorc = computedThisMonthKalanBorc + computedThisMonthPaidBorc;
 
-    while (loopYearComp * 12 + loopMonthComp < targetTimeComp) {
-      const loopTimeComp = loopYearComp * 12 + loopMonthComp;
+    const totalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
+    const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
 
-      // Incomes in historical loopMonthComp/loopYearComp
-      const incTotalComp = incomes.reduce((sum, i) => {
-        try {
-          const d = new Date(i.date);
-          const iMonth = d.getMonth();
-          const iYear = d.getFullYear();
-          if (i.isRecurring !== false) {
-            const incTime = iYear * 12 + iMonth;
-            if (loopTimeComp >= incTime) {
-              return sum + i.amount;
+    // Carryover balance (Devreden Bakiye) accumulator from all months prior to selectedMonth & selectedYear
+    let carryOverBalance = 0;
+    if (selectedMonth !== null && selectedYear !== null) {
+      let startYearComp = 2025;
+      let startMonthComp = 0;
+
+      const allDatesComp: Date[] = [];
+      incomes.forEach((i) => { try { allDatesComp.push(new Date(i.date)); } catch {} });
+      expenses.forEach((e) => { try { allDatesComp.push(new Date(e.date)); } catch {} });
+      payments.forEach((p) => { try { allDatesComp.push(new Date(p.date)); } catch {} });
+
+      if (allDatesComp.length > 0) {
+        const minDate = new Date(Math.min(...allDatesComp.map(d => d.getTime())));
+        startYearComp = minDate.getFullYear();
+        startMonthComp = minDate.getMonth();
+      }
+
+      let loopYearComp = startYearComp;
+      let loopMonthComp = startMonthComp;
+      const targetTimeComp = selectedYear * 12 + selectedMonth;
+
+      while (loopYearComp * 12 + loopMonthComp < targetTimeComp) {
+        const loopTimeComp = loopYearComp * 12 + loopMonthComp;
+
+        // Incomes in historical loopMonthComp/loopYearComp
+        const incTotalComp = incomes.reduce((sum, i) => {
+          try {
+            const d = new Date(i.date);
+            const iMonth = d.getMonth();
+            const iYear = d.getFullYear();
+            if (i.isRecurring !== false) {
+              const incTime = iYear * 12 + iMonth;
+              if (loopTimeComp >= incTime) {
+                return sum + i.amount;
+              }
+            } else {
+              if (iMonth === loopMonthComp && iYear === loopYearComp) {
+                return sum + i.amount;
+              }
             }
-          } else {
-            if (iMonth === loopMonthComp && iYear === loopYearComp) {
-              return sum + i.amount;
+          } catch {}
+          return sum;
+        }, 0);
+
+        // Expenses in historical loopMonthComp/loopYearComp
+        const expTotalComp = expenses.reduce((sum, e) => {
+          try {
+            const d = new Date(e.date);
+            if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
+              return sum + e.amount;
             }
-          }
-        } catch {}
-        return sum;
-      }, 0);
+          } catch {}
+          return sum;
+        }, 0);
 
-      // Expenses in historical loopMonthComp/loopYearComp
-      const expTotalComp = expenses.reduce((sum, e) => {
-        try {
-          const d = new Date(e.date);
-          if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
-            return sum + e.amount;
-          }
-        } catch {}
-        return sum;
-      }, 0);
+        // Payments in historical loopMonthComp/loopYearComp
+        const payTotalComp = payments.reduce((sum, p) => {
+          try {
+            const d = new Date(p.date);
+            if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
+              return sum + p.amount;
+            }
+          } catch {}
+          return sum;
+        }, 0);
 
-      // Payments in historical loopMonthComp/loopYearComp
-      const payTotalComp = payments.reduce((sum, p) => {
-        try {
-          const d = new Date(p.date);
-          if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
-            return sum + p.amount;
-          }
-        } catch {}
-        return sum;
-      }, 0);
+        const monthlyNet = incTotalComp - expTotalComp - payTotalComp;
+        carryOverBalance += monthlyNet;
 
-      const monthlyNet = incTotalComp - expTotalComp - payTotalComp;
-      carryOverBalance += monthlyNet;
-
-      loopMonthComp++;
-      if (loopMonthComp > 11) {
-        loopMonthComp = 0;
-        loopYearComp++;
+        loopMonthComp++;
+        if (loopMonthComp > 11) {
+          loopMonthComp = 0;
+          loopYearComp++;
+        }
       }
     }
-  }
 
-  // Net reserve capacity specifically for the selected month (including carry over from prior months)
-  const currentMonthPaidBorc = computedThisMonthTotalBorc - computedThisMonthKalanBorc;
-  const netIncomeValue = totalIncome - totalExpense - currentMonthPaidBorc + carryOverBalance;
+    // Net reserve capacity specifically for the selected month (including carry over from prior months)
+    const currentMonthPaidBorc = computedThisMonthTotalBorc - computedThisMonthKalanBorc;
+    const netIncomeValue = totalIncome - totalExpense - currentMonthPaidBorc + carryOverBalance;
 
-  const currentMonthTotalPaymentsCount = filteredPaymentsForStats.length;
+    const currentMonthTotalPaymentsCount = filteredPaymentsForStats.length;
 
-  const monthlyInstallmentsDue = installmentDebts.reduce((sum, inst) => {
-    if (selectedMonth === null || selectedYear === null) {
-      if (inst.paidInstallmentCount >= inst.installmentCount) return sum;
-      return sum + inst.totalAmount / inst.installmentCount;
-    }
-    const startDate = new Date(inst.firstDueDate);
-    const startYear = startDate.getFullYear();
-    const startMonth = startDate.getMonth();
-    const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-    const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-    const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-    if (isActiveThisMonth && !isPaidThisMonth) {
-      return sum + inst.totalAmount / inst.installmentCount;
-    }
-    return sum;
-  }, 0);
-
-  const statsBag: FinancialStats = {
-    totalDebt: trueOverallDebt,
-    totalPaid: trueOverallPaid,
-    remaining: trueOverallRemaining,
-    totalIncome: totalIncome,
-    totalExpense: totalExpense,
-    netIncome: netIncomeValue,
-    thisMonthTotalBorc: computedThisMonthTotalBorc,
-    thisMonthKalanBorc: computedThisMonthKalanBorc,
-    carryOverBalance: carryOverBalance
-  };
-
-  const filteredIncomesByMonth = incomes.filter((i) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const d = new Date(i.date);
-      const iMonth = d.getMonth();
-      const iYear = d.getFullYear();
-
-      if (i.isRecurring !== false) {
-        // Carry forward to subsequently selected months
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const incomeTime = iYear * 12 + iMonth;
-        return selectedTime >= incomeTime;
-      } else {
-        // One-time extra incomes show up in exact month
-        return iMonth === selectedMonth && iYear === selectedYear;
+    const monthlyInstallmentsDue = installmentDebts.reduce((sum, inst) => {
+      if (selectedMonth === null || selectedYear === null) {
+        if (inst.paidInstallmentCount >= inst.installmentCount) return sum;
+        return sum + inst.totalAmount / inst.installmentCount;
       }
-    } catch { return true; }
-  });
+      const startDate = new Date(inst.firstDueDate);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
+      const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
+      const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
+      if (isActiveThisMonth && !isPaidThisMonth) {
+        return sum + inst.totalAmount / inst.installmentCount;
+      }
+      return sum;
+    }, 0);
 
-  const filteredExpensesByMonth = expenses.filter((e) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    try {
-      const d = new Date(e.date);
-      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-    } catch { return true; }
-  });
+    const statsBag: FinancialStats = {
+      totalDebt: trueOverallDebt,
+      totalPaid: trueOverallPaid,
+      remaining: trueOverallRemaining,
+      totalIncome: totalIncome,
+      totalExpense: totalExpense,
+      netIncome: netIncomeValue,
+      thisMonthTotalBorc: computedThisMonthTotalBorc,
+      thisMonthKalanBorc: computedThisMonthKalanBorc,
+      carryOverBalance: carryOverBalance
+    };
+
+    const filteredIncomesByMonth = incomes.filter((i) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const d = new Date(i.date);
+        const iMonth = d.getMonth();
+        const iYear = d.getFullYear();
+
+        if (i.isRecurring !== false) {
+          // Carry forward to subsequently selected months
+          const selectedTime = selectedYear * 12 + selectedMonth;
+          const incomeTime = iYear * 12 + iMonth;
+          return selectedTime >= incomeTime;
+        } else {
+          // One-time extra incomes show up in exact month
+          return iMonth === selectedMonth && iYear === selectedYear;
+        }
+      } catch { return true; }
+    });
+
+    const filteredExpensesByMonth = expenses.filter((e) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      try {
+        const d = new Date(e.date);
+        return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+      } catch { return true; }
+    });
+
+    return {
+      statsBag,
+      filteredIncomesByMonth,
+      filteredExpensesByMonth,
+      currentMonthTotalPaymentsCount,
+      monthlyInstallmentsDue,
+    };
+  }, [
+    currentUser,
+    selectedMonth,
+    selectedYear,
+    incomes,
+    expenses,
+    payments,
+    debts,
+    installmentDebts,
+    contactsRevision,
+  ]);
 
   // ---------------- Profile Session Controls ----------------
   const handleLogin = () => {
@@ -2303,11 +2346,22 @@ export default function App() {
     triggerConfirm(
       "Oturumu Kapat",
       "Oturumu kapatmak istediğinize emin misiniz?",
-      () => {
-        signOut(auth).catch((err) => console.error("SignOut error:", err));
-        setCurrentUser(null);
+      async () => {
+        try {
+          await signOut(auth);
+        } catch (err) {
+          console.error("SignOut error:", err);
+        }
         localStorage.removeItem("currentUser");
-        triggerToast("Oturum Kapatıldı");
+        setCurrentUser(null);
+        setDebts([]);
+        setIncomes([]);
+        setAlarms([]);
+        setNotifications([]);
+        setInstallmentDebts([]);
+        setPayments([]);
+        setExpenses([]);
+        triggerToast("Oturum Kapatıldı ve Veriler Temizlendi 🔒");
       }
     );
   };
@@ -3992,6 +4046,144 @@ export default function App() {
         </div>
       </header>
 
+      {/* Dynamic Overdue & Due Debts Sliding Marquee Banner */}
+      {(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const getNextInstallmentDueDate = (firstDueDateStr: string, paidCount: number, totalCount: number): string | null => {
+          if (paidCount >= totalCount) return null;
+          try {
+            const baseDate = new Date(firstDueDateStr);
+            if (isNaN(baseDate.getTime())) return null;
+            baseDate.setMonth(baseDate.getMonth() + paidCount);
+            return baseDate.toISOString().slice(0, 10);
+          } catch {
+            return null;
+          }
+        };
+
+        const singleAlerts = debts
+          .filter((d) => d.paid < d.amount && d.dueDate)
+          .map((d) => {
+            try {
+              const due = new Date(d.dueDate);
+              due.setHours(0, 0, 0, 0);
+              const diffTime = due.getTime() - today.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const remainingAmount = d.amount - d.paid;
+              return {
+                id: `single-${d.id}`,
+                originalId: d.id,
+                type: "single" as const,
+                name: d.name,
+                dueDate: d.dueDate,
+                remainingAmount,
+                isOverdue: diffDays < 0,
+                days: Math.abs(diffDays),
+                actualDiffDays: diffDays,
+              };
+            } catch {
+              return null;
+            }
+          });
+
+        const installmentAlerts = installmentDebts
+          .filter((inst) => inst.paidInstallmentCount < inst.installmentCount)
+          .map((inst) => {
+            try {
+              const nextDueDate = getNextInstallmentDueDate(inst.firstDueDate, inst.paidInstallmentCount, inst.installmentCount);
+              if (!nextDueDate) return null;
+              const due = new Date(nextDueDate);
+              due.setHours(0, 0, 0, 0);
+              const diffTime = due.getTime() - today.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const installmentAmount = inst.totalAmount / inst.installmentCount;
+              return {
+                id: `installment-${inst.id}`,
+                originalId: inst.id,
+                type: "installment" as const,
+                name: `${inst.name} (${inst.paidInstallmentCount + 1}. Taksit)`,
+                dueDate: nextDueDate,
+                remainingAmount: installmentAmount,
+                isOverdue: diffDays < 0,
+                days: Math.abs(diffDays),
+                actualDiffDays: diffDays,
+              };
+            } catch {
+              return null;
+            }
+          });
+
+        const allAlerts = [...singleAlerts, ...installmentAlerts]
+          .filter((item): item is NonNullable<typeof item> => item !== null && item.actualDiffDays <= 7)
+          .sort((a, b) => {
+            if (a.isOverdue && !b.isOverdue) return -1;
+            if (!a.isOverdue && b.isOverdue) return 1;
+            return a.days - b.days;
+          });
+
+        if (allAlerts.length === 0) return null;
+
+        return (
+          <div className="relative w-full bg-gradient-to-r from-rose-50/95 via-rose-100/95 to-rose-50/95 dark:from-rose-950/40 dark:via-rose-900/40 dark:to-rose-950/40 border-b-2 border-rose-500/40 py-1 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-xs">
+            <div className="absolute left-0 top-0 bottom-0 px-2 bg-gradient-to-r from-rose-600 to-rose-700 text-white font-black text-[8px] uppercase tracking-wider flex items-center gap-1 z-30 shadow-lg rounded-r-lg border-r border-rose-500/20">
+              <span className="w-1 h-1 rounded-full bg-white animate-ping" />
+              <span className="animate-pulse tracking-tight">VADE UYARILARI ⏰</span>
+            </div>
+            <div className="w-full pl-28 overflow-hidden">
+              <div className="animate-marquee whitespace-nowrap flex items-center gap-3 text-[10px] font-bold">
+                {allAlerts.map((d) => {
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => {
+                        if (d.type === "single") {
+                          setFocusedDebtId(d.originalId);
+                          setActiveTab("debts");
+                        } else {
+                          setFocusedInstallmentId(d.originalId);
+                          setActiveTab("installments");
+                        }
+                        triggerToast(`📍 ${d.name} borcuna yönlendiriliyorsunuz...`);
+                      }}
+                      className="inline-flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-white/70 dark:bg-slate-900/75 border border-rose-200/60 dark:border-rose-800/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-full text-left transition-all duration-200 select-none shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-[10px]"
+                    >
+                      {d.isOverdue ? (
+                        <>
+                          <span className="px-1 py-0.2 bg-rose-600 text-white font-black text-[7px] rounded uppercase tracking-wide animate-pulse">
+                            GECİKTİ ({d.days} gün)
+                          </span>
+                          <span className="font-extrabold text-rose-900 dark:text-rose-100">
+                            {d.name} vadesi geçti!
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="px-1 py-0.2 bg-amber-500 text-white font-black text-[7px] rounded uppercase tracking-wide">
+                            {d.actualDiffDays === 0 ? "BUGÜN" : `${d.days} GÜN`}
+                          </span>
+                          <span className="font-bold text-amber-900 dark:text-amber-100">
+                            {d.name} yaklaşıyor ({d.actualDiffDays === 0 ? "Bugün" : `${d.days} gün sonra`})
+                          </span>
+                        </>
+                      )}
+                      <span className="font-mono bg-rose-100/80 dark:bg-rose-950/75 px-1 py-0.1 rounded border border-rose-500/20 font-black text-rose-700 dark:text-rose-200 text-[9px]">
+                        {format(d.remainingAmount)}
+                      </span>
+                      
+                      {/* Vertical line indicator */}
+                      <span className="h-2.5 w-px bg-rose-300 dark:bg-rose-800 ml-0.5 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Main Drawer Overlay for Sidebar */}
       {isSidebarOpen && (
         <div
@@ -4074,42 +4266,19 @@ export default function App() {
                 <p className="text-[9px] text-slate-400 font-medium tracking-wide">Lütfen bekleyin...</p>
               </div>
             ) : !currentUser ? (
-              <div className="space-y-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Profil Tanımlama</p>
-                <div className="space-y-1.5 text-center">
-                  <input
-                    type="text"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    placeholder="Adınız veya kullanıcı adı"
-                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-center"
-                  />
-                  <button
-                    onClick={handleLogin}
-                    className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-[10px] font-extrabold text-white rounded-xl flex items-center justify-center gap-1 transition-all pointer-events-auto"
-                  >
-                    <LogIn className="w-3.5 h-3.5" /> Profili Aç
-                  </button>
-                </div>
-
-                {/* Styled alternative Quick Login dividers */}
-                <div className="flex items-center gap-1.5 py-1">
-                  <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
-                  <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">VEYA BULUT HESAP</span>
-                  <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
-                </div>
-
-                {/* Platforms Container */}
-                <div className="grid grid-cols-1 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("google")}
-                    className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-extrabold flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-md shadow-indigo-600/15"
-                  >
-                    <Shield className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>BULUT GİRİŞİ (E-POSTA)</span>
-                  </button>
-                </div>
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">GİRİŞ YAPILMADI</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 text-center font-medium leading-relaxed px-1">
+                  Kayıtlarınızı güvenceye almak, şifre ile korumak ve her cihazdan erişmek için giriş yapın.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin("google")}
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[10px] font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-indigo-600/15"
+                >
+                  <Shield className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span>GİRİŞ YAP / KAYDOL</span>
+                </button>
               </div>
             ) : (
               <div className="space-y-2 text-center animate-fade-in">
@@ -4197,86 +4366,46 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                {!currentUser ? (
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Profil Tanımlama</p>
-                    <div className="space-y-1.5 text-center">
-                      <input
-                        type="text"
-                        value={loginUsername}
-                        onChange={(e) => setLoginUsername(e.target.value)}
-                        placeholder="Adınız veya kullanıcı adı"
-                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-center"
-                      />
-                      <button
-                        onClick={handleLogin}
-                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-[10px] font-extrabold text-white rounded-xl flex items-center justify-center gap-1 transition-all pointer-events-auto"
-                      >
-                        <LogIn className="w-3.5 h-3.5" /> Profili Aç
-                      </button>
-                    </div>
-
-                    {/* Styled alternative Quick Login dividers */}
-                    <div className="flex items-center gap-1.5 py-1">
-                      <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
-                      <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">VEYA BULUT HESAP</span>
-                      <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
-                    </div>
-
-                    {/* Platforms Container */}
-                    <div className="grid grid-cols-1 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin("google")}
-                        className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-extrabold flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-md shadow-indigo-600/15"
-                      >
-                        <Shield className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span>BULUT GİRİŞİ (E-POSTA)</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
-                    <div className="px-3 py-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100/30 dark:border-indigo-900/20">
-                      <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-slate-200/40 dark:border-slate-800/85 mb-1">
-                        <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
-                          {currentUser.includes("@") ? (
-                            <>
-                              <Shield className="w-3 h-3 text-indigo-400 shrink-0" /> Bulut Hesap
-                            </>
-                          ) : (
-                            "Yerel Hesap"
-                          )}
-                        </span>
-                        {isPremium ? (
-                          <span
-                            onClick={() => setIsUpgradeModalOpen(true)}
-                            className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider animate-pulse cursor-pointer shadow-xs flex items-center gap-0.5"
-                            title="Abonelik Yönetimi"
-                          >
-                            PREMIUM 👑
-                          </span>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
+                  <div className="px-3 py-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100/30 dark:border-indigo-900/20">
+                    <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-slate-200/40 dark:border-slate-800/85 mb-1">
+                      <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
+                        {currentUser.includes("@") && !currentUser.endsWith("@borctakip.app") ? (
+                          <>
+                            <Shield className="w-3 h-3 text-indigo-400 shrink-0" /> Bulut Hesap
+                          </>
                         ) : (
-                          <span
-                            onClick={() => setIsUpgradeModalOpen(true)}
-                            className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 dark:hover:text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer transition flex items-center gap-0.5"
-                            title="Premium'a Geç"
-                          >
-                            ÜCRETSİZ ⭐
-                          </span>
+                          "Kişisel Hesap"
                         )}
-                      </div>
-                      <p className="text-[9px] font-mono font-bold text-slate-500 dark:text-slate-400 truncate text-left">{currentUser}</p>
+                      </span>
+                      {isPremium ? (
+                        <span
+                          onClick={() => setIsUpgradeModalOpen(true)}
+                          className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider animate-pulse cursor-pointer shadow-xs flex items-center gap-0.5"
+                          title="Abonelik Yönetimi"
+                        >
+                          PREMIUM 👑
+                        </span>
+                      ) : (
+                        <span
+                          onClick={() => setIsUpgradeModalOpen(true)}
+                          className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 dark:hover:text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer transition flex items-center gap-0.5"
+                          title="Premium'a Geç"
+                        >
+                          ÜCRETSİZ ⭐
+                        </span>
+                      )}
                     </div>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 text-[10px] font-extrabold rounded-xl flex items-center justify-center gap-1 transition active:scale-95"
-                    >
-                      <LogOut className="w-3.5 h-3.5" /> Oturumu Kapat
-                    </button>
+                    <p className="text-[9px] font-mono font-bold text-slate-700 dark:text-slate-200 truncate text-left">{currentUser}</p>
                   </div>
-                )}
+                  <button
+                    onClick={handleLogout}
+                    className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 text-[10px] font-extrabold rounded-xl flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> Oturumu Kapat
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -4443,6 +4572,8 @@ export default function App() {
             setSelectedYear={setSelectedYear}
             stats={statsBag}
             language={language}
+            focusedDebtId={focusedDebtId}
+            setFocusedDebtId={setFocusedDebtId}
           />
         )}
 
@@ -4500,6 +4631,8 @@ export default function App() {
             isPremium={isPremium}
             language={language}
             onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            focusedInstallmentId={focusedInstallmentId}
+            setFocusedInstallmentId={setFocusedInstallmentId}
           />
         )}
 

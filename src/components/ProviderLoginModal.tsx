@@ -63,13 +63,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
     setError("");
 
     if (!email.trim()) {
-      setError("Lütfen e-posta adresinizi girin.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError("Geçerli bir e-posta adresi giriniz.");
+      setError("Lütfen e-posta adresinizi veya kullanıcı adınızı girin.");
       return;
     }
 
@@ -91,9 +85,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       "Hesap veritabanı sorgulanıyor...",
     ]);
 
+    const targetEmail = email.includes("@") ? email.trim().toLowerCase() : `${email.trim().toLowerCase()}@borctakip.app`;
+
     try {
       // 1. Try signing in
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, targetEmail, password);
       const user = result.user;
       setSyncLogs((prev) => [
         ...prev,
@@ -122,7 +118,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           ...prev,
           "Bulut profili oluşturuluyor ve yeni alan tahsis ediliyor...",
         ]);
-        const result = await createUserWithEmailAndPassword(auth, email, password);
+        const result = await createUserWithEmailAndPassword(auth, targetEmail, password);
         const user = result.user;
         setSyncLogs((prev) => [
           ...prev,
@@ -141,11 +137,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           ...prev,
           "⚠️ Ağ veya Firebase kimlik doğrulayıcı kısıtı algılandı.",
           "Verileriniz güvende! Bütçem Pro Çevrimdışı/Hibrit Bulut yedeklemesi aktif.",
-          `Profiliniz başarıyla aktif edildi: ${email}`
+          `Profiliniz başarıyla aktif edildi: ${targetEmail}`
         ]);
         setStep("success");
         setTimeout(() => {
-          onLoginSuccess(email);
+          onLoginSuccess(targetEmail);
           resetForm();
         }, 1500);
       }
@@ -200,14 +196,14 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-750 dark:text-slate-300 leading-relaxed font-semibold font-sans">
-                    Kayıtlarınızı güvenle bulutta saklamak, tüm cihazlarınızla anlık eşitlemek ve uygulamayı silseniz dahi eski verilerinizi yüklemek için e-posta adresinizle devam edebilirsiniz:
+                    Kayıtlarınızı güvenle bulutta saklamak, tüm cihazlarınızla anlık eşitlemek ve uygulamayı silseniz dahi eski verilerinizi yüklemek için e-posta adresiniz veya kişi isminizle devam edebilirsiniz:
                   </p>
                 </div>
 
                 <form onSubmit={handleNextStep} className="space-y-4">
                   <div className="space-y-1 relative">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 block">
-                      E-Posta Adresi
+                      E-Posta Adresi veya Kullanıcı Adı
                     </label>
                     <div className="relative">
                       <input
@@ -215,7 +211,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         dir="ltr"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="kullanici@gmail.com"
+                        placeholder="E-Posta adresi veya kişi ismi"
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
                       />
                       <div className="absolute left-3 top-3.5 text-slate-500 dark:text-slate-400">
@@ -229,7 +225,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                       ℹ️ Eski Kayıtlara Erişim
                     </p>
                     <p className="font-semibold text-slate-600 dark:text-slate-300 text-[10px] leading-normal">
-                      Daha önce bu e-posta adresiyle kaydettiğiniz tüm bütçe, borç, gelir ve gider kayıtlarınız buluttan otomatik olarak anında geri yüklenecektir.
+                      Daha önce bu hesap bilgileriyle kaydettiğiniz tüm bütçe, borç, gelir ve gider kayıtlarınız buluttan otomatik olarak anında geri yüklenecektir.
                     </p>
                   </div>
 

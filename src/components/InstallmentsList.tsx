@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlusCircle, CalendarDays, Wallet, Edit, Trash2, Calendar, RotateCcw, Printer, FileText } from "lucide-react";
 import { motion } from "motion/react";
 import { InstallmentDebt } from "../types";
@@ -22,6 +22,8 @@ interface InstallmentsListProps {
   isPremium?: boolean;
   language?: "tr" | "en";
   onUpgradeClick?: () => void;
+  focusedInstallmentId?: number | null;
+  setFocusedInstallmentId?: (id: number | null) => void;
 }
 
 export const InstallmentsList: React.FC<InstallmentsListProps> = ({
@@ -33,6 +35,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   isPremium = false,
   language = "tr",
   onUpgradeClick,
+  focusedInstallmentId,
+  setFocusedInstallmentId,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format } = useCurrency();
@@ -77,6 +81,28 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     setFirstDueDate(inst.firstDueDate ? inst.firstDueDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (focusedInstallmentId) {
+      const inst = installmentDebts.find((x) => x.id === focusedInstallmentId);
+      if (inst) {
+        handleOpenEdit(inst);
+        setTimeout(() => {
+          const el = document.getElementById(`installment-card-${focusedInstallmentId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-4", "ring-indigo-500", "scale-[1.03]");
+            setTimeout(() => {
+              el.classList.remove("ring-4", "ring-indigo-500", "scale-[1.03]");
+            }, 3000);
+          }
+        }, 400);
+      }
+      if (setFocusedInstallmentId) {
+        setFocusedInstallmentId(null);
+      }
+    }
+  }, [focusedInstallmentId, installmentDebts, setFocusedInstallmentId]);
 
   const handleSave = () => {
     const parsedTotal = parseNumberFromDots(totalAmount);
@@ -330,6 +356,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             return (
               <motion.div
                 key={inst.id}
+                id={`installment-card-${inst.id}`}
                 whileHover={{ scale: 1.025, y: -4 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 className={`relative overflow-hidden rounded-3xl p-5 border border-white/10 text-white bg-gradient-to-br ${cardTheme.gradient} shadow-xl ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none`}

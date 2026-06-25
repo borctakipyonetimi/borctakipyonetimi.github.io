@@ -38,6 +38,8 @@ interface DebtListProps {
   setSelectedYear: React.Dispatch<React.SetStateAction<number | null>>;
   stats?: any;
   language?: "tr" | "en";
+  focusedDebtId?: number | null;
+  setFocusedDebtId?: (id: number | null) => void;
 }
 
 export const DebtList: React.FC<DebtListProps> = ({
@@ -59,6 +61,8 @@ export const DebtList: React.FC<DebtListProps> = ({
   setSelectedYear,
   stats,
   language = "tr",
+  focusedDebtId,
+  setFocusedDebtId,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
@@ -407,6 +411,33 @@ export const DebtList: React.FC<DebtListProps> = ({
     setIsInstallment(false);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (focusedDebtId) {
+      const d = debts.find((x) => x.id === focusedDebtId);
+      if (d) {
+        if (d.paid >= d.amount) {
+          setActiveTab("paid");
+        } else {
+          setActiveTab("unpaid");
+        }
+        handleOpenEdit(d);
+        setTimeout(() => {
+          const el = document.getElementById(`debt-card-${focusedDebtId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-4", "ring-indigo-500", "scale-[1.03]");
+            setTimeout(() => {
+              el.classList.remove("ring-4", "ring-indigo-500", "scale-[1.03]");
+            }, 3000);
+          }
+        }, 400);
+      }
+      if (setFocusedDebtId) {
+        setFocusedDebtId(null);
+      }
+    }
+  }, [focusedDebtId, debts, setFocusedDebtId]);
 
   const handleSave = () => {
     const parsedAmount = parseNumberFromDots(amount);
@@ -1140,6 +1171,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                   return (
                     <motion.div
                       key={d.id}
+                      id={`debt-card-${d.id}`}
                       layout
                       initial={{ opacity: 0, scale: 0.98, y: 12 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}

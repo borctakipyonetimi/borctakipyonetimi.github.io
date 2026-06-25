@@ -198,6 +198,7 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
   const saveTxsData = (newTxs: ContactTransaction[]) => {
     setTransactions(newTxs);
     localStorage.setItem(`${spaceKey}_contacts_transactions`, JSON.stringify(newTxs));
+    window.dispatchEvent(new Event("contacts-updated"));
   };
 
   // Add Contact Handler
