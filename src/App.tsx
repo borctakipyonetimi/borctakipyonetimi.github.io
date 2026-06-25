@@ -4116,7 +4116,7 @@ export default function App() {
           });
 
         const allAlerts = [...singleAlerts, ...installmentAlerts]
-          .filter((item): item is NonNullable<typeof item> => item !== null && item.actualDiffDays <= 7)
+          .filter((item): item is NonNullable<typeof item> => item !== null && item.actualDiffDays <= 2)
           .sort((a, b) => {
             if (a.isOverdue && !b.isOverdue) return -1;
             if (!a.isOverdue && b.isOverdue) return 1;

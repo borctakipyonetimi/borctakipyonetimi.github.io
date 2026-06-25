@@ -149,7 +149,7 @@ body.dark {
 .animate-marquee {
   display: inline-block;
   white-space: nowrap;
-  animation: marquee-horizontal 55s linear infinite;
+  animation: marquee-horizontal 90s linear infinite;
 }
 
 .animate-marquee:hover {
