@@ -42,6 +42,43 @@ interface ExpensesListProps {
   language?: "tr" | "en";
 }
 
+const getSuggestedCategory = (desc: string, expenseCategories: ExpenseCategory[]): ExpenseCategory | null => {
+  const d = desc.trim().toLowerCase();
+  if (!d) return null;
+
+  const keywordMap: { [key: string]: string[] } = {
+    "Kira": ["kira", "ev", "depozito", "apartman", "rent", "konut", "ev kirası", "oda", "hause"],
+    "Market": ["market", "manav", "kasap", "bakkal", "gıda", "gida", "alışveriş", "alisveris", "deterjan", "şampuan", "getir", "migros", "carrefour", "bim", "şok", "a101", "file", "tekel", "ekmek", "süt", "sut", "peynir", "yoğurt", "yogurt", "sebze", "meyve", "et", "tavuk", "grocery", "gros", "supermarket"],
+    "Ulaşım": ["ulaşım", "ulasim", "otobüs", "otobus", "metro", "akbil", "bilet", "taksi", "uber", "yakıt", "yakit", "benzin", "otogaz", "dizel", "shell", "opet", "petrol", "otoyol", "köprü", "kopru", "hgs", "mavi kart", "bilet", "uçak", "ucak", "tren", "otopark", "car", "travel", "gas", "fuel", "bus", "taxi", "yolculuk"],
+    "Yeme İçme": ["yemek", "restoran", "lokanta", "cafe", "kafe", "kahve", "starbucks", "burger", "pizza", "kebap", "döner", "doner", "yemeksepeti", "trendyol yemek", "dominos", "tatlı", "tatli", "akşam yemeği", "öğle yemeği", "kahvaltı", "kahvalti", "çay", "cay", "tatlı", "tatli", "dürüm", "durum", "iskender", "lahmacun", "restaurant", "coffee", "lunch", "dinner", "breakfast", "food", "tatlı", "tatlici", "borek", "pide"],
+    "Faturalar": ["fatura", "elektrik", "su", "doğalgaz", "dogalgaz", "gaz", "internet", "telefon", "türk telekom", "turk telekom", "turkcell", "vodafone", "netflix", "spotify", "youtube", "tv", "uydu", "d-smart", "digiturk", "görüntülü", "fiber", "adsl", "bill", "invoice", "gsm", "wifi", "abonelik", "subscription"],
+    "Eğitim": ["okul", "kurs", "kitap", "kırtasiye", "kirtasiye", "eğitim", "egitim", "school", "education", "dergi", "kalem", "defter", "üniversite", "universite", "harç", "harc", "ödev", "odev", "ders"],
+    "Sağlık": ["sağlık", "saglik", "hastane", "ilaç", "ilac", "eczane", "doktor", "reçete", "recete", "health", "hospital", "pharmacy", "medicine", "diş", "dis", "tedavi", "klinik", "sağlık ocağı", "saglik ocagi"],
+    "Giyim": ["giyim", "elbise", "ayakkabı", "ayakkabi", "pantolon", "tişört", "tisort", "mont", "ceket", "kıyafet", "kiyafet", "h&m", "zara", "lcw", "koton", "mavi", "clothes", "shoes", "wear", "tarz"],
+    "Eğlence": ["sinema", "konser", "tiyatro", "tiyatro", "bilet", "eğlence", "eglence", "oyun", "steam", "playstation", "xbox", "pubg", "bira", "alkol", "bar", "pub", "müzik", "muzik", "fun", "game", "movie", "cinema"],
+    "Kişisel Bakım": ["kuaför", "kuafor", "berber", "saç", "sac", "sakal", "bakım", "bakim", "parfüm", "parfum", "makyaj", "kozmetik", "beauty", "hair", "shampoo", "güzellik", "guzellik", "salon", "masaj"],
+    "Spor": ["spor", "gym", "fitness", "üyelik", "uyelik", "antrenman", "protein", "ayakkabı", "ayakkabi", "nike", "adidas", "puma", "spor salonu", "spor salonu", "sport"]
+  };
+
+  // First check if any keyword directly triggers a category name match from our mappings
+  for (const [catName, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some(k => d.includes(k))) {
+      const matched = expenseCategories.find(c => c.name.toLowerCase() === catName.toLowerCase());
+      if (matched) return matched;
+    }
+  }
+
+  // Fallback: Check if description contains the name of any active category directly
+  for (const cat of expenseCategories) {
+    const catNameLower = cat.name.toLowerCase();
+    if (catNameLower.length >= 3 && d.includes(catNameLower)) {
+      return cat;
+    }
+  }
+
+  return null;
+};
+
 const getSavingTipForCategory = (name: string, icon: string): string => {
   const norm = name.toLowerCase().trim();
 
@@ -330,6 +367,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const [date, setDate] = useState("");
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [expenseAlarm, setExpenseAlarm] = useState(false);
+  const [isCategoryManuallySelected, setIsCategoryManuallySelected] = useState(false);
+
+  // Auto-categorization based on description input
+  useEffect(() => {
+    if (!isCategoryManuallySelected && description.trim()) {
+      const suggested = getSuggestedCategory(description, expenseCategories);
+      if (suggested) {
+        setCategoryId(suggested.id);
+      }
+    }
+  }, [description, isCategoryManuallySelected, expenseCategories]);
 
   // AI OCR scanner state and callback
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -349,6 +397,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       );
       if (match) {
         setCategoryId(match.id);
+        setIsCategoryManuallySelected(true);
       }
     }
     setIsScannerOpen(false);
@@ -396,6 +445,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setAmount("");
     setDescription("");
     setIsCatDropdownOpen(false);
+    setIsCategoryManuallySelected(false);
     
     // Choose dynamic smart default date for past/future monthly addition support
     const today = new Date();
@@ -419,6 +469,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       e.date ? e.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
     );
     setIsCatDropdownOpen(false);
+    setIsCategoryManuallySelected(true);
     setIsExpModalOpen(true);
   };
 
@@ -695,6 +746,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const filteredExpenses = selectedFilterCategoryId
     ? filteredMonthExpenses.filter((e) => e.categoryId === selectedFilterCategoryId)
     : filteredMonthExpenses;
+
+  const suggestedCategory = getSuggestedCategory(description, expenseCategories);
 
   return (
     <div className="space-y-6">
@@ -1505,6 +1558,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           type="button"
                           onClick={() => {
                             setCategoryId(c.id);
+                            setIsCategoryManuallySelected(true);
                             setIsCatDropdownOpen(false);
                           }}
                           className={`w-full px-3 py-2 text-left text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-705 flex items-center gap-2 transition cursor-pointer ${c.id === categoryId ? "bg-rose-50/40 dark:bg-rose-950/20 font-bold" : ""}`}
@@ -1541,6 +1595,29 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   placeholder="Market faturası, yakıt vb."
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
                 />
+                {suggestedCategory && (
+                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-lg px-2 py-1 animate-fade-in">
+                    <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
+                      💡 Öneri: <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{suggestedCategory.icon} {suggestedCategory.name}</span>
+                    </span>
+                    {categoryId !== suggestedCategory.id ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCategoryId(suggestedCategory.id);
+                          setIsCategoryManuallySelected(true);
+                        }}
+                        className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-black tracking-wide rounded-md transition cursor-pointer"
+                      >
+                        Uygula
+                      </button>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-black flex items-center gap-0.5 text-[9px]">
+                        ✓ Uygulandı
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
