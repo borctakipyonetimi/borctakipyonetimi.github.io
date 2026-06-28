@@ -152,8 +152,7 @@ export default function App() {
     const pageParam = params.get("page");
     if (pageParam === "landing") return "landing";
     if (pageParam === "blog" || pageParam === "blog-post") return "blog";
-    if (pageParam === "app") return null;
-    return localStorage.getItem("skip_landing") === "true" ? null : "landing";
+    return null; // Directly open the app, bypassing the landing page
   });
   const [selectedPublicPostId, setSelectedPublicPostId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -4125,9 +4124,56 @@ export default function App() {
 
         if (allAlerts.length === 0) return null;
 
+        const getAlertThemeStyles = () => {
+          switch (colorTheme) {
+            case "green":
+              return {
+                barBg: "bg-gradient-to-r from-emerald-50/95 via-emerald-100/95 to-emerald-50/95 dark:from-emerald-950/40 dark:via-emerald-900/40 dark:to-emerald-950/40 border-b-2 border-emerald-500/40",
+                badgeBg: "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500/20",
+                buttonBorder: "border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30",
+                overdueLabelBg: "bg-emerald-600",
+                overdueText: "text-emerald-900 dark:text-emerald-100",
+                priceBg: "bg-emerald-100/80 dark:bg-emerald-950/75 border-emerald-500/20 text-emerald-700 dark:text-emerald-200",
+                separator: "bg-emerald-300 dark:bg-emerald-800"
+              };
+            case "purple":
+              return {
+                barBg: "bg-gradient-to-r from-purple-50/95 via-purple-100/95 to-purple-50/95 dark:from-purple-950/40 dark:via-purple-900/40 dark:to-purple-950/40 border-b-2 border-purple-500/40",
+                badgeBg: "bg-gradient-to-r from-purple-600 to-purple-700 border-purple-500/20",
+                buttonBorder: "border-purple-200/60 dark:border-purple-800/50 hover:bg-purple-50 dark:hover:bg-purple-950/30",
+                overdueLabelBg: "bg-purple-600",
+                overdueText: "text-purple-900 dark:text-purple-100",
+                priceBg: "bg-purple-100/80 dark:bg-purple-950/75 border-purple-500/20 text-purple-700 dark:text-purple-200",
+                separator: "bg-purple-300 dark:bg-purple-800"
+              };
+            case "orange":
+              return {
+                barBg: "bg-gradient-to-r from-amber-50/95 via-amber-100/95 to-amber-50/95 dark:from-amber-950/40 dark:via-amber-900/40 dark:to-amber-950/40 border-b-2 border-amber-500/40",
+                badgeBg: "bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500/20",
+                buttonBorder: "border-amber-200/60 dark:border-amber-800/50 hover:bg-amber-50 dark:hover:bg-amber-950/30",
+                overdueLabelBg: "bg-amber-600",
+                overdueText: "text-amber-900 dark:text-amber-100",
+                priceBg: "bg-amber-100/80 dark:bg-amber-950/75 border-amber-500/20 text-amber-700 dark:text-amber-200",
+                separator: "bg-amber-300 dark:bg-amber-800"
+              };
+            default: // indigo / default
+              return {
+                barBg: "bg-gradient-to-r from-indigo-50/95 via-indigo-100/95 to-indigo-50/95 dark:from-indigo-950/40 dark:via-indigo-900/40 dark:to-indigo-950/40 border-b-2 border-indigo-500/40",
+                badgeBg: "bg-gradient-to-r from-indigo-600 to-indigo-700 border-indigo-500/20",
+                buttonBorder: "border-indigo-200/60 dark:border-indigo-800/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30",
+                overdueLabelBg: "bg-indigo-600",
+                overdueText: "text-indigo-900 dark:text-indigo-100",
+                priceBg: "bg-indigo-100/80 dark:bg-indigo-950/75 border-indigo-500/20 text-indigo-700 dark:text-indigo-200",
+                separator: "bg-indigo-300 dark:bg-indigo-800"
+              };
+          }
+        };
+
+        const themeStyles = getAlertThemeStyles();
+
         return (
-          <div className="relative w-full bg-gradient-to-r from-rose-50/95 via-rose-100/95 to-rose-50/95 dark:from-rose-950/40 dark:via-rose-900/40 dark:to-rose-950/40 border-b-2 border-rose-500/40 py-1 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-xs">
-            <div className="absolute left-0 top-0 bottom-0 px-2 bg-gradient-to-r from-rose-600 to-rose-700 text-white font-black text-[8px] uppercase tracking-wider flex items-center gap-1 z-30 shadow-lg rounded-r-lg border-r border-rose-500/20">
+          <div className={`relative w-full py-1 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-xs ${themeStyles.barBg}`}>
+            <div className={`absolute left-0 top-0 bottom-0 px-2 text-white font-black text-[8px] uppercase tracking-wider flex items-center gap-1 z-30 shadow-lg rounded-r-lg border-r ${themeStyles.badgeBg}`}>
               <span className="w-1 h-1 rounded-full bg-white animate-ping" />
               <span className="animate-pulse tracking-tight">VADE UYARILARI ⏰</span>
             </div>
@@ -4148,14 +4194,14 @@ export default function App() {
                         }
                         triggerToast(`📍 ${d.name} borcuna yönlendiriliyorsunuz...`);
                       }}
-                      className="inline-flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-white/70 dark:bg-slate-900/75 border border-rose-200/60 dark:border-rose-800/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-full text-left transition-all duration-200 select-none shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-[10px]"
+                      className={`inline-flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-white/70 dark:bg-slate-900/75 border rounded-full text-left transition-all duration-200 select-none shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-[10px] ${themeStyles.buttonBorder}`}
                     >
                       {d.isOverdue ? (
                         <>
-                          <span className="px-1 py-0.2 bg-rose-600 text-white font-black text-[7px] rounded uppercase tracking-wide animate-pulse">
+                          <span className={`px-1 py-0.2 text-white font-black text-[7px] rounded uppercase tracking-wide animate-pulse ${themeStyles.overdueLabelBg}`}>
                             GECİKTİ ({d.days} gün)
                           </span>
-                          <span className="font-extrabold text-rose-900 dark:text-rose-100">
+                          <span className={`font-extrabold ${themeStyles.overdueText}`}>
                             {d.name} vadesi geçti!
                           </span>
                         </>
@@ -4169,12 +4215,12 @@ export default function App() {
                           </span>
                         </>
                       )}
-                      <span className="font-mono bg-rose-100/80 dark:bg-rose-950/75 px-1 py-0.1 rounded border border-rose-500/20 font-black text-rose-700 dark:text-rose-200 text-[9px]">
+                      <span className={`font-mono px-1 py-0.1 rounded border font-black text-[9px] ${themeStyles.priceBg}`}>
                         {format(d.remainingAmount)}
                       </span>
                       
                       {/* Vertical line indicator */}
-                      <span className="h-2.5 w-px bg-rose-300 dark:bg-rose-800 ml-0.5 shrink-0" />
+                      <span className={`h-2.5 w-px ml-0.5 shrink-0 ${themeStyles.separator}`} />
                     </button>
                   );
                 })}
@@ -4442,12 +4488,7 @@ export default function App() {
               );
             })}
 
-            {/* Compact AdMob Banner immediately under navigation menus */}
-            {!isPremium && (
-              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800">
-                <AdMobBanner unitType="banner" className="opacity-95" />
-              </div>
-            )}
+            {/* Removed sidebar AdMob Banner to comply with Google AdSense navigation policies */}
           </nav>
         </div>
 

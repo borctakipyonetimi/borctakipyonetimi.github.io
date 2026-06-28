@@ -16,16 +16,18 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   className = ""
 }) => {
   const [isPremium, setIsPremium] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isWebView, setIsWebView] = useState(false);
   const adInited = useRef(false);
 
-  // Dynamically check premium status and WebView environment
+  // Dynamically check premium status, auth, and WebView environment
   useEffect(() => {
-    const checkPremium = () => {
+    const checkStatus = () => {
       setIsPremium(localStorage.getItem("is_premium") === "true");
+      setIsLoggedIn(!!localStorage.getItem("currentUser"));
     };
-    checkPremium();
-    const interval = setInterval(checkPremium, 1500);
+    checkStatus();
+    const interval = setInterval(checkStatus, 1500);
 
     // Detect if we are running inside an Android WebView context (APK wrapper)
     if (typeof window !== "undefined" && navigator) {
@@ -39,7 +41,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   // Initialize Google AdSense responsive ad units safely inside React lifecycle
   useEffect(() => {
-    if (isPremium || isWebView) return;
+    if (isPremium || isWebView || !isLoggedIn) return;
 
     const delay = setTimeout(() => {
       try {
@@ -59,9 +61,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     }, 600);
 
     return () => clearTimeout(delay);
-  }, [isPremium, isWebView, unitType]);
+  }, [isPremium, isWebView, isLoggedIn, unitType]);
 
-  if (isPremium) return null;
+  if (isPremium || !isLoggedIn) return null;
 
   // Predefined high-performance fintech-themed visual sponsor campaigns
   const adOffers = [
@@ -98,13 +100,13 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     <div className={`w-full overflow-hidden my-3 ${className}`}>
       <div className="relative p-4 bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 dark:from-[#0d1527] dark:via-[#0b0f19] dark:to-[#090b11] rounded-3xl border border-indigo-500/10 dark:border-slate-800 shadow-sm">
         
-        {/* Banner Label & Branding */}
-        <div className="flex items-center justify-between mb-3.5 select-none">
-          <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[8px] sm:text-[9px] font-black uppercase tracking-widest rounded border border-indigo-500/15">
-            {isWebView ? "Sponsorlu Reklam & Mobil Entegrasyon" : "Sponsorlu Reklam & Google AdSense"}
+        {/* Banner Label & Branding compliant with Google AdSense policy */}
+        <div className="flex items-center justify-between mb-3 select-none">
+          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded border border-slate-200 dark:border-slate-800">
+            {isWebView ? "SPONSORLU REKLAM" : "SPONSORLU BAĞLANTI / REKLAM"}
           </span>
-          <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 font-mono">
-            Bütçem Pro Geliştirici Destek
+          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-wider">
+            REKLAM
           </span>
         </div>
 

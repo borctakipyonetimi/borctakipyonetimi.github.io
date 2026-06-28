@@ -49,6 +49,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI } = useCurrency();
+  const hasContent = (incomes && incomes.length > 0) || (expenses && expenses.length > 0) || (stats && stats.totalDebt > 0);
   const [budgetGoal, setBudgetGoal] = useState<number>(() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
     const saved = localStorage.getItem(`budget_goal_${email}`);
@@ -766,8 +767,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
-      {/* Sponsor / Google AdMob Banner section for free tier - Placed above AI & Alarms section */}
-      {!isPremium && (
+      {/* Sponsor / Google AdMob Banner section for free tier - Placed above AI & Alarms section (Only show when there is actual content) */}
+      {!isPremium && hasContent && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1236,8 +1237,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
-      {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card */}
-      {!isPremium && (
+      {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card (Only show when there is actual content) */}
+      {!isPremium && hasContent && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

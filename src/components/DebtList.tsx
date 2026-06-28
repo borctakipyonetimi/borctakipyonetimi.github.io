@@ -1629,8 +1629,8 @@ export const DebtList: React.FC<DebtListProps> = ({
         </div>
       )}
 
-      {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner */}
-      {!isPremium && (
+      {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner (Only show when there is actual content) */}
+      {!isPremium && debts && debts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}

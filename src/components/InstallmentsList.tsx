@@ -487,7 +487,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
       <InstallmentsPortalChart installmentDebts={installmentDebts} />
 
-      {!isPremium && (
+      {!isPremium && installmentDebts && installmentDebts.length > 0 && (
         <AdMobBanner unitType="banner" className="opacity-95 py-1" />
       )}
 
