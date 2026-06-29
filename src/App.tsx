@@ -1069,8 +1069,14 @@ export default function App() {
         })
       });
       console.log("[Push Client] Handshake with background push database successful.");
-    } catch (err) {
+      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Arka plan bildirimleri aktif.");
+    } catch (err: any) {
       console.warn("[Push Client] Web Push subscription workflow aborted:", err);
+      if (err.name === "NotAllowedError") {
+        triggerToast("❌ Tarayıcı bildirim iznini engelledi. Lütfen ayarlardan izin verin.");
+      } else {
+        triggerToast("⚠️ Bildirim bağlantısı kurulamadı. Lütfen tekrar deneyin.");
+      }
     }
   };
 
@@ -2544,10 +2550,12 @@ export default function App() {
         requestNotificationPermission();
       }
       const titleString = `Borç Son Ödeme Tarihi: ${debtName}`;
+      const alarmDateObj = parseLocalOrUTCString(dueDate);
       const newA: Alarm = {
         id: generateId(updatedAlarms),
         title: titleString,
-        date: dueDate
+        date: dueDate,
+        timestamp: alarmDateObj.getTime()
       };
       updatedAlarms = [...updatedAlarms, newA];
 
@@ -2853,10 +2861,12 @@ export default function App() {
       requestNotificationPermission();
     }
 
+    const alarmDateObj = parseLocalOrUTCString(dateString);
     const newA: Alarm = {
       id: generateId(alarms),
       title: titleString,
-      date: dateString
+      date: dateString,
+      timestamp: alarmDateObj.getTime()
     };
     const updated = [...alarms, newA];
 
@@ -4929,42 +4939,7 @@ export default function App() {
                     >
                       <span>🔔 Bildirim İznini Etkinleştir</span>
                     </button>
-                    
-                    <button
-                      onClick={() => sendSystemNotification(
-                        "Test Hatırlatıcısı 🚀",
-                        "Bütçem sesli bildirim sinyali başarıyla alındı! Ödeme vadelerinde ve önemli alarmlarda bu uyarıyı alacaksınız."
-                      )}
-                      className="px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/5 text-xs font-black rounded-xl flex items-center gap-2 cursor-pointer transition active:scale-95 text-slate-100"
-                    >
-                      <span>🎯 Ekran Açıkken Anlık Test</span>
-                    </button>
-
-                    <button
-                      onClick={triggerDiagnosticTestPush}
-                      disabled={testPushStatus.includes("⏳") || testPushStatus === "HAZIRLIK"}
-                      className={`px-4 py-2.5 text-xs font-black rounded-xl flex items-center gap-2 cursor-pointer transition select-none ${
-                        testPushStatus.includes("⏳")
-                          ? "bg-amber-600 text-white animate-pulse"
-                          : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/10"
-                      }`}
-                    >
-                      <span>{testPushStatus ? `TEST: ${testPushStatus}` : "🔐 Telefon Kapalıyken (Kilit Ekranı) Test Et"}</span>
-                    </button>
                   </div>
-
-                  {testPushStatus.includes("⏳") && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-3 bg-amber-950/60 border border-amber-500/20 text-[11px] leading-relaxed text-amber-200 rounded-xl font-bold flex items-center gap-2"
-                    >
-                      <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping shrink-0" />
-                      <div>
-                        <strong>UYARI:</strong> 10 Saniyelik geri sayım başladı! <strong>Hemen şimdi telefonunuzun ekranını kapatın ve kilitleyin!</strong> Arka planda sunucu cihazınızı tetikleyecek ve kilit ekranınızda can simidi bildirimi belirecektir.
-                      </div>
-                    </motion.div>
-                  )}
                 </div>
               </div>
             </div>

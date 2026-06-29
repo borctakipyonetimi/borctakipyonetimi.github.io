@@ -26,6 +26,7 @@ export interface Alarm {
   desc?: string;
   date?: string;
   dateTime?: string;
+  timestamp?: number;
 }
 
 export interface NotificationItem {

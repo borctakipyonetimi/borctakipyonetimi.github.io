@@ -1480,39 +1480,43 @@ setInterval(async () => {
     const triggeredAlarms: any[] = [];
 
     details.alarms.forEach((alarm) => {
-      if (!alarm || !alarm.date) return;
+      if (!alarm) return;
       
       let alarmTime = NaN;
-      try {
-        alarmTime = new Date(alarm.date).getTime();
-        
-        // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
-        if (isNaN(alarmTime)) {
-          const parts = alarm.date.trim().split(" ");
-          if (parts.length === 2) {
-            const datePart = parts[0];
-            const timePart = parts[1];
-            let y, m, d;
-            if (datePart.includes(".")) {
-              const dp = datePart.split(".");
-              d = parseInt(dp[0], 10);
-              m = parseInt(dp[1], 10) - 1;
-              y = parseInt(dp[2], 10);
-            } else if (datePart.includes("-")) {
-              const dp = datePart.split("-");
-              y = parseInt(dp[0], 10);
-              m = parseInt(dp[1], 10) - 1;
-              d = parseInt(dp[2], 10);
+      if (alarm.timestamp) {
+        alarmTime = Number(alarm.timestamp);
+      } else if (alarm.date) {
+        try {
+          alarmTime = new Date(alarm.date).getTime();
+          
+          // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
+          if (isNaN(alarmTime)) {
+            const parts = alarm.date.trim().split(" ");
+            if (parts.length === 2) {
+              const datePart = parts[0];
+              const timePart = parts[1];
+              let y, m, d;
+              if (datePart.includes(".")) {
+                const dp = datePart.split(".");
+                d = parseInt(dp[0], 10);
+                m = parseInt(dp[1], 10) - 1;
+                y = parseInt(dp[2], 10);
+              } else if (datePart.includes("-")) {
+                const dp = datePart.split("-");
+                y = parseInt(dp[0], 10);
+                m = parseInt(dp[1], 10) - 1;
+                d = parseInt(dp[2], 10);
+              }
+              const tp = timePart.split(":");
+              const hr = parseInt(tp[0], 10) || 0;
+              const min = parseInt(tp[1], 10) || 0;
+              const sec = parseInt(tp[2], 10) || 0;
+              alarmTime = new Date(y, m, d, hr, min, sec).getTime();
             }
-            const tp = timePart.split(":");
-            const hr = parseInt(tp[0], 10) || 0;
-            const min = parseInt(tp[1], 10) || 0;
-            const sec = parseInt(tp[2], 10) || 0;
-            alarmTime = new Date(y, m, d, hr, min, sec).getTime();
           }
+        } catch (err) {
+          console.error("[Push Server] parse alarm date error:", err);
         }
-      } catch (err) {
-        console.error("[Push Server] parse alarm date error:", err);
       }
 
       if (!isNaN(alarmTime) && alarmTime <= nowTime) {
