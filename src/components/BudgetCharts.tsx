@@ -58,7 +58,7 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
   const activePercent = activeItem ? ((activeItem.value / total) * 100).toFixed(1) : "";
 
   return (
-    <div className="flex flex-col items-center justify-center p-2 xl:flex-row gap-4 xl:gap-6">
+    <div className="flex flex-col items-center justify-center gap-6 w-full p-2">
       {/* Interactive Bento HUD SVG Box */}
       <div className="relative w-48 h-48 shrink-0 flex items-center justify-center">
         {/* Animated ambient decorative glow */}
@@ -221,7 +221,7 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, type = "expe
       </div>
 
       {/* Proportional Staggered Progress Legend Grid */}
-      <div className="flex-1 w-full min-w-[140px] space-y-2 relative z-10">
+      <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5 w-full relative z-10">
         {data.map((item, idx) => {
           const isHovered = hoveredIndex === idx;
           const percentage = ((item.value / total) * 105).toFixed(0); // scale up indicator fill

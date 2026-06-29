@@ -1224,12 +1224,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   </motion.div>
                 )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2.5 w-full">
                 {expenseCategories.map((c, idx) => {
                   const isDragged = draggedIndex === idx;
                   const isOver = dragOverIndex === idx;
-                  const currentMonthTotal =
-                    categoryCurrentMonthTotals[c.id] || 0;
+                  const currentMonthTotal = categoryCurrentMonthTotals[c.id] || 0;
                   const isSelected = selectedFilterCategoryId === c.id;
                   return (
                     <motion.div
@@ -1257,7 +1256,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       }}
                       whileHover={undefined}
                       whileTap={isInlineEditingCategory ? {} : { scale: 0.98 }}
-                      className={`relative group flex items-center justify-between gap-2 px-3 py-2 text-slate-700 dark:text-slate-200 border-l-[4px] rounded-xl text-xs font-semibold select-none category-card-animated ${
+                      className={`relative group flex flex-col justify-between gap-2 px-3 py-2.5 text-slate-700 dark:text-slate-200 border-l-[4px] rounded-xl text-xs font-semibold select-none category-card-animated ${
                         isSelected
                           ? "shadow-md ring-2 ring-indigo-500/30 dark:ring-indigo-400/20 font-bold"
                           : "bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60"
@@ -1310,7 +1309,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 
                       {isInlineEditingCategory ? (
                         <div
-                          className="flex items-center gap-2"
+                          className="flex items-center gap-2 w-full"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span
@@ -1336,12 +1335,12 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             onChange={(e) => {
                               onSaveCategory({ ...c, name: e.target.value });
                             }}
-                            className="px-2 py-1 max-w-[90px] xs:max-w-[120px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-950 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                            className="px-2 py-1 flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-950 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                             placeholder="Kategori Adı"
                           />
                           <button
                             onClick={() => onDeleteCategory(c.id)}
-                            className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition shrink-0"
+                            className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-55 dark:hover:bg-rose-950/20 rounded-lg transition shrink-0"
                             title="Kategoriyi Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1349,26 +1348,26 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span
-                              className="w-1.5 h-1.5 rounded-full inline-block shrink-0 transition-all duration-500 ease-in-out"
-                              style={{ backgroundColor: c.color || "#6366f1" }}
-                            />
-                            <span
-                              className="text-sm select-none shrink-0"
-                              title={`${c.name} simgesi`}
-                            >
-                              {c.icon || "🛒"}
-                            </span>
-                            <span
-                              className={`truncate text-xs font-bold leading-none ${isSelected ? "text-indigo-950 dark:text-indigo-200" : "text-slate-700 dark:text-slate-300"}`}
-                              title={c.name}
-                            >
-                              {c.name}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1 shrink-0">
+                          {/* Row 1: Left Info & Right Total */}
+                          <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span
+                                className="w-1.5 h-1.5 rounded-full inline-block shrink-0 transition-all duration-500 ease-in-out"
+                                style={{ backgroundColor: c.color || "#6366f1" }}
+                              />
+                              <span
+                                className="text-sm select-none shrink-0"
+                                title={`${c.name} simgesi`}
+                              >
+                                {c.icon || "🛒"}
+                              </span>
+                              <span
+                                className={`truncate text-xs font-extrabold leading-none ${isSelected ? "text-indigo-950 dark:text-indigo-200" : "text-slate-700 dark:text-slate-300"}`}
+                                title={c.name}
+                              >
+                                {c.name}
+                              </span>
+                            </div>
                             <span
                               className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold transition-all shrink-0 select-none ${
                                 isSelected
@@ -1379,6 +1378,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             >
                               {format(currentMonthTotal)}
                             </span>
+                          </div>
+
+                          {/* Row 2: Action Toolbar */}
+                          <div className="flex items-center justify-end gap-1 w-full border-t border-slate-100/50 dark:border-slate-800/40 pt-1.5 mt-1">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1387,36 +1390,43 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                   showTipCategory?.id === c.id ? null : c,
                                 );
                               }}
-                              className={`p-1 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 ${
+                              className={`px-1.5 py-0.5 rounded-md transition shrink-0 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 ${
                                 showTipCategory?.id === c.id
-                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 scale-110"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 scale-105"
                                   : "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
                               }`}
                               title={`${c.name} için Tasarruf İpucu`}
                             >
-                              <Lightbulb className="w-3.5 h-3.5" />
+                              <Lightbulb className="w-3 h-3 shrink-0" />
+                              <span className="text-[8.5px] font-black ml-0.5">İpucu</span>
                             </button>
+
+                            <div className="h-3 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenEditCategory(c);
                               }}
-                              className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition shrink-0 ml-1"
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
                               title="Düzenle"
                             >
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3 h-3 shrink-0" />
+                              <span className="text-[8.5px] font-bold ml-0.5">Düzenle</span>
                             </button>
+
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDeleteCategory(c.id);
                               }}
-                              className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-55 dark:hover:bg-rose-950/20 rounded-lg transition shrink-0"
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-500 hover:bg-rose-55 dark:hover:bg-rose-950/20 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
                               title="Sil"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3 shrink-0" />
+                              <span className="text-[8.5px] font-bold ml-0.5">Sil</span>
                             </button>
                           </div>
                         </>
