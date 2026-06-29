@@ -7,6 +7,26 @@
     <link rel="canonical" href="https://butcempro.com/" />
     <link rel="manifest" href="/manifest.json" />
     
+    <!-- Third-Party Cross-Origin Error Suppressor (Crucial for sandbox/iframe environment stability) -->
+    <script>
+      window.addEventListener('error', function(e) {
+        var msg = e.message || '';
+        var src = e.filename || '';
+        if (msg.indexOf('Script error.') !== -1 || src.indexOf('histats') !== -1 || src.indexOf('onesignal') !== -1 || src.indexOf('googlesyndication') !== -1 || src.indexOf('doubleclick') !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          return true;
+        }
+      }, true);
+      window.onerror = function(message, url, line, col, error) {
+        var msg = message || '';
+        var src = url || '';
+        if (msg.indexOf('Script error.') !== -1 || src.indexOf('histats') !== -1 || src.indexOf('onesignal') !== -1 || src.indexOf('googlesyndication') !== -1 || src.indexOf('doubleclick') !== -1) {
+          return true;
+        }
+      };
+    </script>
+    
     <!-- SEO & Google Arama Motoru Optimizasyonu (Meta Tags) -->
     <title>Bütçem Pro | Akıllı Bütçe, Borç Takibi ve Finansal Analiz</title>
     <meta name="description" content="Yapay zeka asistanlı Bütçem Pro ile kişisel bütçe yönetimi, borç takibi ve gelir-gider analizlerinizi profesyonelce yapın. Finansal özgürlüğe ilk adımı atın." />

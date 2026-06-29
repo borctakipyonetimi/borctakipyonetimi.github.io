@@ -59,6 +59,91 @@ app.get("/api/download-temp", (req, res) => {
   res.send(item.content);
 });
 
+// 15-day Free Trial IP Tracking Endpoints
+const TRIALS_FILE = path.join(process.cwd(), "trials.json");
+
+function readTrials(): Record<string, string> {
+  try {
+    if (fs.existsSync(TRIALS_FILE)) {
+      const data = fs.readFileSync(TRIALS_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error("Error reading trials file:", e);
+  }
+  return {};
+}
+
+function writeTrials(trials: Record<string, string>) {
+  try {
+    fs.writeFileSync(TRIALS_FILE, JSON.stringify(trials, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Error writing trials file:", e);
+  }
+}
+
+app.get("/api/trial/status", (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
+  const trials = readTrials();
+  const startDateStr = trials[ip];
+
+  if (!startDateStr) {
+    return res.json({
+      hasTrial: false,
+      isActive: false,
+      isExpired: false,
+      daysRemaining: 15,
+      startDate: null,
+      endDate: null,
+    });
+  }
+
+  const startDate = new Date(startDateStr);
+  const now = new Date();
+  const diffTime = now.getTime() - startDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
+  const isExpired = diffDays >= 15;
+
+  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+  res.json({
+    hasTrial: true,
+    isActive: !isExpired,
+    isExpired: isExpired,
+    daysRemaining: daysRemaining,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+});
+
+app.post("/api/trial/activate", (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
+  const trials = readTrials();
+
+  if (!trials[ip]) {
+    trials[ip] = new Date().toISOString();
+    writeTrials(trials);
+  }
+
+  const startDate = new Date(trials[ip]);
+  const now = new Date();
+  const diffTime = now.getTime() - startDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
+  const isExpired = diffDays >= 15;
+  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+  res.json({
+    hasTrial: true,
+    isActive: !isExpired,
+    isExpired: isExpired,
+    daysRemaining: daysRemaining,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+});
+
 // Google Drive API Proxy endpoints
 app.get("/api/drive/backups", async (req, res) => {
   const authHeader = req.headers.authorization;

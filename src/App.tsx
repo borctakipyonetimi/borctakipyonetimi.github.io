@@ -239,6 +239,85 @@ export default function App() {
   const [isPremium, setIsPremium] = useState<boolean>(() => {
     return localStorage.getItem("is_premium") === "true";
   });
+  const [trialStatus, setTrialStatus] = useState<{
+    hasTrial: boolean;
+    isActive: boolean;
+    isExpired: boolean;
+    daysRemaining: number;
+    startDate: string | null;
+    endDate: string | null;
+  } | null>(null);
+
+  const checkTrialStatus = async () => {
+    try {
+      const res = await fetch("/api/trial/status");
+      const data = await res.json();
+      setTrialStatus(data);
+      
+      const pSource = localStorage.getItem("premium_source");
+      
+      if (data.hasTrial) {
+        if (data.isActive) {
+          if (pSource !== "purchase") {
+            setIsPremium(true);
+            localStorage.setItem("is_premium", "true");
+            localStorage.setItem("premium_source", "trial");
+          }
+        } else if (data.isExpired) {
+          if (pSource === "trial" || (!pSource && isPremium)) {
+            setIsPremium(false);
+            localStorage.setItem("is_premium", "false");
+            localStorage.removeItem("premium_source");
+            
+            const expMsg = "⏳ 15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
+            triggerToast(expMsg);
+            
+            setNotifications(prev => {
+              const alreadyExists = prev.some(n => n.message.includes("deneme süreniz sona erdi"));
+              if (alreadyExists) return prev;
+              return [
+                {
+                  id: Date.now(),
+                  title: "Deneme Süresi Sona Erdi",
+                  message: "15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.",
+                  time: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+                  date: new Date().toLocaleDateString("tr-TR"),
+                  isRead: false,
+                  type: "warning"
+                },
+                ...prev
+              ];
+            });
+            
+            setIsUpgradeModalOpen(true);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Trial check failed:", e);
+    }
+  };
+
+  const handleActivateTrial = async () => {
+    try {
+      const res = await fetch("/api/trial/activate", { method: "POST" });
+      const data = await res.json();
+      setTrialStatus(data);
+      if (data.isActive) {
+        setIsPremium(true);
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("premium_source", "trial");
+        triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+      }
+    } catch (e) {
+      triggerToast("Deneme sürümü etkinleştirilemedi. Lütfen internet bağlantınızı kontrol edin.");
+    }
+  };
+
+  useEffect(() => {
+    checkTrialStatus();
+  }, []);
+
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly" | "lifetime">("yearly");
   const [isRestoring, setIsRestoring] = useState(false);
@@ -1807,6 +1886,11 @@ export default function App() {
     setSelectedPlan(planType);
     localStorage.setItem("is_premium", premiumState ? "true" : "false");
     localStorage.setItem("premium_plan", planType);
+    if (premiumState) {
+      localStorage.setItem("premium_source", "purchase");
+    } else {
+      localStorage.removeItem("premium_source");
+    }
 
     const fbUser = auth.currentUser;
     if (fbUser) {
@@ -6364,62 +6448,74 @@ export default function App() {
                         </div>
 
                         <div className="space-y-3 pt-1">
-                          {/* Developer Bypass Mode Trigger (Hızlı Lisans Toggling) */}
-                          <div className="p-3 bg-red-500/5 dark:bg-red-500/10 border border-red-500/20 rounded-2xl space-y-1.5 shadow-sm text-center">
+                          {/* 15 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
+                          <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-[9px] font-black uppercase text-red-650 dark:text-red-400 tracking-wider">🛠️ GELİŞTİRİCİ DENEYSEL GEÇİŞİ / BYPASS</span>
-                              <span className="text-[8px] bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.2 rounded font-black uppercase tracking-widest font-mono">AKTİF</span>
+                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 15 GÜNLÜK ÜCRETSİZ DENEME</span>
+                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
                             </div>
-                            <div className="flex gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  savePremiumStatusAndSync(true, selectedPlan);
-                                  triggerToast(`👑 Geliştirici Modu: Bütçem Pro Premium (${selectedPlan === "monthly" ? "Aylık" : selectedPlan === "yearly" ? "Yıllık" : "Süresiz"}) Anında Aktif Edildi!`);
-                                }}
-                                className={`flex-grow py-1.5 px-2.5 font-black text-[9px] uppercase tracking-wider rounded-lg border transition text-center select-none cursor-pointer ${
-                                  isPremium
-                                    ? "bg-emerald-500 text-white border-emerald-600"
-                                    : "bg-red-650 hover:bg-red-700 text-white border-red-750"
-                                }`}
-                              >
-                                {isPremium ? "👑 PRO AKTİF (YENİDEN TETİKLE)" : "🚀 PRO'YU ANINDA AKTİF ET"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  savePremiumStatusAndSync(false, "yearly");
-                                  triggerToast("⭐ Geliştirici Modu: Ücretsiz sürüme geçiş yapıldı.");
-                                }}
-                                className={`py-1.5 px-2 font-black text-[9px] uppercase tracking-wider rounded-lg border transition text-center select-none cursor-pointer ${
-                                  !isPremium
-                                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed"
-                                    : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-900 text-red-550 dark:text-red-400 border-slate-200 dark:border-slate-800"
-                                }`}
-                                disabled={!isPremium}
-                              >
-                                ❌ SIFIRLA
-                              </button>
-                            </div>
+                            
+                            {trialStatus && trialStatus.hasTrial ? (
+                              trialStatus.isActive ? (
+                                <div className="space-y-1 text-center bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20">
+                                  <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
+                                    ✨ DENEME SÜRÜMÜNÜZ AKTİF
+                                  </p>
+                                  <p className="text-[10px] text-indigo-600 dark:text-indigo-450 font-bold">
+                                    Kalan Süre: <span className="font-extrabold text-xs">{trialStatus.daysRemaining} Gün</span>
+                                  </p>
+                                  <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
+                                    Sona Erme: {new Date(trialStatus.endDate || "").toLocaleDateString("tr-TR")}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-1 text-center bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                                  <p className="text-[11px] font-black text-rose-700 dark:text-rose-450 uppercase leading-none">
+                                    ⏳ DENEME SÜRENİZ SONA ERDİ
+                                  </p>
+                                  <p className="text-[10px] text-rose-600 dark:text-rose-450 font-bold leading-normal">
+                                    15 günlük deneme süreniz dolmuştur. Devam etmek için lütfen aşağıdaki paketleri satın alın.
+                                  </p>
+                                </div>
+                              )
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold leading-relaxed uppercase">
+                                  Kredi kartı gerekmeden 15 gün boyunca Bütçem Pro Premium'un tüm ayrıcalıklı özelliklerini ücretsiz kullanabilirsiniz.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={handleActivateTrial}
+                                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
+                                >
+                                  🚀 15 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {isPremium ? (
                             <div className="space-y-2.5">
                               <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-center font-bold text-xs uppercase tracking-tight flex flex-col items-center justify-center gap-1 font-sans">
-                                <span className="font-extrabold text-[12px] tracking-wide">👑 PREMİUM LİSANSINIZ ETKİN</span>
+                                <span className="font-extrabold text-[12px] tracking-wide">
+                                  {localStorage.getItem("premium_source") === "trial" ? "✨ DENEME SÜRÜMÜNÜZ AKTİF" : "👑 LİSANSLI PRO SÜRÜM AKTİF"}
+                                </span>
                                 <span className="text-[10px] bg-emerald-500/10 px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-                                  Aktif Paket: {selectedPlan === "monthly" ? "Aylık Paket" : selectedPlan === "yearly" ? "Yıllık Paket" : "Limitsiz Ömür Boyu"}
+                                  {localStorage.getItem("premium_source") === "trial" 
+                                    ? `Kalan Süre: ${trialStatus?.daysRemaining || 15} Gün` 
+                                    : `Paket: ${selectedPlan === "monthly" ? "Aylık Paket" : selectedPlan === "yearly" ? "Yıllık Paket" : "Limitsiz Ömür Boyu"}`}
                                 </span>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => {
                                   savePremiumStatusAndSync(false, "yearly");
+                                  localStorage.removeItem("premium_source");
                                   triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
                                 }}
                                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-97 border border-dashed border-slate-300 dark:border-slate-700"
                               >
-                                Ücretsiz Sürümü Test Et
+                                Lisansı / Denemeyi Devre Dışı Bırak (Test)
                               </button>
                             </div>
                           ) : (
