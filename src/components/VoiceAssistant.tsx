@@ -31,6 +31,33 @@ function parseVoiceCommandOfflineClient(text: string): any {
     .replace(/lira/gi, "tl")
     .replace(/türk lirası/gi, "tl");
 
+  // Check for deletion first (since it might not contain a number, e.g. "Maaş gelirini sil" or "Ahmet borcunu sil")
+  if (cleanNorm.includes("sil") || cleanNorm.includes("çıkar") || cleanNorm.includes("cikar") || cleanNorm.includes("kaldır") || cleanNorm.includes("kaldir")) {
+    if (cleanNorm.includes("gelir")) {
+      const name = text.replace(/(gelir|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteIncome",
+        deleteIncomeData: { name },
+        explanation: `🔊 Çevrimdışı Analiz: "${name || 'Gelir'}" unvanlı gelir kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    } else if (cleanNorm.includes("borç") || cleanNorm.includes("borc")) {
+      const name = text.replace(/(borç|borc|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteDebt",
+        deleteDebtData: { name },
+        explanation: `🔊 Çevrimdışı Analiz: "${name || 'Borç'}" unvanlı borç kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    } else {
+      // Default assume expense
+      const desc = text.replace(/(harcama|gider|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteExpense",
+        deleteExpenseData: { description: desc },
+        explanation: `🔊 Çevrimdışı Analiz: "${desc || 'Harcama'}" unvanlı harcama kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    }
+  }
+
   // Extract all numbers
   const numMatches = [...cleanNorm.matchAll(/(\d+[\d\s,.]*)/g)];
   if (numMatches.length === 0) {
@@ -212,6 +239,9 @@ interface VoiceAssistantProps {
   onSaveExpense: (expData: any) => void;
   onSaveInstallment: (instData: any) => void;
   onSaveContactTx?: (contactName: string, amount: number, type: "receivable" | "payable", description?: string) => void;
+  onDeleteDebt?: (id: number) => void;
+  onDeleteIncome?: (id: number) => void;
+  onDeleteExpense?: (id: number) => void;
   currentUser?: string | null;
   userApiKey?: string;
   triggerToast: (msg: string) => void;
@@ -229,6 +259,9 @@ export default function VoiceAssistant({
   onSaveExpense,
   onSaveInstallment,
   onSaveContactTx,
+  onDeleteDebt,
+  onDeleteIncome,
+  onDeleteExpense,
   currentUser,
   userApiKey,
   triggerToast,
@@ -616,10 +649,87 @@ export default function VoiceAssistant({
   };
 
   const applyAction = (data: any) => {
-    const { action, debtData, installmentData, expenseData, incomeData, updateDebtData, contactDebtData } = data;
+    const { 
+      action, 
+      debtData, 
+      installmentData, 
+      expenseData, 
+      incomeData, 
+      updateDebtData, 
+      contactDebtData,
+      deleteExpenseData,
+      deleteIncomeData,
+      deleteDebtData
+    } = data;
 
     try {
       switch (action) {
+        case "deleteExpense":
+          if (onDeleteExpense && deleteExpenseData) {
+            const queryDesc = (deleteExpenseData.description || "").toLowerCase().trim();
+            if (queryDesc) {
+              const match = expenses.find(e => e.description.toLowerCase().trim().includes(queryDesc));
+              if (match) {
+                onDeleteExpense(match.id);
+                triggerToast(`"${match.description}" harcaması silindi.`);
+                if (audioEnabled) {
+                  speakText(`"${match.description}" harcaması başarıyla silinmiştir.`);
+                }
+              } else {
+                const failMsg = `"${deleteExpenseData.description}" açıklamalı bir harcama bulunamadı.`;
+                triggerToast(failMsg);
+                if (audioEnabled) speakText(failMsg);
+              }
+            } else {
+              triggerToast("Silinecek harcama adı anlaşılamadı.");
+            }
+          }
+          break;
+
+        case "deleteIncome":
+          if (onDeleteIncome && deleteIncomeData) {
+            const queryName = (deleteIncomeData.name || "").toLowerCase().trim();
+            if (queryName) {
+              const match = incomes.find(i => i.name.toLowerCase().trim().includes(queryName));
+              if (match) {
+                onDeleteIncome(match.id);
+                triggerToast(`"${match.name}" geliri silindi.`);
+                if (audioEnabled) {
+                  speakText(`"${match.name}" geliri başarıyla silinmiştir.`);
+                }
+              } else {
+                const failMsg = `"${deleteIncomeData.name}" açıklamalı bir gelir bulunamadı.`;
+                triggerToast(failMsg);
+                if (audioEnabled) speakText(failMsg);
+              }
+            } else {
+              triggerToast("Silinecek gelir adı anlaşılamadı.");
+            }
+          }
+          break;
+
+        case "deleteDebt":
+          if (onDeleteDebt && deleteDebtData) {
+            const queryName = (deleteDebtData.name || "").toLowerCase().trim();
+            if (queryName) {
+              const match = debts.find(d => d.name.toLowerCase().trim().includes(queryName));
+              if (match) {
+                onDeleteDebt(match.id);
+                triggerToast(`"${match.name}" borcu silindi.`);
+                if (audioEnabled) {
+                  speakText(`"${match.name}" borcu başarıyla silinmiştir.`);
+                }
+              } else {
+                const failMsg = `"${deleteDebtData.name}" isimli bir borç bulunamadı.`;
+                triggerToast(failMsg);
+                if (audioEnabled) speakText(failMsg);
+              }
+            } else {
+              triggerToast("Silinecek borç adı anlaşılamadı.");
+            }
+          }
+          break;
+
         case "addContactDebt":
           if (onSaveContactTx && contactDebtData) {
             const { contactName, amount, type, description } = contactDebtData;

@@ -594,6 +594,33 @@ function parseVoiceCommandOffline(text: string): any {
     .replace(/lira/gi, "tl")
     .replace(/türk lirası/gi, "tl");
 
+  // Check for deletion first (since it might not contain a number, e.g. "Maaş gelirini sil" or "Ahmet borcunu sil")
+  if (cleanNorm.includes("sil") || cleanNorm.includes("çıkar") || cleanNorm.includes("cikar") || cleanNorm.includes("kaldır") || cleanNorm.includes("kaldir")) {
+    if (cleanNorm.includes("gelir")) {
+      const name = text.replace(/(gelir|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteIncome",
+        deleteIncomeData: { name },
+        explanation: `🔊 "${name || 'Gelir'}" isimli gelir kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    } else if (cleanNorm.includes("borç") || cleanNorm.includes("borc")) {
+      const name = text.replace(/(borç|borc|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteDebt",
+        deleteDebtData: { name },
+        explanation: `🔊 "${name || 'Borç'}" isimli borç kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    } else {
+      // Default assume expense
+      const desc = text.replace(/(harcama|gider|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
+      return {
+        action: "deleteExpense",
+        deleteExpenseData: { description: desc },
+        explanation: `🔊 "${desc || 'Harcama'}" isimli harcama kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
+      };
+    }
+  }
+
   // Extract all numbers
   const numMatches = [...cleanNorm.matchAll(/(\d+[\d\s,.]*)/g)];
   if (numMatches.length === 0) {
@@ -792,9 +819,12 @@ app.post("/api/voice-command", async (req, res) => {
       "3. Taksit/Taksitli borç ekleme (addInstallment): 'Koltuk takımı 12000 lira 6 taksit', 'Telefon için 24000 TL 12 taksit', vb.\n" +
       "4. Harcama/Gider ekleme (addExpense): 'Market harcaması 250 lira', 'Benzin aldım 800 TL', 'Yemek 350 lira', vb.\n" +
       "5. Gelir ekleme (addIncome): 'Maaş yattı 35000 lira', 'Kira geliri aldım 15000 TL', vb.\n" +
-      "6. Borç güncelleme / Ödenen kısmı güncelleme (updateDebtPaid): 'Ahmet borcunun ödenen kısmını 500 TL yap', 'Banka kredisi borcunun ödenenini 1000 lira yap', 'Mehmet borcuna 200 TL ödedim' vb.\n\n" +
-      "Senin görevin, söylenen ifadeyi bu 6 eylemden birine sığdırmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'unknown') ve ilgili bilgileri çıkarmaktır. Gerekirse tarihleri bugünün tarihi varsay.\n" +
-      "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Anlaşıldı! Ahmet için kişi defterinize 5.000 ₺ tutarında alacak kaydı başarıyla eklenmiştir.'";
+      "6. Borç güncelleme / Ödenen kısmı güncelleme (updateDebtPaid): 'Ahmet borcunun ödenen kısmını 500 TL yap', 'Banka kredisi borcunun ödenenini 1000 lira yap', 'Mehmet borcuna 200 TL ödedim' vb.\n" +
+      "7. Harcama/Gider silme (deleteExpense): 'Market harcamasını sil', 'Yemek giderini kaldır' vb.\n" +
+      "8. Gelir silme (deleteIncome): 'Maaş gelirini kaldır', 'Kira gelirini sil' vb.\n" +
+      "9. Borç silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kaldır' vb.\n\n" +
+      "Senin görevin, söylenen ifadeyi bu eylemlerden birine sığdırmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri çıkarmaktır. Gerekirse tarihleri bugünün tarihi varsay.\n" +
+      "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Anlaşıldı! Harcama kaydınızı silme işlemini başlatıyorum.'";
 
     const response = await aiClient.models.generateContent({
       model: "gemini-3.5-flash",
@@ -809,7 +839,7 @@ app.post("/api/voice-command", async (req, res) => {
           properties: {
             action: {
               type: Type.STRING,
-              description: "Eylem tipi: 'addDebt', 'addContactDebt', 'addInstallment', 'addExpense', 'addIncome', 'updateDebtPaid' veya bilinmiyorsa 'unknown'."
+              description: "Eylem tipi: 'addDebt', 'addContactDebt', 'addInstallment', 'addExpense', 'addIncome', 'updateDebtPaid', 'deleteExpense', 'deleteIncome', 'deleteDebt' veya bilinmiyorsa 'unknown'."
             },
             contactDebtData: {
               type: Type.OBJECT,
@@ -868,6 +898,27 @@ app.post("/api/voice-command", async (req, res) => {
                 name: { type: Type.STRING, description: "Gelir unvanı/kaynağı" },
                 amount: { type: Type.NUMBER, description: "Tutar" },
                 date: { type: Type.STRING, description: "Gelir tarihi (Format: YYYY-MM-DD)" }
+              }
+            },
+            deleteExpenseData: {
+              type: Type.OBJECT,
+              description: "deleteExpense eylemi için.",
+              properties: {
+                description: { type: Type.STRING, description: "Silinecek harcamanın açıklaması/adı" }
+              }
+            },
+            deleteIncomeData: {
+              type: Type.OBJECT,
+              description: "deleteIncome eylemi için.",
+              properties: {
+                name: { type: Type.STRING, description: "Silinecek gelirin açıklaması/adı" }
+              }
+            },
+            deleteDebtData: {
+              type: Type.OBJECT,
+              description: "deleteDebt eylemi için.",
+              properties: {
+                name: { type: Type.STRING, description: "Silinecek borcun açıklaması/adı" }
               }
             },
             explanation: {

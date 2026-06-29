@@ -6968,6 +6968,9 @@ export default function App() {
           onSaveExpense={handleSaveExpense}
           onSaveInstallment={handleSaveInstallment}
           onSaveContactTx={handleSaveContactTx}
+          onDeleteDebt={handleDeleteDebt}
+          onDeleteIncome={handleDeleteIncome}
+          onDeleteExpense={handleDeleteExpense}
           currentUser={currentUser}
           userApiKey={localStorage.getItem("user_gemini_api_key") || undefined}
           triggerToast={triggerToast}

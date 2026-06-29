@@ -274,7 +274,7 @@ export function FinancialTools({
       </div>
 
       {/* Visual Menu Header Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div className="flex flex-col gap-5 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
         <div className="z-10 w-full text-center md:text-left">
           <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
@@ -286,10 +286,10 @@ export function FinancialTools({
         </div>
 
         {/* Action button mock */}
-        <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl z-10 w-full md:w-auto overflow-x-auto scrollbar-none border border-slate-200/50 dark:border-slate-800/80">
+        <div className="flex flex-wrap gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl z-10 w-full border border-slate-200/50 dark:border-slate-800/80">
           <button
             onClick={() => setActiveSubTab("health")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
+            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "health"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -299,7 +299,7 @@ export function FinancialTools({
           </button>
           <button
             onClick={() => setActiveSubTab("savings")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
+            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "savings"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -310,7 +310,7 @@ export function FinancialTools({
 
           <button
             onClick={() => setActiveSubTab("calendar")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
+            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "calendar"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -320,7 +320,7 @@ export function FinancialTools({
           </button>
           <button
             onClick={() => setActiveSubTab("report")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
+            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "report"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
