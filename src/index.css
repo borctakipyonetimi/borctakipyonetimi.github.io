@@ -245,27 +245,18 @@ html:not(.dark) .text-slate-500 {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
 }
 
-/* Histats Counter Absolute Visibility & Positioning Overlay Styles */
-#histats_counter, #histatsC, div[id*="histats"] {
-  position: fixed !important;
-  bottom: 72px !important; /* Positions nicely above bottom nav bars on mobile, and clearly on desktop */
-  right: 18px !important;
-  z-index: 999999 !important;
+/* Histats Counter Invisible Tracking Styles - Keeping counter in the DOM for background tracking while completely hidden from user */
+#histats_counter, #histatsC, div[id*="histats"], img[src*="histats"] {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
   display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(4px);
-  padding: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-}
-
-.dark #histats_counter, .dark #histatsC, .dark div[id*="histats"] {
-  background: rgba(15, 23, 42, 0.85);
-  border-color: rgba(51, 65, 85, 0.8);
 }
 
 
