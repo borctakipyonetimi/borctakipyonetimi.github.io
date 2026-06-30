@@ -63,7 +63,8 @@ import {
   Info,
   Fuel,
   Coffee,
-  Utensils
+  Utensils,
+  Copy
 } from "lucide-react";
 import {
   Debt,
@@ -3103,7 +3104,7 @@ export default function App() {
     localStorage.setItem("last_backup_export_date", new Date().toISOString());
   };
 
-  const handleDownloadCSV = (startDate?: string, endDate?: string) => {
+  const generateCSVData = (startDate?: string, endDate?: string): { fileName: string; csvContent: string } => {
     const esc = (val: any) => {
       const str = String(val === undefined || val === null ? "" : val);
       return `"${str.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
@@ -3120,16 +3121,20 @@ export default function App() {
     // Filter data based on date ranges
     const filteredIncomes = incomes.filter(inc => isWithinRange(inc.date));
     const filteredExpenses = expenses.filter(exp => isWithinRange(exp.date));
-    const filteredDebts = debts.filter(d => isWithinRange(d.dueDate));
+    const filteredDebts = debts.filter(d => isWithinRange(d.dueDate || d.date));
     const filteredInstallments = installmentDebts.filter(inst => isWithinRange(inst.firstDueDate));
 
-    // Calculate sum statistics for the filtered period
+    // Calculate sum statistics for the filtered period correctly
     const filteredTotalIncome = filteredIncomes.reduce((sum, item) => sum + (item.amount || 0), 0);
     const filteredTotalExpense = filteredExpenses.reduce((sum, item) => sum + (item.amount || 0), 0);
     const filteredTotalDebt = filteredDebts.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const filteredTotalPaid = filteredDebts.reduce((sum, item) => sum + (item.paidAmount || item.paid || 0), 0);
+
+    // Total payments made during this period (covers both simple debts and installments payments recorded in 'payments')
+    const filteredPayments = payments.filter(p => isWithinRange(p.date));
+    const filteredTotalPaid = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+
     const filteredRemainingDebt = filteredTotalDebt - filteredTotalPaid;
-    const filteredNetReserve = filteredTotalIncome - filteredTotalExpense;
+    const filteredNetReserve = filteredTotalIncome - filteredTotalExpense - filteredTotalPaid;
 
     let csvContent = "";
     csvContent += "\uFEFF"; // UTF-8 BOM byte sequence to render Turkish characters elegantly in Excel
@@ -3146,9 +3151,9 @@ export default function App() {
     csvContent += [esc("Gösterge Kalemi"), esc(`Miktar (${activeCurrency})`)].join(";") + "\n";
     csvContent += [esc("Toplam Gelir (Seçilen Dönem)"), esc(format(filteredTotalIncome))].join(";") + "\n";
     csvContent += [esc("Toplam Gider (Seçilen Dönem)"), esc(format(filteredTotalExpense))].join(";") + "\n";
+    csvContent += [esc("Borç Ödemeleri & Taksitler (Seçilen Dönem)"), esc(format(filteredTotalPaid))].join(";") + "\n";
     csvContent += [esc("Net Kalan Rezerv (Seçilen Dönem)"), esc(format(filteredNetReserve))].join(";") + "\n";
     csvContent += [esc("Eklenen Toplam Borç (Seçilen Dönem)"), esc(format(filteredTotalDebt))].join(";") + "\n";
-    csvContent += [esc("Seçilen Dönem Borç Verilen/Ödenen"), esc(format(filteredTotalPaid))].join(";") + "\n";
     csvContent += [esc("Kalan Aktif Borç Payı (Seçilen Dönem)"), esc(format(filteredRemainingDebt))].join(";") + "\n";
     csvContent += "\n";
 
@@ -3220,24 +3225,42 @@ export default function App() {
     const dateSuffix = startDate && endDate ? `${startDate}_${endDate}` : `${new Date().toISOString().split('T')[0]}`;
     const fileName = `Finansal_Rapor_Filtreli_${dateSuffix}.csv`;
 
+    return { fileName, csvContent };
+  };
+
+  const handleDownloadCSV = (startDate?: string, endDate?: string) => {
+    const { fileName, csvContent } = generateCSVData(startDate, endDate);
+
     triggerToast("CSV Finansal Rapor indiriliyor... ⏳");
 
-    // 1. Client-side Blob download (instant, offline compatible, works in all major browsers)
-    try {
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.warn("Local CSV blob download bypassed:", e);
+    // Detect if we are running inside an Android WebView/App context
+    const isWebView = typeof window !== "undefined" && (
+      /wv/i.test(navigator.userAgent) || 
+      /Android.*Version\/[0-9.]+/i.test(navigator.userAgent) ||
+      (window as any).Android ||
+      !(window.Notification)
+    );
+
+    if (!isWebView) {
+      // 1. Standard Web Browser: Download using client-side blob (fast, completely local, avoids extra requests or double downloads)
+      try {
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        triggerToast("Filtrelenmiş Finansal Rapor başarıyla indirildi! 📊");
+        return;
+      } catch (e) {
+        console.warn("Local CSV blob download bypassed, falling back:", e);
+      }
     }
 
-    // 2. Server-side download helper fallback (essential for restrictive Android APK WebViews that block blob: schemes)
+    // 2. Mobile App WebView Fallback: Route through server-side helper
     fetch("/api/temp-backup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3253,13 +3276,21 @@ export default function App() {
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
+        triggerToast("Filtrelenmiş Finansal Rapor başarıyla indirildi! 📊");
+      } else {
+        throw new Error("Temporary download keys missing");
       }
     })
     .catch(err => {
       console.warn("Direct CSV download fallback failed:", err);
+      // In restricted WebViews where file downloads are disabled completely, auto-copy to clipboard as the ultimate safeguard
+      try {
+        navigator.clipboard.writeText(csvContent);
+        triggerToast("📋 Cihaz kısıtlaması nedeniyle rapor panoya kopyalandı! Google Sheets veya Excel'e doğrudan yapıştırabilirsiniz.");
+      } catch (clipErr) {
+        triggerToast("❌ Rapor indirilemedi. Lütfen tarayıcı ayarlarından izin verin.");
+      }
     });
-
-    triggerToast("Filtrelenmiş Finansal Rapor başarıyla indirildi! 📊");
   };
 
   const handleImportBackup = () => {
@@ -5837,12 +5868,13 @@ export default function App() {
           const previewTotalIncome = previewIncomes.reduce((sum, item) => sum + (item.amount || 0), 0);
           const previewTotalExpense = previewExpenses.reduce((sum, item) => sum + (item.amount || 0), 0);
           const previewTotalDebt = previewDebts.reduce((sum, item) => sum + (item.amount || 0), 0);
-          const previewTotalPaid = previewDebts.reduce((sum, d) => {
-            const paidVal = d.paidAmount !== undefined ? d.paidAmount : (d.paid || 0);
-            return sum + (paidVal || 0);
-          }, 0);
+          
+          // Total actual payments made in this range (matching CSV)
+          const previewPayments = payments.filter(p => isWithinRangePreview(p.date));
+          const previewTotalPaid = previewPayments.reduce((sum, p) => sum + p.amount, 0);
+
           const previewRemainingDebt = previewTotalDebt - previewTotalPaid;
-          const previewNetReserve = previewTotalIncome - previewTotalExpense;
+          const previewNetReserve = previewTotalIncome - previewTotalExpense - previewTotalPaid;
 
           const totalRecords = previewIncomes.length + previewExpenses.length + previewDebts.length + previewInstallments.length;
 
@@ -6064,9 +6096,25 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setCsvStep("filter")}
-                        className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer"
+                        className="px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer"
                       >
-                        ⬅ Geri Dön
+                        ⬅ Geri
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const { csvContent } = generateCSVData(csvStartDate, csvEndDate);
+                          try {
+                            navigator.clipboard.writeText(csvContent);
+                            triggerToast("📋 Rapor başarıyla kopyalandı! Excel veya Google Sheets'e yapıştırabilirsiniz.");
+                          } catch (err) {
+                            triggerToast("❌ Kopyalama başarısız oldu.");
+                          }
+                          setIsCsvModalOpen(false);
+                        }}
+                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer border-transparent"
+                      >
+                        <Copy className="w-3.5 h-3.5" /> Panoya Kopyala
                       </button>
                       <button
                         type="button"
@@ -6076,7 +6124,7 @@ export default function App() {
                         }}
                         className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl font-black text-xs transition active:scale-95 flex items-center gap-1.5 shadow-md cursor-pointer border-transparent"
                       >
-                        <Download className="w-4 h-4" /> {language === "tr" ? "Dosyayı İndir (.CSV)" : "Download File (.CSV)"}
+                        <Download className="w-4 h-4" /> {language === "tr" ? "Dosyayı İndir" : "Download"}
                       </button>
                     </>
                   )}
