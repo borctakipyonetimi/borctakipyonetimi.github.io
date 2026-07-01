@@ -5300,6 +5300,7 @@ export default function App() {
             selectedYear={selectedYear}
             expenseCategories={expenseCategories}
             language={language}
+            currentUser={currentUser}
           />
         )}
 

@@ -550,8 +550,11 @@ Kullanıcının güncel bütçe durumu ve mali parametreleri şunlardır:
 - Toplam Aylık Gider: ₺${totalExpense}
 - Kalan Net Gelir (Bakiye): ₺${netIncome}
 - Taksitli Borç Sayısı: ${context?.installmentDebts?.length || 0}
-- Borç Listesi Detayı: ${JSON.stringify(context?.debts || [])}
+- Taksitli Borç Detayı: ${JSON.stringify(context?.installmentDebts || [])}
+- Standart Borç Listesi Detayı: ${JSON.stringify(context?.debts || [])}
 - Giderler Listesi Detayı: ${JSON.stringify(context?.expenses || [])}
+- Rehber Kişi Borçları ve Alacakları: ${JSON.stringify(context?.contactTransactions || [])}
+- Rehber Kişileri Listesi: ${JSON.stringify(context?.contacts || [])}
 
 Görevlerin ve Davranış Kuralların:
 1. Gelir/gider dengesini ve kalan borç durumunu analiz et, kullanıcının risk seviyesini (Yüksek Risk, Orta Seviye, Güvenli) belirle ve rasyonel yorumlar yap.

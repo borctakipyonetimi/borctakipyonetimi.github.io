@@ -20,6 +20,7 @@ interface AIChatProps {
   selectedYear?: number | null;
   expenseCategories?: { id: number; name: string; color?: string }[];
   language?: "tr" | "en";
+  currentUser?: string | null;
 }
 
 const TURKISH_MONTHS = [
@@ -115,8 +116,38 @@ export const AIChat: React.FC<AIChatProps> = ({
   selectedYear = new Date().getFullYear(),
   expenseCategories = [],
   language = "tr",
+  currentUser,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
+  
+  // Contacts and Contact Transactions from LocalStorage
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactTxs, setContactTxs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+    const savedC = localStorage.getItem(`${spaceKey}_contacts_directory`);
+    const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+    if (savedC) {
+      try {
+        setContacts(JSON.parse(savedC));
+      } catch (e) {
+        console.error("Error parsing contacts directory in AIChat:", e);
+      }
+    } else {
+      setContacts([]);
+    }
+    if (savedT) {
+      try {
+        setContactTxs(JSON.parse(savedT));
+      } catch (e) {
+        console.error("Error parsing contact transactions in AIChat:", e);
+      }
+    } else {
+      setContactTxs([]);
+    }
+  }, [currentUser]);
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       sender: "bot",
@@ -222,10 +253,36 @@ export const AIChat: React.FC<AIChatProps> = ({
       reply += `📊 **${monthName.toUpperCase()} ${yNum} - DETAYLI AYLIK ANALİZ RAPORU** 📊\n\n`;
       reply += `Sistemimizdeki bütçe kayıtlarınızı bizzat tarayarak **${monthName} ${yNum}** dönemi gider kategorilerinizin kıyaslamasını çıkardım:\n\n`;
 
+      const totalDebtsRem = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
+      const totalInstsRem = installmentDebts.reduce((sum, inst) => {
+        const perInst = inst.totalAmount / inst.installmentCount;
+        const remCount = inst.installmentCount - inst.paidInstallmentCount;
+        return sum + (remCount * perInst);
+      }, 0);
+      let contactPayablesRem = 0;
+      let contactReceivablesRem = 0;
+      contactTxs.forEach((tx) => {
+        if (!tx.isPaid) {
+          if (tx.type === "payable") {
+            contactPayablesRem += tx.amount;
+          } else if (tx.type === "receivable") {
+            contactReceivablesRem += tx.amount;
+          }
+        }
+      });
+      const totalLiabilities = totalDebtsRem + totalInstsRem + contactPayablesRem;
+
       reply += `### 💵 Aylık Mali Durum Özeti\n`;
       reply += `• **Toplam Gelir**: ₺${tIncome.toLocaleString("tr-TR")}\n`;
       reply += `• **Toplam Gider**: ₺${tExpense.toLocaleString("tr-TR")}\n`;
       reply += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Fazla Veriyor" : "🔴 Açık Veriyor"})\n\n`;
+
+      reply += `### 💸 Aktif Borç ve Yükümlülük Durumu\n`;
+      reply += `• **Nakit Borçlar (Kalan Toplam)**: ₺${totalDebtsRem.toLocaleString("tr-TR")}\n`;
+      reply += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${totalInstsRem.toLocaleString("tr-TR")}\n`;
+      reply += `• **Kişi Borçları (Verecek - Kalan)**: ₺${contactPayablesRem.toLocaleString("tr-TR")}\n`;
+      reply += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n`;
+      reply += `• **Genel Toplam Borç Yükü**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
 
       if (mExpenses.length === 0) {
         reply += `🚨 **Harcama Uyarısı**: Bu seçili ay için kaydedilmiş herhangi bir harcama kalemi bulunamadı. Lütfen analiz için harcamalarınızı girin.\n`;
@@ -467,6 +524,8 @@ export const AIChat: React.FC<AIChatProps> = ({
             expenses,
             installmentDebts,
             stats,
+            contacts,
+            contactTransactions: contactTxs,
           },
           chatHistory: messages.slice(-10),
           userApiKey: userApiKey,
@@ -547,7 +606,45 @@ export const AIChat: React.FC<AIChatProps> = ({
     const totalMonthlyExpense = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
     const totalMonthlyIncome = monthlyIncomes.reduce((sum, i) => sum + i.amount, 0);
 
-    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun.
+    // Standard debts
+    let debtsDetailsStr = "";
+    if (debts && debts.length > 0) {
+      debts.forEach((d) => {
+        const rem = d.amount - d.paid;
+        debtsDetailsStr += `- ${d.name} (${d.category}): Toplam ₺${d.amount.toLocaleString("tr-TR")}, Ödenen: ₺${d.paid.toLocaleString("tr-TR")}, Kalan Borç: ₺${rem.toLocaleString("tr-TR")} (Vade: ${d.dueDate || "Belirtilmemiş"})\n`;
+      });
+    } else {
+      debtsDetailsStr = "- Kayıtlı standart borç bulunmamaktadır.\n";
+    }
+
+    // Installment debts
+    let installmentDetailsStr = "";
+    if (installmentDebts && installmentDebts.length > 0) {
+      installmentDebts.forEach((inst) => {
+        const perInstallment = inst.totalAmount / inst.installmentCount;
+        const remCount = inst.installmentCount - inst.paidInstallmentCount;
+        const remAmount = inst.totalAmount - (inst.paidInstallmentCount * perInstallment);
+        installmentDetailsStr += `- ${inst.name}: Toplam ₺${inst.totalAmount.toLocaleString("tr-TR")}, Taksit: ${inst.installmentCount} ay x ₺${perInstallment.toLocaleString("tr-TR")}, Ödenen: ${inst.paidInstallmentCount} taksit, Kalan Taksit: ${remCount} ay (Kalan Tutar: ₺${remAmount.toLocaleString("tr-TR")})\n`;
+      });
+    } else {
+      installmentDetailsStr = "- Kayıtlı taksitli borç bulunmamaktadır.\n";
+    }
+
+    // Contact/person debts
+    let contactDebtsDetailsStr = "";
+    if (contactTxs && contactTxs.length > 0) {
+      contactTxs.forEach((tx) => {
+        const contact = contacts.find((c) => c.id === tx.contactId);
+        const contactName = contact ? contact.name : "Bilinmeyen Kişi";
+        const typeStr = tx.type === "payable" ? "Borcumuz var (Verecek)" : "Alacağımız var (Alacak)";
+        const statusStr = tx.isPaid ? "Ödendi" : "Açık (Ödenmedi)";
+        contactDebtsDetailsStr += `- Kişi: ${contactName}, Tür: ${typeStr}, Miktar: ₺${tx.amount.toLocaleString("tr-TR")}, Durum: ${statusStr}, Açıklama: ${tx.description || "Yok"} (Vade: ${tx.dueDate || "Belirtilmemiş"})\n`;
+      });
+    } else {
+      contactDebtsDetailsStr = "- Kayıtlı kişi borcu/alacağı bulunmamaktadır.\n";
+    }
+
+    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun. Ayrıca, bütçeme ek olarak aşağıda detayları verilen tüm borçlarımı (standart borçlar, taksitli borçlar, kişi borçları vb.) analiz et, borç durumumu ve borç erteleme/kapatma önceliklerimi (Kartopu veya Avalanche yöntemlerine göre hangisi uygunsa) de rapora dahil et.
 
 Aylık Finansal Durum Özetim:
 - Toplam Gelir: ₺${totalMonthlyIncome.toLocaleString("tr-TR")}
@@ -556,7 +653,17 @@ Aylık Finansal Durum Özetim:
 
 Kategori Bazlı Harcama Dağılımım:
 ${categoryDetailsStr}
-Lütfen bunları karşılaştırarak hangisinin en fazla harcama yükü oluşturduğunu, ideal 50/30/20 bütçe kuralına göre durumumu ve tasarruf edebileceğim kritik alanları detaylandır.`;
+
+Mevcut Aktif Standart Borçlarım:
+${debtsDetailsStr}
+
+Mevcut Taksitli Borçlarım:
+${installmentDetailsStr}
+
+Mevcut Kişi Borçları ve Alacaklarım (Rehber Kayıtları):
+${contactDebtsDetailsStr}
+
+Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart borçlar, taksitli borçlar ve kişi borçları/alacakları) bir bütün olarak analiz et. Bütçemin ideal 50/30/20 kuralına uygunluğunu değerlendir ve borçlarımı kapatmak için bana özel rasyonel bir yol haritası sun.`;
 
     handleSend(prompt);
   };
