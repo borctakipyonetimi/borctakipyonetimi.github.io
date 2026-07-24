@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { DoughnutChart, BarChart } from "./BudgetCharts";
@@ -173,28 +173,60 @@ export const DebtList: React.FC<DebtListProps> = ({
     ? [...unifiedUnpaidDebts].sort((a,b) => b.remaining - a.remaining)[0]
     : null;
 
+  // Helper: Copy debt entry to selected month
+  const handleCopyDebtToMonth = (d: Debt) => {
+    const targetYear = selectedYear !== null ? selectedYear : new Date().getFullYear();
+    const targetMonth = selectedMonth !== null ? selectedMonth : new Date().getMonth();
+
+    let day = "15";
+    if (d.dueDate) {
+      try {
+        const parts = d.dueDate.split("-");
+        if (parts.length === 3) day = parts[2];
+      } catch {}
+    }
+    const monthStr = String(targetMonth + 1).padStart(2, "0");
+    const newDueDate = `${targetYear}-${monthStr}-${day}`;
+
+    onSaveDebt({
+      name: `${d.name}`,
+      amount: d.amount,
+      paid: 0,
+      category: d.category,
+      dueDate: newDueDate,
+    });
+  };
+
   const filteredDebts = [...debts]
     .filter((d) => {
       // 1. Tab filter
       if (activeTab === "unpaid" && d.paid >= d.amount) return false;
       if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. Period filter (Keep all debts visible across months as requested, regardless of paid status)
+      // 2. "TÜM BORÇ LİSTESİ" ("all") shows all master debt items without period exclusion
+      if (activeTab === "all") return true;
+
+      // 3. Period filter for "unpaid" and "paid" tabs
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
         try {
           const dDate = new Date(d.dueDate);
           const dMonth = dDate.getMonth();
           const dYear = dDate.getFullYear();
-          
-          if (dMonth === selectedMonth && dYear === selectedYear) {
-            return true;
+
+          if (activeTab === "paid") {
+            // In "Ödenmiş" tab, only show debts that belong to the selected month & year
+            return dMonth === selectedMonth && dYear === selectedYear;
           }
-          
-          const selectedTime = selectedYear * 12 + selectedMonth;
-          const dueTime = dYear * 12 + dMonth;
-          // Show debt in its due month and all future/other months, whether paid or unpaid
-          return selectedTime >= dueTime || true;
+
+          if (activeTab === "unpaid") {
+            // In "Ödenmemiş" tab, show debts for selected month OR overdue unpaid debts from previous months
+            const selectedTime = selectedYear * 12 + selectedMonth;
+            const dueTime = dYear * 12 + dMonth;
+            const isDueInSelectedMonth = dMonth === selectedMonth && dYear === selectedYear;
+            const isOverdue = selectedTime > dueTime && d.paid < d.amount;
+            return isDueInSelectedMonth || isOverdue;
+          }
         } catch {
           return true;
         }
@@ -1107,7 +1139,7 @@ export const DebtList: React.FC<DebtListProps> = ({
               activeTab === "all" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
-            📂 HEPSİ
+            📂 TÜM BORÇ LİSTESİ
           </button>
         </div>
 
@@ -1193,6 +1225,15 @@ export const DebtList: React.FC<DebtListProps> = ({
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] font-bold rounded-full">
                             📁 {d.category}
                           </span>
+                          {isPaid ? (
+                            <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/30">
+                              🟢 Ödendi
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-rose-100/70 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full border border-rose-500/20">
+                              🔴 Ödenmedi
+                            </span>
+                          )}
                           {isOverdue && (
                             <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-[10px] font-black rounded-full border border-rose-500/30 flex items-center gap-1 animate-pulse shrink-0 uppercase tracking-tight">
                               ⚠️ Vadesi Geçmiş
@@ -1216,15 +1257,25 @@ export const DebtList: React.FC<DebtListProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 sm:self-center">
+                      <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:self-center">
+                        <button
+                          onClick={() => handleCopyDebtToMonth(d)}
+                          title="Bu borcu seçilen döneme/aya ödenmemiş olarak kopyala"
+                          className="px-2.5 py-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Aya Kopyala</span>
+                        </button>
                         <button
                           onClick={() => handleOpenEdit(d)}
+                          title="Borcu Düzenle"
                           className="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDeleteDebt(d.id)}
+                          title="Borcu Sil"
                           className="p-2 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1263,7 +1314,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                               </motion.span>
                             )}
                           </AnimatePresence>
-                          <span>{isPaid ? "Ödeme Geri Al" : "Ödendi Yap"}</span>
+                          <span>{isPaid ? "Ödenmemiş Yap" : "Ödendi Yap"}</span>
                         </motion.button>
                       </div>
                     </motion.div>
