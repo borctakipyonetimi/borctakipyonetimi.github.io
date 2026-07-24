@@ -74,6 +74,25 @@ export function FinancialTools({
     localStorage.setItem(`${spaceKey}_savings_goals`, JSON.stringify(savingsGoals));
   }, [savingsGoals, spaceKey]);
 
+  // Load Contacts and Transactions for Report inclusion
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactTxs, setContactTxs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const savedC = localStorage.getItem(`${spaceKey}_contacts_directory`);
+    const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+    if (savedC) {
+      try { setContacts(JSON.parse(savedC)); } catch {}
+    } else {
+      setContacts([]);
+    }
+    if (savedT) {
+      try { setContactTxs(JSON.parse(savedT)); } catch {}
+    } else {
+      setContactTxs([]);
+    }
+  }, [spaceKey]);
+
   // Savings inputs
   const [newGoalName, setNewGoalName] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
@@ -107,7 +126,23 @@ export function FinancialTools({
     const paidValue = inst.paidInstallmentCount * monthly;
     return sum + (inst.totalAmount - paidValue);
   }, 0);
-  const grandTotalRemainingDebt = simpleUnpaidDebt + installmentUnpaidDebt;
+  const bankAndInstallmentDebt = simpleUnpaidDebt + installmentUnpaidDebt;
+
+  // Person debts
+  const contactPayablesRemaining = contactTxs.reduce((sum, tx) => {
+    if (!tx.isPaid && tx.type === "payable") {
+      return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+  const contactReceivablesRemaining = contactTxs.reduce((sum, tx) => {
+    if (!tx.isPaid && tx.type === "receivable") {
+      return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+
+  const grandTotalRemainingDebt = bankAndInstallmentDebt + contactPayablesRemaining;
 
   // BUDGET HEALTH SCORE (Algorithm: 0 to 100)
   const calculateBudgetScore = () => {
@@ -1151,31 +1186,45 @@ export function FinancialTools({
               </div>
 
               {/* Data Summary Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gelir Akışı</span>
-                  <strong className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gelir</span>
+                  <strong className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
                     {format(totalIncomesSum)}
                   </strong>
                 </div>
 
-                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Harcamalar</span>
-                  <strong className="text-sm font-black text-rose-500 mt-1 block">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gider</span>
+                  <strong className="text-xs font-black text-rose-500 mt-1 block">
                     {format(totalExpensesSum)}
                   </strong>
                 </div>
 
-                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kalan Borç Portföyü</span>
-                  <strong className="text-sm font-black text-orange-500 mt-1 block">
-                    {format(grandTotalRemainingDebt)}
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Banka Borçları</span>
+                  <strong className="text-xs font-black text-orange-500 mt-1 block">
+                    {format(bankAndInstallmentDebt)}
                   </strong>
                 </div>
 
-                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bütçe Sağlık Skoru</span>
-                  <strong className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kişi Borçları</span>
+                  <strong className="text-xs font-black text-red-500 dark:text-red-400 mt-1 block">
+                    {format(contactPayablesRemaining)}
+                  </strong>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kişi Alacakları</span>
+                  <strong className="text-xs font-black text-sky-600 dark:text-sky-400 mt-1 block">
+                    {format(contactReceivablesRemaining)}
+                  </strong>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bütçe Sağlık Skoru</span>
+                  <strong className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                     {healthScore} / 100
                   </strong>
                 </div>
@@ -1184,28 +1233,41 @@ export function FinancialTools({
               {/* Active Debts Detail Sheet */}
               <div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  1. KALAN AKTİF BORÇLAR dökümü
+                  1. KALAN AKTİF BORÇLAR VE YÜKÜMLÜLÜKLER DÖKÜMÜ
                 </h3>
-                {debts.length === 0 && installmentDebts.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">Kayıtlı aktif borç veya taksitli borç tespit edilmedi.</p>
+                {debts.length === 0 && installmentDebts.length === 0 && contactTxs.filter(tx => !tx.isPaid).length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">Kayıtlı aktif borç, taksit veya kişi borcu tespit edilmedi.</p>
                 ) : (
                   <div className="space-y-2">
+                    {/* Bank & Credit Card Debts */}
                     {debts.map(d => (
                       <div key={d.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
-                        <span className="text-slate-700 dark:text-slate-300 font-bold">{d.name} ({d.category})</span>
+                        <span className="text-slate-700 dark:text-slate-300 font-bold">💳 {d.name} ({d.category})</span>
                         <span className="font-mono text-slate-600 dark:text-slate-400">Kalan: {format(d.amount - d.paid)} / Toplam: {format(d.amount)}</span>
                       </div>
                     ))}
+                    {/* Installment Loans */}
                     {installmentDebts.map(inst => {
                       const monthly = inst.totalAmount / inst.installmentCount;
                       const paidValue = inst.paidInstallmentCount * monthly;
                       return (
                         <div key={inst.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
-                          <span className="text-slate-700 dark:text-slate-300 font-bold">{inst.name} (Taksitli Borç)</span>
+                          <span className="text-slate-700 dark:text-slate-300 font-bold">🗓️ {inst.name} (Taksitli Borç)</span>
                           <span className="font-mono text-slate-600 dark:text-slate-400">Kalan: {format(inst.totalAmount - paidValue)} / Toplam: {format(inst.totalAmount)}</span>
                         </div>
                       );
                     })}
+                    {/* Person-to-Person Debts and Receivables */}
+                    {contactTxs.filter(tx => !tx.isPaid).map(tx => (
+                      <div key={tx.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
+                        <span className="text-slate-700 dark:text-slate-300 font-bold">
+                          👤 {tx.contactName} ({tx.type === "payable" ? "Kişiye Verecek Borç" : "Kişiden Alacak"})
+                        </span>
+                        <span className="font-mono text-slate-600 dark:text-slate-400">
+                          {tx.type === "payable" ? "Borç: " : "Alacak: "} {format(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

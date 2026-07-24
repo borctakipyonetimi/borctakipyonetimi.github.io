@@ -179,7 +179,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       if (activeTab === "unpaid" && d.paid >= d.amount) return false;
       if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. Period filter
+      // 2. Period filter (Keep all debts visible across months as requested, regardless of paid status)
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
         try {
@@ -193,8 +193,8 @@ export const DebtList: React.FC<DebtListProps> = ({
           
           const selectedTime = selectedYear * 12 + selectedMonth;
           const dueTime = dYear * 12 + dMonth;
-          const isUnpaid = d.paid < d.amount;
-          return selectedTime > dueTime && isUnpaid;
+          // Show debt in its due month and all future/other months, whether paid or unpaid
+          return selectedTime >= dueTime || true;
         } catch {
           return true;
         }
