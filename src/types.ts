@@ -87,5 +87,6 @@ export interface FinancialStats {
   netIncome: number;
   thisMonthTotalBorc: number;
   thisMonthKalanBorc: number;
+  thisMonthPaidBorc?: number;
   carryOverBalance?: number;
 }

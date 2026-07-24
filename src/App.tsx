@@ -2145,7 +2145,7 @@ export default function App() {
     const periodSimpleDebtRemaining = simpleDebtsInSelectedMonth.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
 
     // Actual payments logged during this month for simple debts
-    const periodSimpleDebtPaidThisMonth = payments.filter((p) => {
+    let periodSimpleDebtPaidThisMonth = payments.filter((p) => {
       if (p.type !== "manual") return false;
       if (selectedMonth === null || selectedYear === null) return true;
       try {
@@ -2153,6 +2153,21 @@ export default function App() {
         return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
       } catch { return false; }
     }).reduce((sum, p) => sum + p.amount, 0);
+
+    // Fallback: simple debts due in selected month that are paid (without separate payment log)
+    debts.forEach((d) => {
+      if (selectedMonth !== null && selectedYear !== null && d.paid > 0 && d.dueDate) {
+        try {
+          const dDate = new Date(d.dueDate);
+          if (dDate.getMonth() === selectedMonth && dDate.getFullYear() === selectedYear) {
+            const hasLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
+            if (!hasLog) {
+              periodSimpleDebtPaidThisMonth += d.paid;
+            }
+          }
+        } catch {}
+      }
+    });
 
     const periodSimpleDebtTotal = periodSimpleDebtRemaining + periodSimpleDebtPaidThisMonth;
 
@@ -2172,7 +2187,7 @@ export default function App() {
       return sum;
     }, 0);
 
-    const periodInstallmentPaidThisMonth = payments.filter((p) => {
+    let periodInstallmentPaidThisMonth = payments.filter((p) => {
       if (p.type !== "installment") return false;
       if (selectedMonth === null || selectedYear === null) return true;
       try {
@@ -2180,6 +2195,32 @@ export default function App() {
         return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
       } catch { return false; }
     }).reduce((sum, p) => sum + p.amount, 0);
+
+    // Fallback: installment active in selected month that is paid for that month (without separate payment log)
+    installmentDebts.forEach((inst) => {
+      if (selectedMonth !== null && selectedYear !== null && inst.firstDueDate) {
+        try {
+          const startDate = new Date(inst.firstDueDate);
+          const startYear = startDate.getFullYear();
+          const startMonth = startDate.getMonth();
+          const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
+          const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
+          const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
+          if (isActiveThisMonth && isPaidThisMonth) {
+            const hasLog = payments.some((p) => {
+              if (p.type !== "installment" || p.debtId !== inst.id) return false;
+              try {
+                const pDate = new Date(p.date);
+                return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
+              } catch { return false; }
+            });
+            if (!hasLog) {
+              periodInstallmentPaidThisMonth += (inst.totalAmount / (inst.installmentCount || 1));
+            }
+          }
+        } catch {}
+      }
+    });
 
     const periodInstallmentTotal = periodInstallmentRemaining + periodInstallmentPaidThisMonth;
 
@@ -2352,6 +2393,7 @@ export default function App() {
       netIncome: netIncomeValue,
       thisMonthTotalBorc: computedThisMonthTotalBorc,
       thisMonthKalanBorc: computedThisMonthKalanBorc,
+      thisMonthPaidBorc: computedThisMonthPaidBorc,
       carryOverBalance: carryOverBalance
     };
 

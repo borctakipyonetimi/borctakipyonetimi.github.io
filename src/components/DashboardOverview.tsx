@@ -166,8 +166,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   ];
 
   const paidRemainingData = [
-    { label: "Ödenen Borç", value: stats.totalPaid, color: "#10b981" },
-    { label: "Kalan Borç", value: stats.remaining, color: "#ef4444" },
+    { label: selectedMonth !== null ? "Bu Ay Ödenen" : "Ödenen Borç", value: selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid, color: "#10b981" },
+    { label: selectedMonth !== null ? "Bu Ay Kalan" : "Kalan Borç", value: selectedMonth !== null ? stats.thisMonthKalanBorc : stats.remaining, color: "#ef4444" },
   ];
 
   const trendLabels = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran"];
@@ -614,9 +614,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
         <div className="p-4 bg-emerald-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-lg transition flex flex-col items-center justify-center text-center min-h-[100px]">
           <span className="text-[10px] font-bold text-emerald-100 block uppercase tracking-wide">
-            {language === "tr" ? "ÖDENMİŞ KISIM" : "TOTAL REPAID"}
+            {language === "tr"
+              ? (selectedMonth !== null ? "BU AY ÖDENEN KISIM" : "ÖDENMİŞ KISIM")
+              : (selectedMonth !== null ? "REPAID THIS MONTH" : "TOTAL REPAID")}
           </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalPaid)}</p>
+          <p className="text-sm sm:text-lg font-black font-mono">
+            {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid)}
+          </p>
         </div>
 
         <div className="flex flex-col gap-3 h-full justify-between">
