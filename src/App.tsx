@@ -394,6 +394,10 @@ export default function App() {
   // CSV Report Filter modal states
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
+  // Export Backup File Name Modal states
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFileNameInput, setExportFileNameInput] = useState("borçtakip listesi");
+
   // For APK / WebView Export-Import Safeguard
   const [webViewExportOpen, setWebViewExportOpen] = useState(false);
   const [webViewExportTitle, setWebViewExportTitle] = useState("");
@@ -3075,7 +3079,7 @@ export default function App() {
     }
   };
 
-  const handleExportBackup = () => {
+  const executeExportBackup = (customName?: string) => {
     const contactsKey = `${spaceKey}_contacts_directory`;
     const contactTxsKey = `${spaceKey}_contacts_transactions`;
     
@@ -3103,9 +3107,11 @@ export default function App() {
     };
     
     const jsonString = JSON.stringify(bag, null, 2);
-    const fileName = `borc_takip_yedek_${currentUser || "kullanici"}.json`;
+    let rawName = (customName || exportFileNameInput || "borçtakip listesi").trim();
+    if (!rawName) rawName = "borçtakip listesi";
+    const fileName = rawName.toLowerCase().endsWith(".json") ? rawName : `${rawName}.json`;
 
-    triggerToast("Veri Yedeği hazırlanıyor ve indiriliyor... 📥");
+    triggerToast(`Veri Yedeği (${fileName}) indiriliyor... 📥`);
 
     // 1. Client-side Blob download (instant, offline compatible, works in all major browsers)
     try {
@@ -3117,6 +3123,7 @@ export default function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(localUrl);
     } catch (e) {
       console.warn("Local blob download bypassed:", e);
     }
@@ -3144,6 +3151,15 @@ export default function App() {
     });
 
     localStorage.setItem("last_backup_export_date", new Date().toISOString());
+  };
+
+  const handleExportBackup = (directName?: string) => {
+    if (typeof directName === "string" && directName.trim()) {
+      executeExportBackup(directName);
+    } else {
+      setExportFileNameInput("borçtakip listesi");
+      setIsExportModalOpen(true);
+    }
   };
 
   const generateCSVData = (startDate?: string, endDate?: string): { fileName: string; csvContent: string } => {
@@ -7145,6 +7161,109 @@ export default function App() {
       {!isUnlocked && (
         <SecurityLockOverlay onUnlockSuccess={() => setIsUnlocked(true)} />
       )}
+
+      {/* Export File Name Prompt Modal */}
+      <AnimatePresence>
+        {isExportModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2020] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-xl backdrop-blur-xs">
+                    <Download className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black tracking-wide">VERİ YEDEĞİNİ DIŞA AKTAR</h2>
+                    <p className="text-[10px] text-indigo-100 font-medium">Dosyanıza isim verebilir veya varsayılan ismi kullanabilirsiniz</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  executeExportBackup(exportFileNameInput);
+                  setIsExportModalOpen(false);
+                }}
+                className="p-6 space-y-4 text-xs"
+              >
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    DOSYA ADI
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={exportFileNameInput}
+                      onChange={(e) => setExportFileNameInput(e.target.value)}
+                      placeholder="borçtakip listesi"
+                      className="w-full pl-3.5 pr-16 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                      autoFocus
+                    />
+                    <span className="absolute right-3 text-[10px] font-black font-mono text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded-md uppercase">
+                      .json
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    💡 İsterseniz dosya ismini değiştirebilirsiniz. (.json uzantısı otomatik eklenecektir)
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2">
+                  <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block tracking-wider">
+                    YEDEKLECEK VERİ ÖZETİ
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                      <span>{debts.length} Borç Kaydı</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>{incomes.length} Gelir Kaydı</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span>{expenses.length} Gider Kaydı</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span>{installmentDebts.length} Taksit Planı</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsExportModalOpen(false)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-xs rounded-xl transition cursor-pointer"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95 cursor-pointer shadow-md flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" /> İndir / Dışa Aktar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* WebView Export Portal Modal */}
       <AnimatePresence>
