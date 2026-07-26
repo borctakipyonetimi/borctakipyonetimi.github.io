@@ -53,17 +53,17 @@ const getSuggestedCategory = (desc: string, expenseCategories: ExpenseCategory[]
   if (!d) return null;
 
   const keywordMap: { [key: string]: string[] } = {
-    "Kira": ["kira", "ev", "depozito", "apartman", "rent", "konut", "ev kirası", "oda", "hause"],
-    "Market": ["market", "manav", "kasap", "bakkal", "gıda", "gida", "alışveriş", "alisveris", "deterjan", "şampuan", "getir", "migros", "carrefour", "bim", "şok", "a101", "file", "tekel", "ekmek", "süt", "sut", "peynir", "yoğurt", "yogurt", "sebze", "meyve", "et", "tavuk", "grocery", "gros", "supermarket"],
-    "Ulaşım": ["ulaşım", "ulasim", "otobüs", "otobus", "metro", "akbil", "bilet", "taksi", "uber", "yakıt", "yakit", "benzin", "otogaz", "dizel", "shell", "opet", "petrol", "otoyol", "köprü", "kopru", "hgs", "mavi kart", "bilet", "uçak", "ucak", "tren", "otopark", "car", "travel", "gas", "fuel", "bus", "taxi", "yolculuk"],
-    "Yeme İçme": ["yemek", "restoran", "lokanta", "cafe", "kafe", "kahve", "starbucks", "burger", "pizza", "kebap", "döner", "doner", "yemeksepeti", "trendyol yemek", "dominos", "tatlı", "tatli", "akşam yemeği", "öğle yemeği", "kahvaltı", "kahvalti", "çay", "cay", "tatlı", "tatli", "dürüm", "durum", "iskender", "lahmacun", "restaurant", "coffee", "lunch", "dinner", "breakfast", "food", "tatlı", "tatlici", "borek", "pide"],
-    "Faturalar": ["fatura", "elektrik", "su", "doğalgaz", "dogalgaz", "gaz", "internet", "telefon", "türk telekom", "turk telekom", "turkcell", "vodafone", "netflix", "spotify", "youtube", "tv", "uydu", "d-smart", "digiturk", "görüntülü", "fiber", "adsl", "bill", "invoice", "gsm", "wifi", "abonelik", "subscription"],
-    "Eğitim": ["okul", "kurs", "kitap", "kırtasiye", "kirtasiye", "eğitim", "egitim", "school", "education", "dergi", "kalem", "defter", "üniversite", "universite", "harç", "harc", "ödev", "odev", "ders"],
-    "Sağlık": ["sağlık", "saglik", "hastane", "ilaç", "ilac", "eczane", "doktor", "reçete", "recete", "health", "hospital", "pharmacy", "medicine", "diş", "dis", "tedavi", "klinik", "sağlık ocağı", "saglik ocagi"],
-    "Giyim": ["giyim", "elbise", "ayakkabı", "ayakkabi", "pantolon", "tişört", "tisort", "mont", "ceket", "kıyafet", "kiyafet", "h&m", "zara", "lcw", "koton", "mavi", "clothes", "shoes", "wear", "tarz"],
-    "Eğlence": ["sinema", "konser", "tiyatro", "tiyatro", "bilet", "eğlence", "eglence", "oyun", "steam", "playstation", "xbox", "pubg", "bira", "alkol", "bar", "pub", "müzik", "muzik", "fun", "game", "movie", "cinema"],
-    "Kişisel Bakım": ["kuaför", "kuafor", "berber", "saç", "sac", "sakal", "bakım", "bakim", "parfüm", "parfum", "makyaj", "kozmetik", "beauty", "hair", "shampoo", "güzellik", "guzellik", "salon", "masaj"],
-    "Spor": ["spor", "gym", "fitness", "üyelik", "uyelik", "antrenman", "protein", "ayakkabı", "ayakkabi", "nike", "adidas", "puma", "spor salonu", "spor salonu", "sport"]
+    "Kira": ["kira", "ev", "depozito", "apartman", "rent", "konut", "ev kirası", "oda", "hause", "site aidatı", "aidat", "emlak", "site"],
+    "Market": ["market", "manav", "kasap", "bakkal", "gıda", "gida", "alışveriş", "alisveris", "deterjan", "şampuan", "getir", "migros", "carrefour", "bim", "şok", "a101", "file", "tekel", "ekmek", "süt", "sut", "peynir", "yoğurt", "yogurt", "sebze", "meyve", "et", "tavuk", "grocery", "gros", "supermarket", "sanal market", "iste gelsin", "istegelsin", "hepsiburada", "trendyol", "pazar", "mutfak"],
+    "Ulaşım": ["ulaşım", "ulasim", "otobüs", "otobus", "metro", "marmaray", "akbil", "bilet", "taksi", "uber", "yakıt", "yakit", "benzin", "otogaz", "dizel", "lpg", "shell", "opet", "petrol", "bp", "po", "otoyol", "köprü", "kopru", "hgs", "ogs", "mavi kart", "uçak", "ucak", "tren", "otopark", "car", "travel", "gas", "fuel", "bus", "taxi", "yolculuk", "martı", "scooter", "otoban"],
+    "Yeme İçme": ["yemek", "restoran", "lokanta", "cafe", "kafe", "kahve", "starbucks", "burger", "pizza", "kebap", "döner", "doner", "yemeksepeti", "trendyol yemek", "dominos", "tatlı", "tatli", "akşam yemeği", "öğle yemeği", "kahvaltı", "kahvalti", "çay", "cay", "dürüm", "durum", "iskender", "lahmacun", "restaurant", "coffee", "lunch", "dinner", "breakfast", "food", "tatlici", "borek", "pide", "tost", "çorba", "corba", "simit", "köfte", "pideci"],
+    "Faturalar": ["fatura", "elektrik", "su", "doğalgaz", "dogalgaz", "gaz", "internet", "telefon", "türk telekom", "turk telekom", "turkcell", "vodafone", "netflix", "spotify", "youtube", "tv", "uydu", "d-smart", "digiturk", "exxen", "blutv", "görüntülü", "fiber", "adsl", "bill", "invoice", "gsm", "wifi", "abonelik", "subscription", "chatai", "chatgpt", "midjourney", "icould", "google drive"],
+    "Eğitim": ["okul", "kurs", "kitap", "kırtasiye", "kirtasiye", "eğitim", "egitim", "school", "education", "dergi", "kalem", "defter", "üniversite", "universite", "harç", "harc", "ödev", "odev", "ders", "udemy", "coursera", "sınav"],
+    "Sağlık": ["sağlık", "saglik", "hastane", "ilaç", "ilac", "eczane", "doktor", "reçete", "recete", "health", "hospital", "pharmacy", "medicine", "diş", "dis", "tedavi", "klinik", "sağlık ocağı", "saglik ocagi", "muayene", "tahlil", "lens", "gözlük"],
+    "Giyim": ["giyim", "elbise", "ayakkabı", "ayakkabi", "pantolon", "tişört", "tisort", "mont", "ceket", "kıyafet", "kiyafet", "h&m", "zara", "lcw", "koton", "mavi", "clothes", "shoes", "wear", "tarz", "defacto", "stradivarius", "pull&bear", "bershka", "trendyol man"],
+    "Eğlence": ["sinema", "konser", "tiyatro", "bilet", "eğlence", "eglence", "oyun", "steam", "playstation", "xbox", "pubg", "bira", "alkol", "bar", "pub", "müzik", "muzik", "fun", "game", "movie", "cinema", "etkinlik", "biletix", "passo"],
+    "Kişisel Bakım": ["kuaför", "kuafor", "berber", "saç", "sac", "sakal", "bakım", "bakim", "parfüm", "parfum", "makyaj", "kozmetik", "beauty", "hair", "shampoo", "güzellik", "guzellik", "salon", "masaj", "gratis", "watsons", "rossmann", "cilt"],
+    "Spor": ["spor", "gym", "fitness", "üyelik", "uyelik", "antrenman", "protein", "nike", "adidas", "puma", "spor salonu", "sport", "macfit", "decathlon", "pasifik"]
   };
 
   // First check if any keyword directly triggers a category name match from our mappings
@@ -1730,21 +1730,39 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                  HARCAMA AÇIKLAMASI
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                    HARCAMA AÇIKLAMASI
+                  </label>
+                  <span className="text-[9px] font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-800/40">
+                    <Sparkles className="w-2.5 h-2.5 text-indigo-500 animate-pulse" />
+                    AI Otomatik Kategori Önerisi
+                  </span>
+                </div>
                 <input
                   type="text"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Market faturası, yakıt vb."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                  }}
+                  placeholder="Örn: Migros market alışverişi, benzin, Starbucks kahve..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition"
                 />
-                {suggestedCategory && (
-                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-lg px-2 py-1 animate-fade-in">
-                    <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
-                      💡 Öneri: <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{suggestedCategory.icon} {suggestedCategory.name}</span>
-                    </span>
+                {suggestedCategory ? (
+                  <div className="mt-2 p-2.5 bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-indigo-50/80 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/50 rounded-xl flex items-center justify-between gap-2 shadow-xs animate-fade-in">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="p-1.5 bg-indigo-600 text-white rounded-lg text-xs shrink-0 shadow-xs">
+                        🤖
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block leading-none">
+                          AI Algılanan Kategori:
+                        </span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block mt-0.5">
+                          {suggestedCategory.icon || "🛒"} {suggestedCategory.name}
+                        </span>
+                      </div>
+                    </div>
                     {categoryId !== suggestedCategory.id ? (
                       <button
                         type="button"
@@ -1752,17 +1770,23 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           setCategoryId(suggestedCategory.id);
                           setIsCategoryManuallySelected(true);
                         }}
-                        className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-black tracking-wide rounded-md transition cursor-pointer"
+                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-black tracking-wide rounded-lg transition cursor-pointer shrink-0 shadow-xs flex items-center gap-1"
                       >
-                        Uygula
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Kategoriye Uygula</span>
                       </button>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-black flex items-center gap-0.5 text-[9px]">
-                        ✓ Uygulandı
+                      <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black flex items-center gap-1 text-[10px] rounded-lg shrink-0">
+                        <Check className="w-3 h-3" /> Seçildi
                       </span>
                     )}
                   </div>
-                )}
+                ) : description.trim().length >= 2 ? (
+                  <div className="mt-1.5 text-[9.5px] text-slate-400 dark:text-slate-500 italic flex items-center gap-1 px-1">
+                    <Sparkles className="w-2.5 h-2.5 text-slate-400" />
+                    <span>AI açıklamanıza uygun en iyi kategoriyi eşleştiriyor...</span>
+                  </div>
+                ) : null}
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
