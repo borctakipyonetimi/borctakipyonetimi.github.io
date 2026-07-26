@@ -19,6 +19,8 @@ import {
   X,
   Lightbulb,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Expense, ExpenseCategory } from "../types";
@@ -40,6 +42,10 @@ interface ExpensesListProps {
   isPremium?: boolean;
   onUpgradeClick?: () => void;
   language?: "tr" | "en";
+  selectedMonth?: number | null;
+  selectedYear?: number | null;
+  setSelectedMonth?: (month: number | null) => void;
+  setSelectedYear?: (year: number | null) => void;
 }
 
 const getSuggestedCategory = (desc: string, expenseCategories: ExpenseCategory[]): ExpenseCategory | null => {
@@ -336,15 +342,102 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   isPremium = false,
   onUpgradeClick,
   language = "tr",
+  selectedMonth,
+  selectedYear,
+  setSelectedMonth,
+  setSelectedYear,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
   
   // Selected Month filter state (defaults to current year & month, e.g. "2026-05")
   const [selectedMonthStr, setSelectedMonthStr] = useState<string>(() => {
+    if (selectedMonth !== undefined && selectedYear !== undefined && selectedMonth !== null && selectedYear !== null) {
+      return `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+    }
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+
+  // Sync state if parent props change
+  useEffect(() => {
+    if (selectedMonth !== undefined && selectedYear !== undefined) {
+      if (selectedMonth === null || selectedYear === null) {
+        setSelectedMonthStr("all");
+      } else {
+        setSelectedMonthStr(`${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`);
+      }
+    }
+  }, [selectedMonth, selectedYear]);
+
+  // Month Navigation Handlers
+  const handlePrevMonth = () => {
+    if (selectedMonthStr === "all") {
+      const now = new Date();
+      const curVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      setSelectedMonthStr(curVal);
+      if (setSelectedMonth && setSelectedYear) {
+        setSelectedMonth(now.getMonth());
+        setSelectedYear(now.getFullYear());
+      }
+      return;
+    }
+    const parts = selectedMonthStr.split("-");
+    if (parts.length === 2) {
+      let y = parseInt(parts[0], 10);
+      let m = parseInt(parts[1], 10);
+      m--;
+      if (m < 1) {
+        m = 12;
+        y--;
+      }
+      const newVal = `${y}-${String(m).padStart(2, "0")}`;
+      setSelectedMonthStr(newVal);
+      if (setSelectedMonth && setSelectedYear) {
+        setSelectedMonth(m - 1);
+        setSelectedYear(y);
+      }
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonthStr === "all") {
+      const now = new Date();
+      const curVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      setSelectedMonthStr(curVal);
+      if (setSelectedMonth && setSelectedYear) {
+        setSelectedMonth(now.getMonth());
+        setSelectedYear(now.getFullYear());
+      }
+      return;
+    }
+    const parts = selectedMonthStr.split("-");
+    if (parts.length === 2) {
+      let y = parseInt(parts[0], 10);
+      let m = parseInt(parts[1], 10);
+      m++;
+      if (m > 12) {
+        m = 1;
+        y++;
+      }
+      const newVal = `${y}-${String(m).padStart(2, "0")}`;
+      setSelectedMonthStr(newVal);
+      if (setSelectedMonth && setSelectedYear) {
+        setSelectedMonth(m - 1);
+        setSelectedYear(y);
+      }
+    }
+  };
+
+  const handleGoToCurrentMonth = () => {
+    const now = new Date();
+    const curVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonthStr(curVal);
+    if (setSelectedMonth && setSelectedYear) {
+      setSelectedMonth(now.getMonth());
+      setSelectedYear(now.getFullYear());
+    }
+  };
 
   // Saving Advice / Tip Popover State
   const [showTipCategory, setShowTipCategory] =
@@ -604,17 +697,26 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setDragOverIndex(null);
   };
 
+  // Helper to extract YYYY-MM safely from any date string without timezone offsets
+  const getExpenseYearMonth = (dateStr: string): string => {
+    if (!dateStr) return "";
+    if (/^\d{4}-\d{2}/.test(dateStr)) {
+      return dateStr.slice(0, 7);
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    } catch {
+      return "";
+    }
+  };
+
   // Dynamically filter expenses according to the selected month (e.g. YYYY-MM)
   const filteredMonthExpenses = expenses.filter((e) => {
     if (selectedMonthStr === "all") return true;
     if (!e.date) return false;
-    try {
-      const eDate = new Date(e.date);
-      const val = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, "0")}`;
-      return val === selectedMonthStr;
-    } catch {
-      return false;
-    }
+    return getExpenseYearMonth(e.date) === selectedMonthStr;
   });
 
   const totalExpenses = filteredMonthExpenses.reduce((s, e) => s + e.amount, 0);
@@ -672,18 +774,15 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       currentDate.getMonth() - i,
       1,
     );
-    const year = d.getFullYear();
+    const targetYearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const monthIndex = d.getMonth();
 
     const monthlySum = expenses
-      .filter((e) => {
-        const eDate = new Date(e.date);
-        return eDate.getFullYear() === year && eDate.getMonth() === monthIndex;
-      })
+      .filter((e) => getExpenseYearMonth(e.date) === targetYearMonth)
       .reduce((sum, item) => sum + item.amount, 0);
 
     last6MonthsData.push({
-      label: `${monthsList[monthIndex]} ${year}`,
+      label: `${monthsList[monthIndex]} ${d.getFullYear()}`,
       value: monthlySum,
       color: "#ec4899", // Pembe/rose renk tonu
     });
@@ -694,30 +793,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 
   const categoryCurrentMonthTotals: Record<number, number> = {};
   expenseCategories.forEach((cat) => {
-    categoryCurrentMonthTotals[cat.id] = expenses
-      .filter((e) => {
-        if (!e.date) return false;
-        const eDate = new Date(e.date);
-        return (
-          eDate.getFullYear() === currentYear &&
-          eDate.getMonth() === currentMonthIndex &&
-          e.categoryId === cat.id
-        );
-      })
-      .reduce((sum, item) => sum + item.amount, 0);
+    categoryCurrentMonthTotals[cat.id] = categoryTotals[cat.id] || 0;
   });
 
   // Calculate current month's overall expenses total and load budget goal from local storage
-  const currentMonthExpensesTotal = expenses
-    .filter((e) => {
-      if (!e.date) return false;
-      const eDate = new Date(e.date);
-      return (
-        eDate.getFullYear() === currentYear &&
-        eDate.getMonth() === currentMonthIndex
-      );
-    })
-    .reduce((sum, item) => sum + item.amount, 0);
+  const currentMonthExpensesTotal = filteredMonthExpenses.reduce((sum, item) => sum + item.amount, 0);
 
   const budgetGoal = (() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
@@ -793,28 +873,63 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         </div>
       </div>
 
-      {/* Month Selection Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-rose-500" />
-          <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">HARCAMA DÖNEMİ SEÇİN:</span>
+      {/* Month Selection Bar with Prev/Next Arrow Buttons */}
+      <div className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-xl">
+            <Calendar className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">HARCAMA DÖNEMİ SEÇİN</span>
+            <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+              {selectedMonthStr === "all"
+                ? "Tüm Zamanlar"
+                : (() => {
+                    const [y, m] = selectedMonthStr.split("-");
+                    const mIdx = parseInt(m, 10) - 1;
+                    return `${monthsList[mIdx] || ""} ${y}`;
+                  })()}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Previous Month Arrow */}
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+            title="Önceki Ay"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {/* Month Selector Dropdown */}
           <select
             value={selectedMonthStr}
-            onChange={(e) => setSelectedMonthStr(e.target.value)}
-            className="w-full sm:w-56 px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-white rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-500 font-extrabold cursor-pointer transition"
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedMonthStr(val);
+              if (val !== "all" && setSelectedMonth && setSelectedYear) {
+                const [y, m] = val.split("-");
+                setSelectedMonth(parseInt(m, 10) - 1);
+                setSelectedYear(parseInt(y, 10));
+              } else if (val === "all" && setSelectedMonth && setSelectedYear) {
+                setSelectedMonth(null);
+                setSelectedYear(null);
+              }
+            }}
+            className="w-full sm:w-52 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/30 font-black cursor-pointer transition text-center"
           >
             <option value="all">📅 Tüm Zamanlar</option>
             {(() => {
               const options: { value: string; label: string }[] = [];
               const now = new Date();
-              const startYear = now.getFullYear() - 1;
-              const endYear = now.getFullYear();
+              const startYear = now.getFullYear() - 2;
+              const endYear = now.getFullYear() + 1;
               
               for (let y = startYear; y <= endYear; y++) {
-                const maxMonth = y === endYear ? now.getMonth() + 2 : 11;
-                for (let m = 0; m <= maxMonth; m++) {
+                for (let m = 0; m <= 11; m++) {
                   const mStr = String(m + 1).padStart(2, "0");
                   const val = `${y}-${mStr}`;
                   const label = `${monthsList[m]} ${y}`;
@@ -824,19 +939,19 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               
               // Append any extra dates present in actual loaded expenses
               expenses.forEach(e => {
-                if (e.date) {
-                  try {
-                    const d = new Date(e.date);
-                    if (!isNaN(d.getTime())) {
-                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                      if (!options.some(opt => opt.value === val)) {
-                        options.push({
-                          value: val,
-                          label: `${monthsList[d.getMonth()]} ${d.getFullYear()}`
-                        });
-                      }
+                const ym = getExpenseYearMonth(e.date);
+                if (ym && ym.includes("-")) {
+                  const [y, m] = ym.split("-");
+                  const mIdx = parseInt(m, 10) - 1;
+                  if (mIdx >= 0 && mIdx < 12) {
+                    const val = `${y}-${m.padStart(2, "0")}`;
+                    if (!options.some(opt => opt.value === val)) {
+                      options.push({
+                        value: val,
+                        label: `${monthsList[mIdx]} ${y}`
+                      });
                     }
-                  } catch (e) {}
+                  }
                 }
               });
               
@@ -850,6 +965,26 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               ));
             })()}
           </select>
+
+          {/* Next Month Arrow */}
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+            title="Sonraki Ay"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          {/* Current Month Quick Button */}
+          <button
+            type="button"
+            onClick={handleGoToCurrentMonth}
+            className="px-2.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider transition active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ml-1"
+            title="Bu Aya Git"
+          >
+            BU AY
+          </button>
         </div>
       </div>
 

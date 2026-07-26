@@ -4834,7 +4834,7 @@ export default function App() {
 
         {activeTab === "expenses" && (
           <ExpensesList
-            expenses={filteredExpensesByMonth}
+            expenses={expenses}
             expenseCategories={expenseCategories}
             onSaveExpense={handleSaveExpense}
             onDeleteExpense={handleDeleteExpense}
@@ -4845,6 +4845,10 @@ export default function App() {
             isPremium={isPremium}
             onUpgradeClick={() => setIsUpgradeModalOpen(true)}
             language={language}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            setSelectedMonth={setSelectedMonth}
+            setSelectedYear={setSelectedYear}
           />
         )}
 
