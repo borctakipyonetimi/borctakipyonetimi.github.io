@@ -2285,8 +2285,7 @@ export default function App() {
     const computedThisMonthPaidBorc = periodSimpleDebtPaidThisMonth + periodInstallmentPaidThisMonth + (periodContactPayablesTotal - periodContactPayablesRemaining);
     const computedThisMonthTotalBorc = computedThisMonthKalanBorc + computedThisMonthPaidBorc;
 
-    const totalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
-    const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
+    const baseTotalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
 
     // Carryover balance (Devreden Bakiye) accumulator from all months prior to selectedMonth & selectedYear
     let carryOverBalance = 0;
@@ -2355,7 +2354,8 @@ export default function App() {
         }, 0);
 
         const monthlyNet = incTotalComp - expTotalComp - payTotalComp;
-        carryOverBalance += monthlyNet;
+        // Clamp to 0 so negative balances are not carried over
+        carryOverBalance = Math.max(0, carryOverBalance + monthlyNet);
 
         loopMonthComp++;
         if (loopMonthComp > 11) {
@@ -2365,9 +2365,12 @@ export default function App() {
       }
     }
 
-    // Net reserve capacity specifically for the selected month (including carry over from prior months)
+    const totalIncome = baseTotalIncome + carryOverBalance;
+    const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
+
+    // Net reserve capacity specifically for the selected month
     const currentMonthPaidBorc = computedThisMonthTotalBorc - computedThisMonthKalanBorc;
-    const netIncomeValue = totalIncome - totalExpense - currentMonthPaidBorc + carryOverBalance;
+    const netIncomeValue = totalIncome - totalExpense - currentMonthPaidBorc;
 
     const currentMonthTotalPaymentsCount = filteredPaymentsForStats.length;
 

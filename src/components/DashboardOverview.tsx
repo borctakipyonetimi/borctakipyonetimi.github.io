@@ -644,9 +644,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             {language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}
           </span>
           <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalIncome)}</p>
-          {stats.carryOverBalance !== undefined && stats.carryOverBalance !== 0 && (
+          {stats.carryOverBalance !== undefined && stats.carryOverBalance > 0 && (
             <span className="text-[9px] text-blue-100 font-extrabold block bg-blue-700/50 px-2 py-0.5 rounded-lg mt-1">
-              {translate("Önceki Aydan Devreden")}: {format(stats.carryOverBalance)}
+              {language === "tr" ? `Önceki Aydan Devir: +${format(stats.carryOverBalance)}` : `Carried Over: +${format(stats.carryOverBalance)}`}
             </span>
           )}
         </div>
@@ -663,11 +663,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             {language === "tr" ? "NET KALAN REZERV" : "NET SURPLUS VALUE"}
           </span>
           <p className="text-sm sm:text-lg font-black font-mono">{format(stats.netIncome)}</p>
-          {stats.carryOverBalance !== undefined && stats.carryOverBalance !== 0 && (
-            <span className="text-[9px] text-indigo-100 font-extrabold block bg-white/10 px-2 py-0.5 rounded-lg mt-1">
-              {language === "tr" ? `Devreden: +${format(stats.carryOverBalance)}` : `Carried Over: +${format(stats.carryOverBalance)}`}
-            </span>
-          )}
         </div>
       </div>
 

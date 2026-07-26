@@ -150,7 +150,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
           <span>Aylık Toplam Gelir Kazancı:</span>
           <span className="text-base text-emerald-600 dark:text-emerald-400 font-mono">{format(totalIncomes)}</span>
         </div>
-        {carryOverBalance !== undefined && carryOverBalance !== 0 && (
+        {carryOverBalance !== undefined && carryOverBalance > 0 && (
           <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-950 dark:text-indigo-300 rounded-2xl flex items-center justify-between font-bold text-xs border border-indigo-100/30">
             <span>Önceki Aydan Devreden Nakit:</span>
             <span className="text-base text-indigo-600 dark:text-indigo-400 font-mono">{format(carryOverBalance)}</span>
