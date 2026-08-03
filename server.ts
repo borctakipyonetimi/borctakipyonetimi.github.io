@@ -672,8 +672,69 @@ Görevlerin ve Davranış Kuralların:
   }
 });
 
+function convertTurkishWordsToNumbersServer(text: string): string {
+  let result = text;
+  const explicitPhrases: [RegExp, string][] = [
+    [/(\b)bir milyon(\b)/gi, "1000000"],
+    [/(\b)yüz elli bin(\b)/gi, "150000"],
+    [/(\b)yüz bin(\b)/gi, "100000"],
+    [/(\b)elli bin(\b)/gi, "50000"],
+    [/(\b)kırk bin(\b)/gi, "40000"],
+    [/(\b)otuz bin(\b)/gi, "30000"],
+    [/(\b)yirmi bin(\b)/gi, "20000"],
+    [/(\b)on bin(\b)/gi, "10000"],
+    [/(\b)dokuz bin(\b)/gi, "9000"],
+    [/(\b)sekiz bin(\b)/gi, "8000"],
+    [/(\b)yedi bin(\b)/gi, "7000"],
+    [/(\b)altı bin(\b)/gi, "6000"],
+    [/(\b)beş bin(\b)/gi, "5000"],
+    [/(\b)dört bin(\b)/gi, "4000"],
+    [/(\b)üç bin(\b)/gi, "3000"],
+    [/(\b)iki bin(\b)/gi, "2000"],
+    [/(\b)bin(\b)/gi, "1000"],
+    [/(\b)beş yüz(\b)/gi, "500"],
+    [/(\b)yedi yüz elli(\b)/gi, "750"],
+    [/(\b)yedi yüz(\b)/gi, "700"],
+    [/(\b)sekiz yüz(\b)/gi, "800"],
+    [/(\b)dokuz yüz(\b)/gi, "900"],
+    [/(\b)dört yüz(\b)/gi, "400"],
+    [/(\b)üç yüz(\b)/gi, "300"],
+    [/(\b)iki yüz(\b)/gi, "200"],
+    [/(\b)yüz(\b)/gi, "100"],
+    [/(\b)on iki(\b)/gi, "12"],
+    [/(\b)on altı(\b)/gi, "16"],
+    [/(\b)on sekiz(\b)/gi, "18"],
+    [/(\b)yirmi dört(\b)/gi, "24"],
+    [/(\b)otuz altı(\b)/gi, "36"]
+  ];
+
+  explicitPhrases.forEach(([regex, replacement]) => {
+    result = result.replace(regex, replacement);
+  });
+
+  return result;
+}
+
+function cleanTurkishPersonNameServer(rawName: string): string {
+  let name = rawName.trim();
+  if (name.includes("'") || name.includes("’")) {
+    name = name.split(/['"’]/)[0].trim();
+  }
+  name = name.replace(/(den|dan|ten|tan|nin|nın|nun|nün|ye|ya|de|da|te|ta|e|a)$/gi, (match, suffix, offset, fullStr) => {
+    if (fullStr.length - match.length >= 3) {
+      return "";
+    }
+    return match;
+  });
+  if (name.length > 0) {
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  return name;
+}
+
 // Resilient Offline Voice command parser for Turkish
-function parseVoiceCommandOffline(text: string): any {
+function parseVoiceCommandOffline(rawText: string): any {
+  const text = convertTurkishWordsToNumbersServer(rawText);
   const norm = text.toLowerCase().trim();
   
   // Clean text of punctuation and replace some typical Turkish speech transcription artifacts
@@ -794,7 +855,7 @@ function parseVoiceCommandOffline(text: string): any {
     let debtName = "";
     const matchName = text.match(/^(.*?)(?:borç|borc|ödenen|ode|yap|güncelle|tutar|miktar)/i);
     if (matchName && matchName[1].trim().length > 1) {
-      debtName = matchName[1].replace(/['"’]/g, "").trim();
+      debtName = cleanTurkishPersonNameServer(matchName[1]);
     }
 
     if (debtName) {
@@ -811,15 +872,16 @@ function parseVoiceCommandOffline(text: string): any {
   }
 
   // 4. Debt/Borç (borç, borc, verecek, borçlandım, aldım, borclandim, borçlandık, borclandik, alacak)
-  if (cleanNorm.includes("borç") || cleanNorm.includes("borc") || cleanNorm.includes("borçlandım") || cleanNorm.includes("borclandim") || cleanNorm.includes("borçlandık") || cleanNorm.includes("borclandik") || cleanNorm.includes("verecek") || cleanNorm.includes("alacak")) {
+  if (cleanNorm.includes("borç") || cleanNorm.includes("borc") || cleanNorm.includes("borçlandım") || cleanNorm.includes("borclandim") || cleanNorm.includes("borçlandık") || cleanNorm.includes("borclandik") || cleanNorm.includes("verecek") || cleanNorm.includes("alacak") || cleanNorm.includes("borcum")) {
     let name = "Sesli Borç";
-    const cleanedName = text.replace(/\d+/g, "").replace(/(borç|borc|tl|türk lirası|lira|₺|ekle|kaydet|borçlandım|borclandim|borçlandık|borclandik|için|icin|verecek|alacak|verdim|aldım)/gi, "").trim();
+    const cleanedName = text.replace(/\d+/g, "").replace(/(borç|borc|tl|türk lirası|lira|₺|ekle|kaydet|borçlandım|borclandim|borçlandık|borclandik|için|icin|verecek|alacak|verdim|aldım|borcum)/gi, "").trim();
     if (cleanedName.length > 2) {
       name = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
     }
 
-    const baseName = name.split(/['"’\s-]/)[0].replace(/[0-9]/g, "");
-    const isPerson = cleanNorm.includes("borç verdim") || cleanNorm.includes("borç aldım") || cleanNorm.includes("alacağım") || cleanNorm.includes("alacagim") || cleanNorm.includes("borcum") || cleanNorm.includes("vereceğim") || cleanNorm.includes("verecegim") || (cleanedName.length < 25 && !cleanNorm.includes("banka") && !cleanNorm.includes("kart") && !cleanNorm.includes("kredi"));
+    const rawBaseName = name.split(/['"’\s-]/)[0].replace(/[0-9]/g, "");
+    const baseName = cleanTurkishPersonNameServer(rawBaseName);
+    const isPerson = cleanNorm.includes("verdim") || cleanNorm.includes("aldım") || cleanNorm.includes("alacağım") || cleanNorm.includes("alacagim") || cleanNorm.includes("borcum") || cleanNorm.includes("vereceğim") || cleanNorm.includes("verecegim") || (cleanedName.length < 25 && !cleanNorm.includes("banka") && !cleanNorm.includes("kart") && !cleanNorm.includes("kredi"));
 
     if (isPerson && baseName.length > 1) {
       const isReceivable = cleanNorm.includes("verdim") || cleanNorm.includes("alacak") || cleanNorm.includes("alacağım") || cleanNorm.includes("alacagim") || cleanNorm.includes("bana borç") || cleanNorm.includes("bana borc");
@@ -837,13 +899,19 @@ function parseVoiceCommandOffline(text: string): any {
       };
     }
 
+    let debtCategory = "Şahıs";
+    if (cleanNorm.includes("banka") || cleanNorm.includes("kredi")) debtCategory = "Banka";
+    else if (cleanNorm.includes("kart")) debtCategory = "Kredi Kartı";
+    else if (cleanNorm.includes("fatura")) debtCategory = "Fatura";
+    else if (cleanNorm.includes("aidat")) debtCategory = "Aidat";
+
     return {
       action: "addDebt",
       debtData: {
         name,
         amount,
         paid: 0,
-        category: "Şahıs",
+        category: debtCategory,
         dueDate: new Date().toISOString().slice(0, 10)
       },
       explanation: `🔊 Çevrimdışı Mod: "${name}" olarak ₺${amount} değerinde yeni bir borç eklenmiştir.`
