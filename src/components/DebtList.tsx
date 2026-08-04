@@ -69,11 +69,13 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [activeTab, setActiveTab] = useState<"unpaid" | "paid" | "all">("unpaid");
   const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
   const itemsPerPage = 8;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, sortBy]);
+    setSelectedDebtIds([]);
+  }, [activeTab, sortBy, selectedMonth, selectedYear]);
   
   // Edit & Add Dialog states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -173,28 +175,59 @@ export const DebtList: React.FC<DebtListProps> = ({
     ? [...unifiedUnpaidDebts].sort((a,b) => b.remaining - a.remaining)[0]
     : null;
 
-  // Helper: Copy debt entry to selected month
-  const handleCopyDebtToMonth = (d: Debt) => {
+  const MONTH_NAMES = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ];
+
+  const handleSelectAllDebts = () => {
+    if (selectedDebtIds.length === filteredDebts.length) {
+      setSelectedDebtIds([]);
+    } else {
+      setSelectedDebtIds(filteredDebts.map((d) => d.id));
+    }
+  };
+
+  const handleToggleSelectDebt = (id: number) => {
+    if (selectedDebtIds.includes(id)) {
+      setSelectedDebtIds(selectedDebtIds.filter((item) => item !== id));
+    } else {
+      setSelectedDebtIds([...selectedDebtIds, id]);
+    }
+  };
+
+  const handleBulkAddSelectedToMonth = () => {
+    if (selectedDebtIds.length === 0) return;
     const targetYear = selectedYear !== null ? selectedYear : new Date().getFullYear();
     const targetMonth = selectedMonth !== null ? selectedMonth : new Date().getMonth();
-
-    let day = "15";
-    if (d.dueDate) {
-      try {
-        const parts = d.dueDate.split("-");
-        if (parts.length === 3) day = parts[2];
-      } catch {}
-    }
     const monthStr = String(targetMonth + 1).padStart(2, "0");
-    const newDueDate = `${targetYear}-${monthStr}-${day}`;
 
-    onSaveDebt({
-      name: `${d.name}`,
-      amount: d.amount,
-      paid: 0,
-      category: d.category,
-      dueDate: newDueDate,
+    let addedCount = 0;
+    selectedDebtIds.forEach((id) => {
+      const d = debts.find((item) => item.id === id);
+      if (d) {
+        let day = "15";
+        if (d.dueDate) {
+          try {
+            const parts = d.dueDate.split("-");
+            if (parts.length === 3) day = parts[2];
+          } catch {}
+        }
+        const newDueDate = `${targetYear}-${monthStr}-${day}`;
+
+        onSaveDebt({
+          name: d.name,
+          amount: d.amount,
+          paid: 0,
+          category: d.category,
+          dueDate: newDueDate,
+        });
+        addedCount++;
+      }
     });
+
+    setSelectedDebtIds([]);
+    alert(`Seçilen ${addedCount} borç ${MONTH_NAMES[targetMonth]} ${targetYear} ödenmemiş borçlarına eklendi! 📋`);
   };
 
   const filteredDebts = [...debts]
@@ -206,7 +239,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       // 2. "TÜM BORÇ LİSTESİ" ("all") shows all master debt items without period exclusion
       if (activeTab === "all") return true;
 
-      // 3. Period filter for "unpaid" and "paid" tabs
+      // 3. Period filter for "unpaid" and "paid" tabs: strictly match selected month & year
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
         try {
@@ -214,19 +247,7 @@ export const DebtList: React.FC<DebtListProps> = ({
           const dMonth = dDate.getMonth();
           const dYear = dDate.getFullYear();
 
-          if (activeTab === "paid") {
-            // In "Ödenmiş" tab, only show debts that belong to the selected month & year
-            return dMonth === selectedMonth && dYear === selectedYear;
-          }
-
-          if (activeTab === "unpaid") {
-            // In "Ödenmemiş" tab, show debts for selected month OR overdue unpaid debts from previous months
-            const selectedTime = selectedYear * 12 + selectedMonth;
-            const dueTime = dYear * 12 + dMonth;
-            const isDueInSelectedMonth = dMonth === selectedMonth && dYear === selectedYear;
-            const isOverdue = selectedTime > dueTime && d.paid < d.amount;
-            return isDueInSelectedMonth || isOverdue;
-          }
+          return dMonth === selectedMonth && dYear === selectedYear;
         } catch {
           return true;
         }
@@ -1162,6 +1183,40 @@ export const DebtList: React.FC<DebtListProps> = ({
         </div>
       </div>
 
+      {/* Bulk selection action bar for "Tüm Borçlar" tab */}
+      {activeTab === "all" && filteredDebts.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-indigo-50/70 dark:bg-slate-800 border border-indigo-200/80 dark:border-slate-700 rounded-2xl mb-1">
+          <button
+            onClick={handleSelectAllDebts}
+            className="px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={selectedDebtIds.length > 0 && selectedDebtIds.length === filteredDebts.length}
+              onChange={() => {}}
+              className="w-3.5 h-3.5 text-indigo-600 rounded cursor-pointer pointer-events-none"
+            />
+            <span>{selectedDebtIds.length === filteredDebts.length ? "Seçimleri Kaldır" : "Tümünü Seç"}</span>
+          </button>
+
+          {selectedDebtIds.length > 0 ? (
+            <button
+              onClick={handleBulkAddSelectedToMonth}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-indigo-600/20 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>
+                Seçilen {selectedDebtIds.length} Borcu ({MONTH_NAMES[selectedMonthVal]} {selectedYearVal}) Ödenmemiş Borçlarına Ekle
+              </span>
+            </button>
+          ) : (
+            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold italic">
+              💡 Ödenmemiş borçlara toplu eklemek istediklerinizi sol kutucuktan seçebilirsiniz.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Debt Cards Listing */}
       <div className="space-y-3">
         {filteredDebts.length === 0 ? (
@@ -1219,6 +1274,19 @@ export const DebtList: React.FC<DebtListProps> = ({
                           <BellRing className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" />
                         </div>
                       )}
+
+                      {/* Checkbox for selection in Tüm Borçlar tab */}
+                      {activeTab === "all" && (
+                        <div className="shrink-0 flex items-center pr-1 sm:pr-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedDebtIds.includes(d.id)}
+                            onChange={() => handleToggleSelectDebt(d.id)}
+                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </div>
+                      )}
+
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center flex-wrap gap-2 text-slate-800 dark:text-slate-100">
                           <span className="font-bold text-sm">{d.name}</span>
@@ -1258,14 +1326,6 @@ export const DebtList: React.FC<DebtListProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:self-center">
-                        <button
-                          onClick={() => handleCopyDebtToMonth(d)}
-                          title="Bu borcu seçilen döneme/aya ödenmemiş olarak kopyala"
-                          className="px-2.5 py-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Aya Kopyala</span>
-                        </button>
                         <button
                           onClick={() => handleOpenEdit(d)}
                           title="Borcu Düzenle"

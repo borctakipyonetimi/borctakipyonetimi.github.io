@@ -2136,13 +2136,7 @@ export default function App() {
         const dDate = new Date(d.dueDate);
         const dMonth = dDate.getMonth();
         const dYear = dDate.getFullYear();
-        
-        if (dYear === selectedYear && dMonth === selectedMonth) return true;
-        
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const dueTime = dYear * 12 + dMonth;
-        const isUnpaid = d.paid < d.amount;
-        return selectedTime > dueTime && isUnpaid;
+        return dYear === selectedYear && dMonth === selectedMonth;
       } catch { return false; }
     });
 
@@ -2287,85 +2281,9 @@ export default function App() {
 
     const baseTotalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
 
-    // Carryover balance (Devreden Bakiye) accumulator from all months prior to selectedMonth & selectedYear
-    let carryOverBalance = 0;
-    if (selectedMonth !== null && selectedYear !== null) {
-      let startYearComp = 2025;
-      let startMonthComp = 0;
-
-      const allDatesComp: Date[] = [];
-      incomes.forEach((i) => { try { allDatesComp.push(new Date(i.date)); } catch {} });
-      expenses.forEach((e) => { try { allDatesComp.push(new Date(e.date)); } catch {} });
-      payments.forEach((p) => { try { allDatesComp.push(new Date(p.date)); } catch {} });
-
-      if (allDatesComp.length > 0) {
-        const minDate = new Date(Math.min(...allDatesComp.map(d => d.getTime())));
-        startYearComp = minDate.getFullYear();
-        startMonthComp = minDate.getMonth();
-      }
-
-      let loopYearComp = startYearComp;
-      let loopMonthComp = startMonthComp;
-      const targetTimeComp = selectedYear * 12 + selectedMonth;
-
-      while (loopYearComp * 12 + loopMonthComp < targetTimeComp) {
-        const loopTimeComp = loopYearComp * 12 + loopMonthComp;
-
-        // Incomes in historical loopMonthComp/loopYearComp
-        const incTotalComp = incomes.reduce((sum, i) => {
-          try {
-            const d = new Date(i.date);
-            const iMonth = d.getMonth();
-            const iYear = d.getFullYear();
-            if (i.isRecurring !== false) {
-              const incTime = iYear * 12 + iMonth;
-              if (loopTimeComp >= incTime) {
-                return sum + i.amount;
-              }
-            } else {
-              if (iMonth === loopMonthComp && iYear === loopYearComp) {
-                return sum + i.amount;
-              }
-            }
-          } catch {}
-          return sum;
-        }, 0);
-
-        // Expenses in historical loopMonthComp/loopYearComp
-        const expTotalComp = expenses.reduce((sum, e) => {
-          try {
-            const d = new Date(e.date);
-            if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
-              return sum + e.amount;
-            }
-          } catch {}
-          return sum;
-        }, 0);
-
-        // Payments in historical loopMonthComp/loopYearComp
-        const payTotalComp = payments.reduce((sum, p) => {
-          try {
-            const d = new Date(p.date);
-            if (d.getMonth() === loopMonthComp && d.getFullYear() === loopYearComp) {
-              return sum + p.amount;
-            }
-          } catch {}
-          return sum;
-        }, 0);
-
-        const monthlyNet = incTotalComp - expTotalComp - payTotalComp;
-        // Clamp to 0 so negative balances are not carried over
-        carryOverBalance = Math.max(0, carryOverBalance + monthlyNet);
-
-        loopMonthComp++;
-        if (loopMonthComp > 11) {
-          loopMonthComp = 0;
-          loopYearComp++;
-        }
-      }
-    }
-
-    const totalIncome = baseTotalIncome + carryOverBalance;
+    // Carryover balance (Devreden Bakiye) disabled per user request so incomes remain exactly as configured for each month
+    const carryOverBalance = 0;
+    const totalIncome = baseTotalIncome;
     const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
 
     // Net reserve capacity specifically for the selected month
