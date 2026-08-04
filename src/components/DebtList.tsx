@@ -203,17 +203,64 @@ export const DebtList: React.FC<DebtListProps> = ({
     const monthStr = String(targetMonth + 1).padStart(2, "0");
 
     let addedCount = 0;
+    let skippedCount = 0;
+
+    // Track newly added debt names during this loop to prevent duplicate additions within the same batch
+    const newlyAddedNames: string[] = [];
+
     selectedDebtIds.forEach((id) => {
       const d = debts.find((item) => item.id === id);
       if (d) {
-        let day = "15";
+        const dNameLower = d.name.trim().toLowerCase();
+
+        // Check if debt with same name already exists in target month & year
+        const existsInMonth = debts.some((existing) => {
+          if (!existing.dueDate) return false;
+          try {
+            const eParts = existing.dueDate.split("-");
+            if (eParts.length === 3) {
+              const eYear = parseInt(eParts[0], 10);
+              const eMonth = parseInt(eParts[1], 10) - 1;
+              return (
+                eMonth === targetMonth &&
+                eYear === targetYear &&
+                existing.name.trim().toLowerCase() === dNameLower
+              );
+            }
+            const eDate = new Date(existing.dueDate);
+            return (
+              eDate.getMonth() === targetMonth &&
+              eDate.getFullYear() === targetYear &&
+              existing.name.trim().toLowerCase() === dNameLower
+            );
+          } catch {
+            return false;
+          }
+        }) || newlyAddedNames.includes(dNameLower);
+
+        if (existsInMonth) {
+          skippedCount++;
+          return;
+        }
+
+        let origDay = 15;
         if (d.dueDate) {
           try {
             const parts = d.dueDate.split("-");
-            if (parts.length === 3) day = parts[2];
+            if (parts.length === 3) {
+              const parsed = parseInt(parts[2], 10);
+              if (!isNaN(parsed) && parsed >= 1 && parsed <= 31) {
+                origDay = parsed;
+              }
+            }
           } catch {}
         }
-        const newDueDate = `${targetYear}-${monthStr}-${day}`;
+        
+        // Clamp day to max valid days in targetMonth of targetYear
+        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const validDay = Math.min(origDay, maxDays);
+        const dayStr = String(validDay).padStart(2, "0");
+        const newDueDate = `${targetYear}-${monthStr}-${dayStr}`;
 
         onSaveDebt({
           name: d.name,
@@ -222,12 +269,21 @@ export const DebtList: React.FC<DebtListProps> = ({
           category: d.category,
           dueDate: newDueDate,
         });
+        
+        newlyAddedNames.push(dNameLower);
         addedCount++;
       }
     });
 
     setSelectedDebtIds([]);
-    alert(`Seçilen ${addedCount} borç ${MONTH_NAMES[targetMonth]} ${targetYear} ödenmemiş borçlarına eklendi! 📋`);
+
+    if (addedCount > 0 && skippedCount > 0) {
+      alert(`Seçilen borçlardan ${addedCount} adedi ${MONTH_NAMES[targetMonth]} ${targetYear} ödenmemiş borçlarına eklendi. (${skippedCount} adet borç bu ayda zaten kayıtlı olduğu için tekrar eklenmedi.) 📋`);
+    } else if (addedCount > 0) {
+      alert(`Seçilen ${addedCount} borç ${MONTH_NAMES[targetMonth]} ${targetYear} ödenmemiş borçlarına eklendi! 📋`);
+    } else if (skippedCount > 0) {
+      alert(`Seçilen borçların tamamı (${skippedCount} adet) ${MONTH_NAMES[targetMonth]} ${targetYear} listesinde zaten mevcut olduğu için ekleme yapılmadı! 🛑`);
+    }
   };
 
   const filteredDebts = [...debts]
