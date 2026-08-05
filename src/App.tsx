@@ -8,6 +8,7 @@ import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, getRedirec
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
+import { parseDateParts, isSameMonthYear } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Menu,
@@ -2058,39 +2059,34 @@ export default function App() {
     // 1. Incomes scoped to chosen period (including recurring incomes carry forward)
     const filteredIncomesForStats = incomes.filter((i) => {
       if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const iDate = new Date(i.date);
-        const iMonth = iDate.getMonth();
-        const iYear = iDate.getFullYear();
+      const parts = parseDateParts(i.date);
+      if (!parts) return true;
 
-        if (i.isRecurring !== false) {
-          // Recurring/fixed incomes carry over to any subsequent period
-          const selectedTime = selectedYear * 12 + selectedMonth;
-          const incomeTime = iYear * 12 + iMonth;
-          return selectedTime >= incomeTime;
-        } else {
-          // One-time extra incomes only show up in their exact month
-          return iMonth === selectedMonth && iYear === selectedYear;
-        }
-      } catch { return false; }
+      if (i.isRecurring !== false) {
+        // Recurring/fixed incomes carry over to any subsequent period
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const incomeTime = parts.year * 12 + parts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        // One-time extra incomes only show up in their exact month
+        return parts.month === selectedMonth && parts.year === selectedYear;
+      }
     });
 
     // 2. Expenses scoped to chosen period
     const filteredExpensesForStats = expenses.filter((e) => {
       if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const eDate = new Date(e.date);
-        return eDate.getMonth() === selectedMonth && eDate.getFullYear() === selectedYear;
-      } catch { return false; }
+      const parts = parseDateParts(e.date);
+      if (!parts) return true;
+      return parts.month === selectedMonth && parts.year === selectedYear;
     });
 
     // 3. Payments scoped to chosen period
     const filteredPaymentsForStats = payments.filter((p) => {
       if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const pDate = new Date(p.date);
-        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-      } catch { return false; }
+      const parts = parseDateParts(p.date);
+      if (!parts) return true;
+      return parts.month === selectedMonth && parts.year === selectedYear;
     });
 
     // 4. Lifetime totals for cumulative overall debt widgets (un-filtered by period, integrating contact-based payables as well)
@@ -2128,103 +2124,111 @@ export default function App() {
 
     const trueOverallRemaining = trueOverallDebt - trueOverallPaid;
 
-    // 5. Selected period's specific monthly debt calculation (for "BU AYKİ BORÇ TOPLAMI" & "BU AY KALAN BORÇ")
-    const simpleDebtsInSelectedMonth = debts.filter((d) => {
-      if (selectedMonth === null || selectedYear === null) return true;
-      if (!d.dueDate) return false;
-      try {
-        const dDate = new Date(d.dueDate);
-        const dMonth = dDate.getMonth();
-        const dYear = dDate.getFullYear();
-        return dYear === selectedYear && dMonth === selectedMonth;
-      } catch { return false; }
-    });
+    // 5. Selected period's specific monthly debt calculation
+    let periodSimpleDebtPaidThisMonth = 0;
+    let periodSimpleDebtRemaining = 0;
 
-    const periodSimpleDebtRemaining = simpleDebtsInSelectedMonth.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+    if (selectedMonth === null || selectedYear === null) {
+      periodSimpleDebtRemaining = debts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+      periodSimpleDebtPaidThisMonth = debts.reduce((sum, d) => sum + Math.min(d.amount, d.paid), 0);
+    } else {
+      const selectedTime = selectedYear * 12 + selectedMonth;
 
-    // Actual payments logged during this month for simple debts
-    let periodSimpleDebtPaidThisMonth = payments.filter((p) => {
-      if (p.type !== "manual") return false;
-      if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const pDate = new Date(p.date);
-        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-      } catch { return false; }
-    }).reduce((sum, p) => sum + p.amount, 0);
+      // Actual manual payments logged during this month
+      const manualPaymentsThisMonth = payments.filter((p) => {
+        if (p.type !== "manual") return false;
+        const parts = parseDateParts(p.date);
+        return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
+      });
+      periodSimpleDebtPaidThisMonth = manualPaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
-    // Fallback: simple debts due in selected month that are paid (without separate payment log)
-    debts.forEach((d) => {
-      if (selectedMonth !== null && selectedYear !== null && d.paid > 0 && d.dueDate) {
-        try {
-          const dDate = new Date(d.dueDate);
-          if (dDate.getMonth() === selectedMonth && dDate.getFullYear() === selectedYear) {
-            const hasLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
-            if (!hasLog) {
-              periodSimpleDebtPaidThisMonth += d.paid;
+      debts.forEach((d) => {
+        const dParts = parseDateParts(d.dueDate);
+        const debtRemaining = Math.max(0, d.amount - d.paid);
+
+        if (dParts) {
+          const debtTime = dParts.year * 12 + dParts.month;
+
+          if (debtTime === selectedTime) {
+            // Debt is due strictly in selected month
+            periodSimpleDebtRemaining += debtRemaining;
+
+            // Fallback for paid amount if no manual payment log exists
+            if (d.paid > 0) {
+              const hasLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
+              if (!hasLog) {
+                periodSimpleDebtPaidThisMonth += d.paid;
+              }
             }
           }
-        } catch {}
-      }
-    });
+        } else {
+          // If no due date, include in remaining
+          if (debtRemaining > 0) {
+            periodSimpleDebtRemaining += debtRemaining;
+          }
+        }
+      });
+    }
 
-    const periodSimpleDebtTotal = periodSimpleDebtRemaining + periodSimpleDebtPaidThisMonth;
+    // --- INSTALLMENT DEBTS ---
+    let periodInstallmentPaidThisMonth = 0;
+    let periodInstallmentRemaining = 0;
+    let monthlyInstallmentsDue = 0;
 
-    const periodInstallmentRemaining = installmentDebts.reduce((sum, inst) => {
-      if (selectedMonth === null || selectedYear === null) {
-        return sum + (inst.totalAmount - (inst.paidInstallmentCount * (inst.totalAmount / inst.installmentCount)));
-      }
-      const startDate = new Date(inst.firstDueDate);
-      const startYear = startDate.getFullYear();
-      const startMonth = startDate.getMonth();
-      const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-      const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-      const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-      if (isActiveThisMonth && !isPaidThisMonth) {
-        return sum + (inst.totalAmount / inst.installmentCount);
-      }
-      return sum;
-    }, 0);
+    if (selectedMonth === null || selectedYear === null) {
+      periodInstallmentRemaining = installmentDebts.reduce((sum, inst) => {
+        const paidSoFar = inst.paidInstallmentCount * (inst.totalAmount / (inst.installmentCount || 1));
+        return sum + Math.max(0, inst.totalAmount - paidSoFar);
+      }, 0);
+      periodInstallmentPaidThisMonth = installmentDebts.reduce((sum, inst) => {
+        return sum + (inst.paidInstallmentCount * (inst.totalAmount / (inst.installmentCount || 1)));
+      }, 0);
+    } else {
+      const selectedTime = selectedYear * 12 + selectedMonth;
 
-    let periodInstallmentPaidThisMonth = payments.filter((p) => {
-      if (p.type !== "installment") return false;
-      if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const pDate = new Date(p.date);
-        return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-      } catch { return false; }
-    }).reduce((sum, p) => sum + p.amount, 0);
+      // Payment logs for installments in this month
+      const installmentPaymentsThisMonth = payments.filter((p) => {
+        if (p.type !== "installment") return false;
+        const parts = parseDateParts(p.date);
+        return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
+      });
+      periodInstallmentPaidThisMonth = installmentPaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
-    // Fallback: installment active in selected month that is paid for that month (without separate payment log)
-    installmentDebts.forEach((inst) => {
-      if (selectedMonth !== null && selectedYear !== null && inst.firstDueDate) {
-        try {
-          const startDate = new Date(inst.firstDueDate);
-          const startYear = startDate.getFullYear();
-          const startMonth = startDate.getMonth();
-          const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-          const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-          const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-          if (isActiveThisMonth && isPaidThisMonth) {
-            const hasLog = payments.some((p) => {
-              if (p.type !== "installment" || p.debtId !== inst.id) return false;
-              try {
-                const pDate = new Date(p.date);
-                return pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear;
-              } catch { return false; }
-            });
-            if (!hasLog) {
-              periodInstallmentPaidThisMonth += (inst.totalAmount / (inst.installmentCount || 1));
+      installmentDebts.forEach((inst) => {
+        const perMonth = inst.totalAmount / (inst.installmentCount || 1);
+        const startParts = parseDateParts(inst.firstDueDate);
+
+        if (startParts) {
+          const startTime = startParts.year * 12 + startParts.month;
+          const monthDiff = selectedTime - startTime;
+
+          if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
+            // Active installment plan for this month (1 installment due for this month)
+            const isThisMonthInstallmentPaid = inst.paidInstallmentCount > monthDiff;
+
+            if (!isThisMonthInstallmentPaid) {
+              periodInstallmentRemaining += perMonth;
+              monthlyInstallmentsDue += perMonth;
+            } else {
+              // Fallback for paid installment if no log in payments array
+              const hasLog = payments.some((p) => {
+                if (p.type !== "installment" || p.debtId !== inst.id) return false;
+                const pParts = parseDateParts(p.date);
+                return pParts ? (pParts.month === selectedMonth && pParts.year === selectedYear) : false;
+              });
+              if (!hasLog) {
+                periodInstallmentPaidThisMonth += perMonth;
+              }
             }
           }
-        } catch {}
-      }
-    });
+        }
+      });
+    }
 
-    const periodInstallmentTotal = periodInstallmentRemaining + periodInstallmentPaidThisMonth;
-
-    // Calculate monthly contact-based payables (unpaid/payable due in current month or overdue)
-    let periodContactPayablesTotal = 0;
+    // --- CONTACT PAYABLES ---
+    let periodContactPayablesPaid = 0;
     let periodContactPayablesRemaining = 0;
+
     if (savedContactTxsStr) {
       try {
         const txs = JSON.parse(savedContactTxsStr);
@@ -2233,40 +2237,19 @@ export default function App() {
             if (t.type === "payable") {
               const amt = Number(t.amount) || 0;
               if (selectedMonth === null || selectedYear === null) {
-                periodContactPayablesTotal += amt;
-                if (!t.isPaid) {
-                  periodContactPayablesRemaining += amt;
-                }
+                if (t.isPaid) periodContactPayablesPaid += amt;
+                else periodContactPayablesRemaining += amt;
               } else {
-                if (t.dueDate) {
-                  try {
-                    const dDate = new Date(t.dueDate);
-                    const dMonth = dDate.getMonth();
-                    const dYear = dDate.getFullYear();
-                    if (dYear === selectedYear && dMonth === selectedMonth) {
-                      periodContactPayablesTotal += amt;
-                      if (!t.isPaid) {
-                        periodContactPayablesRemaining += amt;
-                      }
-                    } else {
-                      const selectedTime = selectedYear * 12 + selectedMonth;
-                      const dueTime = dYear * 12 + dMonth;
-                      if (selectedTime > dueTime && !t.isPaid) {
-                        periodContactPayablesTotal += amt;
-                        periodContactPayablesRemaining += amt;
-                      }
-                    }
-                  } catch {
-                    if (!t.isPaid) {
-                      periodContactPayablesTotal += amt;
-                      periodContactPayablesRemaining += amt;
-                    }
+                const selectedTime = selectedYear * 12 + selectedMonth;
+                const dParts = parseDateParts(t.dueDate);
+                if (dParts) {
+                  const dueTime = dParts.year * 12 + dParts.month;
+                  if (dueTime === selectedTime) {
+                    if (t.isPaid) periodContactPayablesPaid += amt;
+                    else periodContactPayablesRemaining += amt;
                   }
                 } else {
-                  if (!t.isPaid) {
-                    periodContactPayablesTotal += amt;
-                    periodContactPayablesRemaining += amt;
-                  }
+                  if (!t.isPaid) periodContactPayablesRemaining += amt;
                 }
               }
             }
@@ -2276,38 +2259,15 @@ export default function App() {
     }
 
     const computedThisMonthKalanBorc = periodSimpleDebtRemaining + periodInstallmentRemaining + periodContactPayablesRemaining;
-    const computedThisMonthPaidBorc = periodSimpleDebtPaidThisMonth + periodInstallmentPaidThisMonth + (periodContactPayablesTotal - periodContactPayablesRemaining);
+    const computedThisMonthPaidBorc = periodSimpleDebtPaidThisMonth + periodInstallmentPaidThisMonth + periodContactPayablesPaid;
     const computedThisMonthTotalBorc = computedThisMonthKalanBorc + computedThisMonthPaidBorc;
 
     const baseTotalIncome = filteredIncomesForStats.reduce((sum, i) => sum + i.amount, 0);
-
-    // Carryover balance (Devreden Bakiye) disabled per user request so incomes remain exactly as configured for each month
-    const carryOverBalance = 0;
     const totalIncome = baseTotalIncome;
     const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
-
-    // Net reserve capacity specifically for the selected month
-    const currentMonthPaidBorc = computedThisMonthTotalBorc - computedThisMonthKalanBorc;
-    const netIncomeValue = totalIncome - totalExpense - currentMonthPaidBorc;
+    const netIncomeValue = totalIncome - totalExpense - computedThisMonthPaidBorc;
 
     const currentMonthTotalPaymentsCount = filteredPaymentsForStats.length;
-
-    const monthlyInstallmentsDue = installmentDebts.reduce((sum, inst) => {
-      if (selectedMonth === null || selectedYear === null) {
-        if (inst.paidInstallmentCount >= inst.installmentCount) return sum;
-        return sum + inst.totalAmount / inst.installmentCount;
-      }
-      const startDate = new Date(inst.firstDueDate);
-      const startYear = startDate.getFullYear();
-      const startMonth = startDate.getMonth();
-      const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-      const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-      const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-      if (isActiveThisMonth && !isPaidThisMonth) {
-        return sum + inst.totalAmount / inst.installmentCount;
-      }
-      return sum;
-    }, 0);
 
     const statsBag: FinancialStats = {
       totalDebt: trueOverallDebt,
@@ -2319,34 +2279,28 @@ export default function App() {
       thisMonthTotalBorc: computedThisMonthTotalBorc,
       thisMonthKalanBorc: computedThisMonthKalanBorc,
       thisMonthPaidBorc: computedThisMonthPaidBorc,
-      carryOverBalance: carryOverBalance
+      carryOverBalance: 0
     };
 
     const filteredIncomesByMonth = incomes.filter((i) => {
       if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const d = new Date(i.date);
-        const iMonth = d.getMonth();
-        const iYear = d.getFullYear();
+      const dParts = parseDateParts(i.date);
+      if (!dParts) return true;
 
-        if (i.isRecurring !== false) {
-          // Carry forward to subsequently selected months
-          const selectedTime = selectedYear * 12 + selectedMonth;
-          const incomeTime = iYear * 12 + iMonth;
-          return selectedTime >= incomeTime;
-        } else {
-          // One-time extra incomes show up in exact month
-          return iMonth === selectedMonth && iYear === selectedYear;
-        }
-      } catch { return true; }
+      if (i.isRecurring !== false) {
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const incomeTime = dParts.year * 12 + dParts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        return dParts.month === selectedMonth && dParts.year === selectedYear;
+      }
     });
 
     const filteredExpensesByMonth = expenses.filter((e) => {
       if (selectedMonth === null || selectedYear === null) return true;
-      try {
-        const d = new Date(e.date);
-        return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-      } catch { return true; }
+      const dParts = parseDateParts(e.date);
+      if (!dParts) return true;
+      return dParts.month === selectedMonth && dParts.year === selectedYear;
     });
 
     return {

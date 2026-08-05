@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
+import { parseDateParts } from "../utils/dateUtils";
 import { DoughnutChart, BarChart } from "./BudgetCharts";
 import { AdMobBanner } from "./AdMobBanner";
 import ReceiptScanner from "./ReceiptScanner";
@@ -322,15 +323,13 @@ export const DebtList: React.FC<DebtListProps> = ({
       // 3. Period filter for "unpaid" and "paid" tabs: strictly match selected month & year
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
-        try {
-          const dDate = new Date(d.dueDate);
-          const dMonth = dDate.getMonth();
-          const dYear = dDate.getFullYear();
+        const dParts = parseDateParts(d.dueDate);
+        if (!dParts) return true;
 
-          return dMonth === selectedMonth && dYear === selectedYear;
-        } catch {
-          return true;
-        }
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const debtTime = dParts.year * 12 + dParts.month;
+
+        return debtTime === selectedTime;
       }
       return true;
     })
