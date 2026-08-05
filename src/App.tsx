@@ -2423,6 +2423,34 @@ export default function App() {
     );
   };
 
+  const handleSaveDebtBulk = (newDebtsList: Partial<Debt>[]) => {
+    if (!newDebtsList || newDebtsList.length === 0) return;
+    let updated = [...debts];
+    let updatedPayments = [...payments];
+    let nextId = generateId(updated);
+
+    newDebtsList.forEach((debtData) => {
+      const debtName = debtData.name || "İsimsiz Borç";
+      const dueDate = debtData.dueDate || "";
+      const newAmount = debtData.amount || 0;
+      const newPaid = debtData.paid || 0;
+
+      const newD: Debt = {
+        id: nextId++,
+        name: debtName,
+        amount: newAmount,
+        paid: newPaid,
+        category: debtData.category || "Diğer",
+        dueDate: dueDate
+      };
+      updated.push(newD);
+    });
+
+    setDebts(updated);
+    saveAllToUser(updated, incomes, alarms, notifications, installmentDebts, updatedPayments, expenses, expenseCategories);
+    triggerToast(`${newDebtsList.length} Borç Başarıyla Kaydedildi 📋`);
+  };
+
   // ---------------- CRUD Operations ----------------
   const handleSaveDebt = (debtData: Partial<Debt>, autoCreateAlarm?: boolean) => {
     let updated: Debt[] = [];
@@ -2765,19 +2793,28 @@ export default function App() {
     );
   };
 
-  const handlePayInstallment = (id: number) => {
+  const handlePayInstallment = (id: number, customDate?: string) => {
     let updatedPayments = [...payments];
     const updated = installmentDebts.map((inst) => {
       if (inst.id === id && inst.paidInstallmentCount < inst.installmentCount) {
         const perMonth = inst.totalAmount / inst.installmentCount;
         const updatedPaidCount = inst.paidInstallmentCount + 1;
         
+        let payDate = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
+        if (!customDate && inst.firstDueDate) {
+          try {
+            const baseDate = new Date(inst.firstDueDate);
+            baseDate.setMonth(baseDate.getMonth() + inst.paidInstallmentCount);
+            payDate = baseDate.toISOString();
+          } catch {}
+        }
+
         // Push payment logs
         const newPayment: PaymentLog = {
           id: generateId(updatedPayments),
           debtId: id,
           amount: perMonth,
-          date: new Date().toISOString(),
+          date: payDate,
           type: "installment"
         };
         updatedPayments.push(newPayment);
@@ -4703,6 +4740,7 @@ export default function App() {
             expenses={expenses}
             totalIncome={statsBag.totalIncome}
             onSaveDebt={handleSaveDebt}
+            onSaveDebtBulk={handleSaveDebtBulk}
             onDeleteDebt={handleDeleteDebt}
             onToggleDebtPaid={handleToggleDebtPaid}
             onAddAlarm={handleAddAlarm}

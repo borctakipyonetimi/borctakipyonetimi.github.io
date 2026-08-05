@@ -22,6 +22,7 @@ interface DebtListProps {
   expenses?: Expense[];
   totalIncome?: number;
   onSaveDebt: (debt: Partial<Debt>, createAlarm?: boolean) => void;
+  onSaveDebtBulk?: (newDebts: Partial<Debt>[]) => void;
   onDeleteDebt: (id: number) => void;
   onToggleDebtPaid: (id: number) => void;
   onAddAlarm: (title: string, date: string) => void;
@@ -47,6 +48,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   expenses = [],
   totalIncome = 0,
   onSaveDebt,
+  onSaveDebtBulk,
   onDeleteDebt,
   onToggleDebtPaid,
   onAddAlarm,
@@ -205,8 +207,8 @@ export const DebtList: React.FC<DebtListProps> = ({
     let addedCount = 0;
     let skippedCount = 0;
 
-    // Track newly added debt names during this loop to prevent duplicate additions within the same batch
     const newlyAddedNames: string[] = [];
+    const itemsToSave: Partial<Debt>[] = [];
 
     selectedDebtIds.forEach((id) => {
       const d = debts.find((item) => item.id === id);
@@ -262,7 +264,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         const dayStr = String(validDay).padStart(2, "0");
         const newDueDate = `${targetYear}-${monthStr}-${dayStr}`;
 
-        onSaveDebt({
+        itemsToSave.push({
           name: d.name,
           amount: d.amount,
           paid: 0,
@@ -275,6 +277,14 @@ export const DebtList: React.FC<DebtListProps> = ({
       }
     });
 
+    if (itemsToSave.length > 0) {
+      if (onSaveDebtBulk) {
+        onSaveDebtBulk(itemsToSave);
+      } else {
+        itemsToSave.forEach((item) => onSaveDebt(item));
+      }
+    }
+
     setSelectedDebtIds([]);
 
     if (addedCount > 0 && skippedCount > 0) {
@@ -286,13 +296,27 @@ export const DebtList: React.FC<DebtListProps> = ({
     }
   };
 
-  const filteredDebts = [...debts]
+  let baseDebts = [...debts];
+  if (activeTab === "all") {
+    const seenNames = new Set<string>();
+    const uniqueMasterDebts: Debt[] = [];
+    for (const d of debts) {
+      const normName = d.name.trim().toLowerCase();
+      if (!seenNames.has(normName)) {
+        seenNames.add(normName);
+        uniqueMasterDebts.push(d);
+      }
+    }
+    baseDebts = uniqueMasterDebts;
+  }
+
+  const filteredDebts = baseDebts
     .filter((d) => {
       // 1. Tab filter
       if (activeTab === "unpaid" && d.paid >= d.amount) return false;
       if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. "TÜM BORÇ LİSTESİ" ("all") shows all master debt items without period exclusion
+      // 2. "TÜM BORÇ LİSTESİ" ("all") shows deduplicated master debt items
       if (activeTab === "all") return true;
 
       // 3. Period filter for "unpaid" and "paid" tabs: strictly match selected month & year

@@ -17,7 +17,7 @@ interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
   onSaveInstallment: (inst: Partial<InstallmentDebt>) => void;
   onDeleteInstallment: (id: number) => void;
-  onPayInstallment: (id: number) => void;
+  onPayInstallment: (id: number, paymentDate?: string) => void;
   onRevertPayment?: (id: number) => void;
   isPremium?: boolean;
   language?: "tr" | "en";
@@ -48,6 +48,37 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   const [installmentCount, setInstallmentCount] = useState("");
   const [paidInstallmentCount, setPaidInstallmentCount] = useState("0");
   const [firstDueDate, setFirstDueDate] = useState("");
+
+  // State for Installment Payment Modal with Date Picker
+  const [payModalInst, setPayModalInst] = useState<InstallmentDebt | null>(null);
+  const [payDate, setPayDate] = useState<string>("");
+
+  const handleOpenPayModal = (inst: InstallmentDebt) => {
+    setPayModalInst(inst);
+    let defaultDate = new Date().toISOString().slice(0, 10);
+    if (inst.firstDueDate) {
+      try {
+        const parts = inst.firstDueDate.split("-");
+        if (parts.length === 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1 + inst.paidInstallmentCount;
+          const day = parseInt(parts[2], 10);
+          const targetDate = new Date(year, month, day);
+          const yStr = targetDate.getFullYear();
+          const mStr = String(targetDate.getMonth() + 1).padStart(2, "0");
+          const dStr = String(targetDate.getDate()).padStart(2, "0");
+          defaultDate = `${yStr}-${mStr}-${dStr}`;
+        }
+      } catch {}
+    }
+    setPayDate(defaultDate);
+  };
+
+  const handleConfirmPayment = () => {
+    if (!payModalInst) return;
+    onPayInstallment(payModalInst.id, payDate || new Date().toISOString().slice(0, 10));
+    setPayModalInst(null);
+  };
 
   const formatNumberWithDots = (val: string): string => {
     const cleaned = val.replace(/\D/g, "");
@@ -470,8 +501,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                       )}
                       {!isCompleted && (
                         <button
-                          onClick={() => onPayInstallment(inst.id)}
-                          className="px-2.5 py-1 bg-white hover:bg-white/90 text-slate-900 font-extrabold text-[10px] rounded-md shadow-md transition active:scale-95 flex items-center gap-1"
+                          onClick={() => handleOpenPayModal(inst)}
+                          className="px-2.5 py-1 bg-white hover:bg-white/90 text-slate-900 font-extrabold text-[10px] rounded-md shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer"
                         >
                           <Wallet className="w-3 h-3 text-slate-800" /> Taksit Öde
                         </button>
@@ -566,6 +597,65 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs"
               >
                 Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Payment Date Modal for Installments */}
+      {payModalInst && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-indigo-100 dark:border-slate-700">
+            <h4 className="text-base font-bold flex items-center gap-2 border-b pb-2 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">
+              <Wallet className="w-5 h-5 text-indigo-500" /> Taksit Ödemesi Kaydet
+            </h4>
+
+            <div className="bg-indigo-50/70 dark:bg-slate-900/60 p-3 rounded-2xl space-y-1">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {payModalInst.name}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex justify-between">
+                <span>Taksit Adedi:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                  {payModalInst.paidInstallmentCount + 1}. Taksit / {payModalInst.installmentCount}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex justify-between">
+                <span>Ödenecek Tutar:</span>
+                <span className="font-extrabold text-slate-800 dark:text-slate-100">
+                  {format(payModalInst.totalAmount / payModalInst.installmentCount)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                ÖDEME TARİHİ / AİT OLDUĞU AY
+              </label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white font-medium"
+              />
+              <p className="text-[10px] text-slate-400 mt-1 italic">
+                * Bu taksit ödemesi seçtiğiniz tarihin ait olduğu ayın bütçe ve ödeme raporlarına yansıtılacaktır.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setPayModalInst(null)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition active:scale-95 shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                Ödemeyi Onayla
               </button>
             </div>
           </div>
