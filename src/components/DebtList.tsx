@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, FileJson } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -69,11 +69,15 @@ export const DebtList: React.FC<DebtListProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
-  const [activeTab, setActiveTab] = useState<"unpaid" | "paid" | "all">("unpaid");
+  const [activeTab, setActiveTab] = useState<"unpaid" | "paid">("unpaid");
   const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
   const itemsPerPage = 8;
+
+  // Template Manager States
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -297,30 +301,170 @@ export const DebtList: React.FC<DebtListProps> = ({
     }
   };
 
-  let baseDebts = [...debts];
-  if (activeTab === "all") {
-    const seenNames = new Set<string>();
-    const uniqueMasterDebts: Debt[] = [];
-    for (const d of debts) {
-      const normName = d.name.trim().toLowerCase();
-      if (!seenNames.has(normName)) {
-        seenNames.add(normName);
-        uniqueMasterDebts.push(d);
+  // --- BORÇ ŞABLONU SAKLAMA VE YÜKLEME ---
+  const handleSaveTemplate = () => {
+    // Filter debts belonging to current selected period
+    const currentPeriodDebts = debts.filter((d) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      const dParts = parseDateParts(d.dueDate);
+      if (!dParts) return true;
+      return dParts.month === selectedMonth && dParts.year === selectedYear;
+    });
+
+    const sourceDebts = currentPeriodDebts.length > 0 ? currentPeriodDebts : debts;
+
+    if (sourceDebts.length === 0) {
+      alert("Saklanacak borç bulunamadı! Lütfen önce bu aya en az bir borç ekleyin.");
+      return;
+    }
+
+    const templateData = sourceDebts.map((d) => ({
+      name: d.name,
+      amount: d.amount,
+      category: d.category || "Diğer",
+      dueDate: d.dueDate || "",
+    }));
+
+    const jsonString = JSON.stringify(templateData, null, 2);
+
+    // Save to localStorage
+    localStorage.setItem("saved_debt_template_json", jsonString);
+
+    // Download JSON file
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const targetMonthVal = selectedMonth !== null ? selectedMonth : new Date().getMonth();
+    const targetYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
+    const monthLabel = `${MONTH_NAMES[targetMonthVal]}_${targetYearVal}`;
+    link.href = url;
+    link.download = `borc_sablonu_${monthLabel}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    alert(`✅ ${templateData.length} adet borç şablonu başarıyla kaydedildi ve '${link.download}' olarak bilgisayarınıza indirildi!\n\nBu şablonu 'Şablondan Yükle' butonu ile dilediğiniz aya kolayca ekleyebilirsiniz.`);
+  };
+
+  const handleImportTemplateItems = (items: Array<{ name: string; amount: number; category?: string; dueDate?: string }>) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      alert("Yüklenecek geçerli borç verisi bulunamadı!");
+      return;
+    }
+
+    const targetYear = selectedYear !== null ? selectedYear : new Date().getFullYear();
+    const targetMonth = selectedMonth !== null ? selectedMonth : new Date().getMonth();
+    const monthStr = String(targetMonth + 1).padStart(2, "0");
+
+    let addedCount = 0;
+    let skippedCount = 0;
+    const itemsToSave: Partial<Debt>[] = [];
+    const newlyAddedNames: string[] = [];
+
+    items.forEach((item) => {
+      if (!item.name || !item.amount) return;
+      const dNameLower = item.name.trim().toLowerCase();
+
+      // Check if debt with same name already exists in target month & year
+      const existsInMonth = debts.some((existing) => {
+        if (!existing.dueDate) return false;
+        const eParts = parseDateParts(existing.dueDate);
+        if (!eParts) return false;
+        return (
+          eParts.month === targetMonth &&
+          eParts.year === targetYear &&
+          existing.name.trim().toLowerCase() === dNameLower
+        );
+      }) || newlyAddedNames.includes(dNameLower);
+
+      if (existsInMonth) {
+        skippedCount++;
+        return;
+      }
+
+      let origDay = 15;
+      if (item.dueDate) {
+        const parts = parseDateParts(item.dueDate);
+        if (parts && parts.day) {
+          origDay = parts.day;
+        }
+      }
+
+      const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const validDay = Math.min(origDay, maxDays);
+      const dayStr = String(validDay).padStart(2, "0");
+      const newDueDate = `${targetYear}-${monthStr}-${dayStr}`;
+
+      itemsToSave.push({
+        name: item.name.trim(),
+        amount: Number(item.amount) || 0,
+        paid: 0,
+        category: item.category || "Diğer",
+        dueDate: newDueDate,
+      });
+
+      newlyAddedNames.push(dNameLower);
+      addedCount++;
+    });
+
+    if (itemsToSave.length > 0) {
+      if (onSaveDebtBulk) {
+        onSaveDebtBulk(itemsToSave);
+      } else {
+        itemsToSave.forEach((itm) => onSaveDebt(itm));
       }
     }
-    baseDebts = uniqueMasterDebts;
-  }
 
-  const filteredDebts = baseDebts
+    setIsTemplateModalOpen(false);
+
+    const targetMonthName = MONTH_NAMES[targetMonth];
+    if (addedCount > 0 && skippedCount > 0) {
+      alert(`📋 Şablondan ${addedCount} adet borç ${targetMonthName} ${targetYear} dönemine yüklendi. (${skippedCount} adet borç bu ayda zaten kayıtlı olduğu için tekrar eklenmedi.)`);
+    } else if (addedCount > 0) {
+      alert(`🎉 Şablondan ${addedCount} adet borç ${targetMonthName} ${targetYear} dönemine başarıyla yüklendi!`);
+    } else if (skippedCount > 0) {
+      alert(`🛑 Yüklenmek istenen borçların tamamı (${skippedCount} adet) ${targetMonthName} ${targetYear} listesinde zaten mevcut olduğu için ekleme yapılmadı.`);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        const items = Array.isArray(parsed) ? parsed : (parsed.debts || []);
+        handleImportTemplateItems(items);
+      } catch {
+        alert("Dosya okunamadı veya geçersiz JSON formatı!");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleLoadFromSavedStorage = () => {
+    const saved = localStorage.getItem("saved_debt_template_json");
+    if (!saved) {
+      alert("Daha önce saklanmış herhangi bir borç şablonu bulunamadı! Lütfen önce 'Şablon Sakla' butonunu kullanarak borçlarınızı saklayın.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved);
+      handleImportTemplateItems(parsed);
+    } catch {
+      alert("Kayıtlı şablon verisi okunamadı veya bozuk.");
+    }
+  };
+
+  const filteredDebts = debts
     .filter((d) => {
       // 1. Tab filter
       if (activeTab === "unpaid" && d.paid >= d.amount) return false;
       if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. "TÜM BORÇ LİSTESİ" ("all") shows deduplicated master debt items
-      if (activeTab === "all") return true;
-
-      // 3. Period filter for "unpaid" and "paid" tabs: strictly match selected month & year
+      // 2. Period filter: strictly match selected month & year
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
         const dParts = parseDateParts(d.dueDate);
@@ -1131,6 +1275,20 @@ export const DebtList: React.FC<DebtListProps> = ({
       <div className="flex flex-col gap-3 justify-center sm:flex-row sm:items-center">
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <button
+            onClick={handleSaveTemplate}
+            title="Bu ayki borç listesini şablon olarak kaydet / indir"
+            className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
+          >
+            <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla
+          </button>
+          <button
+            onClick={() => setIsTemplateModalOpen(true)}
+            title="Kayıtlı borç şablonunu veya dosyayı bu aya yükle"
+            className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
+          >
+            <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle
+          </button>
+          <button
             onClick={() => {
               if (!isPremium) {
                 onUpgradeClick?.();
@@ -1174,6 +1332,15 @@ export const DebtList: React.FC<DebtListProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Hidden file input for debt template import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".json"
+        className="hidden"
+      />
 
       {/* Top Level Key Debt Aggregates Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1233,14 +1400,6 @@ export const DebtList: React.FC<DebtListProps> = ({
           >
             🟢 ÖDENMİŞ
           </button>
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeTab === "all" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            📂 TÜM BORÇ LİSTESİ
-          </button>
         </div>
 
         <div className="flex items-center gap-2 px-2 shrink-0 self-stretch sm:self-center justify-between sm:justify-start">
@@ -1261,40 +1420,6 @@ export const DebtList: React.FC<DebtListProps> = ({
           </select>
         </div>
       </div>
-
-      {/* Bulk selection action bar for "Tüm Borçlar" tab */}
-      {activeTab === "all" && filteredDebts.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-indigo-50/70 dark:bg-slate-800 border border-indigo-200/80 dark:border-slate-700 rounded-2xl mb-1">
-          <button
-            onClick={handleSelectAllDebts}
-            className="px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <input
-              type="checkbox"
-              checked={selectedDebtIds.length > 0 && selectedDebtIds.length === filteredDebts.length}
-              onChange={() => {}}
-              className="w-3.5 h-3.5 text-indigo-600 rounded cursor-pointer pointer-events-none"
-            />
-            <span>{selectedDebtIds.length === filteredDebts.length ? "Seçimleri Kaldır" : "Tümünü Seç"}</span>
-          </button>
-
-          {selectedDebtIds.length > 0 ? (
-            <button
-              onClick={handleBulkAddSelectedToMonth}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-indigo-600/20 cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>
-                Seçilen {selectedDebtIds.length} Borcu ({MONTH_NAMES[selectedMonthVal]} {selectedYearVal}) Ödenmemiş Borçlarına Ekle
-              </span>
-            </button>
-          ) : (
-            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold italic">
-              💡 Ödenmemiş borçlara toplu eklemek istediklerinizi sol kutucuktan seçebilirsiniz.
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Debt Cards Listing */}
       <div className="space-y-3">
@@ -1351,18 +1476,6 @@ export const DebtList: React.FC<DebtListProps> = ({
                         <div className="absolute top-2 right-2 flex items-center justify-center p-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40 shadow-xs animate-bounce" title="Vadesine Az Kaldı veya Geçti! ⏰">
                           <span className="absolute inset-0 rounded-full bg-rose-500/20 animate-ping" />
                           <BellRing className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" />
-                        </div>
-                      )}
-
-                      {/* Checkbox for selection in Tüm Borçlar tab */}
-                      {activeTab === "all" && (
-                        <div className="shrink-0 flex items-center pr-1 sm:pr-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedDebtIds.includes(d.id)}
-                            onChange={() => handleToggleSelectDebt(d.id)}
-                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                          />
                         </div>
                       )}
 
@@ -1962,6 +2075,80 @@ export const DebtList: React.FC<DebtListProps> = ({
           onClose={() => setIsScannerOpen(false)}
           defaultType="debt"
         />
+      )}
+
+      {/* Debt Template Manager Modal */}
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  <FolderInput className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Borç Şablonu Yükle</h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Seçili Ay: <span className="font-bold text-indigo-600 dark:text-indigo-400">{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsTemplateModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Borç listenizi her ay tekrar tekrar girmekle uğraşmamak için sakladığınız borç şablonunu veya indirdiğiniz JSON dosyasını kullanarak <strong>{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</strong> dönemine tek tıkla yükleyebilirsiniz.
+            </p>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                onClick={handleLoadFromSavedStorage}
+                className="w-full p-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-indigo-600/20 transition active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <Save className="w-4 h-4 text-indigo-200" />
+                  <div>
+                    <div className="font-extrabold">Kayıtlı Hafızadan Yükle</div>
+                    <div className="text-[10px] text-indigo-200 font-normal">Sistemde en son sakladığınız borç listesini yükler</div>
+                  </div>
+                </div>
+                <ArrowRightLeft className="w-4 h-4 text-indigo-200" />
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full p-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-2xl font-bold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <FileJson className="w-4 h-4 text-amber-500" />
+                  <div>
+                    <div className="font-extrabold">Dosyadan (.json) Yükle</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Bilgisayarınızdaki şablon dosyasını seçin</div>
+                  </div>
+                </div>
+                <Upload className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setIsTemplateModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   );
