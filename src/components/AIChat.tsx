@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Debt, Income, Expense, InstallmentDebt, FinancialStats } from "../types";
 import { getApiUrl } from "../utils/api";
 import { t } from "../utils/translations";
+import { parseDateParts } from "../utils/dateUtils";
 
 interface ChatMessage {
   sender: "user" | "bot";
@@ -224,26 +225,36 @@ export const AIChat: React.FC<AIChatProps> = ({
       const monthName = TURKISH_MONTHS[mNum] || "Mevcut Ay";
 
       const mExpenses = expenses.filter((e) => {
-        try {
-          const d = new Date(e.date);
-          return d.getMonth() === mNum && d.getFullYear() === yNum;
-        } catch {
-          return false;
-        }
+        if (selectedMonth === null || selectedYear === null) return true;
+        const parts = parseDateParts(e.date);
+        if (!parts) return true;
+        return parts.month === mNum && parts.year === yNum;
       });
 
       const mIncomes = incomes.filter((i) => {
-        try {
-          const d = new Date(i.date);
-          return d.getMonth() === mNum && d.getFullYear() === yNum;
-        } catch {
-          return false;
+        if (selectedMonth === null || selectedYear === null) return true;
+        const parts = parseDateParts(i.date);
+        if (!parts) return true;
+        if (i.isRecurring !== false) {
+          const selectedTime = yNum * 12 + mNum;
+          const incomeTime = parts.year * 12 + parts.month;
+          return selectedTime >= incomeTime;
+        } else {
+          return parts.month === mNum && parts.year === yNum;
         }
       });
 
-      const tExpense = mExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const tIncome = mIncomes.reduce((sum, i) => sum + i.amount, 0);
-      const nIncome = tIncome - tExpense;
+      const calculatedIncome = mIncomes.reduce((sum, i) => sum + i.amount, 0);
+      const calculatedExpense = mExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+      // Prefer authoritative numbers from stats props (100% matched with top bar and dashboard)
+      const tIncome = stats?.totalIncome !== undefined ? stats.totalIncome : calculatedIncome;
+      const tExpense = stats?.totalExpense !== undefined ? stats.totalExpense : calculatedExpense;
+      const nIncome = stats?.netIncome !== undefined ? stats.netIncome : (tIncome - tExpense);
+
+      const thisMonthDebtDue = stats?.thisMonthKalanBorc ?? 0;
+      const thisMonthDebtPaid = stats?.thisMonthPaidBorc ?? 0;
+      const thisMonthDebtTotal = stats?.thisMonthTotalBorc ?? (thisMonthDebtDue + thisMonthDebtPaid);
 
       const catTotals: { [key: number]: number } = {};
       mExpenses.forEach((e) => {
@@ -251,12 +262,12 @@ export const AIChat: React.FC<AIChatProps> = ({
       });
 
       reply += `📊 **${monthName.toUpperCase()} ${yNum} - DETAYLI AYLIK ANALİZ RAPORU** 📊\n\n`;
-      reply += `Sistemimizdeki bütçe kayıtlarınızı bizzat tarayarak **${monthName} ${yNum}** dönemi gider kategorilerinizin kıyaslamasını çıkardım:\n\n`;
+      reply += `Sistemimizdeki bütçe ve gider kayıtlarınızı bizzat tarayarak **${monthName} ${yNum}** dönemi gelir/gider ve borç tablonuzu çıkardım:\n\n`;
 
-      const totalDebtsRem = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
+      const totalDebtsRem = debts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
       const totalInstsRem = installmentDebts.reduce((sum, inst) => {
-        const perInst = inst.totalAmount / inst.installmentCount;
-        const remCount = inst.installmentCount - inst.paidInstallmentCount;
+        const perInst = inst.totalAmount / (inst.installmentCount || 1);
+        const remCount = Math.max(0, inst.installmentCount - inst.paidInstallmentCount);
         return sum + (remCount * perInst);
       }, 0);
       let contactPayablesRem = 0;
@@ -264,25 +275,30 @@ export const AIChat: React.FC<AIChatProps> = ({
       contactTxs.forEach((tx) => {
         if (!tx.isPaid) {
           if (tx.type === "payable") {
-            contactPayablesRem += tx.amount;
+            contactPayablesRem += Number(tx.amount) || 0;
           } else if (tx.type === "receivable") {
-            contactReceivablesRem += tx.amount;
+            contactReceivablesRem += Number(tx.amount) || 0;
           }
         }
       });
-      const totalLiabilities = totalDebtsRem + totalInstsRem + contactPayablesRem;
+      const totalLiabilities = stats?.remaining !== undefined ? stats.remaining : (totalDebtsRem + totalInstsRem + contactPayablesRem);
 
-      reply += `### 💵 Aylık Mali Durum Özeti\n`;
-      reply += `• **Toplam Gelir**: ₺${tIncome.toLocaleString("tr-TR")}\n`;
-      reply += `• **Toplam Gider**: ₺${tExpense.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Fazla Veriyor" : "🔴 Açık Veriyor"})\n\n`;
+      reply += `### 💵 Aylık Mali Durum Özeti (${monthName} ${yNum})\n`;
+      reply += `• **Toplam Aylık Gelir**: ₺${tIncome.toLocaleString("tr-TR")}\n`;
+      reply += `• **Toplam Aylık Gider**: ₺${tExpense.toLocaleString("tr-TR")}\n`;
+      reply += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Bütçe Fazla Veriyor" : "🔴 Bütçe Açık Veriyor"})\n\n`;
 
-      reply += `### 💸 Aktif Borç ve Yükümlülük Durumu\n`;
+      reply += `### 💸 Bu Ayki Borç ve Yükümlülük Durumu\n`;
+      reply += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}\n`;
+      reply += `• **Bu Ay Ödenen Borç Tutarı**: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}\n`;
+      reply += `• **Bu Ayki Toplam Borç Yükü**: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}\n`;
+      reply += `• **Genel Toplam Kalan Borç Portföyü (Tüm Vadeler)**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
+
+      reply += `### 📋 Borç Dağılımı Detayları\n`;
       reply += `• **Nakit Borçlar (Kalan Toplam)**: ₺${totalDebtsRem.toLocaleString("tr-TR")}\n`;
       reply += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${totalInstsRem.toLocaleString("tr-TR")}\n`;
       reply += `• **Kişi Borçları (Verecek - Kalan)**: ₺${contactPayablesRem.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n`;
-      reply += `• **Genel Toplam Borç Yükü**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
+      reply += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n\n`;
 
       if (mExpenses.length === 0) {
         reply += `🚨 **Harcama Uyarısı**: Bu seçili ay için kaydedilmiş herhangi bir harcama kalemi bulunamadı. Lütfen analiz için harcamalarınızı girin.\n`;
@@ -293,7 +309,8 @@ export const AIChat: React.FC<AIChatProps> = ({
         reply += `| Gider Kategorisi | Harcanan Tutar | Gider Oranı (%) | Öneri Seviyesi |\n`;
         reply += `| :--- | :--- | :---: | :---: |\n`;
 
-        const sortedCats = expenseCategories
+        const availableCats = expenseCategories && expenseCategories.length > 0 ? expenseCategories : categoriesList;
+        const sortedCats = availableCats
           .map((c) => {
             const val = catTotals[c.id] || 0;
             return {
@@ -565,22 +582,24 @@ export const AIChat: React.FC<AIChatProps> = ({
     const yNum = selectedYear !== null && selectedYear !== undefined ? selectedYear : new Date().getFullYear();
     const monthName = TURKISH_MONTHS[mNum] || "Mevcut Ay";
 
-    // Filter expenses for this specific month & year
+    // Filter expenses for this specific month & year safely
     const monthlyExpenses = expenses.filter((e) => {
-      try {
-        const d = new Date(e.date);
-        return d.getMonth() === mNum && d.getFullYear() === yNum;
-      } catch {
-        return false;
-      }
+      if (selectedMonth === null || selectedYear === null) return true;
+      const parts = parseDateParts(e.date);
+      if (!parts) return true;
+      return parts.month === mNum && parts.year === yNum;
     });
 
     const monthlyIncomes = incomes.filter((i) => {
-      try {
-        const d = new Date(i.date);
-        return d.getMonth() === mNum && d.getFullYear() === yNum;
-      } catch {
-        return false;
+      if (selectedMonth === null || selectedYear === null) return true;
+      const parts = parseDateParts(i.date);
+      if (!parts) return true;
+      if (i.isRecurring !== false) {
+        const selectedTime = yNum * 12 + mNum;
+        const incomeTime = parts.year * 12 + parts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        return parts.month === mNum && parts.year === yNum;
       }
     });
 
@@ -592,7 +611,15 @@ export const AIChat: React.FC<AIChatProps> = ({
 
     // Construct prompt details
     let categoryDetailsStr = "";
-    expenseCategories.forEach((c) => {
+    const availableCategories = expenseCategories && expenseCategories.length > 0 ? expenseCategories : [
+      { id: 1, name: "Kira" },
+      { id: 2, name: "Market" },
+      { id: 3, name: "Ulaşım" },
+      { id: 4, name: "Yeme İçme" },
+      { id: 5, name: "Faturalar" }
+    ];
+
+    availableCategories.forEach((c) => {
       const amt = categoryMap[c.id] || 0;
       if (amt > 0) {
         categoryDetailsStr += `- ${c.name}: ₺${amt.toLocaleString("tr-TR")}\n`;
@@ -603,14 +630,23 @@ export const AIChat: React.FC<AIChatProps> = ({
       categoryDetailsStr = "- Bu ay için henüz kategori bazlı bir harcama kaydedilmemiş.\n";
     }
 
-    const totalMonthlyExpense = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalMonthlyIncome = monthlyIncomes.reduce((sum, i) => sum + i.amount, 0);
+    const calculatedMonthlyExpense = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const calculatedMonthlyIncome = monthlyIncomes.reduce((sum, i) => sum + i.amount, 0);
+
+    const totalMonthlyExpense = stats?.totalExpense !== undefined ? stats.totalExpense : calculatedMonthlyExpense;
+    const totalMonthlyIncome = stats?.totalIncome !== undefined ? stats.totalIncome : calculatedMonthlyIncome;
+    const totalMonthlyNet = stats?.netIncome !== undefined ? stats.netIncome : (totalMonthlyIncome - totalMonthlyExpense);
+
+    const thisMonthDebtDue = stats?.thisMonthKalanBorc ?? 0;
+    const thisMonthDebtPaid = stats?.thisMonthPaidBorc ?? 0;
+    const thisMonthDebtTotal = stats?.thisMonthTotalBorc ?? (thisMonthDebtDue + thisMonthDebtPaid);
+    const overallRemainingDebt = stats?.remaining ?? 0;
 
     // Standard debts
     let debtsDetailsStr = "";
     if (debts && debts.length > 0) {
       debts.forEach((d) => {
-        const rem = d.amount - d.paid;
+        const rem = Math.max(0, d.amount - d.paid);
         debtsDetailsStr += `- ${d.name} (${d.category}): Toplam ₺${d.amount.toLocaleString("tr-TR")}, Ödenen: ₺${d.paid.toLocaleString("tr-TR")}, Kalan Borç: ₺${rem.toLocaleString("tr-TR")} (Vade: ${d.dueDate || "Belirtilmemiş"})\n`;
       });
     } else {
@@ -621,9 +657,9 @@ export const AIChat: React.FC<AIChatProps> = ({
     let installmentDetailsStr = "";
     if (installmentDebts && installmentDebts.length > 0) {
       installmentDebts.forEach((inst) => {
-        const perInstallment = inst.totalAmount / inst.installmentCount;
-        const remCount = inst.installmentCount - inst.paidInstallmentCount;
-        const remAmount = inst.totalAmount - (inst.paidInstallmentCount * perInstallment);
+        const perInstallment = inst.totalAmount / (inst.installmentCount || 1);
+        const remCount = Math.max(0, inst.installmentCount - inst.paidInstallmentCount);
+        const remAmount = Math.max(0, inst.totalAmount - (inst.paidInstallmentCount * perInstallment));
         installmentDetailsStr += `- ${inst.name}: Toplam ₺${inst.totalAmount.toLocaleString("tr-TR")}, Taksit: ${inst.installmentCount} ay x ₺${perInstallment.toLocaleString("tr-TR")}, Ödenen: ${inst.paidInstallmentCount} taksit, Kalan Taksit: ${remCount} ay (Kalan Tutar: ₺${remAmount.toLocaleString("tr-TR")})\n`;
       });
     } else {
@@ -646,12 +682,16 @@ export const AIChat: React.FC<AIChatProps> = ({
 
     const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun. Ayrıca, bütçeme ek olarak aşağıda detayları verilen tüm borçlarımı (standart borçlar, taksitli borçlar, kişi borçları vb.) analiz et, borç durumumu ve borç erteleme/kapatma önceliklerimi (Kartopu veya Avalanche yöntemlerine göre hangisi uygunsa) de rapora dahil et.
 
-Aylık Finansal Durum Özetim:
-- Toplam Gelir: ₺${totalMonthlyIncome.toLocaleString("tr-TR")}
-- Toplam Gider: ₺${totalMonthlyExpense.toLocaleString("tr-TR")}
-- Kalan Net Bakiye: ₺${(totalMonthlyIncome - totalMonthlyExpense).toLocaleString("tr-TR")}
+Aylık Finansal Durum Özetim (${monthName} ${yNum}):
+- Toplam Aylık Gelir: ₺${totalMonthlyIncome.toLocaleString("tr-TR")}
+- Toplam Aylık Gider: ₺${totalMonthlyExpense.toLocaleString("tr-TR")}
+- Kalan Net Bakiye: ₺${totalMonthlyNet.toLocaleString("tr-TR")} (${totalMonthlyNet >= 0 ? "Bütçe Fazla Veriyor" : "Bütçe Açık Veriyor"})
+- Bu Ay Vadesi Gelen Kalan Borç: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}
+- Bu Ay Ödenen Borç Tutarı: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}
+- Bu Ay Toplam Borç Yükü: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}
+- Genel Toplam Kalan Borç Yükü (Tüm Vadeler): ₺${overallRemainingDebt.toLocaleString("tr-TR")}
 
-Kategori Bazlı Harcama Dağılımım:
+Kategori Bazlı Harcama Dağılımım (${monthName} ${yNum}):
 ${categoryDetailsStr}
 
 Mevcut Aktif Standart Borçlarım:

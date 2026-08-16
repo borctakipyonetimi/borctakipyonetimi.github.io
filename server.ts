@@ -329,17 +329,34 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
     netIncome: 0,
     totalDebt: 0,
     remaining: 0,
+    thisMonthTotalBorc: 0,
+    thisMonthKalanBorc: 0,
+    thisMonthPaidBorc: 0,
   };
   const debts = context?.debts || [];
   const expenses = context?.expenses || [];
   const installmentDebts = context?.installmentDebts || [];
-  const categoriesList = context?.expenseCategories || [
+  const contactTxs = context?.contactTransactions || [];
+  const contacts = context?.contacts || [];
+  const expenseCategories = context?.expenseCategories || [];
+  const selectedMonth = context?.selectedMonth;
+  const selectedYear = context?.selectedYear;
+  const categoriesList = expenseCategories.length > 0 ? expenseCategories : [
     { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
     { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
     { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
     { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
     { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
   ];
+
+  const TURKISH_MONTHS = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ];
+
+  const mNum = selectedMonth !== null && selectedMonth !== undefined ? selectedMonth : new Date().getMonth();
+  const yNum = selectedYear !== null && selectedYear !== undefined ? selectedYear : new Date().getFullYear();
+  const monthName = TURKISH_MONTHS[mNum] || "Mevcut Ay";
 
   const dRatio = stats.totalIncome > 0 ? (stats.remaining / stats.totalIncome) : 0;
   const dRatioPerc = dRatio * 100;
@@ -364,10 +381,127 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
     }
   }
 
-  // Header about fallback (Highly aesthetic and reassuring, no scary error prefixes)
   let advice = `✨ **Bütçem Pro Gelişmiş Finansal Analiz Raporu**\n\n`;
 
-  if (matchedCategory) {
+  if (q.includes("aylık analiz raporu") || q.includes("aylik analiz raporu") || q.includes("analiz raporu")) {
+    const tIncome = stats.totalIncome;
+    const tExpense = stats.totalExpense;
+    const nIncome = stats.netIncome;
+    const thisMonthDebtDue = stats.thisMonthKalanBorc || 0;
+    const thisMonthDebtPaid = stats.thisMonthPaidBorc || 0;
+    const thisMonthDebtTotal = stats.thisMonthTotalBorc || (thisMonthDebtDue + thisMonthDebtPaid);
+    const overallTotalLiabilities = stats.remaining || 0;
+
+    const catTotals: { [key: number]: number } = {};
+    expenses.forEach((e: any) => {
+      catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + (Number(e.amount) || 0);
+    });
+
+    advice += `📊 **${monthName.toUpperCase()} ${yNum} - DETAYLI AYLIK ANALİZ RAPORU** 📊\n\n`;
+    advice += `Sistemimizdeki bütçe ve gider kayıtlarınızı bizzat tarayarak **${monthName} ${yNum}** dönemi gelir/gider ve borç tablonuzu çıkardım:\n\n`;
+
+    const totalDebtsRem = debts.reduce((sum: number, d: any) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+    const totalInstsRem = installmentDebts.reduce((sum: number, inst: any) => {
+      const totalAmt = Number(inst.totalAmount) || 0;
+      const count = Number(inst.installmentCount) || 1;
+      const paidCount = Number(inst.paidInstallmentCount) || 0;
+      const perInst = totalAmt / count;
+      const remCount = Math.max(0, count - paidCount);
+      return sum + (remCount * perInst);
+    }, 0);
+    let contactPayablesRem = 0;
+    let contactReceivablesRem = 0;
+    contactTxs.forEach((tx: any) => {
+      if (!tx.isPaid) {
+        if (tx.type === "payable") contactPayablesRem += Number(tx.amount) || 0;
+        else if (tx.type === "receivable") contactReceivablesRem += Number(tx.amount) || 0;
+      }
+    });
+
+    advice += `### 💵 Aylık Mali Durum Özeti (${monthName} ${yNum})\n`;
+    advice += `• **Toplam Aylık Gelir**: ₺${tIncome.toLocaleString("tr-TR")}\n`;
+    advice += `• **Toplam Aylık Gider**: ₺${tExpense.toLocaleString("tr-TR")}\n`;
+    advice += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Bütçe Fazla Veriyor" : "🔴 Bütçe Açık Veriyor"})\n\n`;
+
+    advice += `### 💸 Bu Ayki Borç ve Yükümlülük Durumu\n`;
+    advice += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}\n`;
+    advice += `• **Bu Ay Ödenen Borç Tutarı**: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}\n`;
+    advice += `• **Bu Ayki Toplam Borç Yükü**: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}\n`;
+    advice += `• **Genel Toplam Kalan Borç Portföyü (Tüm Vadeler)**: ₺${overallTotalLiabilities.toLocaleString("tr-TR")}\n\n`;
+
+    advice += `### 📋 Borç Dağılımı Detayları\n`;
+    advice += `• **Nakit Borçlar (Kalan Toplam)**: ₺${totalDebtsRem.toLocaleString("tr-TR")}\n`;
+    advice += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${totalInstsRem.toLocaleString("tr-TR")}\n`;
+    advice += `• **Kişi Borçları (Verecek - Kalan)**: ₺${contactPayablesRem.toLocaleString("tr-TR")}\n`;
+    advice += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n\n`;
+
+    if (expenses.length === 0) {
+      advice += `🚨 **Harcama Uyarısı**: Bu seçili ay için kaydedilmiş herhangi bir harcama kalemi bulunamadı. Lütfen analiz için harcamalarınızı girin.\n`;
+    } else {
+      advice += `### 📉 Kategori Karşılaştırma Analizi\n`;
+      advice += `Aşağıdaki tabloda bu ayın harcama kategorileri, tutarları ve toplam aylık gider içindeki yüzdesel ağırlıkları gösterilmiştir:\n\n`;
+
+      advice += `| Gider Kategorisi | Harcanan Tutar | Gider Oranı (%) | Öneri Seviyesi |\n`;
+      advice += `| :--- | :--- | :---: | :---: |\n`;
+
+      const sortedCats = categoriesList
+        .map((c: any) => {
+          const val = catTotals[c.id] || 0;
+          return {
+            name: c.name,
+            value: val,
+            pct: tExpense > 0 ? (val / tExpense) * 100 : 0
+          };
+        })
+        .filter((c: any) => c.value > 0)
+        .sort((a: any, b: any) => b.value - a.value);
+
+      sortedCats.forEach((c: any) => {
+        let recStatus = "🟢 Stabil";
+        if (c.pct > 30) recStatus = "🚨 Çok Yüksek";
+        else if (c.pct > 15) recStatus = "⚠️ Yüksek";
+
+        advice += `| **${c.name}** | ₺${c.value.toLocaleString("tr-TR")} | %${c.pct.toFixed(1)} | ${recStatus} |\n`;
+      });
+
+      advice += `\n`;
+
+      if (sortedCats.length > 0) {
+        const topCat = sortedCats[0];
+        advice += `💡 **En Kritik Harcama Kalemi**: Bu ay bütçenizi en çok zorlayan kategori **%${topCat.pct.toFixed(1)}** pay oranıyla **"${topCat.name}"** olmuştur (Tutar: ₺${topCat.value.toLocaleString("tr-TR")}).\n\n`;
+      }
+
+      advice += `### 🎯 Bütçe Disiplini Değerlendirmesi (50/30/20 Kuralı)\n`;
+      const essentialPct = tIncome > 0 ? (tExpense / tIncome) * 100 : 0;
+      advice += `• **Zorunlu ve Kişisel Gider Oranı**: Gelirinizin **%${essentialPct.toFixed(1)}** kadarı harcanmış durumda.\n`;
+      if (essentialPct > 80) {
+        advice += `• ⚠️ **Durum Analizi**: Harcama oranınız bütçe sınırlarını çok aşıyor. Gelirin %80'inden fazlasını harcamak, borç kapatmayı ve birikim yapmayı neredeyse imkansız kılar. Acilen lüks taksitleri durdurmalı ve abonelikleri iptal etmelisiniz.\n`;
+      } else if (essentialPct > 50) {
+        advice += `• ⚖️ **Durum Analizi**: İdeal sınırlandırmaya yakınsınız ancak hala bir miktar bütçe sızıntısı var. Gider kalemlerinde yapacağınız %10'luk bir kısıntı tasarruf hızınızı ikiye katlayabilir.\n`;
+      } else {
+        advice += `• 🟢 **Durum Analizi**: Tebrikler! Tasarruf limitleriniz oldukça güvenli bölgede. Finansal bağımsızlığınıza çok daha hızlı ulaşacaksınız.\n`;
+      }
+
+      advice += `\n### 💡 Tasarruf ve Optimizasyon Önerileri\n`;
+      sortedCats.slice(0, 3).forEach((c: any, idx: number) => {
+        const possibleSaving = c.value * 0.15;
+        advice += `${idx + 1}️⃣ **${c.name} Tasarrufu**: %15 tasarruf ile bu kalemde yapacağınız küçük fedakarlıklar size ayda **₺${possibleSaving.toFixed(0)}** ek bakiye kazandıracaktır. `;
+        if (c.name.toLowerCase().includes("market")) {
+          advice += "Haftalık alışveriş listesi yapın ve aç karnına asla alışverişe çıkmayın. Markaların kendi etiketli ekonomik ürünlerini tercih edin.";
+        } else if (c.name.toLowerCase().includes("fatura")) {
+          advice += "Kullanılmayan cihazları prizden çekin, akıllı termostat kullanın ve abonelik planlarınızı daha uygun tarifelere düşürün.";
+        } else if (c.name.toLowerCase().includes("yemek") || c.name.toLowerCase().includes("yeme")) {
+          advice += "Dışarıdan sipariş verme oranını azaltarak evde pratik yemekler hazırlayın. İş yerine kendi hazırladığınız sefertasını götürün.";
+        } else if (c.name.toLowerCase().includes("ulaşım") || c.name.toLowerCase().includes("ulasim")) {
+          advice += "Kısa mesafelerde yürümeyi veya bisiklet kullanmayı tercih edin, toplu taşımayı önceliklendirin ve ortak araç kullanımını değerlendirin.";
+        } else {
+          advice += "Fayda-maliyet analizini iyi yapın, satın almadan önce 48 saat bekleyin ve nakit ödemeleri tercih edin.";
+        }
+        advice += `\n`;
+      });
+    }
+
+  } else if (matchedCategory) {
     // CATEGORY SPECIFIC HARCAMA DETAYLI ANALİZİ
     let totalCatSpent = 0;
     const catObj = categoriesList.find((c: any) => c.name.toLowerCase() === matchedCategory!.toLowerCase());
@@ -540,21 +674,38 @@ app.post("/api/chat", async (req, res) => {
     const totalIncome = stats?.totalIncome || 0;
     const totalExpense = stats?.totalExpense || 0;
     const netIncome = stats?.netIncome || 0;
+    const thisMonthKalanBorc = stats?.thisMonthKalanBorc || 0;
+    const thisMonthPaidBorc = stats?.thisMonthPaidBorc || 0;
+    const thisMonthTotalBorc = stats?.thisMonthTotalBorc || (thisMonthKalanBorc + thisMonthPaidBorc);
+
+    const TURKISH_MONTHS = [
+      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+    ];
+    const periodLabel = context?.selectedMonth !== undefined && context?.selectedYear !== undefined
+      ? `${TURKISH_MONTHS[context.selectedMonth] || ""} ${context.selectedYear}`
+      : "Mevcut Ay";
 
     const systemPrompt = `Sen "Bütçem Pro" bireysel finans yönetim ve borç takip uygulamasının gelişmiş, ChatGPT kalitesinde akıllı yapay zeka finans asistanısın. Türkçe konuşacaksın.
-Kullanıcının güncel bütçe durumu ve mali parametreleri şunlardır:
-- Toplam Borç: ₺${totalDebt}
-- Ödenmiş Miktar: ₺${totalPaid}
-- Kalan Borç: ₺${remaining}
+Kullanıcının ${periodLabel} dönemi güncel bütçe durumu ve mali parametreleri şunlardır:
+- Seçili Dönem: ${periodLabel}
 - Toplam Aylık Gelir: ₺${totalIncome}
 - Toplam Aylık Gider: ₺${totalExpense}
 - Kalan Net Gelir (Bakiye): ₺${netIncome}
+- Bu Ay Vadesi Gelen Kalan Borç: ₺${thisMonthKalanBorc}
+- Bu Ay Ödenen Borç: ₺${thisMonthPaidBorc}
+- Bu Ayki Toplam Borç Yükü: ₺${thisMonthTotalBorc}
+- Genel Toplam Kalan Borç Portföyü (Tüm Vadeler): ₺${remaining}
+- Toplam Borç Kaydı: ₺${totalDebt}
+- Toplam Ödenen Borç: ₺${totalPaid}
 - Taksitli Borç Sayısı: ${context?.installmentDebts?.length || 0}
 - Taksitli Borç Detayı: ${JSON.stringify(context?.installmentDebts || [])}
 - Standart Borç Listesi Detayı: ${JSON.stringify(context?.debts || [])}
 - Giderler Listesi Detayı: ${JSON.stringify(context?.expenses || [])}
 - Rehber Kişi Borçları ve Alacakları: ${JSON.stringify(context?.contactTransactions || [])}
 - Rehber Kişileri Listesi: ${JSON.stringify(context?.contacts || [])}
+
+ÖNEMLİ KURAL: Kullanıcının toplam aylık gelirini (₺${totalIncome}) ve toplam aylık giderini (₺${totalExpense}) doğrudan yukarıdaki resmi istatistiklerden al ve asla 0 TL olarak varsayma.
 
 Görevlerin ve Davranış Kuralların:
 1. Gelir/gider dengesini ve kalan borç durumunu analiz et, kullanıcının risk seviyesini (Yüksek Risk, Orta Seviye, Güvenli) belirle ve rasyonel yorumlar yap.
