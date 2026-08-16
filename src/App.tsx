@@ -2153,11 +2153,12 @@ export default function App() {
             // Debt is due strictly in selected month
             periodSimpleDebtRemaining += debtRemaining;
 
-            // Fallback for paid amount if no manual payment log exists
+            // Only if this debt has paid amount AND no payment log exists anywhere in payments,
+            // attribute its payment to its own due month
             if (d.paid > 0) {
-              const hasLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
-              if (!hasLog) {
-                periodSimpleDebtPaidThisMonth += d.paid;
+              const hasAnyLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
+              if (!hasAnyLog) {
+                periodSimpleDebtPaidThisMonth += Math.min(d.amount, d.paid);
               }
             }
           }
@@ -2204,21 +2205,11 @@ export default function App() {
 
           if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
             // Active installment plan for this month (1 installment due for this month)
-            const isThisMonthInstallmentPaid = inst.paidInstallmentCount > monthDiff;
-
-            if (!isThisMonthInstallmentPaid) {
+            // Check if payment was logged for this installment in this specific month
+            const hasPaymentThisMonth = installmentPaymentsThisMonth.some((p) => p.debtId === inst.id);
+            if (!hasPaymentThisMonth) {
               periodInstallmentRemaining += perMonth;
               monthlyInstallmentsDue += perMonth;
-            } else {
-              // Fallback for paid installment if no log in payments array
-              const hasLog = payments.some((p) => {
-                if (p.type !== "installment" || p.debtId !== inst.id) return false;
-                const pParts = parseDateParts(p.date);
-                return pParts ? (pParts.month === selectedMonth && pParts.year === selectedYear) : false;
-              });
-              if (!hasLog) {
-                periodInstallmentPaidThisMonth += perMonth;
-              }
             }
           }
         }
@@ -2435,11 +2426,12 @@ export default function App() {
 
       if (diff > 0) {
         // Log the difference as a manual payment
+        let payDate = debtData.dueDate || (oldDebt ? oldDebt.dueDate : "") || (selectedMonth !== null && selectedYear !== null ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-15` : new Date().toISOString());
         const newPayment: PaymentLog = {
           id: generateId(updatedPayments),
           debtId: debtData.id,
           amount: diff,
-          date: new Date().toISOString(),
+          date: payDate,
           type: "manual"
         };
         updatedPayments.push(newPayment);
@@ -2448,11 +2440,12 @@ export default function App() {
         // to prevent mismatching monthly figures
         updatedPayments = updatedPayments.filter((p) => !(p.debtId === debtData.id && p.type === "manual"));
         if (newPaid > 0) {
+          let payDate = debtData.dueDate || (oldDebt ? oldDebt.dueDate : "") || (selectedMonth !== null && selectedYear !== null ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-15` : new Date().toISOString());
           const newPayment: PaymentLog = {
             id: generateId(updatedPayments),
             debtId: debtData.id,
             amount: newPaid,
-            date: new Date().toISOString(),
+            date: payDate,
             type: "manual"
           };
           updatedPayments.push(newPayment);
@@ -2483,11 +2476,12 @@ export default function App() {
 
       if (newPaid > 0) {
         // Log initial payment
+        let payDate = dueDate || (selectedMonth !== null && selectedYear !== null ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-15` : new Date().toISOString());
         const newPayment: PaymentLog = {
           id: generateId(updatedPayments),
           debtId: newId,
           amount: newPaid,
-          date: new Date().toISOString(),
+          date: payDate,
           type: "manual"
         };
         updatedPayments.push(newPayment);
@@ -2568,11 +2562,12 @@ export default function App() {
         const diff = newPaid - d.paid;
 
         if (diff > 0) {
+          let payDate = d.dueDate || (selectedMonth !== null && selectedYear !== null ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-15` : new Date().toISOString());
           const newPayment: PaymentLog = {
             id: generateId(updatedPayments),
             debtId: id,
             amount: diff,
-            date: new Date().toISOString(),
+            date: payDate,
             type: "manual"
           };
           updatedPayments.push(newPayment);
@@ -4267,13 +4262,13 @@ export default function App() {
         const themeStyles = getAlertThemeStyles();
 
         return (
-          <div className={`relative w-full py-1 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-xs ${themeStyles.barBg}`}>
-            <div className={`absolute left-0 top-0 bottom-0 px-2 text-white font-black text-[8px] uppercase tracking-wider flex items-center gap-1 z-30 shadow-lg rounded-r-lg border-r ${themeStyles.badgeBg}`}>
-              <span className="w-1 h-1 rounded-full bg-white animate-ping" />
+          <div className={`relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-md ${themeStyles.barBg}`}>
+            <div className={`absolute left-0 top-0 bottom-0 px-3 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 ${themeStyles.badgeBg}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
               <span className="animate-pulse tracking-tight">VADE UYARILARI ⏰</span>
             </div>
-            <div className="w-full pl-28 overflow-hidden">
-              <div className="animate-marquee whitespace-nowrap flex items-center gap-3 text-[10px] font-bold">
+            <div className="w-full pl-36 sm:pl-40 overflow-hidden">
+              <div className="animate-marquee whitespace-nowrap flex items-center gap-4 sm:gap-5 text-xs font-bold py-0.5">
                 {allAlerts.map((d) => {
                   return (
                     <button
@@ -4289,33 +4284,39 @@ export default function App() {
                         }
                         triggerToast(`📍 ${d.name} borcuna yönlendiriliyorsunuz...`);
                       }}
-                      className={`inline-flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-white/70 dark:bg-slate-900/75 border rounded-full text-left transition-all duration-200 select-none shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-[10px] ${themeStyles.buttonBorder}`}
+                      className={`inline-flex items-center gap-2.5 shrink-0 px-3.5 py-1.5 rounded-xl border text-left transition-all duration-200 select-none shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-xs ${
+                        d.isOverdue
+                          ? "bg-rose-50/95 dark:bg-rose-950/80 border-rose-300 dark:border-rose-800/80 hover:bg-rose-100/90 dark:hover:bg-rose-900/60"
+                          : "bg-white/95 dark:bg-slate-900/90 border-slate-300/80 dark:border-slate-700/90 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
                     >
                       {d.isOverdue ? (
                         <>
-                          <span className={`px-1 py-0.2 text-white font-black text-[7px] rounded uppercase tracking-wide animate-pulse ${themeStyles.overdueLabelBg}`}>
-                            GECİKTİ ({d.days} gün)
+                          <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 animate-pulse">
+                            GECİKTİ • {d.days} GÜN
                           </span>
-                          <span className={`font-extrabold ${themeStyles.overdueText}`}>
+                          <span className="font-black text-rose-950 dark:text-rose-100 tracking-tight">
                             {d.name} vadesi geçti!
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="px-1 py-0.2 bg-amber-500 text-white font-black text-[7px] rounded uppercase tracking-wide">
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0">
                             {d.actualDiffDays === 0 ? "BUGÜN" : `${d.days} GÜN`}
                           </span>
-                          <span className="font-bold text-amber-900 dark:text-amber-100">
-                            {d.name} yaklaşıyor ({d.actualDiffDays === 0 ? "Bugün" : `${d.days} gün sonra`})
+                          <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                            {d.name} {d.actualDiffDays === 0 ? "vadesi bugün!" : "vadesi yaklaşıyor"}
                           </span>
                         </>
                       )}
-                      <span className={`font-mono px-1 py-0.1 rounded border font-black text-[9px] ${themeStyles.priceBg}`}>
+                      
+                      <span className={`font-mono px-2 py-0.5 rounded-lg border font-black text-xs shrink-0 shadow-2xs ${
+                        d.isOverdue
+                          ? "bg-rose-200/90 dark:bg-rose-900/80 border-rose-300 dark:border-rose-700 text-rose-950 dark:text-rose-100"
+                          : "bg-slate-900 dark:bg-slate-800 text-white dark:text-amber-300 border-slate-800 dark:border-slate-700"
+                      }`}>
                         {format(d.remainingAmount)}
                       </span>
-                      
-                      {/* Vertical line indicator */}
-                      <span className={`h-2.5 w-px ml-0.5 shrink-0 ${themeStyles.separator}`} />
                     </button>
                   );
                 })}

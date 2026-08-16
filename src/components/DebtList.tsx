@@ -1367,7 +1367,7 @@ export const DebtList: React.FC<DebtListProps> = ({
             <CheckCircle2 className="w-4 h-4" />
           </div>
           <span className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">BU AY ÖDENEN</span>
-          <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">{format(stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : (allTimeTotalPaid))}</span>
+          <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</span>
           <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Seçili ay kapatılan borç/taksitler</span>
         </div>
 
