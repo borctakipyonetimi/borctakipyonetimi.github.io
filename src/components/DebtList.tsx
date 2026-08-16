@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, FileJson } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, FileJson, RotateCcw } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -42,6 +42,7 @@ interface DebtListProps {
   language?: "tr" | "en";
   focusedDebtId?: number | null;
   setFocusedDebtId?: (id: number | null) => void;
+  onResetPayments?: (scope: "current_month" | "all") => void;
 }
 
 export const DebtList: React.FC<DebtListProps> = ({
@@ -66,6 +67,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   language = "tr",
   focusedDebtId,
   setFocusedDebtId,
+  onResetPayments,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
@@ -77,6 +79,7 @@ export const DebtList: React.FC<DebtListProps> = ({
 
   // Template Manager States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isResetPaymentsModalOpen, setIsResetPaymentsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -136,27 +139,47 @@ export const DebtList: React.FC<DebtListProps> = ({
 
   const categories = ["Kredi Kartı", "Konut", "Araç", "Sağlık", "Eğitim", "Diğer"];
 
-  // Choose recommended strategy based on financial parameters
-  // Combine both simple debts and remaining installments to ensure all outstanding obligations are computed
-  const activeUnpaidSingleDebts = debts.filter(d => d.paid < d.amount);
-  const activeUnpaidInstallmentDebts = installmentDebts.filter(
-    inst => inst.paidInstallmentCount < inst.installmentCount
-  );
+  const MONTH_NAMES = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ];
 
-  const unifiedUnpaidDebts = [
-    ...activeUnpaidSingleDebts.map(d => ({
+  // 1. Unpaid single debts for the selected period (or all unpaid if all-time)
+  const thisMonthUnpaidSingleDebts = debts.filter((d) => {
+    if (d.paid >= d.amount) return false;
+    if (selectedMonth === null || selectedYear === null) return true;
+    const parts = parseDateParts(d.dueDate);
+    if (!parts) return true;
+    return parts.month === selectedMonth && parts.year === selectedYear;
+  });
+
+  // 2. Unpaid installments active in the selected period
+  const thisMonthUnpaidInstallmentDebts = installmentDebts.filter((inst) => {
+    if (inst.paidInstallmentCount >= inst.installmentCount) return false;
+    if (selectedMonth === null || selectedYear === null) return true;
+    const startParts = parseDateParts(inst.firstDueDate);
+    if (!startParts) return false;
+    const monthDiff = (selectedYear - startParts.year) * 12 + (selectedMonth - startParts.month);
+    const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
+    const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
+    return isActiveThisMonth && !isPaidThisMonth;
+  });
+
+  // Unified items for this month's strategy priorities
+  const monthlyUnifiedUnpaid = [
+    ...thisMonthUnpaidSingleDebts.map((d) => ({
       id: d.id,
       name: d.name,
       type: "direct" as const,
-      remaining: d.amount - d.paid,
+      remaining: Math.max(0, d.amount - d.paid),
       total: d.amount,
       paid: d.paid
     })),
-    ...activeUnpaidInstallmentDebts.map(inst => {
-      const monthly = inst.totalAmount / inst.installmentCount;
+    ...thisMonthUnpaidInstallmentDebts.map((inst) => {
+      const monthly = inst.totalAmount / (inst.installmentCount || 1);
       return {
         id: inst.id,
-        name: `${inst.name} (Bu Ayki Taksit)`,
+        name: `${inst.name} (${selectedMonth !== null ? MONTH_NAMES[selectedMonth] : "Bu Ay"} Taksiti)`,
         type: "installment" as const,
         remaining: monthly,
         total: monthly,
@@ -165,27 +188,50 @@ export const DebtList: React.FC<DebtListProps> = ({
     })
   ];
 
-  const totalRemainingDebt = unifiedUnpaidDebts.reduce((sum, ud) => sum + ud.remaining, 0);
+  // Unified items for all-time total principal burden
+  const allTimeUnifiedUnpaid = [
+    ...debts.filter((d) => d.paid < d.amount).map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: "direct" as const,
+      remaining: Math.max(0, d.amount - d.paid),
+      total: d.amount,
+      paid: d.paid
+    })),
+    ...installmentDebts.filter((inst) => inst.paidInstallmentCount < inst.installmentCount).map((inst) => {
+      const monthly = inst.totalAmount / (inst.installmentCount || 1);
+      const remainingPrincipal = inst.totalAmount - (inst.paidInstallmentCount * monthly);
+      return {
+        id: inst.id,
+        name: `${inst.name} (Kalan ${inst.installmentCount - inst.paidInstallmentCount} Taksit)`,
+        type: "installment" as const,
+        remaining: remainingPrincipal,
+        total: inst.totalAmount,
+        paid: inst.paidInstallmentCount * monthly
+      };
+    })
+  ];
+
+  // Candidates for priority action: prefer this month's obligations, or fallback to all-time if this month has none
+  const priorityCandidates = monthlyUnifiedUnpaid.length > 0 ? monthlyUnifiedUnpaid : allTimeUnifiedUnpaid;
+
+  const thisMonthTotalRemaining = stats?.thisMonthKalanBorc ?? monthlyUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
+  const overallTotalRemaining = stats?.remaining ?? allTimeUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
   const incomeVal = totalIncome || 0;
   
-  const debtToIncomeRatio = incomeVal > 0 ? totalRemainingDebt / incomeVal : 0;
-  const hasSmallDebts = unifiedUnpaidDebts.some(ud => ud.remaining < 2000);
+  const debtToIncomeRatio = incomeVal > 0 ? overallTotalRemaining / incomeVal : 0;
+  const hasSmallDebts = priorityCandidates.some((ud) => ud.remaining < 2000);
   const recommendedStrategy = (debtToIncomeRatio > 3 || !hasSmallDebts) ? "avalanche" : "snowball";
 
   const [activeStrategyView, setActiveStrategyView] = useState<"snowball" | "avalanche" | null>(null);
   const currentStrategyView = activeStrategyView || recommendedStrategy;
 
-  const smallestDebt = unifiedUnpaidDebts.length > 0 
-    ? [...unifiedUnpaidDebts].sort((a,b) => a.remaining - b.remaining)[0] 
+  const smallestDebt = priorityCandidates.length > 0 
+    ? [...priorityCandidates].sort((a, b) => a.remaining - b.remaining)[0] 
     : null;
-  const largestDebt = unifiedUnpaidDebts.length > 0
-    ? [...unifiedUnpaidDebts].sort((a,b) => b.remaining - a.remaining)[0]
+  const largestDebt = priorityCandidates.length > 0
+    ? [...priorityCandidates].sort((a, b) => b.remaining - a.remaining)[0]
     : null;
-
-  const MONTH_NAMES = [
-    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
-  ];
 
   const handleSelectAllDebts = () => {
     if (selectedDebtIds.length === filteredDebts.length) {
@@ -1288,6 +1334,15 @@ export const DebtList: React.FC<DebtListProps> = ({
           >
             <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle
           </button>
+          {onResetPayments && (
+            <button
+              onClick={() => setIsResetPaymentsModalOpen(true)}
+              title="Ödemeleri sıfırla"
+              className="px-3 py-1.5 bg-rose-600/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-rose-600/20 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Ödemeleri Sıfırla
+            </button>
+          )}
           <button
             onClick={() => {
               if (!isPremium) {
@@ -1362,9 +1417,23 @@ export const DebtList: React.FC<DebtListProps> = ({
           <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Bu ay vadesi gelen tüm taksit & borçlar</span>
         </div>
 
-        <div className="p-4 bg-gradient-to-br from-emerald-500/5 to-emerald-600/[0.02] dark:from-emerald-500/10 dark:to-transparent rounded-2xl border border-emerald-100/40 dark:border-emerald-950/30 shadow-xs relative overflow-hidden">
-          <div className="absolute right-3.5 top-3.5 p-1 bg-emerald-500/10 text-emerald-500 rounded-lg">
-            <CheckCircle2 className="w-4 h-4" />
+        <div className="p-4 bg-gradient-to-br from-emerald-500/5 to-emerald-600/[0.02] dark:from-emerald-500/10 dark:to-transparent rounded-2xl border border-emerald-100/40 dark:border-emerald-950/30 shadow-xs relative overflow-hidden group">
+          <div className="absolute right-3.5 top-3.5 flex items-center gap-1">
+            {onResetPayments && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsResetPaymentsModalOpen(true);
+                }}
+                title="Ödemeleri Sıfırla"
+                className="p-1 bg-emerald-500/10 hover:bg-rose-500/20 text-emerald-600 hover:text-rose-600 dark:text-emerald-400 dark:hover:text-rose-400 rounded-lg transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 rounded-lg">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
           </div>
           <span className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">BU AY ÖDENEN</span>
           <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</span>
@@ -1679,7 +1748,7 @@ export const DebtList: React.FC<DebtListProps> = ({
 
       {/* Borç Kapama Stratejisi Öneri Kutusu */}
       <div id="debt_strategy_advisor" className="p-5 bg-gradient-to-br from-indigo-50/70 to-slate-50/80 dark:from-slate-800/80 dark:to-slate-800/60 rounded-3xl border border-indigo-100/40 dark:border-indigo-900/40 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             <h3 className="text-xs font-black tracking-wider text-indigo-950 dark:text-indigo-200 uppercase">
@@ -1687,13 +1756,49 @@ export const DebtList: React.FC<DebtListProps> = ({
             </h3>
           </div>
           <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-extrabold rounded-full flex items-center gap-1">
-            Yük/Gelir Oranı: {debtToIncomeRatio.toFixed(1)}x
+            Genel Borç / Gelir Oranı: {debtToIncomeRatio.toFixed(1)}x
           </span>
         </div>
 
+        {/* Quick transparent metrics breakdown */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="p-3 bg-white/90 dark:bg-slate-900/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-xs">
+            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+              {selectedMonth !== null ? `${MONTH_NAMES[selectedMonthVal]} Kalan Borç` : "Bu Ayki Kalan Borç"}
+            </span>
+            <span className="text-sm font-black font-mono text-slate-800 dark:text-slate-100 mt-0.5 block">
+              {format(thisMonthTotalRemaining)}
+            </span>
+          </div>
+          <div className="p-3 bg-white/90 dark:bg-slate-900/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-xs">
+            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+              Genel Kalan Anapara
+            </span>
+            <span className="text-sm font-black font-mono text-indigo-600 dark:text-indigo-400 mt-0.5 block">
+              {format(overallTotalRemaining)}
+            </span>
+          </div>
+          <div className="p-3 bg-white/90 dark:bg-slate-900/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-xs col-span-2 sm:col-span-1">
+            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+              Aylık Net Geliriniz
+            </span>
+            <span className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+              {format(incomeVal)}
+            </span>
+          </div>
+        </div>
+
         <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
-          Planlanan bu ayki toplam borç miktarınız (taksitli borçların tamamı yerine sadece bu ayki taksit tutarları dahil edilmiştir): <strong className="text-slate-800 dark:text-slate-100 font-black">{format(totalRemainingDebt)}</strong> ve aylık gelir kaynağınız <strong className="text-emerald-600 dark:text-emerald-400 font-black">{format(incomeVal)}</strong>. 
-          Bu finansal verilere göre bütçeniz için en uygun borç kapatma stratejisi: <span className="text-indigo-600 dark:text-indigo-400 font-black bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg border border-indigo-100/30 dark:border-indigo-900/30">{recommendedStrategy === "snowball" ? "Kartopu (Snowball) Yöntemi" : "Çığ (Avalanche) Yöntemi"}</span>.
+          {selectedMonth !== null ? (
+            <>
+              <strong>{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</strong> ayında ödenmesi gereken borç yükünüz <strong className="text-slate-800 dark:text-slate-100 font-black">{format(thisMonthTotalRemaining)}</strong>, tüm vadelerdeki genel toplam kalan anapara borcunuz <strong className="text-indigo-600 dark:text-indigo-400 font-black">{format(overallTotalRemaining)}</strong> ve aylık net gelir kaynağınız <strong className="text-emerald-600 dark:text-emerald-400 font-black">{format(incomeVal)}</strong>.
+            </>
+          ) : (
+            <>
+              Toplam aktif borç yükünüz <strong className="text-slate-800 dark:text-slate-100 font-black">{format(overallTotalRemaining)}</strong> ve aylık net gelir kaynağınız <strong className="text-emerald-600 dark:text-emerald-400 font-black">{format(incomeVal)}</strong>.
+            </>
+          )}
+          {" "}Bu finansal verilere göre bütçeniz için en uygun borç kapatma stratejisi: <span className="text-indigo-600 dark:text-indigo-400 font-black bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg border border-indigo-100/30 dark:border-indigo-900/30">{recommendedStrategy === "snowball" ? "Kartopu (Snowball) Yöntemi" : "Çığ (Avalanche) Yöntemi"}</span>.
         </p>
 
         {/* Strategy Selection Buttons */}
@@ -1742,7 +1847,7 @@ export const DebtList: React.FC<DebtListProps> = ({
               {smallestDebt ? (
                 <div className="p-3 bg-indigo-500/5 dark:bg-indigo-950/10 border-l-[3px] border-indigo-500 rounded-lg text-[11px] font-medium text-slate-700 dark:text-slate-300 space-y-1">
                   <span className="font-black text-[10px] text-indigo-600 dark:text-indigo-400 block uppercase tracking-wide">BUGÜNKÜ AKSİYON ADAYINIZ:</span>
-                  En küçük kalan bakiyeye sahip <strong className="text-indigo-600 dark:text-indigo-400 font-bold">"{smallestDebt.name}"</strong> (kalan toplam tutar: {format(smallestDebt.remaining)}) borç kaydını öncelikli kapatarak Kartopu etkisini hemen başlatabilirsiniz!
+                  En küçük kalan bakiyeye sahip <strong className="text-indigo-600 dark:text-indigo-400 font-bold">"{smallestDebt.name}"</strong> (kalan tutar: {format(smallestDebt.remaining)}) borç kaydını öncelikli kapatıp Kartopu etkisini hemen başlatabilirsiniz!
                 </div>
               ) : (
                 <p className="text-[10px] text-slate-400 italic">Planlanacak aktif ödenmemiş borç bulunmamaktadır.</p>
@@ -1761,7 +1866,7 @@ export const DebtList: React.FC<DebtListProps> = ({
               {largestDebt ? (
                 <div className="p-3 bg-amber-500/5 dark:bg-amber-950/10 border-l-[3px] border-amber-500 rounded-lg text-[11px] font-medium text-slate-700 dark:text-slate-300 space-y-1">
                   <span className="font-black text-[10px] text-amber-600 dark:text-amber-400 block uppercase tracking-wide">BUGÜNKÜ AKSİYON ADAYINIZ:</span>
-                  En büyük kalan bakiyeye sahip <strong className="text-amber-600 dark:text-amber-400 font-bold">"{largestDebt.name}"</strong> (kalan toplam tutar: {format(largestDebt.remaining)}) borç kaydına ekstra kaynak katarak Çığ etkisinden yararlanabilirsiniz!
+                  En büyük kalan bakiyeye sahip <strong className="text-amber-600 dark:text-amber-400 font-bold">"{largestDebt.name}"</strong> (kalan tutar: {format(largestDebt.remaining)}) borç kaydına ekstra kaynak katarak Çığ etkisinden yararlanabilirsiniz!
                 </div>
               ) : (
                 <p className="text-[10px] text-slate-400 italic">Planlanacak aktif ödenmemiş borç bulunmamaktadır.</p>
@@ -2150,6 +2255,95 @@ export const DebtList: React.FC<DebtListProps> = ({
           </motion.div>
         </div>
       )}
+
+      {/* Reset Payments Confirmation Modal */}
+      <AnimatePresence>
+        {isResetPaymentsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Borç Ödemelerini Sıfırla</h3>
+                    <p className="text-xs text-slate-500 font-medium">Ödenmiş işaretli borçları sıfırlayın</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsResetPaymentsModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Ödeme yapılmadığı halde ödenmiş görünen borçları veya geçmiş ödeme kayıtlarını temizlemek için bir seçenek belirleyin:
+              </p>
+
+              <div className="space-y-2.5 pt-1">
+                {selectedMonth !== null && selectedYear !== null && (
+                  <button
+                    onClick={() => {
+                      onResetPayments?.("current_month");
+                      setIsResetPaymentsModalOpen(false);
+                    }}
+                    className="w-full p-3.5 text-left rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/70 dark:hover:bg-amber-950/40 transition group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                        🗓️ {MONTH_NAMES[selectedMonthVal]} {selectedYearVal} Ödemelerini Sıfırla
+                      </span>
+                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase bg-amber-200/50 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
+                        Seçili Ay
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-800/80 dark:text-amber-300/70 mt-1 font-medium">
+                      Yalnızca bu aya ait borçların ödenmişlik tutarını sıfırlar ve bu ayın ödeme kayıtlarını temizler.
+                    </p>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    onResetPayments?.("all");
+                    setIsResetPaymentsModalOpen(false);
+                  }}
+                  className="w-full p-3.5 text-left rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/60 dark:bg-rose-950/20 hover:bg-rose-100/70 dark:hover:bg-rose-950/40 transition group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-rose-950 dark:text-rose-200 flex items-center gap-1.5">
+                      ⚡ Tüm Borç & Taksit Ödemelerini Tamamen Sıfırla
+                    </span>
+                    <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase bg-rose-200/50 dark:bg-rose-900/40 px-2 py-0.5 rounded-md">
+                      Genel Sıfırla
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-800/80 dark:text-rose-300/70 mt-1 font-medium">
+                    Tüm aylardaki borçları, taksitli borçların ödenmiş sayaçlarını ve kayıtlı tüm ödeme geçmişini tamamen sıfırlar.
+                  </p>
+                </button>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  onClick={() => setIsResetPaymentsModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

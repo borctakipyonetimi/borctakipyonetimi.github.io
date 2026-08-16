@@ -2128,19 +2128,14 @@ export default function App() {
     let periodSimpleDebtPaidThisMonth = 0;
     let periodSimpleDebtRemaining = 0;
 
+    const validDebtIds = new Set(debts.map((d) => d.id));
+    const validInstIds = new Set(installmentDebts.map((i) => i.id));
+
     if (selectedMonth === null || selectedYear === null) {
       periodSimpleDebtRemaining = debts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
       periodSimpleDebtPaidThisMonth = debts.reduce((sum, d) => sum + Math.min(d.amount, d.paid), 0);
     } else {
       const selectedTime = selectedYear * 12 + selectedMonth;
-
-      // Actual manual payments logged during this month
-      const manualPaymentsThisMonth = payments.filter((p) => {
-        if (p.type !== "manual") return false;
-        const parts = parseDateParts(p.date);
-        return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
-      });
-      periodSimpleDebtPaidThisMonth = manualPaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
       debts.forEach((d) => {
         const dParts = parseDateParts(d.dueDate);
@@ -2152,18 +2147,10 @@ export default function App() {
           if (debtTime === selectedTime) {
             // Debt is due strictly in selected month
             periodSimpleDebtRemaining += debtRemaining;
-
-            // Only if this debt has paid amount AND no payment log exists anywhere in payments,
-            // attribute its payment to its own due month
-            if (d.paid > 0) {
-              const hasAnyLog = payments.some((p) => p.debtId === d.id && p.type === "manual");
-              if (!hasAnyLog) {
-                periodSimpleDebtPaidThisMonth += Math.min(d.amount, d.paid);
-              }
-            }
+            periodSimpleDebtPaidThisMonth += Math.min(d.amount, d.paid);
           }
         } else {
-          // If no due date, include in remaining
+          // If no due date, include in remaining if unpaid
           if (debtRemaining > 0) {
             periodSimpleDebtRemaining += debtRemaining;
           }
@@ -2187,13 +2174,12 @@ export default function App() {
     } else {
       const selectedTime = selectedYear * 12 + selectedMonth;
 
-      // Payment logs for installments in this month
+      // Payment logs for valid installments in this month
       const installmentPaymentsThisMonth = payments.filter((p) => {
-        if (p.type !== "installment") return false;
+        if (p.type !== "installment" || !validInstIds.has(p.debtId)) return false;
         const parts = parseDateParts(p.date);
         return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
       });
-      periodInstallmentPaidThisMonth = installmentPaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
       installmentDebts.forEach((inst) => {
         const perMonth = inst.totalAmount / (inst.installmentCount || 1);
@@ -2207,7 +2193,9 @@ export default function App() {
             // Active installment plan for this month (1 installment due for this month)
             // Check if payment was logged for this installment in this specific month
             const hasPaymentThisMonth = installmentPaymentsThisMonth.some((p) => p.debtId === inst.id);
-            if (!hasPaymentThisMonth) {
+            if (hasPaymentThisMonth) {
+              periodInstallmentPaidThisMonth += perMonth;
+            } else {
               periodInstallmentRemaining += perMonth;
               monthlyInstallmentsDue += perMonth;
             }
@@ -2807,6 +2795,53 @@ export default function App() {
     setPayments(updatedPayments);
     saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
     triggerToast("Son Ödeme Geri Alındı");
+  };
+
+  const handleResetPayments = (scope: "current_month" | "all") => {
+    let updatedDebts = [...debts];
+    let updatedInstallments = [...installmentDebts];
+    let updatedPayments = [...payments];
+
+    if (scope === "current_month") {
+      if (selectedMonth !== null && selectedYear !== null) {
+        // Reset paid on debts due this month
+        updatedDebts = updatedDebts.map((d) => {
+          const parts = parseDateParts(d.dueDate);
+          if (parts && parts.month === selectedMonth && parts.year === selectedYear) {
+            return { ...d, paid: 0 };
+          }
+          return d;
+        });
+
+        // Filter out payments logged in this month
+        updatedPayments = updatedPayments.filter((p) => {
+          const parts = parseDateParts(p.date);
+          if (!parts) return true;
+          return !(parts.month === selectedMonth && parts.year === selectedYear);
+        });
+      }
+      triggerToast("Seçili aya ait tüm borç ödemeleri sıfırlandı.");
+    } else {
+      // Reset ALL payments
+      updatedDebts = updatedDebts.map((d) => ({ ...d, paid: 0 }));
+      updatedInstallments = updatedInstallments.map((inst) => ({ ...inst, paidInstallmentCount: 0 }));
+      updatedPayments = [];
+      triggerToast("Tüm borç ödemeleri ve taksit kayıtları başarıyla sıfırlandı.");
+    }
+
+    setDebts(updatedDebts);
+    setInstallmentDebts(updatedInstallments);
+    setPayments(updatedPayments);
+    saveAllToUser(
+      updatedDebts,
+      incomes,
+      alarms,
+      notifications,
+      updatedInstallments,
+      updatedPayments,
+      expenses,
+      expenseCategories
+    );
   };
 
   const handleAddAlarm = (titleString: string, dateString: string) => {
@@ -4712,6 +4747,7 @@ export default function App() {
             language={language}
             focusedDebtId={focusedDebtId}
             setFocusedDebtId={setFocusedDebtId}
+            onResetPayments={handleResetPayments}
           />
         )}
 
