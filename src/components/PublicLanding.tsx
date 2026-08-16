@@ -565,7 +565,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             Gizlilik Politikası (Privacy Policy)
           </a>
           <span className="text-slate-700 hidden sm:inline">•</span>
-          <a href="mailto:info.borctakipyonetimi@gmail.com" className="hover:text-indigo-300 transition underline">
+          <a href="mailto:info.borcodemetakip@gmail.com" className="hover:text-indigo-300 transition underline">
             Destek / İletişim (Contact)
           </a>
           <span className="text-slate-700 hidden sm:inline">•</span>

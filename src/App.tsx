@@ -350,7 +350,7 @@ export default function App() {
     { id: "mobil_odeme", name: "Turkcell Mobil Ödeme", type: "Mobil Ödeme (532 123 45 67)", icon: "📱", details: "532 123 45 67" }
   ]);
 
-  const [playAccountEmail, setPlayAccountEmail] = useState("nettenkazanma2@gmail.com");
+  const [playAccountEmail, setPlayAccountEmail] = useState("info.borcodemetakip@gmail.com");
   const [isEditingEmail, setIsEditingEmail] = useState(false);
 
   // Form states for adding simulated payment options
@@ -5354,7 +5354,7 @@ export default function App() {
                 </motion.a>
 
                 <motion.a
-                  href="mailto:nettenkazanma2@gmail.com"
+                  href="mailto:info.borcodemetakip@gmail.com"
                   whileHover={{ 
                     scale: 1.18, 
                     rotate: -5, 

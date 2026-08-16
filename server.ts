@@ -1606,7 +1606,7 @@ if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
 
 try {
   webpush.setVapidDetails(
-    "mailto:support@butcempro.com",
+    "mailto:info.borcodemetakip@gmail.com",
     vapidKeys.publicKey,
     vapidKeys.privateKey
   );

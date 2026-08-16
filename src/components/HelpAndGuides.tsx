@@ -58,7 +58,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     const catLabel = feedbackCategories.find(c => c.id === feedbackCategory)?.label || feedbackCategory;
     const ratingStars = feedbackRating > 0 ? "⭐".repeat(feedbackRating) : "Derecelendirme yok";
     
-    const mailtoUrl = `mailto:info.borctakipyonetimi@gmail.com?subject=Bütçem Pro Geri Bildirim&body=Gönderen: ${encodeURIComponent(contactName || "Anonim Kullanıcı")}%0D%0AKategori: ${encodeURIComponent(catLabel)}%0D%0ADerecelendirme: ${encodeURIComponent(ratingStars)}%0D%0AMesaj: ${encodeURIComponent(contactMsg)}%0D%0ACihaz Adresi: ${encodeURIComponent(currentUrl)}`;
+    const mailtoUrl = `mailto:info.borcodemetakip@gmail.com?subject=Bütçem Pro Geri Bildirim&body=Gönderen: ${encodeURIComponent(contactName || "Anonim Kullanıcı")}%0D%0AKategori: ${encodeURIComponent(catLabel)}%0D%0ADerecelendirme: ${encodeURIComponent(ratingStars)}%0D%0AMesaj: ${encodeURIComponent(contactMsg)}%0D%0ACihaz Adresi: ${encodeURIComponent(currentUrl)}`;
     
     window.location.href = mailtoUrl;
     setIsSuccessSubmitted(true);
@@ -544,10 +544,10 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
               <div className="flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300">
                 <p className="font-semibold text-slate-500">📧 E-posta:</p>
                 <a 
-                  href="mailto:info.borctakipyonetimi@gmail.com" 
+                  href="mailto:info.borcodemetakip@gmail.com" 
                   className="font-black underline text-indigo-500 dark:text-indigo-400 hover:text-indigo-650 tracking-wide break-all"
                 >
-                  info.borctakipyonetimi@gmail.com
+                  info.borcodemetakip@gmail.com
                 </a>
               </div>
             </div>
@@ -627,7 +627,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
           <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
             <p>
-              Gizlilik sözleşmemiz veya veri güvenliği politikamızla ilgili merak ettiğiniz tüm sorular ya da geri bildirimler için bizimle <a href="mailto:info.borctakipyonetimi@gmail.com" className="underline font-bold text-indigo-500 hover:text-indigo-650 transition">info.borctakipyonetimi@gmail.com</a> adresinden doğrudan iletişime geçebilirsiniz.
+              Gizlilik sözleşmemiz veya veri güvenliği politikamızla ilgili merak ettiğiniz tüm sorular ya da geri bildirimler için bizimle <a href="mailto:info.borcodemetakip@gmail.com" className="underline font-bold text-indigo-500 hover:text-indigo-650 transition">info.borcodemetakip@gmail.com</a> adresinden doğrudan iletişime geçebilirsiniz.
             </p>
           </div>
         </div>

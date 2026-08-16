@@ -453,7 +453,7 @@ export const PublicBlog: React.FC<PublicBlogProps> = ({
               Gizlilik Politikası (Privacy Policy)
             </a>
             <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
-            <a href="mailto:info.borctakipyonetimi@gmail.com" className="hover:text-indigo-500 transition underline">
+            <a href="mailto:info.borcodemetakip@gmail.com" className="hover:text-indigo-500 transition underline">
               İletişim / Destek
             </a>
             <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
