@@ -1580,12 +1580,22 @@ export default function App() {
       if (dataString) {
         try {
           const parsed = JSON.parse(dataString);
-          setDebts(parsed.debts || []);
+          const loadedDebts = parsed.debts || [];
+          const loadedInstallments = parsed.installmentDebts || [];
+          const validDebtIds = new Set(loadedDebts.map((d: any) => d.id));
+          const validInstIds = new Set(loadedInstallments.map((i: any) => i.id));
+          
+          // Purge orphan payment logs from deleted/non-existent debts
+          const cleanPayments = (parsed.payments || []).filter((p: any) => {
+            return p.debtId && (validDebtIds.has(p.debtId) || validInstIds.has(p.debtId));
+          });
+
+          setDebts(loadedDebts);
           setIncomes(parsed.incomes || []);
           setAlarms(parsed.alarms || []);
           setNotifications(parsed.notifications || []);
-          setInstallmentDebts(parsed.installmentDebts || []);
-          setPayments(parsed.payments || []);
+          setInstallmentDebts(loadedInstallments);
+          setPayments(cleanPayments);
           setExpenses(parsed.expenses || []);
           const defaultCategories = [
             { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
@@ -2061,12 +2071,18 @@ export default function App() {
     const activeMonthIdx = selectedMonth !== null ? selectedMonth : new Date().getMonth();
     const activeYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
 
-    // 1. Incomes scoped to chosen period (strictly for the selected month, no carryover)
+    // 1. Incomes scoped to chosen period (Recurring regular incomes stay active in subsequent months)
     const filteredIncomesForStats = incomes.filter((i) => {
       if (selectedMonth === null || selectedYear === null) return true;
       const parts = parseDateParts(i.date);
       if (!parts) return true;
-      return parts.month === selectedMonth && parts.year === selectedYear;
+      if (i.isRecurring !== false) {
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const incomeTime = parts.year * 12 + parts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        return parts.month === selectedMonth && parts.year === selectedYear;
+      }
     });
 
     // 2. Expenses scoped to chosen period
@@ -2335,7 +2351,13 @@ export default function App() {
       if (selectedMonth === null || selectedYear === null) return true;
       const dParts = parseDateParts(i.date);
       if (!dParts) return true;
-      return dParts.month === selectedMonth && dParts.year === selectedYear;
+      if (i.isRecurring !== false) {
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const incomeTime = dParts.year * 12 + dParts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        return dParts.month === selectedMonth && dParts.year === selectedYear;
+      }
     });
 
     const filteredExpensesByMonth = expenses.filter((e) => {
@@ -2939,6 +2961,53 @@ export default function App() {
       `"${titleString}" başlıklı alarmınız başarıyla oluşturuldu ve cihazınıza tanımlandı.`,
       false
     );
+  };
+
+  const handleDeletePayment = (paymentId: number) => {
+    const targetPayment = payments.find((p) => p.id === paymentId);
+    const updatedPayments = payments.filter((p) => p.id !== paymentId);
+
+    let updatedDebts = [...debts];
+    let updatedInstallments = [...installmentDebts];
+
+    if (targetPayment) {
+      if (targetPayment.type === "installment") {
+        updatedInstallments = updatedInstallments.map((inst) => {
+          if (inst.id === targetPayment.debtId) {
+            return {
+              ...inst,
+              paidInstallmentCount: Math.max(0, (inst.paidInstallmentCount || 0) - 1)
+            };
+          }
+          return inst;
+        });
+      } else {
+        updatedDebts = updatedDebts.map((d) => {
+          if (d.id === targetPayment.debtId) {
+            return {
+              ...d,
+              paid: Math.max(0, (d.paid || 0) - targetPayment.amount)
+            };
+          }
+          return d;
+        });
+      }
+    }
+
+    setPayments(updatedPayments);
+    setDebts(updatedDebts);
+    setInstallmentDebts(updatedInstallments);
+    saveAllToUser(
+      updatedDebts,
+      incomes,
+      alarms,
+      notifications,
+      updatedInstallments,
+      updatedPayments,
+      expenses,
+      expenseCategories
+    );
+    triggerToast("Ödeme kaydı silindi.");
   };
 
   const handleDeleteAlarm = (id: number) => {
@@ -4770,8 +4839,11 @@ export default function App() {
             incomes={incomes}
             expenses={expenses}
             payments={payments}
+            installmentDebts={installmentDebts}
             viewMode="monthly"
             language={language}
+            onDeletePayment={handleDeletePayment}
+            onClearPayments={handleResetPayments}
           />
         )}
 
@@ -4781,8 +4853,11 @@ export default function App() {
             incomes={incomes}
             expenses={expenses}
             payments={payments}
+            installmentDebts={installmentDebts}
             viewMode="yearly"
             language={language}
+            onDeletePayment={handleDeletePayment}
+            onClearPayments={handleResetPayments}
           />
         )}
 

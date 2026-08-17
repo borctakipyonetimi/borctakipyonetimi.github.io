@@ -4,32 +4,39 @@
  */
 
 import React, { useState } from "react";
-import { Calendar, BarChart3, LineChart as LucideLine, ClipboardList, Wallet, ShoppingBag } from "lucide-react";
+import { Calendar, BarChart3, LineChart as LucideLine, ClipboardList, Wallet, ShoppingBag, Trash2, RotateCcw, CheckCircle2, DollarSign } from "lucide-react";
 import { motion } from "motion/react";
-import { Debt, Income, Expense, PaymentLog } from "../types";
+import { Debt, Income, Expense, PaymentLog, InstallmentDebt } from "../types";
 import { BarChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
+import { parseDateParts } from "../utils/dateUtils";
 
 interface FollowUpMonthlyYearlyProps {
   debts: Debt[];
   incomes: Income[];
   expenses: Expense[];
   payments: PaymentLog[];
+  installmentDebts?: InstallmentDebt[];
   viewMode: "monthly" | "yearly";
   language?: "tr" | "en";
+  onDeletePayment?: (id: number) => void;
+  onClearPayments?: (scope: "current_month" | "all") => void;
 }
 
 export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
-  debts,
-  incomes,
-  expenses,
-  payments,
+  debts = [],
+  incomes = [],
+  expenses = [],
+  payments = [],
+  installmentDebts = [],
   viewMode,
   language = "tr",
+  onDeletePayment,
+  onClearPayments,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
-  const { format, currencySymbol } = useCurrency();
+  const { format } = useCurrency();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -43,21 +50,38 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
   ];
 
   if (viewMode === "monthly") {
-    // Advanced Monthly calculations
-    const monthlyPayments = payments.filter((p) => {
-      const pDate = new Date(p.date);
-      return pDate.getFullYear() === selectedYear && pDate.getMonth() === selectedMonth;
-    });
+    const selectedTime = selectedYear * 12 + selectedMonth;
+    const validDebtIds = new Set(debts.map((d) => d.id));
+    const validInstIds = new Set(installmentDebts.map((i) => i.id));
 
+    // 1. Incomes: recurring regular incomes carry forward to all following months
     const monthlyIncome = incomes.filter((i) => {
-      const iDate = new Date(i.date);
-      return iDate.getFullYear() === selectedYear && iDate.getMonth() === selectedMonth;
+      const parts = parseDateParts(i.date);
+      if (!parts) return true;
+      if (i.isRecurring !== false) {
+        const incomeTime = parts.year * 12 + parts.month;
+        return selectedTime >= incomeTime;
+      } else {
+        return parts.year === selectedYear && parts.month === selectedMonth;
+      }
     }).reduce((sum, item) => sum + item.amount, 0);
 
+    // 2. Expenses scoped strictly to this month
     const monthlyExpense = expenses.filter((e) => {
-      const eDate = new Date(e.date);
-      return eDate.getFullYear() === selectedYear && eDate.getMonth() === selectedMonth;
+      const parts = parseDateParts(e.date);
+      if (!parts) return false;
+      return parts.year === selectedYear && parts.month === selectedMonth;
     }).reduce((sum, item) => sum + item.amount, 0);
+
+    // 3. Filtered active monthly payment records (excluding orphaned ghost logs)
+    const monthlyPayments = payments.filter((p) => {
+      if (p.debtId && !validDebtIds.has(p.debtId) && !validInstIds.has(p.debtId)) {
+        return false;
+      }
+      const parts = parseDateParts(p.date);
+      if (!parts) return false;
+      return parts.year === selectedYear && parts.month === selectedMonth;
+    });
 
     const totalPaidThisMonth = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
 
@@ -66,6 +90,16 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
       { label: "Gider", value: monthlyExpense, color: "#ef4444" },
       { label: "Borç Ödemesi", value: totalPaidThisMonth, color: "#6366f1" },
     ];
+
+    // Helper to get debt name for payment item
+    const getPaymentTargetName = (p: PaymentLog) => {
+      if (p.type === "installment") {
+        const inst = installmentDebts.find((i) => i.id === p.debtId);
+        return inst ? `${inst.name} (Taksit)` : "Taksitli Borç";
+      }
+      const debt = debts.find((d) => d.id === p.debtId);
+      return debt ? debt.name : "Borç Ödemesi";
+    };
 
     return (
       <div className="space-y-6">
@@ -85,7 +119,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white"
+            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white cursor-pointer shadow-sm"
           >
             {monthsList.map((m, idx) => (
               <option key={idx} value={idx}>
@@ -97,7 +131,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white"
+            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white cursor-pointer shadow-sm"
           >
             {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
               <option key={y} value={y}>
@@ -123,7 +157,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         <div className="grid gap-6 md:grid-cols-2">
           <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/40 dark:border-slate-700/50 shadow-sm space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-              <BarChart3 className="w-4 h-4 text-indigo-500" /> bütçe Karşılaştırma Grafiği
+              <BarChart3 className="w-4 h-4 text-indigo-500" /> BÜTÇE KARŞILAŞTIRMA GRAFİĞİ
             </h4>
             <BarChart data={monthlyCompareData} />
           </div>
@@ -147,19 +181,89 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Bu Ayın Yapılan Ödeme Kayıtları Listesi */}
+        <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/40 dark:border-slate-700/50 shadow-sm space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> {monthsList[selectedMonth]} {selectedYear} ÖDEME KAYITLARI ({monthlyPayments.length} Adet)
+            </h4>
+            {monthlyPayments.length > 0 && onClearPayments && (
+              <button
+                onClick={() => onClearPayments("current_month")}
+                className="px-3 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition flex items-center gap-1 border border-rose-200 dark:border-rose-900"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Bu Ayın Ödemelerini Sıfırla
+              </button>
+            )}
+          </div>
+
+          {monthlyPayments.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-400 font-medium bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+              Bu ay için henüz kaydedilmiş borç ödemesi bulunmamaktadır.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              {monthlyPayments.map((p) => {
+                const parts = parseDateParts(p.date);
+                const dateLabel = parts ? `${parts.day} ${monthsList[parts.month]} ${parts.year}` : p.date;
+                return (
+                  <div key={p.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 dark:text-slate-100">{getPaymentTargetName(p)}</p>
+                        <p className="text-[11px] text-slate-400">{dateLabel} {p.type === "installment" ? "• Taksit" : "• Tek Seferlik / Borç"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono text-sm">
+                        {format(p.amount)}
+                      </span>
+                      {onDeletePayment && (
+                        <button
+                          onClick={() => onDeletePayment(p.id)}
+                          title="Ödeme Kaydını Sil"
+                          className="p-1.5 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   // Yearly follow up view ("yearly")
-  const yearlyPayments = payments.filter((p) => new Date(p.date).getFullYear() === selectedYear);
+  const validDebtIds = new Set(debts.map((d) => d.id));
+  const validInstIds = new Set(installmentDebts.map((i) => i.id));
+
+  const yearlyPayments = payments.filter((p) => {
+    if (p.debtId && !validDebtIds.has(p.debtId) && !validInstIds.has(p.debtId)) {
+      return false;
+    }
+    const parts = parseDateParts(p.date);
+    return parts ? parts.year === selectedYear : new Date(p.date).getFullYear() === selectedYear;
+  });
+
   const totalYearlyPaid = yearlyPayments.reduce((sum, p) => sum + p.amount, 0);
 
   // Group payments by month (0-11)
   const monthlyDataYear = Array(12).fill(0);
   yearlyPayments.forEach((p) => {
-    const month = new Date(p.date).getMonth();
-    monthlyDataYear[month] += p.amount;
+    const parts = parseDateParts(p.date);
+    const m = parts ? parts.month : new Date(p.date).getMonth();
+    if (m >= 0 && m < 12) {
+      monthlyDataYear[m] += p.amount;
+    }
   });
 
   return (
@@ -180,7 +284,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white"
+          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold dark:text-white cursor-pointer shadow-sm"
         >
           {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
             <option key={y} value={y}>
