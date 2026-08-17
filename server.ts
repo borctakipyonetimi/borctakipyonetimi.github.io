@@ -1786,6 +1786,40 @@ setInterval(async () => {
   }
 }, 10000);
 
+// Crawler & AdSense file helper
+const serveStaticPlainTextFile = (fileName: string, defaultContent: string, contentType = "text/plain; charset=utf-8") => {
+  return (_req: express.Request, res: express.Response) => {
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+
+    const possibleFiles = [
+      path.join(process.cwd(), "public", fileName),
+      path.join(process.cwd(), "dist", fileName),
+      path.join(process.cwd(), fileName)
+    ];
+
+    for (const fp of possibleFiles) {
+      if (fs.existsSync(fp)) {
+        try {
+          const content = fs.readFileSync(fp, "utf-8");
+          return res.status(200).send(content);
+        } catch {
+          // fallback to next
+        }
+      }
+    }
+
+    return res.status(200).send(defaultContent);
+  };
+};
+
+// Google AdSense & AdMob Crawler Verification Routes
+app.get("/ads.txt", serveStaticPlainTextFile("ads.txt", "google.com, pub-4449700232321088, DIRECT, f08c47fec0942fa0\n"));
+app.get("/app-ads.txt", serveStaticPlainTextFile("app-ads.txt", "google.com, pub-4449700232321088, DIRECT, f08c47fec0942fa0\n"));
+app.get("/robots.txt", serveStaticPlainTextFile("robots.txt", "User-agent: *\nAllow: /\n\nUser-agent: Mediapartners-Google\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n\nSitemap: https://borctakipyonetimi.github.io/sitemap.xml\n"));
+app.get("/sitemap.xml", serveStaticPlainTextFile("sitemap.xml", '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://borctakipyonetimi.github.io/</loc><priority>1.0</priority></url>\n</urlset>', "application/xml; charset=utf-8"));
+
 app.get(privacyPaths, (req, res) => {
   const possibleFiles = [
     path.join(process.cwd(), "dist", "privacy-policy.html"),

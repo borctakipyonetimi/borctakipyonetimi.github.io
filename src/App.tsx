@@ -2026,9 +2026,14 @@ export default function App() {
         let payDate = new Date();
         if (firstDueDate) {
           try {
-            const baseDate = new Date(firstDueDate);
-            baseDate.setMonth(baseDate.getMonth() + installmentIndex);
-            payDate = baseDate;
+            const parts = parseDateParts(firstDueDate);
+            if (parts) {
+              payDate = new Date(parts.year, parts.month + installmentIndex, parts.day || 15);
+            } else {
+              const baseDate = new Date(firstDueDate);
+              baseDate.setMonth(baseDate.getMonth() + installmentIndex);
+              payDate = baseDate;
+            }
           } catch {}
         }
 
@@ -2246,7 +2251,86 @@ export default function App() {
     const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
     const netIncomeValue = totalIncome - totalExpense - computedThisMonthPaidBorc;
 
-    const currentMonthTotalPaymentsCount = filteredPaymentsForStats.length;
+    // Robust & accurate calculation of payments completed in the selected period
+    let paidSimpleDebtsCountThisMonth = 0;
+    if (selectedMonth === null || selectedYear === null) {
+      paidSimpleDebtsCountThisMonth = debts.filter((d) => (d.paid || 0) > 0).length;
+    } else {
+      const selectedTime = selectedYear * 12 + selectedMonth;
+      debts.forEach((d) => {
+        if ((d.paid || 0) <= 0) return;
+        const dParts = parseDateParts(d.dueDate);
+        if (dParts) {
+          const debtTime = dParts.year * 12 + dParts.month;
+          if (debtTime === selectedTime) {
+            paidSimpleDebtsCountThisMonth++;
+            return;
+          }
+        }
+        // Check if there is an explicit payment log in this month
+        const hasPaymentLogThisMonth = payments.some((p) => {
+          if (p.type !== "manual" || p.debtId !== d.id || (p.amount || 0) <= 0) return false;
+          const pParts = parseDateParts(p.date);
+          return pParts ? (pParts.month === selectedMonth && pParts.year === selectedYear) : false;
+        });
+        if (hasPaymentLogThisMonth) {
+          paidSimpleDebtsCountThisMonth++;
+        }
+      });
+    }
+
+    let paidInstallmentsCountThisMonth = 0;
+    if (selectedMonth === null || selectedYear === null) {
+      paidInstallmentsCountThisMonth = installmentDebts.reduce((sum, inst) => sum + (inst.paidInstallmentCount || 0), 0);
+    } else {
+      const selectedTime = selectedYear * 12 + selectedMonth;
+      const installmentPaymentsThisMonth = payments.filter((p) => {
+        if (p.type !== "installment" || !validInstIds.has(p.debtId)) return false;
+        const parts = parseDateParts(p.date);
+        return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
+      });
+
+      installmentDebts.forEach((inst) => {
+        const startParts = parseDateParts(inst.firstDueDate);
+        if (startParts) {
+          const startTime = startParts.year * 12 + startParts.month;
+          const monthDiff = selectedTime - startTime;
+          if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
+            const hasPaymentThisMonth = installmentPaymentsThisMonth.some((p) => p.debtId === inst.id);
+            if (hasPaymentThisMonth || (inst.paidInstallmentCount || 0) > monthDiff) {
+              paidInstallmentsCountThisMonth++;
+            }
+          }
+        }
+      });
+    }
+
+    let paidContactPayablesCountThisMonth = 0;
+    if (savedContactTxsStr) {
+      try {
+        const txs = JSON.parse(savedContactTxsStr);
+        if (Array.isArray(txs)) {
+          txs.forEach((t: any) => {
+            if (t.type === "payable" && t.isPaid) {
+              if (selectedMonth === null || selectedYear === null) {
+                paidContactPayablesCountThisMonth++;
+              } else {
+                const selectedTime = selectedYear * 12 + selectedMonth;
+                const dParts = parseDateParts(t.dueDate || t.createdAt);
+                if (dParts) {
+                  const dueTime = dParts.year * 12 + dParts.month;
+                  if (dueTime === selectedTime) {
+                    paidContactPayablesCountThisMonth++;
+                  }
+                }
+              }
+            }
+          });
+        }
+      } catch {}
+    }
+
+    const currentMonthTotalPaymentsCount = paidSimpleDebtsCountThisMonth + paidInstallmentsCountThisMonth + paidContactPayablesCountThisMonth;
 
     const statsBag: FinancialStats = {
       totalDebt: trueOverallDebt,
@@ -2547,22 +2631,21 @@ export default function App() {
       if (d.id === id) {
         const isPaid = d.paid >= d.amount;
         const newPaid = isPaid ? 0 : d.amount;
-        const diff = newPaid - d.paid;
 
-        if (diff > 0) {
+        // Clean any existing manual payment logs for this debt to prevent duplicates
+        updatedPayments = updatedPayments.filter((p) => !(p.debtId === id && p.type === "manual"));
+
+        if (newPaid > 0) {
           let payDate = d.dueDate || (selectedMonth !== null && selectedYear !== null ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-15` : new Date().toISOString());
           const newPayment: PaymentLog = {
             id: generateId(updatedPayments),
             debtId: id,
-            amount: diff,
+            amount: newPaid,
             date: payDate,
             type: "manual"
           };
           updatedPayments.push(newPayment);
           shouldCelebrate = true;
-        } else {
-          // If toggled unpaid, remove manual payments for this debt
-          updatedPayments = updatedPayments.filter((p) => !(p.debtId === id && p.type === "manual"));
         }
 
         return {

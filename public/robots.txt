@@ -1,7 +1,14 @@
 User-agent: *
 Allow: /
-Allow: /?page=landing
-Allow: /?page=blog
-Allow: /?page=blog-post*
 
-Sitemap: https://butcempro.com/sitemap.xml
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+Sitemap: https://borctakipyonetimi.github.io/sitemap.xml
+
