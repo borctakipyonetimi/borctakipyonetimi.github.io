@@ -645,11 +645,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             {language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}
           </span>
           <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalIncome)}</p>
-          {stats.carryOverBalance !== undefined && stats.carryOverBalance > 0 && (
-            <span className="text-[9px] text-blue-100 font-extrabold block bg-blue-700/50 px-2 py-0.5 rounded-lg mt-1">
-              {language === "tr" ? `Önceki Aydan Devir: +${format(stats.carryOverBalance)}` : `Carried Over: +${format(stats.carryOverBalance)}`}
-            </span>
-          )}
         </div>
 
         <div className="p-4 bg-amber-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">

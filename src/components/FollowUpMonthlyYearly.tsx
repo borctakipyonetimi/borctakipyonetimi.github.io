@@ -108,7 +108,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         </div>
 
         {/* Dynamic monthly summaries card */}
-        <div className="p-4 bg-gradient-to-tr from-slate-900 to-indigo-950 text-white rounded-3xl grid gap-4 sm:grid-cols-3 font-semibold text-xs shadow-md">
+        <div className="p-4 bg-gradient-to-tr from-slate-900 to-indigo-950 text-white rounded-3xl grid gap-4 sm:grid-cols-2 font-semibold text-xs shadow-md">
           <div className="space-y-1">
             <span className="text-slate-400 block font-semibold text-[10px] uppercase">GELİR KAPILARI</span>
             <p className="text-sm font-black flex items-center gap-1"><Wallet className="w-4 h-4 text-emerald-400 shrink-0" /> {format(monthlyIncome)}</p>
@@ -116,10 +116,6 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
           <div className="space-y-1">
             <span className="text-slate-400 block font-semibold text-[10px] uppercase">TOPLAM MASRAF/GİDER</span>
             <p className="text-sm font-black flex items-center gap-1"><ShoppingBag className="w-4 h-4 text-rose-400 shrink-0" /> {format(monthlyExpense)}</p>
-          </div>
-          <div className="space-y-1">
-            <span className="text-amber-400 block font-bold text-[10px] uppercase">AKTARILAN ÖDEMELER</span>
-            <p className="text-sm font-black flex items-center gap-1 text-sky-400">{format(totalPaidThisMonth)}</p>
           </div>
         </div>
 

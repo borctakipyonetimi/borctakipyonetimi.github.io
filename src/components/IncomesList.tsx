@@ -145,17 +145,11 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-300 rounded-2xl flex items-center justify-between font-bold text-xs border border-emerald-100/30">
           <span>Aylık Toplam Gelir Kazancı:</span>
           <span className="text-base text-emerald-600 dark:text-emerald-400 font-mono">{format(totalIncomes)}</span>
         </div>
-        {carryOverBalance !== undefined && carryOverBalance > 0 && (
-          <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-950 dark:text-indigo-300 rounded-2xl flex items-center justify-between font-bold text-xs border border-indigo-100/30">
-            <span>Önceki Aydan Devreden Nakit:</span>
-            <span className="text-base text-indigo-600 dark:text-indigo-400 font-mono">{format(carryOverBalance)}</span>
-          </div>
-        )}
       </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">

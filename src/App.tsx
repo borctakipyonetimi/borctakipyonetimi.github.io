@@ -2061,21 +2061,12 @@ export default function App() {
     const activeMonthIdx = selectedMonth !== null ? selectedMonth : new Date().getMonth();
     const activeYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
 
-    // 1. Incomes scoped to chosen period (including recurring incomes carry forward)
+    // 1. Incomes scoped to chosen period (strictly for the selected month, no carryover)
     const filteredIncomesForStats = incomes.filter((i) => {
       if (selectedMonth === null || selectedYear === null) return true;
       const parts = parseDateParts(i.date);
       if (!parts) return true;
-
-      if (i.isRecurring !== false) {
-        // Recurring/fixed incomes carry over to any subsequent period
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const incomeTime = parts.year * 12 + parts.month;
-        return selectedTime >= incomeTime;
-      } else {
-        // One-time extra incomes only show up in their exact month
-        return parts.month === selectedMonth && parts.year === selectedYear;
-      }
+      return parts.month === selectedMonth && parts.year === selectedYear;
     });
 
     // 2. Expenses scoped to chosen period
@@ -2251,7 +2242,7 @@ export default function App() {
     const totalExpense = filteredExpensesForStats.reduce((sum, e) => sum + e.amount, 0);
     const netIncomeValue = totalIncome - totalExpense - computedThisMonthPaidBorc;
 
-    // Robust & accurate calculation of payments completed in the selected period
+    // 6. Precise payment count for the selected period
     let paidSimpleDebtsCountThisMonth = 0;
     if (selectedMonth === null || selectedYear === null) {
       paidSimpleDebtsCountThisMonth = debts.filter((d) => (d.paid || 0) > 0).length;
@@ -2264,17 +2255,17 @@ export default function App() {
           const debtTime = dParts.year * 12 + dParts.month;
           if (debtTime === selectedTime) {
             paidSimpleDebtsCountThisMonth++;
-            return;
           }
-        }
-        // Check if there is an explicit payment log in this month
-        const hasPaymentLogThisMonth = payments.some((p) => {
-          if (p.type !== "manual" || p.debtId !== d.id || (p.amount || 0) <= 0) return false;
-          const pParts = parseDateParts(p.date);
-          return pParts ? (pParts.month === selectedMonth && pParts.year === selectedYear) : false;
-        });
-        if (hasPaymentLogThisMonth) {
-          paidSimpleDebtsCountThisMonth++;
+        } else {
+          // If no dueDate was specified, check if payment was made in this month
+          const hasPaymentLogThisMonth = payments.some((p) => {
+            if (p.debtId !== d.id || (p.amount || 0) <= 0) return false;
+            const pParts = parseDateParts(p.date);
+            return pParts ? (pParts.month === selectedMonth && pParts.year === selectedYear) : false;
+          });
+          if (hasPaymentLogThisMonth) {
+            paidSimpleDebtsCountThisMonth++;
+          }
         }
       });
     }
@@ -2284,11 +2275,6 @@ export default function App() {
       paidInstallmentsCountThisMonth = installmentDebts.reduce((sum, inst) => sum + (inst.paidInstallmentCount || 0), 0);
     } else {
       const selectedTime = selectedYear * 12 + selectedMonth;
-      const installmentPaymentsThisMonth = payments.filter((p) => {
-        if (p.type !== "installment" || !validInstIds.has(p.debtId)) return false;
-        const parts = parseDateParts(p.date);
-        return parts ? (parts.month === selectedMonth && parts.year === selectedYear) : false;
-      });
 
       installmentDebts.forEach((inst) => {
         const startParts = parseDateParts(inst.firstDueDate);
@@ -2296,8 +2282,8 @@ export default function App() {
           const startTime = startParts.year * 12 + startParts.month;
           const monthDiff = selectedTime - startTime;
           if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
-            const hasPaymentThisMonth = installmentPaymentsThisMonth.some((p) => p.debtId === inst.id);
-            if (hasPaymentThisMonth || (inst.paidInstallmentCount || 0) > monthDiff) {
+            // Active installment plan for this month: only count 1 if this month's installment is paid
+            if ((inst.paidInstallmentCount || 0) > monthDiff) {
               paidInstallmentsCountThisMonth++;
             }
           }
@@ -2349,14 +2335,7 @@ export default function App() {
       if (selectedMonth === null || selectedYear === null) return true;
       const dParts = parseDateParts(i.date);
       if (!dParts) return true;
-
-      if (i.isRecurring !== false) {
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const incomeTime = dParts.year * 12 + dParts.month;
-        return selectedTime >= incomeTime;
-      } else {
-        return dParts.month === selectedMonth && dParts.year === selectedYear;
-      }
+      return dParts.month === selectedMonth && dParts.year === selectedYear;
     });
 
     const filteredExpensesByMonth = expenses.filter((e) => {
