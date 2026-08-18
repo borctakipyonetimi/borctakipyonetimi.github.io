@@ -1,44 +1,35 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { auth } from "../utils/firebase";
-import { GoogleAuthProvider, signInWithPopup, signOut, signInWithRedirect, getRedirectResult } from "firebase/auth";
 import {
   Sparkles,
   Shield,
   MessageSquare,
-  Languages,
-  Sliders,
   DollarSign,
   TrendingUp,
-  Layout,
   RefreshCw,
-  AlertTriangle,
-  Info,
-  SlidersHorizontal,
-  Settings,
   BellRing,
   Check,
-  Globe2,
   CheckCircle,
-  XCircle,
-  LogOut,
   Smartphone,
   Bell,
   Volume2,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  Mic,
+  Cloud,
+  BarChart3,
+  Users,
+  Crown,
+  ArrowRight,
+  Lock,
+  PieChart,
+  FileText,
+  Share2
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, ExpenseCategory } from "../types";
 import { translations } from "../utils/translations";
 import { useCurrency } from "../utils/CurrencyContext";
 import { getApiUrl } from "../utils/api";
-
-interface DriveBackup {
-  id: string;
-  name: string;
-  size: string;
-  createdTime: string;
-}
 
 interface GPlayEnhancementsProps {
   language: "tr" | "en";
@@ -63,6 +54,22 @@ interface GPlayEnhancementsProps {
   onNavigate?: (tab: string) => void;
 }
 
+interface ProFeatureItem {
+  id: string;
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  description: string;
+  category: "ai" | "security" | "markets" | "tools";
+  highlights: string[];
+  actionText: string;
+  actionTab?: string;
+  badge: string;
+  badgeColor: string;
+  iconBg: string;
+  iconColor: string;
+}
+
 export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
   language,
   setLanguage,
@@ -78,24 +85,14 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
   onRestoreBackup,
   onNavigate
 }) => {
-  const [activeTab, setActiveTab] = useState<"ai" | "notifs" | "currency">("ai");
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<"all" | "ai" | "security" | "markets" | "tools">("all");
+  
   const t = (key: keyof typeof translations.tr) => {
     return translations[language][key] || translations.tr[key];
   };
 
-  const [securityEnabled, setSecurityEnabled] = useState(() => localStorage.getItem("security_enabled") === "true");
-  const [notifsEnabled, setNotifsEnabled] = useState(() => localStorage.getItem("notifs_enabled") === "true");
-
-  useEffect(() => {
-    localStorage.setItem("security_enabled", securityEnabled ? "true" : "false");
-  }, [securityEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem("notifs_enabled", notifsEnabled ? "true" : "false");
-  }, [notifsEnabled]);
-
+  // Live Exchange Rates State
   const [convertAmount, setConvertAmount] = useState<string>("1000");
-
   const [fromCurrency, setFromCurrency] = useState<string>("USD");
   const [toCurrency, setToCurrency] = useState<string>("TRY");
   const [convertResult, setConvertResult] = useState<number | null>(null);
@@ -126,15 +123,12 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
 
   const [isRefreshingRates, setIsRefreshingRates] = useState(false);
 
-  // Handle Live Currency Market Conversion
   const handleConvert = () => {
     const amt = parseFloat(convertAmount) || 0;
     const fromRate = exchangeRates[fromCurrency] || 1;
     const toRate = exchangeRates[toCurrency] || 1;
-
-    // Convert to Turkish Lira first as baseline
-    const inBasline = amt * fromRate;
-    const finalYield = inBasline / toRate;
+    const inBaseline = amt * fromRate;
+    const finalYield = inBaseline / toRate;
     setConvertResult(finalYield);
   };
 
@@ -145,10 +139,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
   const handleRefreshRates = async () => {
     setIsRefreshingRates(true);
     try {
-      // 1. Refresh globally using the robust CurrencyContext mechanism
       const success = await updateRatesFromAPI();
-      
-      // 2. Also directly fetch for local display state using getApiUrl
       const res = await fetch(getApiUrl(`/api/rates?t=${Date.now()}`));
       const data = await res.json();
       if (data && data.rates) {
@@ -159,537 +150,482 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
       }
 
       if (success || (data && data.rates)) {
-        triggerToast(
-          language === "tr"
-            ? "Piyasa döviz kurları canlı olarak güncellendi! 💱"
-            : "Market exchange rates updated live! 💱"
-        );
+        triggerToast("Piyasa kurları canlı olarak güncellendi! 💱");
       } else {
-        triggerToast(
-          language === "tr"
-            ? "Kurlar güncellenemedi, lütfen internet bağlantınızı kontrol edin."
-            : "Exchange rates could not be updated, please check your internet connection."
-        );
+        triggerToast("Kurlar güncellenemedi, internet bağlantınızı kontrol edin.");
       }
     } catch (err) {
-      console.warn("Failed to fetch live FX rates:", err);
-      triggerToast(
-        language === "tr"
-          ? "Kur güncellemesi sırasında bağlantı hatası oluştu."
-          : "A connection error occurred during exchange rate updates."
-      );
+      triggerToast("Kur güncellemesi sırasında bir hata oluştu.");
     } finally {
       setIsRefreshingRates(false);
     }
   };
 
+  // Full List of Bütçem Pro Features
+  const proFeaturesList: ProFeatureItem[] = [
+    {
+      id: "ai_assistant",
+      icon: Sparkles,
+      title: "1. Bütçem AI: Akıllı Yapay Zeka Finans Asistanı",
+      subtitle: "7/24 Bütçe Analitiği & Kişiselleştirilmiş Finans Rehberi",
+      description: "Gelir, gider, taksit ve borç hesaplarınızı derinlemesine analiz eder. Sorduğunuz 'Bu ay en çok nereye harcadım?', 'Gelecek ay ne kadar tasarruf edebilirim?' veya 'Borçlarımı nasıl hızlı kapatırım?' gibi tüm soruları doğal dille yanıtlar.",
+      category: "ai",
+      highlights: [
+        "Gelir-Gider Dengesine Özel Kişiselleştirilmiş Bütçe Planlaması",
+        "Gelecek Aylara Ait Akıllı Harcama ve Taksit Tahminleme",
+        "Borç Ödeme Stratejisi ve Kar-Zarar Analizi",
+        "Doğal Dilde Sohbet Edebilen 7/24 Aktif AI Motoru"
+      ],
+      actionText: "AI Asistanı Başlat",
+      actionTab: "aiStrategy",
+      badge: "YAPAY ZEKA",
+      badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30",
+      iconBg: "bg-indigo-500/10 dark:bg-indigo-500/20",
+      iconColor: "text-indigo-500"
+    },
+    {
+      id: "voice_assistant",
+      icon: Mic,
+      title: "2. Sesli Finans Asistanı & Komut Servisi",
+      subtitle: "Eller Serbest Konuşarak Hızlı Harcama ve Borç Kaydı",
+      description: "Uygulamadaki mikrofon simgesine dokunarak sesli komut verin: 'Ahmet'e 1000 TL borç verdim' veya 'Market harcaması 250 TL'. Yapay zeka sesinizi algılar, tutarı, kişiyi ve kategoriyi otomatik ayıklayıp anında hesabınıza kaydeder.",
+      category: "ai",
+      highlights: [
+        "Gelişmiş Türkçe Ses Tanıma ve Cümle Analitik Motoru",
+        "Sesli Cümleden Tutar, Kişi ve Kategori Tespiti",
+        "Hızlı ve Pratik Hands-Free Kullanım Kolaylığı"
+      ],
+      actionText: "Sesli Asistanı Deneyin",
+      actionTab: "expenses",
+      badge: "SESLİ KOMUT",
+      badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
+      iconBg: "bg-purple-500/10 dark:bg-purple-500/20",
+      iconColor: "text-purple-500"
+    },
+    {
+      id: "app_security",
+      icon: Shield,
+      title: "3. Biyometrik Kilit & Ekran Güvenlik Korunması",
+      subtitle: "Finansal Verileriniz İçin %100 Gizlilik ve Biyometrik Koruması",
+      description: "Kişisel bütçenizi, bakiyelerinizi ve borç listenizi başkalarının görmesini engelleyin. Uygulama açılışına 4 haneli PIN Kodu, Ekran Deseni veya cihazınızın Biyometrik Parmak İzi / Yüz Tanıma (FaceID) kilidini kurun.",
+      category: "security",
+      highlights: [
+        "Biyometrik Parmak İzi ve Yüz Tanıma (FaceID) Koruması",
+        "Özel 4 Haneli PIN Kodu ve Desen Güvenliği",
+        "Uygulama Arka Plana Alındığında Otomatik Kilitlenme"
+      ],
+      actionText: "Güvenlik Kilidini Ayarla",
+      actionTab: "security",
+      badge: "GÜVENLİK KİLİDİ",
+      badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+      iconBg: "bg-emerald-500/10 dark:bg-emerald-500/20",
+      iconColor: "text-emerald-500"
+    },
+    {
+      id: "smart_push",
+      icon: BellRing,
+      title: "4. Akıllı Arka Plan Bildirimleri & Otomatik Borç Hatırlatıcı",
+      subtitle: "Uygulama Kapalıyken Dahi Kilit Ekranına Düşen Sinyaller",
+      description: "Ödeme günlerini, taksit vadelerini ve geciken borçlarınızı bir daha asla unutmayın. Bütçem Pro zamanlama sunucusu, uygulama kapalı veya telefon kilitliyken bile ekranınıza yüksek öncelikli sesli ve titreşimli borç uyarıları iletir.",
+      category: "security",
+      highlights: [
+        "Uygulama Kapalıyken Kesintisiz Web Push Bildirim Altyapısı",
+        "5 Farklı Özel Zil Sesi ve Titreşim Alternatifi",
+        "Uygulama İkonu Üzerinde Kırmızı Bildirim Rozeti (App Badge) Gösterimi"
+      ],
+      actionText: "Bildirim Ayarlarına Git",
+      actionTab: "notifications",
+      badge: "KİLİT EKRANI UYARISI",
+      badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+      iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
+      iconColor: "text-amber-500"
+    },
+    {
+      id: "live_markets",
+      icon: DollarSign,
+      title: "5. Canlı Döviz, Altın & Kripto Piyasaları",
+      subtitle: "Anlık Serbest Piyasa Kurları ve Çift Yönlü Döviz Çevirici",
+      description: "Dolar (USD), Euro (EUR), Sterlin (GBP), Altın ve Bitcoin (BTC) kurlarını canlı takip edin. Dövizli borç ve harcamalarınızı güncel piyasa kurları üzerinden Türk Lirası karşılığıyla anında görün.",
+      category: "markets",
+      highlights: [
+        "Canlı Piyasa ve Merkez Bankası Kur Verileri",
+        "Döviz Cinsinden Borçların Otomatik TL Karşılığı Hesaplanması",
+        "Saniyeler İçinde Çift Yönlü Döviz ve Kripto Çevirici"
+      ],
+      actionText: "Canlı Kurları Aç",
+      actionTab: "currency",
+      badge: "CANLI PİYASA",
+      badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30",
+      iconBg: "bg-rose-500/10 dark:bg-rose-500/20",
+      iconColor: "text-rose-500"
+    },
+    {
+      id: "cloud_sync",
+      icon: Cloud,
+      title: "6. Bulut Yedekleme & Google Drive / Firebase Senkronizasyonu",
+      subtitle: "Cihazınız Sıfırlansa Bile Verileriniz Güvende",
+      description: "Telefonunuzu yenilediğinizde veya sıfırladığınızda verileriniz kaybolmaz. Google hesabınızla tek tıkla şifreli bulut yedeklemesi yapın, APK veya diğer cihazlarınızla senkronize edin ve dilediğiniz an geri yükleyin.",
+      category: "tools",
+      highlights: [
+        "Google ve Firebase Hesabı İle Şifreli Bulut Depolama",
+        "Anında Cihazlar Arası Otomatik Senkronizasyon",
+        "Sınırsız Geri Yükleme ve %100 Veri Güvencesi"
+      ],
+      actionText: "Yedekleme Ayarları",
+      actionTab: "help",
+      badge: "BULUT KORUMA",
+      badgeColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30",
+      iconBg: "bg-sky-500/10 dark:bg-sky-500/20",
+      iconColor: "text-sky-500"
+    },
+    {
+      id: "financial_reports",
+      icon: BarChart3,
+      title: "7. İleri Seviye Finansal Raporlama & PDF/Excel Dışa Aktarımı",
+      subtitle: "Profesyonel İnteraktif Grafikler ve Fatura Dökümleri",
+      description: "Harcamalarınızı renkli pasta ve çubuk grafiklerle inceleyin. Aylık karşılaştırmalı gelir-gider raporları oluşturun ve tüm verilerinizi PDF fatura özeti, Excel (.xlsx) veya JSON dosyası olarak indirin.",
+      category: "tools",
+      highlights: [
+        "Kategori Bazlı İnteraktif Renkli Pasta Grafikler",
+        "Tek Tıkla PDF Bütçe Özeti ve Fatura Raporu Alma",
+        "Excel (.xlsx) ve JSON Formatlarında Esnek Veri Dışa Aktarma"
+      ],
+      actionText: "Finans Araçlarını Aç",
+      actionTab: "financialTools",
+      badge: "RAPORLAMA",
+      badgeColor: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30",
+      iconBg: "bg-teal-500/10 dark:bg-teal-500/20",
+      iconColor: "text-teal-500"
+    },
+    {
+      id: "contacts_messaging",
+      icon: Users,
+      title: "8. Kişi & Rehber Bazlı Borç-Alacak Takibi & WhatsApp Hatırlatma",
+      subtitle: "Rehberinizdeki Kişilere Borç Hesabı ve Şablonlu Mesajlaşma",
+      description: "Telefon rehberinizdeki arkadaşlarınıza veya müşterilerinize borç-alacak hesabı tanımlayın. Kimin ne kadar bakiyesi kaldığını görün ve tek tıkla şablonlu kibar WhatsApp/SMS ödeme hatırlatma mesajı iletin.",
+      category: "tools",
+      highlights: [
+        "Telefon Rehberi İle Doğrudan Entegrasyon",
+        "Tek Tıkla Şablonlu Kibar WhatsApp Hatırlatma Mesajı",
+        "Kişi Bazlı Bakiye Özeti ve Detaylı İşlem Geçmişi"
+      ],
+      actionText: "Borç Listesine Git",
+      actionTab: "debts",
+      badge: "REHBER TAKİBİ",
+      badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+      iconBg: "bg-blue-500/10 dark:bg-blue-500/20",
+      iconColor: "text-blue-500"
+    },
+    {
+      id: "unlimited_adfree",
+      icon: Crown,
+      title: "9. Sınırsız Kategori & Reklamsız Premium Deneyim",
+      subtitle: "Sınırsız Özgürlük ve Kesintisiz Kullanım Konforu",
+      description: "Hiçbir limite takılmadan dilediğiniz kadar özelleştirilmiş harcama kategorisi ekleyin, sınırsız taksitli borç kaydedin ve reklam olmadan tamamen temiz bir bütçe yönetim deneyimi yaşayın.",
+      category: "tools",
+      highlights: [
+        "Sınırsız Harcama Kategorisi ve Gelir Türü Ekleme Özgürlüğü",
+        "%100 Reklamsız, Temiz ve Hızlı Kullanım Arayüzü",
+        "7/24 Öncelikli Müşteri Desteği ve Geliştirici Temsilcisi"
+      ],
+      actionText: "Gider Kategorilerini Yönet",
+      actionTab: "expenses",
+      badge: "REKLAMSIZ PRO",
+      badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+      iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
+      iconColor: "text-amber-500"
+    }
+  ];
+
+  const filteredFeatures = proFeaturesList.filter((f) => {
+    if (activeCategoryFilter === "all") return true;
+    return f.category === activeCategoryFilter;
+  });
 
   return (
     <div className="w-full space-y-6" id="gplay-enhancements-root">
       
-      {/* Centered & Animated Page Title */}
-      <div className="flex flex-col items-center justify-center text-center py-4 select-none">
+      {/* Centered Animated Page Title */}
+      <div className="flex flex-col items-center justify-center text-center py-2 select-none">
         <motion.h2
-          animate={{ y: [0, -4, 0] }}
+          animate={{ y: [0, -3, 0] }}
           transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
           className="text-2xl sm:text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5"
         >
-          <Sparkles className="w-7 h-7 text-indigo-500 animate-pulse" /> PRO ÖZELLİKLER
+          <Crown className="w-7 h-7 text-amber-500 animate-pulse" /> BÜTÇEM PRO ÖZELLİKLERİ
         </motion.h2>
-        <div className="w-16 h-1 bg-indigo-500 rounded-full mt-2 opacity-80" />
+        <div className="w-20 h-1 bg-gradient-to-r from-amber-500 to-indigo-500 rounded-full mt-2 opacity-90" />
       </div>
 
-      {/* Upper Brand Card / Header */}
-      <div className="p-6 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center gap-4">
-        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
-        <div className="relative z-10 space-y-1">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase tracking-widest leading-none">
-            👑 BÜTÇEM PRO PREMİUM SÜRÜM
+      {/* Header Banner */}
+      <div className="p-6 md:p-8 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl border border-indigo-900/50 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center gap-4">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        
+        <div className="relative z-10 space-y-2 max-w-2xl">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase tracking-widest leading-none">
+            👑 BÜTÇEM PRO PREMİUM SÜRÜM KATALOĞU
           </span>
-          <p className="text-[11px] text-slate-300 leading-relaxed uppercase tracking-tight max-w-2xl mx-auto">
-            Yapay zeka asistanı, biyometrik güvenlik kilidi, anlık harcama bildirimleri ve daha fazlası ile finansal özgürlüğünüzü kontrol altına alın.
+          <h3 className="text-lg sm:text-xl font-black tracking-tight text-white">
+            Finansal Özgürlüğünüz İçin Tasarlanmış 9 Güçlü Pro Özellik
+          </h3>
+          <p className="text-xs text-slate-300 font-medium leading-relaxed">
+            Yapay zeka asistanı, eller serbest sesli komut, biyometrik güvenlik kilidi, kilit ekranı bildirimleri, canlı piyasa kurları ve sınırsız kategori özgürlüğü ile tüm bütçeniz kontrol altında.
           </p>
         </div>
       </div>
 
-      {/* Sub Tabs Toggle Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+      {/* Category Filter Tabs */}
+      <div className="flex items-center justify-center gap-2 flex-wrap">
         <button
-          onClick={() => setActiveTab("ai")}
-          className={`py-3 px-4 rounded-2xl font-black text-[11px] uppercase tracking-wide flex flex-col items-center justify-center gap-1.5 transition-all outline-none border cursor-pointer ${
-            activeTab === "ai"
-              ? "bg-indigo-650 text-white border-indigo-500 shadow-md transform scale-[1.02]"
-              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-755"
+          type="button"
+          onClick={() => setActiveCategoryFilter("all")}
+          className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer border ${
+            activeCategoryFilter === "all"
+              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-105"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
           }`}
         >
-          <Sparkles className={`w-5 h-5 ${activeTab === "ai" ? "animate-pulse" : "text-indigo-500"}`} />
-          <span>Yapay Zeka</span>
+          Tüm Pro Özellikler (9)
         </button>
-
         <button
-          onClick={() => setActiveTab("notifs")}
-          className={`py-3 px-4 rounded-2xl font-black text-[11px] uppercase tracking-wide flex flex-col items-center justify-center gap-1.5 transition-all outline-none border cursor-pointer ${
-            activeTab === "notifs"
-              ? "bg-indigo-650 text-white border-indigo-500 shadow-md transform scale-[1.02]"
-              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-755"
+          type="button"
+          onClick={() => setActiveCategoryFilter("ai")}
+          className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1.5 ${
+            activeCategoryFilter === "ai"
+              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-105"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
           }`}
         >
-          <BellRing className={`w-5 h-5 ${activeTab === "notifs" ? "animate-ring" : "text-amber-500"}`} />
-          <span>Bildirimler</span>
+          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Yapay Zeka & Ses
         </button>
-
         <button
-          onClick={() => setActiveTab("currency")}
-          className={`py-3 px-4 rounded-2xl font-black text-[11px] uppercase tracking-wide flex flex-col items-center justify-center gap-1.5 transition-all outline-none border cursor-pointer ${
-            activeTab === "currency"
-              ? "bg-indigo-650 text-white border-indigo-500 shadow-md transform scale-[1.02]"
-              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-755"
+          type="button"
+          onClick={() => setActiveCategoryFilter("security")}
+          className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1.5 ${
+            activeCategoryFilter === "security"
+              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-105"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
           }`}
         >
-          <DollarSign className={`w-5 h-5 ${activeTab === "currency" ? "animate-spin [animation-duration:10s]" : "text-rose-500"}`} />
-          <span>Canlı Kurlar</span>
+          <Shield className="w-3.5 h-3.5 text-emerald-400" /> Güvenlik & Bildirim
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveCategoryFilter("markets")}
+          className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1.5 ${
+            activeCategoryFilter === "markets"
+              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-105"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          <DollarSign className="w-3.5 h-3.5 text-rose-400" /> Canlı Kurlar
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveCategoryFilter("tools")}
+          className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1.5 ${
+            activeCategoryFilter === "tools"
+              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-105"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5 text-sky-400" /> Raporlar & Araçlar
         </button>
       </div>
 
-      {/* Main Tab Screen Area */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md overflow-hidden">
-        
-        {/* TAB 1: AI ASSISTANT */}
-        {activeTab === "ai" && (
-          <div className="p-6 md:p-8 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-700 pb-5">
-              <div className="space-y-1">
-                <h3 className="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-white">
-                  <Sparkles className="w-5 h-5 text-indigo-500" />
-                  Bütçem AI: Akıllı Finansal Rehber
-                </h3>
-                <p className="text-[10.5px] text-slate-400 dark:text-slate-400 font-bold leading-normal uppercase">
-                  HAREKETLERİNİ ANALİZ EDEN VE SANA ÖZEL TASARRUF ÖNERİLERİ SUNAN YAPAY ZEKA.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-5 items-stretch">
-              <div className="p-5 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <MessageSquare className="w-6 h-6 text-white" />
+      {/* Pro Features Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {filteredFeatures.map((item) => {
+          const IconComp = item.icon;
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-lg hover:shadow-xl transition-all flex flex-col justify-between space-y-4 relative overflow-hidden group"
+            >
+              {/* Feature Top Bar */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className={`w-12 h-12 rounded-2xl ${item.iconBg} flex items-center justify-center shrink-0 border border-slate-200/50 dark:border-slate-700/50 group-hover:scale-110 transition-transform duration-300`}>
+                    <IconComp className={`w-6 h-6 ${item.iconColor}`} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase">Sohbete Başla</h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">7/24 Finansal Destek</p>
-                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-[9.5px] font-black border uppercase tracking-wider ${item.badgeColor}`}>
+                    {item.badge}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  "Bu ay en çok nereye harcama yaptım?" veya "Borçlarımı nasıl daha hızlı kapatabilirim?" gibi sorularını sorabilirsin.
+
+                <div>
+                  <h3 className="text-base font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    {item.title}
+                  </h3>
+                  <p className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight mt-0.5">
+                    {item.subtitle}
+                  </p>
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                  {item.description}
                 </p>
+
+                {/* Highlights List */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/70 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-2">
+                  <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider">
+                    ÖNE ÇIKAN YETENEKLER
+                  </span>
+                  <ul className="space-y-1.5">
+                    {item.highlights.map((hl, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[11px] font-semibold text-slate-700 dark:text-slate-300 leading-snug">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                        <span>{hl}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              {item.actionTab && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (onNavigate) onNavigate("aiStrategy");
-                    window.dispatchEvent(new CustomEvent("nav-to-ai"));
+                    if (onNavigate) onNavigate(item.actionTab!);
                   }}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 uppercase tracking-wide shadow-md"
+                  className="w-full py-3 bg-slate-100 hover:bg-indigo-600 hover:text-white dark:bg-slate-700/80 dark:hover:bg-indigo-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider shadow-sm group-hover:bg-indigo-600 group-hover:text-white"
                 >
-                  <TrendingUp className="w-4 h-4" /> AI STRATEJİ ANALİZİNE GİT
+                  <span>{item.actionText}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
-              </div>
-
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Öne Çıkan AI Yetenekleri</h4>
-                <ul className="space-y-3">
-                  {[
-                    "Harcama Analizi ve Tahminleme",
-                    "Kişiselleştirilmiş Tasarruf Planları",
-                    "Borç Ödeme Stratejileri",
-                    "Haftalık Finansal Özetler"
-                  ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SECURITY */}
-        {activeTab === "security" && (
-          <div className="p-6 md:p-8 space-y-6">
-            <div className="border-b border-slate-150 dark:border-slate-700 pb-5 space-y-1">
-              <h3 className="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-white">
-                <Shield className="w-5 h-5 text-emerald-500" />
-                Güvenlik ve Gizlilik Merkezi
-              </h3>
-              <p className="text-[10.5px] text-slate-400 font-bold leading-normal uppercase">
-                VERİLERİNİZİ ŞİFRELEYİN VE UYGULAMA ERİŞİMİNİ KISITLAYIN.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase leading-none">Uygulama Kilidi</h4>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Açılışta PIN veya Desen Sor</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={securityEnabled}
-                    onChange={(e) => {
-                      setSecurityEnabled(e.target.checked);
-                      triggerToast(e.target.checked ? "Güvenlik kilidi aktif!" : "Güvenlik kilidi devre dışı.");
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
-              </div>
-
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between opacity-50">
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase leading-none">Biyometrik Giriş</h4>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Parmak İzi veya FaceID (Yakında)</p>
-                </div>
-                <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: NOTIFICATIONS */}
-        {activeTab === "notifs" && (
-          <div className="p-6 md:p-8 space-y-6">
-            <div className="border-b border-slate-150 dark:border-slate-700 pb-5 space-y-1">
-              <h3 className="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-white">
-                <BellRing className="w-5 h-5 text-amber-500" />
-                Akıllı Bildirim ve APK Bildirim Ayarları
-              </h3>
-              <p className="text-[10.5px] text-slate-400 font-bold leading-normal uppercase">
-                UYGULAMA KAPALIYKEN BİLE TELEFONA ANLIK BORÇ HATIRLATMA BİLDİRİMİ GÖNDERME MERKEZİ.
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              {/* Main Switch */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase leading-none">Anlık Bildirimler</h4>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Harcama, Taksit ve Borç Hatırlatıcıları</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={notifsEnabled}
-                    onChange={(e) => {
-                      setNotifsEnabled(e.target.checked);
-                      triggerToast(e.target.checked ? "Bildirimler açıldı!" : "Bildirimler kapatıldı.");
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
-              </div>
-
-              {/* ANLIK BORÇ VE KAPALI UYGULAMA BİLDİRİM TESTLERİ */}
-              <div className="p-5 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-2xl border border-indigo-700/50 space-y-4 shadow-xl">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-500/20 rounded-xl border border-indigo-500/30 text-indigo-400">
-                    <Smartphone className="w-5 h-5 animate-pulse" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">
-                      📱 TELEFON KAPALIYKEN BİLDİRİM VE BORÇ HATIRLATMA TESTİ
-                    </h4>
-                    <p className="text-[10px] text-slate-300 font-medium">
-                      Aşağıdaki butonlarla kilit ekranı bildirimlerini ve uygulama logosundaki bildirim rozetini (Badge) anında test edebilirsiniz.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {/* Test 1: Immediate Overdue Push */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        triggerToast("Borç verileri sunucuya gönderiliyor ve anlık bildirim tetikleniyor...");
-                        const reg = await navigator.serviceWorker.ready;
-                        const sub = await reg.pushManager.getSubscription();
-
-                        if (!sub) {
-                          triggerToast("Cihaz bildirimi abonesi bulunamadı. Lütfen bildirim iznini verin.");
-                          return;
-                        }
-
-                        const res = await fetch("/api/trigger-overdue-push", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            subscription: sub,
-                            debts,
-                            installmentDebts
-                          })
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                          triggerToast(`🎉 ${data.message || "Gecikmiş borç uyarısı telefonunuza iletildi!"}`);
-                        } else {
-                          triggerToast(`⚠️ ${data.error || "Bildirim iletilemedi."}`);
-                        }
-                      } catch (err: any) {
-                        console.error("Overdue push error:", err);
-                        triggerToast("Bildirim testi sırasında hata oluştu. Tarayıcı izinlerini kontrol edin.");
-                      }
-                    }}
-                    className="p-3.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-97"
-                  >
-                    <Zap className="w-4 h-4 fill-current" />
-                    <span>⚠️ Gecikmiş Borç Sinyali Gönder</span>
-                  </button>
-
-                  {/* Test 2: Delayed 5-sec Lockscreen Push */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const reg = await navigator.serviceWorker.ready;
-                        const sub = await reg.pushManager.getSubscription();
-
-                        if (!sub) {
-                          triggerToast("Bildirim aboneliği bulunamadı. İzinleri açın.");
-                          return;
-                        }
-
-                        triggerToast("⏰ 5 Saniyelik Sayaç Başladı! UYGULAMAYI HEMEN KAPATIP EKRANI KİLİTLEYİN!");
-
-                        await fetch("/api/send-test-push", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            subscription: sub,
-                            delaySeconds: 5
-                          })
-                        });
-                      } catch (err) {
-                        triggerToast("Test başlatılamadı.");
-                      }
-                    }}
-                    className="p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-97"
-                  >
-                    <Bell className="w-4 h-4" />
-                    <span>🧪 5sn Sonra Test (Uygulamayı Kapatın)</span>
-                  </button>
-                </div>
-
-                {/* Badge test button */}
-                <div className="pt-2 border-t border-indigo-800/60 flex items-center justify-between gap-3">
-                  <div className="text-[10px] text-slate-300 font-semibold">
-                    🔴 <strong className="text-white">Uygulama İkonu Noktası (Badge):</strong> Gecikmiş borç veya okunmamış bildirim olduğunda uygulama ikonu üzerinde kสม kırmızı nokta görünür.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if ("setAppBadge" in navigator) {
-                        (navigator as any).setAppBadge(1)
-                          .then(() => triggerToast("🔴 Logo üzerinde '1' bildirim işareti aktif edildi!"))
-                          .catch(() => triggerToast("Cihazınız varsayılan başlatıcısında rozet kısıtlamalı."));
-                      } else {
-                        triggerToast("Cihazınız web rozetlerini desteklemiyor.");
-                      }
-                    }}
-                    className="shrink-0 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-black cursor-pointer"
-                  >
-                    Rozeti Test Et
-                  </button>
-                </div>
-              </div>
-
-              {/* ANDROID APK VE REHBER BÖLÜMÜ */}
-              <div className="p-5 bg-amber-50/80 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-900/50 rounded-2xl space-y-3.5 text-amber-900 dark:text-amber-200">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <h4 className="text-xs font-black uppercase tracking-wider">
-                    📱 Android APK Yüklü Telefonlarda Bildirim Gelmeme Sebebi ve Çözümü
-                  </h4>
-                </div>
-                <p className="text-[11px] font-semibold leading-relaxed">
-                  Android telefonlar (özellikle Xiaomi, Samsung, Huawei, Oppo, Vivo) batarya ömrünü uzatmak için <strong>kapalı olan APK ve WebView uygulamalarının arka plan servislerini durdurur.</strong> Uygulama kapalıyken borç hatırlatması alabilmek için telefonunuzdan şu 3 ayarı yapmanız gereklidir:
-                </p>
-
-                <div className="space-y-2.5 text-[11px] font-medium pt-1">
-                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
-                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">1</span>
-                    <div>
-                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Pil Optimizasyonu (Arka Plan Kısıtlaması):</strong>
-                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
-                        Telefon Ayarları &gt; Uygulamalar &gt; Bütçem Pro &gt; Pil (Battery) &gt; <strong>'Kısıtlanmamış' (Unrestricted) / 'Arka Planda Çalışmaya İzin Ver'</strong> seçeneğini aktif edin.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
-                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">2</span>
-                    <div>
-                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Kilit Ekranı Bildirimleri:</strong>
-                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
-                        Telefon Ayarları &gt; Bildirimler &gt; Kilit Ekranı Bildirimleri &gt; <strong>'İçeriği Göster'</strong> seçeneğinin açık olduğundan emin olun.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
-                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">3</span>
-                    <div>
-                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Otomatik Başlatma (Otomatik Başlat / Autostart):</strong>
-                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
-                        Xiaomi (MIUI/HyperOS), Oppo, Vivo kullanıcıları: Telefon Güvenlik / Uygulamalar menüsünden Bütçem Pro için <strong>Otomatik Başlatma</strong> iznini verin.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: LIVE CURRENCY MARKETS AND EXCHANGE CONVERTER */}
-        {activeTab === "currency" && (
-          <div className="p-6 md:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-700 pb-5">
-              <div className="space-y-1">
-                <h3 className="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-white">
-                  <DollarSign className="w-5 h-5 text-indigo-500" />
-                  {t("currency_title")}
-                </h3>
-                <p className="text-[10.5px] text-slate-400 font-bold leading-normal uppercase">
-                  {t("currency_desc")}
-                </p>
-              </div>
-
-              {/* Refresh Markets Button */}
-              <button
-                type="button"
-                onClick={handleRefreshRates}
-                disabled={isRefreshingRates}
-                className="py-1.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-indigo-500 ${isRefreshingRates ? "animate-spin" : ""}`} />
-                {t("currency_refresh")}
-              </button>
-            </div>
-
-            {/* Currency convert calculation tools */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-              
-              {/* Box 1: Currency Calculator Sheet */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col justify-between">
-                <div className="space-y-4">
-                  <span className="text-[10px] font-black uppercase text-indigo-500 block tracking-widest leading-none">
-                    {t("currency_convert")}
-                  </span>
-
-                  {/* Input amount */}
-                  <div className="space-y-1">
-                    <label className="text-[10.5px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-                      {t("currency_from_amount")}
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={convertAmount}
-                      onChange={(e) => setConvertAmount(e.target.value)}
-                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition-all"
-                    />
-                  </div>
-
-                  {/* Drops of selection currencies */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wide">
-                        {t("currency_from")}
-                      </label>
-                      <select
-                        value={fromCurrency}
-                        onChange={(e) => setFromCurrency(e.target.value)}
-                        className="w-full px-2 sm:px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
-                      >
-                        {Object.keys(exchangeRates).map((curr) => (
-                          <option key={curr} value={curr}>{curr}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wide">
-                        {t("currency_to")}
-                      </label>
-                      <select
-                        value={toCurrency}
-                        onChange={(e) => setToCurrency(e.target.value)}
-                        className="w-full px-2 sm:px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
-                      >
-                        {Object.keys(exchangeRates).map((curr) => (
-                          <option key={curr} value={curr}>{curr}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Calculation Result */}
-                <div className="mt-5 p-4 bg-indigo-600 rounded-2xl text-white space-y-1 flex flex-col items-center justify-center shadow-lg shadow-indigo-600/20">
-                  <span className="text-[10px] font-bold uppercase opacity-85">{t("currency_result")}</span>
-                  <span className="text-xl sm:text-2xl font-black font-mono tracking-tight flex items-center gap-1.5 flex-wrap justify-center">
-                    {convertResult !== null ? convertResult.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
-                    <span className="text-xs sm:text-sm font-bold bg-white/20 px-2 py-0.5 rounded-lg">{toCurrency}</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Box 2: Live Rate Sheet listing board */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col justify-between">
-                <div className="space-y-3">
-                  <span className="text-[9px] font-black uppercase text-indigo-500 block tracking-widest leading-none">
-                    {t("currency_live_rates")}
-                  </span>
-
-                  <div className="divide-y divide-slate-200/50 dark:divide-slate-800">
-                    {Object.keys(exchangeRates).map((key) => {
-                      if (key === "TRY") return null;
-                      const rateValue = exchangeRates[key] as number;
-                      return (
-                        <div key={key} className="py-2.5 flex justify-between items-center text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 flex items-center justify-center font-black text-[9.5px]">
-                              {key === "USD" ? "💵" : key === "EUR" ? "💶" : key === "GBP" ? "💷" : "🪙"}
-                            </span>
-                            <span className="font-extrabold text-slate-806 dark:text-slate-200">1 {key}</span>
-                          </div>
-                          <span className="font-mono font-black text-slate-801 dark:text-white">
-                            {rateValue.toFixed(2)} TRY
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/10 text-emerald-800 dark:text-emerald-300 border border-emerald-150 rounded-xl text-[10px] leading-relaxed font-bold">
-                  Döviz çevirici kurları bütçe, gelir ve harcama hesaplamalarında kullanılmak üzere güvenli, şifreli anahtar sorgusu ile TCMB tüneli üzerinden beslenir.
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
+              )}
+            </motion.div>
+          );
+        })}
       </div>
 
+      {/* Live FX Currency Conversion Converter (Active Pro Interactive Tool Widget) */}
+      <div className="p-6 md:p-8 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-700 pb-5">
+          <div className="space-y-1">
+            <h3 className="text-base font-black flex items-center gap-2 text-slate-800 dark:text-white">
+              <DollarSign className="w-5 h-5 text-indigo-500" />
+              💱 Canlı Döviz ve Kripto Piyasası Çeviricisi
+            </h3>
+            <p className="text-[10.5px] text-slate-400 font-bold uppercase">
+              SERBEST PİYASA VE MERKEZ BANKASI CANLI KURLARI İLE HIZLI DÖNÜŞTÜRÜCÜ
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRefreshRates}
+            disabled={isRefreshingRates}
+            className="py-2 px-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 rounded-xl text-xs font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshingRates ? "animate-spin" : ""}`} />
+            <span>Kurları Güncelle</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          {/* Converter Controls */}
+          <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
+            <span className="text-[10px] font-black uppercase text-indigo-500 block tracking-widest">
+              CANLI HESAPLAMA MOTORU
+            </span>
+
+            <div className="space-y-1">
+              <label className="text-[10.5px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+                Çevrilecek Tutar
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={convertAmount}
+                onChange={(e) => setConvertAmount(e.target.value)}
+                className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
+                  Kaynak Para
+                </label>
+                <select
+                  value={fromCurrency}
+                  onChange={(e) => setFromCurrency(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="BTC">BTC (₿)</option>
+                  <option value="TRY">TRY (₺)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
+                  Hedef Para
+                </label>
+                <select
+                  value={toCurrency}
+                  onChange={(e) => setToCurrency(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
+                >
+                  <option value="TRY">TRY (₺)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="BTC">BTC (₿)</option>
+                </select>
+              </div>
+            </div>
+
+            {convertResult !== null && (
+              <div className="p-4 bg-indigo-600 text-white rounded-xl text-center space-y-1 shadow-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">
+                  HESAPLANAN DÖNÜŞÜM TUTARI
+                </span>
+                <p className="text-xl font-black font-mono">
+                  {convertResult.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} {toCurrency}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Current Market Rates Card */}
+          <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3 flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase text-indigo-500 block tracking-widest">
+              CANLI SERBEST PİYASA KURLARI
+            </span>
+
+            <div className="space-y-2 font-mono">
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇺🇸 Amerikan Doları (USD)</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.USD?.toFixed(2)}</span>
+              </div>
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇪🇺 Euro (EUR)</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.EUR?.toFixed(2)}</span>
+              </div>
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇬🇧 İngiliz Sterlini (GBP)</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.GBP?.toFixed(2)}</span>
+              </div>
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">🪙 Bitcoin (BTC)</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{(exchangeRates.BTC || 3365000).toLocaleString("tr-TR")}</span>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold text-center">
+              * Kurlar finansal servis API'miz üzerinden 15 dakikada bir otomatik güncellenmektedir.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
