@@ -21,7 +21,12 @@ import {
   Globe2,
   CheckCircle,
   XCircle,
-  LogOut
+  LogOut,
+  Smartphone,
+  Bell,
+  Volume2,
+  Zap,
+  CheckCircle2
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, ExpenseCategory } from "../types";
 import { translations } from "../utils/translations";
@@ -360,18 +365,19 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             <div className="border-b border-slate-150 dark:border-slate-700 pb-5 space-y-1">
               <h3 className="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-white">
                 <BellRing className="w-5 h-5 text-amber-500" />
-                Akıllı Bildirim Ayarları
+                Akıllı Bildirim ve APK Bildirim Ayarları
               </h3>
               <p className="text-[10.5px] text-slate-400 font-bold leading-normal uppercase">
-                ÖDEME GÜNLERİNİ VE LİMİT AŞIMLARINI ANINDA ÖĞRENİN.
+                UYGULAMA KAPALIYKEN BİLE TELEFONA ANLIK BORÇ HATIRLATMA BİLDİRİMİ GÖNDERME MERKEZİ.
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Main Switch */}
               <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="space-y-1">
                   <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase leading-none">Anlık Bildirimler</h4>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Harcama ve Borç Hatırlatıcıları</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Harcama, Taksit ve Borç Hatırlatıcıları</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
                   <input
@@ -387,10 +393,163 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                 </label>
               </div>
 
-              <div className="p-5 bg-amber-50/50 dark:bg-amber-950/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold leading-relaxed uppercase">
-                  💡 İpucu: Ödeme gününde bildirim almak için borç eklerken 'Hatırlatıcı Ayarla' seçeneğini işaretlemeyi unutmayın.
+              {/* ANLIK BORÇ VE KAPALI UYGULAMA BİLDİRİM TESTLERİ */}
+              <div className="p-5 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-2xl border border-indigo-700/50 space-y-4 shadow-xl">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-500/20 rounded-xl border border-indigo-500/30 text-indigo-400">
+                    <Smartphone className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">
+                      📱 TELEFON KAPALIYKEN BİLDİRİM VE BORÇ HATIRLATMA TESTİ
+                    </h4>
+                    <p className="text-[10px] text-slate-300 font-medium">
+                      Aşağıdaki butonlarla kilit ekranı bildirimlerini ve uygulama logosundaki bildirim rozetini (Badge) anında test edebilirsiniz.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Test 1: Immediate Overdue Push */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        triggerToast("Borç verileri sunucuya gönderiliyor ve anlık bildirim tetikleniyor...");
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.getSubscription();
+
+                        if (!sub) {
+                          triggerToast("Cihaz bildirimi abonesi bulunamadı. Lütfen bildirim iznini verin.");
+                          return;
+                        }
+
+                        const res = await fetch("/api/trigger-overdue-push", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            subscription: sub,
+                            debts,
+                            installmentDebts
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          triggerToast(`🎉 ${data.message || "Gecikmiş borç uyarısı telefonunuza iletildi!"}`);
+                        } else {
+                          triggerToast(`⚠️ ${data.error || "Bildirim iletilemedi."}`);
+                        }
+                      } catch (err: any) {
+                        console.error("Overdue push error:", err);
+                        triggerToast("Bildirim testi sırasında hata oluştu. Tarayıcı izinlerini kontrol edin.");
+                      }
+                    }}
+                    className="p-3.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-97"
+                  >
+                    <Zap className="w-4 h-4 fill-current" />
+                    <span>⚠️ Gecikmiş Borç Sinyali Gönder</span>
+                  </button>
+
+                  {/* Test 2: Delayed 5-sec Lockscreen Push */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.getSubscription();
+
+                        if (!sub) {
+                          triggerToast("Bildirim aboneliği bulunamadı. İzinleri açın.");
+                          return;
+                        }
+
+                        triggerToast("⏰ 5 Saniyelik Sayaç Başladı! UYGULAMAYI HEMEN KAPATIP EKRANI KİLİTLEYİN!");
+
+                        await fetch("/api/send-test-push", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            subscription: sub,
+                            delaySeconds: 5
+                          })
+                        });
+                      } catch (err) {
+                        triggerToast("Test başlatılamadı.");
+                      }
+                    }}
+                    className="p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-97"
+                  >
+                    <Bell className="w-4 h-4" />
+                    <span>🧪 5sn Sonra Test (Uygulamayı Kapatın)</span>
+                  </button>
+                </div>
+
+                {/* Badge test button */}
+                <div className="pt-2 border-t border-indigo-800/60 flex items-center justify-between gap-3">
+                  <div className="text-[10px] text-slate-300 font-semibold">
+                    🔴 <strong className="text-white">Uygulama İkonu Noktası (Badge):</strong> Gecikmiş borç veya okunmamış bildirim olduğunda uygulama ikonu üzerinde kสม kırmızı nokta görünür.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if ("setAppBadge" in navigator) {
+                        (navigator as any).setAppBadge(1)
+                          .then(() => triggerToast("🔴 Logo üzerinde '1' bildirim işareti aktif edildi!"))
+                          .catch(() => triggerToast("Cihazınız varsayılan başlatıcısında rozet kısıtlamalı."));
+                      } else {
+                        triggerToast("Cihazınız web rozetlerini desteklemiyor.");
+                      }
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-[10px] font-black cursor-pointer"
+                  >
+                    Rozeti Test Et
+                  </button>
+                </div>
+              </div>
+
+              {/* ANDROID APK VE REHBER BÖLÜMÜ */}
+              <div className="p-5 bg-amber-50/80 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-900/50 rounded-2xl space-y-3.5 text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <h4 className="text-xs font-black uppercase tracking-wider">
+                    📱 Android APK Yüklü Telefonlarda Bildirim Gelmeme Sebebi ve Çözümü
+                  </h4>
+                </div>
+                <p className="text-[11px] font-semibold leading-relaxed">
+                  Android telefonlar (özellikle Xiaomi, Samsung, Huawei, Oppo, Vivo) batarya ömrünü uzatmak için <strong>kapalı olan APK ve WebView uygulamalarının arka plan servislerini durdurur.</strong> Uygulama kapalıyken borç hatırlatması alabilmek için telefonunuzdan şu 3 ayarı yapmanız gereklidir:
                 </p>
+
+                <div className="space-y-2.5 text-[11px] font-medium pt-1">
+                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
+                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">1</span>
+                    <div>
+                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Pil Optimizasyonu (Arka Plan Kısıtlaması):</strong>
+                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        Telefon Ayarları &gt; Uygulamalar &gt; Bütçem Pro &gt; Pil (Battery) &gt; <strong>'Kısıtlanmamış' (Unrestricted) / 'Arka Planda Çalışmaya İzin Ver'</strong> seçeneğini aktif edin.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
+                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">2</span>
+                    <div>
+                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Kilit Ekranı Bildirimleri:</strong>
+                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        Telefon Ayarları &gt; Bildirimler &gt; Kilit Ekranı Bildirimleri &gt; <strong>'İçeriği Göster'</strong> seçeneğinin açık olduğundan emin olun.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-200/80 dark:border-amber-900/30 flex items-start gap-2.5">
+                    <span className="p-1 bg-amber-500 text-white rounded-md text-[10px] font-black shrink-0">3</span>
+                    <div>
+                      <strong className="font-extrabold text-amber-950 dark:text-amber-100">Otomatik Başlatma (Otomatik Başlat / Autostart):</strong>
+                      <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        Xiaomi (MIUI/HyperOS), Oppo, Vivo kullanıcıları: Telefon Güvenlik / Uygulamalar menüsünden Bütçem Pro için <strong>Otomatik Başlatma</strong> iznini verin.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
