@@ -65,7 +65,11 @@ import {
   Fuel,
   Coffee,
   Utensils,
-  Copy
+  Copy,
+  Folder,
+  ClipboardList,
+  Save,
+  FileJson
 } from "lucide-react";
 import {
   Debt,
@@ -2881,6 +2885,53 @@ export default function App() {
     triggerToast("Son Ödeme Geri Alındı");
   };
 
+  const handleRestoreInstallments = (newInstallments: InstallmentDebt[], mode: "replace" | "merge" = "replace") => {
+    let finalInstallments: InstallmentDebt[] = [];
+    if (mode === "replace") {
+      finalInstallments = newInstallments.map((inst, idx) => ({
+        ...inst,
+        id: inst.id || Date.now() + idx,
+        totalAmount: Number(inst.totalAmount) || 0,
+        installmentCount: Number(inst.installmentCount) || 1,
+        paidInstallmentCount: Math.min(Number(inst.installmentCount) || 1, Math.max(0, Number(inst.paidInstallmentCount) || 0)),
+        firstDueDate: inst.firstDueDate || new Date().toISOString().slice(0, 10),
+      }));
+    } else {
+      const existingNames = new Set(installmentDebts.map((i) => (i.name || "").toLowerCase().trim()));
+      const incoming = newInstallments
+        .filter((i) => !existingNames.has((i.name || "").toLowerCase().trim()))
+        .map((inst, idx) => ({
+          ...inst,
+          id: Date.now() + idx + Math.floor(Math.random() * 1000),
+          totalAmount: Number(inst.totalAmount) || 0,
+          installmentCount: Number(inst.installmentCount) || 1,
+          paidInstallmentCount: Math.min(Number(inst.installmentCount) || 1, Math.max(0, Number(inst.paidInstallmentCount) || 0)),
+          firstDueDate: inst.firstDueDate || new Date().toISOString().slice(0, 10),
+        }));
+      finalInstallments = [...installmentDebts, ...incoming];
+    }
+
+    // Rebuild installment payments
+    let updatedPayments = payments.filter((p) => p.type !== "installment");
+    finalInstallments.forEach((inst) => {
+      if (inst.paidInstallmentCount > 0) {
+        const perMonth = inst.totalAmount / (inst.installmentCount || 1);
+        updatedPayments = syncInstallmentPayments(
+          inst.id,
+          inst.paidInstallmentCount,
+          perMonth,
+          inst.firstDueDate,
+          updatedPayments
+        );
+      }
+    });
+
+    setInstallmentDebts(finalInstallments);
+    setPayments(updatedPayments);
+    saveAllToUser(debts, incomes, alarms, notifications, finalInstallments, updatedPayments, expenses, expenseCategories);
+    triggerToast(`🎉 ${finalInstallments.length} adet taksit planı başarıyla geri yüklendi!`);
+  };
+
   const handleResetPayments = (scope: "current_month" | "all") => {
     let updatedDebts = [...debts];
     let updatedInstallments = [...installmentDebts];
@@ -3152,7 +3203,7 @@ export default function App() {
     }
   };
 
-  const executeExportBackup = (customName?: string) => {
+  const executeExportBackup = async (customName?: string, pickFolder: boolean = false) => {
     const contactsKey = `${spaceKey}_contacts_directory`;
     const contactTxsKey = `${spaceKey}_contacts_transactions`;
     
@@ -3180,13 +3231,38 @@ export default function App() {
     };
     
     const jsonString = JSON.stringify(bag, null, 2);
-    let rawName = (customName || exportFileNameInput || "borçtakip listesi").trim();
-    if (!rawName) rawName = "borçtakip listesi";
-    const fileName = rawName.toLowerCase().endsWith(".json") ? rawName : `${rawName}.json`;
+    let rawName = (customName || exportFileNameInput || "butcem_yedek").trim();
+    if (!rawName) rawName = "butcem_yedek";
+    const baseName = rawName.replace(/\.json$/i, "");
+    const fileName = `${baseName}.json`;
+
+    // 1. If user wants to choose folder/location and browser supports File System Access API
+    if (pickFolder && "showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: "JSON Veri Yedek Dosyası",
+            accept: { "application/json": [".json"] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        triggerToast(`✅ Veri yedeği seçilen konuma kaydedildi: ${fileName}`);
+        localStorage.setItem("last_backup_export_date", new Date().toISOString());
+        return;
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          return;
+        }
+        console.warn("showSaveFilePicker error:", err);
+      }
+    }
 
     triggerToast(`Veri Yedeği (${fileName}) indiriliyor... 📥`);
 
-    // 1. Client-side Blob download (instant, offline compatible, works in all major browsers)
+    // 2. Client-side Blob download
     try {
       const blob = new Blob([jsonString], { type: "application/json" });
       const localUrl = URL.createObjectURL(blob);
@@ -3195,13 +3271,15 @@ export default function App() {
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(localUrl);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(localUrl);
+      }, 300);
     } catch (e) {
       console.warn("Local blob download bypassed:", e);
     }
 
-    // 2. Server-side download helper fallback (essential for restrictive Android APK WebViews that block blob: schemes)
+    // 3. Server-side download helper fallback (essential for restrictive Android APK WebViews that block blob: schemes)
     fetch("/api/temp-backup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3216,7 +3294,9 @@ export default function App() {
         downloadLink.download = fileName;
         document.body.appendChild(downloadLink);
         downloadLink.click();
-        document.body.removeChild(downloadLink);
+        setTimeout(() => {
+          document.body.removeChild(downloadLink);
+        }, 300);
       }
     })
     .catch(err => {
@@ -3230,7 +3310,7 @@ export default function App() {
     if (typeof directName === "string" && directName.trim()) {
       executeExportBackup(directName);
     } else {
-      setExportFileNameInput("borçtakip listesi");
+      setExportFileNameInput(`butcem_yedek_${new Date().toISOString().slice(0, 10)}`);
       setIsExportModalOpen(true);
     }
   };
@@ -4759,31 +4839,19 @@ export default function App() {
           <div className="grid grid-cols-2 gap-1.5 text-[9px] font-bold">
             <button
               onClick={() => {
-                if (!isPremium) {
-                  setPromoFeature("Veri Dışa Aktarma");
-                  setIsUpgradeModalOpen(true);
-                  return;
-                }
                 handleExportBackup();
               }}
-              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden"
+              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
             >
               <Download className="w-3 h-3" /> DIŞA AKTAR
-              {!isPremium && <span className="absolute top-0 right-0 bg-amber-500 text-[6px] text-white px-1 font-black transform rotate-45 translate-x-2 -translate-y-0.5">PRO</span>}
             </button>
             <button
               onClick={() => {
-                if (!isPremium) {
-                  setPromoFeature("Veri İçe Aktarma");
-                  setIsUpgradeModalOpen(true);
-                  return;
-                }
                 handleImportBackup();
               }}
-              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden"
+              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
             >
               <Upload className="w-3 h-3" /> İÇE AKTAR
-              {!isPremium && <span className="absolute top-0 right-0 bg-amber-500 text-[6px] text-white px-1 font-black transform rotate-45 translate-x-2 -translate-y-0.5">PRO</span>}
             </button>
           </div>
           <button
@@ -4943,6 +5011,7 @@ export default function App() {
             onDeleteInstallment={handleDeleteInstallment}
             onPayInstallment={handlePayInstallment}
             onRevertPayment={handleRevertInstallmentPayment}
+            onRestoreInstallments={handleRestoreInstallments}
             isPremium={isPremium}
             language={language}
             onUpgradeClick={() => setIsUpgradeModalOpen(true)}
@@ -7207,21 +7276,21 @@ export default function App() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  executeExportBackup(exportFileNameInput);
+                  executeExportBackup(exportFileNameInput, false);
                   setIsExportModalOpen(false);
                 }}
                 className="p-6 space-y-4 text-xs"
               >
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    DOSYA ADI
+                    DOSYA ADI (İSTEĞE BAĞLI ÖZELLEŞTİRİN)
                   </label>
                   <div className="relative flex items-center">
                     <input
                       type="text"
                       value={exportFileNameInput}
                       onChange={(e) => setExportFileNameInput(e.target.value)}
-                      placeholder="borçtakip listesi"
+                      placeholder="butcem_yedek"
                       className="w-full pl-3.5 pr-16 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
                       autoFocus
                     />
@@ -7230,13 +7299,13 @@ export default function App() {
                     </span>
                   </div>
                   <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    💡 İsterseniz dosya ismini değiştirebilirsiniz. (.json uzantısı otomatik eklenecektir)
+                    💡 İsterseniz dosya ismini değiştirebilir ve kaydedilecek konumu seçebilirsiniz.
                   </p>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2">
                   <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block tracking-wider">
-                    YEDEKLECEK VERİ ÖZETİ
+                    YEDEKLENECEK VERİ ÖZETİ
                   </span>
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                     <div className="flex items-center gap-1.5">
@@ -7258,19 +7327,55 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center justify-end gap-2">
+                <div className="space-y-2 pt-1">
+                  {"showSaveFilePicker" in window && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        executeExportBackup(exportFileNameInput, true);
+                        setIsExportModalOpen(false);
+                      }}
+                      className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+                    >
+                      <Folder className="w-4 h-4" /> 📁 Konum / Klasör Seçerek Kaydet (Farklı Kaydet)
+                    </button>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="submit"
+                      className="py-2.5 px-3 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition cursor-pointer shadow-sm"
+                    >
+                      <Download className="w-4 h-4" /> Hızlı İndir (.json)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const contactsKey = `${spaceKey}_contacts_directory`;
+                        const contactTxsKey = `${spaceKey}_contacts_transactions`;
+                        let contactsData = [];
+                        let contactTxsData = [];
+                        try { contactsData = JSON.parse(localStorage.getItem(contactsKey) || "[]"); } catch {}
+                        try { contactTxsData = JSON.parse(localStorage.getItem(contactTxsKey) || "[]"); } catch {}
+                        const bag = { debts, incomes, alarms, notifications, installmentDebts, payments, expenses, expenseCategories, contacts: contactsData, contactTransactions: contactTxsData };
+                        navigator.clipboard.writeText(JSON.stringify(bag, null, 2));
+                        triggerToast("✅ Tüm veri yedeği panoya kopyalandı!");
+                        setIsExportModalOpen(false);
+                      }}
+                      className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition cursor-pointer"
+                    >
+                      <ClipboardList className="w-4 h-4 text-indigo-500" /> Panoya Kopyala
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
                   <button
                     type="button"
                     onClick={() => setIsExportModalOpen(false)}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-xs rounded-xl transition cursor-pointer"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold text-xs rounded-xl transition cursor-pointer"
                   >
-                    İptal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95 cursor-pointer shadow-md flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" /> İndir / Dışa Aktar
+                    Vazgeç
                   </button>
                 </div>
               </form>

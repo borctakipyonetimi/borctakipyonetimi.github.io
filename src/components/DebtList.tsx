@@ -79,7 +79,16 @@ export const DebtList: React.FC<DebtListProps> = ({
 
   // Template Manager States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState("");
   const [isResetPaymentsModalOpen, setIsResetPaymentsModalOpen] = useState(false);
+  const [namedTemplates, setNamedTemplates] = useState<Array<{ id: string; name: string; date: string; count: number; totalAmount: number; debts: any[] }>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user_named_debt_templates") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -348,21 +357,30 @@ export const DebtList: React.FC<DebtListProps> = ({
   };
 
   // --- BORÇ ŞABLONU SAKLAMA VE YÜKLEME ---
-  const handleSaveTemplate = () => {
-    // Filter debts belonging to current selected period
+  const getSourceDebtsForTemplate = () => {
     const currentPeriodDebts = debts.filter((d) => {
       if (selectedMonth === null || selectedYear === null) return true;
       const dParts = parseDateParts(d.dueDate);
       if (!dParts) return true;
       return dParts.month === selectedMonth && dParts.year === selectedYear;
     });
+    return currentPeriodDebts.length > 0 ? currentPeriodDebts : debts;
+  };
 
-    const sourceDebts = currentPeriodDebts.length > 0 ? currentPeriodDebts : debts;
-
+  const handleOpenSaveTemplateModal = () => {
+    const sourceDebts = getSourceDebtsForTemplate();
     if (sourceDebts.length === 0) {
       alert("Saklanacak borç bulunamadı! Lütfen önce bu aya en az bir borç ekleyin.");
       return;
     }
+    const defaultName = `Borc_Sablonu_${MONTH_NAMES[selectedMonthVal]}_${selectedYearVal}`;
+    setTemplateNameInput(defaultName);
+    setIsSaveTemplateModalOpen(true);
+  };
+
+  const executeSaveTemplate = async (destination: "file_picker" | "in_app" | "download" | "copy") => {
+    const sourceDebts = getSourceDebtsForTemplate();
+    if (sourceDebts.length === 0) return;
 
     const templateData = sourceDebts.map((d) => ({
       name: d.name,
@@ -372,23 +390,82 @@ export const DebtList: React.FC<DebtListProps> = ({
     }));
 
     const jsonString = JSON.stringify(templateData, null, 2);
+    let rawName = (templateNameInput || `Borc_Sablonu_${MONTH_NAMES[selectedMonthVal]}_${selectedYearVal}`).trim();
+    if (!rawName) rawName = `Borc_Sablonu_${MONTH_NAMES[selectedMonthVal]}_${selectedYearVal}`;
+    const baseName = rawName.replace(/\.json$/i, "");
+    const fileName = `${baseName}.json`;
+    const totalTemplateSum = sourceDebts.reduce((sum, d) => sum + d.amount, 0);
 
-    // Save to localStorage
+    // Save as fallback in localStorage single slot as well
     localStorage.setItem("saved_debt_template_json", jsonString);
 
-    // Download JSON file
+    if (destination === "in_app") {
+      const newTemplate = {
+        id: String(Date.now()),
+        name: baseName,
+        date: new Date().toLocaleDateString("tr-TR"),
+        count: templateData.length,
+        totalAmount: totalTemplateSum,
+        debts: templateData,
+      };
+      const updatedList = [newTemplate, ...namedTemplates.filter((t) => t.name !== baseName)];
+      setNamedTemplates(updatedList);
+      localStorage.setItem("user_named_debt_templates", JSON.stringify(updatedList));
+      alert(`✅ '${baseName}' isimli şablon (${templateData.length} adet borç) uygulama hafızasına başarıyla kaydedildi!`);
+      setIsSaveTemplateModalOpen(false);
+      return;
+    }
+
+    if (destination === "copy") {
+      navigator.clipboard.writeText(jsonString);
+      alert("✅ Şablon JSON verisi panoya kopyalandı!");
+      setIsSaveTemplateModalOpen(false);
+      return;
+    }
+
+    if (destination === "file_picker" && "showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: "JSON Borç Şablonu",
+            accept: { "application/json": [".json"] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        alert(`✅ '${fileName}' borç şablonu başarıyla seçtiğiniz konuma kaydedildi!`);
+        setIsSaveTemplateModalOpen(false);
+        return;
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        console.warn("showSaveFilePicker error:", err);
+      }
+    }
+
+    // Direct download
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const targetMonthVal = selectedMonth !== null ? selectedMonth : new Date().getMonth();
-    const targetYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
-    const monthLabel = `${MONTH_NAMES[targetMonthVal]}_${targetYearVal}`;
     link.href = url;
-    link.download = `borc_sablonu_${monthLabel}.json`;
+    link.download = fileName;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 300);
 
-    alert(`✅ ${templateData.length} adet borç şablonu başarıyla kaydedildi ve '${link.download}' olarak bilgisayarınıza indirildi!\n\nBu şablonu 'Şablondan Yükle' butonu ile dilediğiniz aya kolayca ekleyebilirsiniz.`);
+    alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' olarak indirildi!`);
+    setIsSaveTemplateModalOpen(false);
+  };
+
+  const handleDeleteNamedTemplate = (id: string, name: string) => {
+    if (!confirm(`'${name}' isimli şablonu silmek istediğinize emin misiniz?`)) return;
+    const updated = namedTemplates.filter((t) => t.id !== id);
+    setNamedTemplates(updated);
+    localStorage.setItem("user_named_debt_templates", JSON.stringify(updated));
   };
 
   const handleImportTemplateItems = (items: Array<{ name: string; amount: number; category?: string; dueDate?: string }>) => {
@@ -1321,8 +1398,8 @@ export const DebtList: React.FC<DebtListProps> = ({
       <div className="flex flex-col gap-3 justify-center sm:flex-row sm:items-center">
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <button
-            onClick={handleSaveTemplate}
-            title="Bu ayki borç listesini şablon olarak kaydet / indir"
+            onClick={handleOpenSaveTemplateModal}
+            title="Bu ayki borç listesini şablon olarak kaydet / konum seçerek indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
             <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla
@@ -2182,13 +2259,132 @@ export const DebtList: React.FC<DebtListProps> = ({
         />
       )}
 
-      {/* Debt Template Manager Modal */}
-      {isTemplateModalOpen && (
+      {/* Debt Template Save Modal */}
+      {isSaveTemplateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                  <Save className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Borç Şablonunu Sakla</h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Seçili Dönem: <span className="font-bold text-emerald-600 dark:text-emerald-400">{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSaveTemplateModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                ŞABLON ADI
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={templateNameInput}
+                  onChange={(e) => setTemplateNameInput(e.target.value)}
+                  placeholder={`Borc_Sablonu_${MONTH_NAMES[selectedMonthVal]}_${selectedYearVal}`}
+                  className="w-full pl-3.5 pr-16 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  autoFocus
+                />
+                <span className="absolute right-3 text-[10px] font-black font-mono text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded-md uppercase">
+                  .json
+                </span>
+              </div>
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                💡 Şablonunuza istediğiniz ismi vererek cihazınızda dilediğiniz klasöre veya uygulama içi hafızaya kaydedebilirsiniz.
+              </p>
+            </div>
+
+            <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/20 rounded-2xl flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300">
+              <span>Şablondaki Borç Sayısı:</span>
+              <span className="font-extrabold">{getSourceDebtsForTemplate().length} Adet</span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {"showSaveFilePicker" in window && (
+                <button
+                  type="button"
+                  onClick={() => executeSaveTemplate("file_picker")}
+                  className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 text-left">
+                    <Save className="w-4 h-4 text-emerald-200" />
+                    <div>
+                      <div className="font-extrabold">📁 Konum / Klasör Seçerek Kaydet</div>
+                      <div className="text-[10px] text-emerald-200 font-normal">Cihazınızda istediğiniz klasörü seçin</div>
+                    </div>
+                  </div>
+                  <Download className="w-4 h-4 text-emerald-200" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => executeSaveTemplate("in_app")}
+                className="w-full p-3 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 rounded-2xl font-bold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <FolderInput className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <div>
+                    <div className="font-extrabold">💾 Uygulama İçi Şablon Listesine Kaydet</div>
+                    <div className="text-[10px] text-indigo-500 dark:text-indigo-400 font-normal">Dosya indirmeden uygulama hafızasında saklar</div>
+                  </div>
+                </div>
+                <Save className="w-4 h-4 text-indigo-500" />
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => executeSaveTemplate("download")}
+                  className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Hızlı İndir (.json)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeSaveTemplate("copy")}
+                  className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5 text-indigo-500" /> JSON Kopyala
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSaveTemplateModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Debt Template Load / Manager Modal */}
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2198,58 +2394,115 @@ export const DebtList: React.FC<DebtListProps> = ({
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Borç Şablonu Yükle</h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    Seçili Ay: <span className="font-bold text-indigo-600 dark:text-indigo-400">{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</span>
+                    Hedef Dönem: <span className="font-bold text-indigo-600 dark:text-indigo-400">{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</span>
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsTemplateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Borç listenizi her ay tekrar tekrar girmekle uğraşmamak için sakladığınız borç şablonunu veya indirdiğiniz JSON dosyasını kullanarak <strong>{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</strong> dönemine tek tıkla yükleyebilirsiniz.
+              Borç listenizi her ay tek tek girmek yerine kayıtlı şablonlarınızdan veya dosyanızdan <strong>{MONTH_NAMES[selectedMonthVal]} {selectedYearVal}</strong> dönemine tek tıkla aktarabilirsiniz.
             </p>
 
-            <div className="space-y-2.5 pt-2">
-              <button
-                onClick={handleLoadFromSavedStorage}
-                className="w-full p-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-indigo-600/20 transition active:scale-[0.98] cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5 text-left">
-                  <Save className="w-4 h-4 text-indigo-200" />
-                  <div>
-                    <div className="font-extrabold">Kayıtlı Hafızadan Yükle</div>
-                    <div className="text-[10px] text-indigo-200 font-normal">Sistemde en son sakladığınız borç listesini yükler</div>
+            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+              {/* Named Templates Section */}
+              {namedTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                    KAYITLI ŞABLONLARINIZ ({namedTemplates.length})
+                  </div>
+                  <div className="space-y-2">
+                    {namedTemplates.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold text-xs text-slate-800 dark:text-slate-100 truncate">
+                            {t.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                            <span>{t.date}</span>
+                            <span>•</span>
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400">{t.count} Borç</span>
+                            <span>•</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{format(t.totalAmount || 0)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleImportTemplateItems(t.debts);
+                              setIsTemplateModalOpen(false);
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer shadow-xs"
+                          >
+                            Bu Aya Yükle
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNamedTemplate(t.id, t.name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition cursor-pointer"
+                            title="Şablonu Sil"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <ArrowRightLeft className="w-4 h-4 text-indigo-200" />
-              </button>
+              )}
 
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full p-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-2xl font-bold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5 text-left">
-                  <FileJson className="w-4 h-4 text-amber-500" />
-                  <div>
-                    <div className="font-extrabold">Dosyadan (.json) Yükle</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Bilgisayarınızdaki şablon dosyasını seçin</div>
-                  </div>
+              {/* Source Options */}
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                  DİĞER YÜKLEME SEÇENEKLERİ
                 </div>
-                <Upload className="w-4 h-4 text-slate-400" />
-              </button>
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-2xl font-bold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 text-left">
+                    <FileJson className="w-4 h-4 text-amber-500" />
+                    <div>
+                      <div className="font-extrabold">Cihazdan / Klasörden Dosya (.json) Seç</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Bilgisayarınızdaki veya telefonunuzdaki şablon dosyasını seçin</div>
+                    </div>
+                  </div>
+                  <Upload className="w-4 h-4 text-slate-400" />
+                </button>
+
+                <button
+                  onClick={handleLoadFromSavedStorage}
+                  className="w-full p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-2xl font-bold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 text-left">
+                    <Save className="w-4 h-4 text-indigo-500" />
+                    <div>
+                      <div className="font-extrabold">Son Saklanan Varsayılan Hafızadan Yükle</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Sistemde en son sakladığınız borç listesini yükler</div>
+                    </div>
+                  </div>
+                  <ArrowRightLeft className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setIsTemplateModalOpen(false)}
                 className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Vazgeç
+                Kapat
               </button>
             </div>
           </motion.div>
