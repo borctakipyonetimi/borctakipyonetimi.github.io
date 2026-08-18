@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, FileJson, RotateCcw } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -379,6 +379,11 @@ export const DebtList: React.FC<DebtListProps> = ({
   };
 
   const executeSaveTemplate = async (destination: "file_picker" | "in_app" | "download" | "copy") => {
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
+
     const sourceDebts = getSourceDebtsForTemplate();
     if (sourceDebts.length === 0) return;
 
@@ -423,8 +428,30 @@ export const DebtList: React.FC<DebtListProps> = ({
       return;
     }
 
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+
     if (destination === "file_picker") {
-      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+      // 1. Android APK & Mobile: Web Share API allows saving to Google Drive, Android Files (Dosyalarım), WhatsApp, etc.
+      try {
+        const testFile = new File([blob], fileName, { type: "application/json" });
+        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+          await navigator.share({
+            title: "Borç Şablonu",
+            text: `Bütçem Borç Şablonu (${fileName})`,
+            files: [testFile],
+          });
+          alert(`✅ '${fileName}' borç şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
+          setIsSaveTemplateModalOpen(false);
+          return;
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === "AbortError") return;
+        console.warn("navigator.share bypassed, trying file picker or download:", shareErr);
+      }
+
+      // 1b. Desktop File System Access API
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
+      if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
         try {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: fileName,
@@ -442,27 +469,26 @@ export const DebtList: React.FC<DebtListProps> = ({
         } catch (err: any) {
           if (err.name === "AbortError") return;
           console.warn("showSaveFilePicker error:", err);
-          alert(`💡 Tarayıcı güvenlik kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
         }
-      } else {
-        alert(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
     }
 
     // Direct download
-    const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName;
+    link.setAttribute("download", fileName);
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
-      document.body.removeChild(link);
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
       URL.revokeObjectURL(url);
-    }, 300);
+    }, 800);
 
-    alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' olarak indirildi!`);
+    alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
     setIsSaveTemplateModalOpen(false);
   };
 
@@ -1403,18 +1429,30 @@ export const DebtList: React.FC<DebtListProps> = ({
       <div className="flex flex-col gap-3 justify-center sm:flex-row sm:items-center">
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <button
-            onClick={handleOpenSaveTemplateModal}
+            onClick={() => {
+              if (!isPremium) {
+                onUpgradeClick?.();
+                return;
+              }
+              handleOpenSaveTemplateModal();
+            }}
             title="Bu ayki borç listesini şablon olarak kaydet / konum seçerek indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
-            <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla
+            <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
           <button
-            onClick={() => setIsTemplateModalOpen(true)}
+            onClick={() => {
+              if (!isPremium) {
+                onUpgradeClick?.();
+                return;
+              }
+              setIsTemplateModalOpen(true);
+            }}
             title="Kayıtlı borç şablonunu veya dosyayı bu aya yükle"
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
-            <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle
+            <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
           {onResetPayments && (
             <button
@@ -2320,22 +2358,20 @@ export const DebtList: React.FC<DebtListProps> = ({
             </div>
 
             <div className="space-y-2 pt-1">
-              {"showSaveFilePicker" in window && (
-                <button
-                  type="button"
-                  onClick={() => executeSaveTemplate("file_picker")}
-                  className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 text-left">
-                    <Save className="w-4 h-4 text-emerald-200" />
-                    <div>
-                      <div className="font-extrabold">📁 Konum / Klasör Seçerek Kaydet</div>
-                      <div className="text-[10px] text-emerald-200 font-normal">Cihazınızda istediğiniz klasörü seçin</div>
-                    </div>
+              <button
+                type="button"
+                onClick={() => executeSaveTemplate("file_picker")}
+                className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <Folder className="w-4 h-4 text-emerald-200" />
+                  <div>
+                    <div className="font-extrabold">📁 Konum Seç / Paylaş (Drive & Dosyalarım)</div>
+                    <div className="text-[10px] text-emerald-200 font-normal">Android Dosyalarım, Google Drive veya klasör seçimi</div>
                   </div>
-                  <Download className="w-4 h-4 text-emerald-200" />
-                </button>
-              )}
+                </div>
+                <Download className="w-4 h-4 text-emerald-200" />
+              </button>
 
               <button
                 type="button"

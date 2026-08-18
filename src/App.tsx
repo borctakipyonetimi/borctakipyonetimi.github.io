@@ -3266,6 +3266,12 @@ export default function App() {
   };
 
   const executeExportBackup = async (customName?: string, pickFolder: boolean = false) => {
+    if (!isPremium) {
+      setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     const contactsKey = `${spaceKey}_contacts_directory`;
     const contactTxsKey = `${spaceKey}_contacts_transactions`;
     
@@ -3298,41 +3304,63 @@ export default function App() {
     const baseName = rawName.replace(/\.json$/i, "");
     const fileName = `${baseName}.json`;
 
-    // 1. If user wants to choose folder/location and browser supports File System Access API
-    if (pickFolder && typeof window !== "undefined" && "showSaveFilePicker" in window) {
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+
+    // 1. Android APK & Mobile: Web Share API allows saving to Google Drive, Android Files (Dosyalarım), WhatsApp, etc.
+    if (pickFolder) {
       try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{
-            description: "JSON Veri Yedek Dosyası",
-            accept: { "application/json": [".json"] }
-          }]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        triggerToast(`✅ Veri yedeği seçtiğiniz konuma başarıyla kaydedildi: ${fileName}`);
-        localStorage.setItem("last_backup_export_date", new Date().toISOString());
-        return;
-      } catch (err: any) {
-        if (err.name === "AbortError") {
-          return; // Kullanıcı iptal etti
+        const testFile = new File([blob], fileName, { type: "application/json" });
+        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+          await navigator.share({
+            title: "Bütçem Veri Yedeği",
+            text: `Bütçem Pro Veri Yedeği (${fileName})`,
+            files: [testFile]
+          });
+          triggerToast(`✅ Veri yedeği seçilen konuma / uygulamaya başarıyla iletildi: ${fileName}`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
         }
-        console.warn("showSaveFilePicker error:", err);
-        triggerToast(`💡 Tarayıcı/ortam kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
+      } catch (shareErr: any) {
+        if (shareErr.name === "AbortError") {
+          return; // Kullanıcı paylaşım menüsünü kapattı
+        }
+        console.warn("navigator.share bypassed, trying file picker or download:", shareErr);
       }
-    } else if (pickFolder) {
-      triggerToast(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
+
+      // 1b. Desktop File System Access API (if available and not in mobile wrapper)
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
+      if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: "JSON Veri Yedek Dosyası",
+              accept: { "application/json": [".json"] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          triggerToast(`✅ Veri yedeği seçtiğiniz konuma başarıyla kaydedildi: ${fileName}`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        } catch (err: any) {
+          if (err.name === "AbortError") {
+            return; // Kullanıcı iptal etti
+          }
+          console.warn("showSaveFilePicker error:", err);
+        }
+      }
     }
 
-    // 2. Client-side Clean Single Download
+    // 2. Client-side Clean Single Download (Standard in APK / Web)
     let downloadSuccess = false;
     try {
-      const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
       const localUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = localUrl;
       link.setAttribute("download", fileName);
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
@@ -3340,9 +3368,9 @@ export default function App() {
           document.body.removeChild(link);
         }
         URL.revokeObjectURL(localUrl);
-      }, 500);
+      }, 800);
       downloadSuccess = true;
-      triggerToast(`✅ Veri Yedeği başarıyla indirildi: ${fileName}`);
+      triggerToast(`✅ '${fileName}' dosyası İndirilenler klasörünüze başarıyla kaydedildi!`);
       localStorage.setItem("last_backup_export_date", new Date().toISOString());
     } catch (e) {
       console.warn("Local blob download bypassed, attempting server fallback:", e);
@@ -3362,14 +3390,15 @@ export default function App() {
           const downloadLink = document.createElement("a");
           downloadLink.href = downloadUrl;
           downloadLink.setAttribute("download", fileName);
+          downloadLink.download = fileName;
           document.body.appendChild(downloadLink);
           downloadLink.click();
           setTimeout(() => {
             if (document.body.contains(downloadLink)) {
               document.body.removeChild(downloadLink);
             }
-          }, 500);
-          triggerToast(`✅ Veri Yedeği başarıyla indirildi: ${fileName}`);
+          }, 800);
+          triggerToast(`✅ '${fileName}' dosyası İndirilenler klasörünüze kaydedildi!`);
           localStorage.setItem("last_backup_export_date", new Date().toISOString());
         }
       } catch (err) {
@@ -3379,6 +3408,11 @@ export default function App() {
   };
 
   const handleExportBackup = (directName?: string) => {
+    if (!isPremium) {
+      setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     if (typeof directName === "string" && directName.trim()) {
       executeExportBackup(directName);
     } else {
@@ -3577,6 +3611,11 @@ export default function App() {
   };
 
   const handleImportBackup = () => {
+    if (!isPremium) {
+      setPromoFeature("Veri Yedekleme (İçe Aktarma)");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     triggerToast(language === "tr" ? "Yedek Dosyası Seçin (.json)... 📂" : "Select Backup File (.json)... 📂");
     const input = document.createElement("input");
     input.type = "file";
@@ -4911,19 +4950,31 @@ export default function App() {
           <div className="grid grid-cols-2 gap-1.5 text-[9px] font-bold">
             <button
               onClick={() => {
+                if (!isPremium) {
+                  setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
+                  setIsUpgradeModalOpen(true);
+                  return;
+                }
                 handleExportBackup();
               }}
               className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
             >
               <Download className="w-3 h-3" /> DIŞA AKTAR
+              {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
             </button>
             <button
               onClick={() => {
+                if (!isPremium) {
+                  setPromoFeature("Veri Yedekleme (İçe Aktarma)");
+                  setIsUpgradeModalOpen(true);
+                  return;
+                }
                 handleImportBackup();
               }}
               className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
             >
               <Upload className="w-3 h-3" /> İÇE AKTAR
+              {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
             </button>
           </div>
           <button
@@ -7335,8 +7386,11 @@ export default function App() {
                     <Download className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black tracking-wide">VERİ YEDEĞİNİ DIŞA AKTAR</h2>
-                    <p className="text-[10px] text-indigo-100 font-medium">Dosyanıza isim verebilir veya varsayılan ismi kullanabilirsiniz</p>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-black tracking-wide">VERİ YEDEĞİNİ DIŞA AKTAR</h2>
+                      <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] rounded uppercase tracking-wider font-mono shadow-xs">PRO</span>
+                    </div>
+                    <p className="text-[10px] text-indigo-100 font-medium">Yedek dosyanıza isim verebilir ve cihazınıza kaydedebilirsiniz</p>
                   </div>
                 </div>
                 <button
@@ -7372,8 +7426,8 @@ export default function App() {
                       .json
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    💡 İsterseniz dosya ismini değiştirebilir ve kaydedilecek konumu seçebilirsiniz.
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    💡 Android / APK uygulamasında dosyanız cihazınızın <strong>İndirilenler (Downloads)</strong> klasörüne kaydedilir veya <strong>Konum Seç / Paylaş</strong> butonu ile Google Drive / Dosyalarım uygulamasına doğrudan kaydedebilirsiniz.
                   </p>
                 </div>
 
@@ -7402,18 +7456,16 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  {"showSaveFilePicker" in window && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        executeExportBackup(exportFileNameInput, true);
-                        setIsExportModalOpen(false);
-                      }}
-                      className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
-                    >
-                      <Folder className="w-4 h-4" /> 📁 Konum / Klasör Seçerek Kaydet (Farklı Kaydet)
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeExportBackup(exportFileNameInput, true);
+                      setIsExportModalOpen(false);
+                    }}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+                  >
+                    <Folder className="w-4 h-4" /> 📁 Konum Seç / Paylaş (Drive & Dosyalarım)
+                  </button>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button

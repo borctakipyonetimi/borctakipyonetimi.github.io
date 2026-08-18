@@ -93,6 +93,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
   // --- TAKSİT DIŞA VE İÇE AKTARMA (YEDEKLEME & GERİ YÜKLEME) ---
   const handleOpenExportModal = () => {
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
     if (installmentDebts.length === 0) {
       alert("Dışa aktarılacak taksitli borç planı bulunmuyor.");
       return;
@@ -102,6 +106,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   };
 
   const executeExportInstallments = async (pickFolder: boolean = false) => {
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
     if (installmentDebts.length === 0) return;
     const jsonString = JSON.stringify(installmentDebts, null, 2);
     let rawName = (exportFileName || `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`).trim();
@@ -109,8 +117,30 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     const baseName = rawName.replace(/\.json$/i, "");
     const fileName = `${baseName}.json`;
 
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+
     if (pickFolder) {
-      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+      // 1. Android APK & Mobile: Web Share API allows saving to Google Drive, Android Files (Dosyalarım), WhatsApp, etc.
+      try {
+        const testFile = new File([blob], fileName, { type: "application/json" });
+        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+          await navigator.share({
+            title: "Taksitli Borç Planları",
+            text: `Bütçem Taksit Planları (${fileName})`,
+            files: [testFile],
+          });
+          alert(`✅ '${fileName}' taksit yedeği seçilen konuma / uygulamaya başarıyla iletildi!`);
+          setIsExportModalOpen(false);
+          return;
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === "AbortError") return;
+        console.warn("navigator.share bypassed, trying file picker or download:", shareErr);
+      }
+
+      // 1b. Desktop File System Access API
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
+      if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
         try {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: fileName,
@@ -128,30 +158,33 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
         } catch (err: any) {
           if (err.name === "AbortError") return;
           console.warn("showSaveFilePicker error:", err);
-          alert(`💡 Tarayıcı güvenlik kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
         }
-      } else {
-        alert(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
     }
 
-    const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName;
+    link.setAttribute("download", fileName);
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
-      document.body.removeChild(link);
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
       URL.revokeObjectURL(url);
-    }, 300);
+    }, 800);
 
-    alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' olarak indirildi!`);
+    alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
     setIsExportModalOpen(false);
   };
 
   const handleOpenImportModal = () => {
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
     setImportedPreviewList(null);
     setImportError("");
     setIsImportModalOpen(true);
@@ -412,14 +445,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             title="Taksitli borç planlarını dosya olarak kaydet / indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Taksitleri İndir
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Taksitleri İndir {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
           <button
             onClick={handleOpenImportModal}
             title="Yedek dosyasından taksitli borçları geri yükle"
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
-            <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle
+            <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
           <button
             onClick={() => {
@@ -865,22 +898,20 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
               </div>
 
               <div className="space-y-2 pt-1">
-                {"showSaveFilePicker" in window && (
-                  <button
-                    type="button"
-                    onClick={() => executeExportInstallments(true)}
-                    className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 text-left">
-                      <Save className="w-4 h-4 text-emerald-200" />
-                      <div>
-                        <div className="font-extrabold">📁 Konum / Klasör Seçerek Kaydet</div>
-                        <div className="text-[10px] text-emerald-200 font-normal">Cihazınızda istediğiniz klasörü seçin</div>
-                      </div>
+                <button
+                  type="button"
+                  onClick={() => executeExportInstallments(true)}
+                  className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 text-left">
+                    <Folder className="w-4 h-4 text-emerald-200" />
+                    <div>
+                      <div className="font-extrabold">📁 Konum Seç / Paylaş (Drive & Dosyalarım)</div>
+                      <div className="text-[10px] text-emerald-200 font-normal">Android Dosyalarım, Google Drive veya klasör seçimi</div>
                     </div>
-                    <Download className="w-4 h-4 text-emerald-200" />
-                  </button>
-                )}
+                  </div>
+                  <Download className="w-4 h-4 text-emerald-200" />
+                </button>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -888,7 +919,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                     onClick={() => executeExportInstallments(false)}
                     className="p-2.5 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" /> Doğrudan İndir
+                    <Download className="w-3.5 h-3.5" /> Hızlı İndir (.json)
                   </button>
                   <button
                     type="button"

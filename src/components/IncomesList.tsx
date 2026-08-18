@@ -178,6 +178,11 @@ export const IncomesList: React.FC<IncomesListProps> = ({
 
   // Execute saving template
   const executeSaveTemplate = async (method: "file_picker" | "download" | "copy" | "in_app") => {
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
+
     const targetIncomes = getSourceIncomesForTemplate();
     if (targetIncomes.length === 0) {
       alert("Kaydedilecek herhangi bir gelir bulunamadı!");
@@ -197,6 +202,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
     };
 
     const jsonString = JSON.stringify(exportPayload, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
 
     if (method === "in_app") {
       const newT: IncomeTemplate = {
@@ -231,7 +237,27 @@ export const IncomesList: React.FC<IncomesListProps> = ({
     }
 
     if (method === "file_picker") {
-      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+      // 1. Check Android / Mobile Web Share API for saving to Drive, Files, WhatsApp, etc.
+      try {
+        const testFile = new File([blob], fileName, { type: "application/json" });
+        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+          await navigator.share({
+            title: "Gelir Şablonu",
+            text: `Bütçem Gelir Şablonu (${fileName})`,
+            files: [testFile],
+          });
+          alert(`✅ '${fileName}' gelir şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
+          setIsSaveTemplateModalOpen(false);
+          return;
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === "AbortError") return;
+        console.warn("Share bypassed, falling back:", shareErr);
+      }
+
+      // 1b. Desktop File System Access API
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
+      if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
         try {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: fileName,
@@ -251,20 +277,17 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         } catch (err: any) {
           if (err.name === "AbortError") return;
           console.warn("showSaveFilePicker failed:", err);
-          alert(`💡 Tarayıcı/ortam kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
         }
-      } else {
-        alert(`💡 Cihazınızda doğrudan klasör seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
     }
 
     // Direct clean download
     try {
-      const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
       const localUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = localUrl;
       link.setAttribute("download", fileName);
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
@@ -272,8 +295,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
           document.body.removeChild(link);
         }
         URL.revokeObjectURL(localUrl);
-      }, 500);
-      alert(`✅ Gelir Şablonu başarıyla indirildi: ${fileName}`);
+      }, 800);
+      alert(`✅ Gelir Şablonu '${fileName}' adıyla İndirilenler klasörünüze başarıyla kaydedildi!`);
       setIsSaveTemplateModalOpen(false);
     } catch (e) {
       alert("İndirme sırasında bir hata oluştu.");
@@ -396,22 +419,36 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleOpenSaveTemplateModal}
+            onClick={() => {
+              if (!isPremium) {
+                onUpgradeClick?.();
+                return;
+              }
+              handleOpenSaveTemplateModal();
+            }}
             className="px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
             title="Gelirleri dosyaya veya şablona kaydet"
           >
             <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Gelirleri Kaydet / Şablon Sakla</span>
+            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
 
           <button
             type="button"
-            onClick={() => setIsLoadTemplateModalOpen(true)}
+            onClick={() => {
+              if (!isPremium) {
+                onUpgradeClick?.();
+                return;
+              }
+              setIsLoadTemplateModalOpen(true);
+            }}
             className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
             title="Kayıtlı gelir şablonu veya dosyadan gelirleri aktar"
           >
             <FolderInput className="w-3.5 h-3.5 text-indigo-500" />
             <span>Şablondan / Dosyadan Yükle</span>
+            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
           </button>
         </div>
       </div>
@@ -752,22 +789,20 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             </div>
 
             <div className="space-y-2 pt-1">
-              {"showSaveFilePicker" in window && (
-                <button
-                  type="button"
-                  onClick={() => executeSaveTemplate("file_picker")}
-                  className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 text-left">
-                    <Save className="w-4 h-4 text-emerald-200" />
-                    <div>
-                      <div className="font-extrabold">📁 Konum / Klasör Seçerek Kaydet</div>
-                      <div className="text-[10px] text-emerald-200 font-normal">Cihazınızda istediğiniz klasörü seçin</div>
-                    </div>
+              <button
+                type="button"
+                onClick={() => executeSaveTemplate("file_picker")}
+                className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-between shadow-md shadow-emerald-600/20 transition active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <Folder className="w-4 h-4 text-emerald-200" />
+                  <div>
+                    <div className="font-extrabold">📁 Konum Seç / Paylaş (Drive & Dosyalarım)</div>
+                    <div className="text-[10px] text-emerald-200 font-normal">Android Dosyalarım, Google Drive veya klasör seçimi</div>
                   </div>
-                  <Download className="w-4 h-4 text-emerald-200" />
-                </button>
-              )}
+                </div>
+                <Download className="w-4 h-4 text-emerald-200" />
+              </button>
 
               <button
                 type="button"
