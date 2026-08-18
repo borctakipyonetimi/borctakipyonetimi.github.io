@@ -1615,9 +1615,19 @@ try {
   console.error("[Push Server] Error setting VAPID details:", e);
 }
 
-// Storage for push subscriptions and their alarms
+// Storage for push subscriptions and their alarms & debts
 const PUSH_SUBS_FILE = path.join(process.cwd(), "active_push_subscriptions.json");
-let subscriptionsMap: Record<string, { subscription: any, alarms: any[], user: string }> = {};
+interface PushSubscriptionRecord {
+  subscription: any;
+  alarms: any[];
+  debts?: any[];
+  installmentDebts?: any[];
+  user: string;
+  lastOverduePushTime?: number;
+  lastDueTodayPushDate?: string;
+  updatedAt?: number;
+}
+let subscriptionsMap: Record<string, PushSubscriptionRecord> = {};
 
 if (fs.existsSync(PUSH_SUBS_FILE)) {
   try {
@@ -1640,23 +1650,241 @@ app.get("/api/push-vapid-public-key", (req, res) => {
   res.json({ publicKey: vapidKeys.publicKey });
 });
 
-// REST route to subscribe/register device with current alarms
+// Robust date parser helper for Turkish and standard date strings
+function parseDateRobust(dateStr: any): Date | null {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+  if (typeof dateStr !== "string") return null;
+  
+  const str = dateStr.trim();
+  if (!str) return null;
+
+  // Standard parse attempt
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+
+  // Turkish format "DD.MM.YYYY" or "DD.MM.YYYY HH:mm"
+  if (str.includes(".")) {
+    const parts = str.split(" ");
+    const datePart = parts[0];
+    const timePart = parts[1] || "00:00:00";
+    const dp = datePart.split(".");
+    if (dp.length === 3) {
+      const day = parseInt(dp[0], 10);
+      const month = parseInt(dp[1], 10) - 1;
+      const year = parseInt(dp[2], 10);
+      const tp = timePart.split(":");
+      const hr = parseInt(tp[0], 10) || 0;
+      const min = parseInt(tp[1], 10) || 0;
+      const sec = parseInt(tp[2], 10) || 0;
+      d = new Date(year, month, day, hr, min, sec);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+
+  // ISO or hyphenated format "YYYY-MM-DD" or "DD-MM-YYYY"
+  if (str.includes("-")) {
+    const parts = str.split(" ");
+    const datePart = parts[0];
+    const timePart = parts[1] || "00:00:00";
+    const dp = datePart.split("-");
+    if (dp.length === 3) {
+      if (dp[0].length === 4) {
+        // YYYY-MM-DD
+        const year = parseInt(dp[0], 10);
+        const month = parseInt(dp[1], 10) - 1;
+        const day = parseInt(dp[2], 10);
+        const tp = timePart.split(":");
+        const hr = parseInt(tp[0], 10) || 0;
+        const min = parseInt(tp[1], 10) || 0;
+        const sec = parseInt(tp[2], 10) || 0;
+        d = new Date(year, month, day, hr, min, sec);
+        if (!isNaN(d.getTime())) return d;
+      } else {
+        // DD-MM-YYYY
+        const day = parseInt(dp[0], 10);
+        const month = parseInt(dp[1], 10) - 1;
+        const year = parseInt(dp[2], 10);
+        const tp = timePart.split(":");
+        const hr = parseInt(tp[0], 10) || 0;
+        const min = parseInt(tp[1], 10) || 0;
+        const sec = parseInt(tp[2], 10) || 0;
+        d = new Date(year, month, day, hr, min, sec);
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Helper: Calculate overdue and due today debts for a user
+function analyzeUserDebts(debts: any[] = [], installmentDebts: any[] = []) {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  let overdueDebts: Array<{ name: string; remaining: number; daysLate: number; isInstallment?: boolean }> = [];
+  let dueTodayDebts: Array<{ name: string; amount: number; isInstallment?: boolean }> = [];
+
+  // Single debts analysis
+  debts.forEach((d: any) => {
+    if (!d) return;
+    const amount = Number(d.amount) || 0;
+    const paid = Number(d.paid) || 0;
+    const remaining = Math.max(0, amount - paid);
+
+    if (remaining > 0 && d.dueDate) {
+      try {
+        const due = parseDateRobust(d.dueDate);
+        if (due) {
+          const dueTime = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+          const diffDays = Math.round((todayTime - dueTime) / (1000 * 60 * 60 * 24));
+
+          if (diffDays > 0) {
+            overdueDebts.push({
+              name: d.name || "Borç",
+              remaining,
+              daysLate: diffDays,
+              isInstallment: false
+            });
+          } else if (diffDays === 0) {
+            dueTodayDebts.push({
+              name: d.name || "Borç",
+              amount: remaining,
+              isInstallment: false
+            });
+          }
+        }
+      } catch (e) {
+        // ignore date parse err
+      }
+    }
+  });
+
+  // Installment debts analysis
+  installmentDebts.forEach((inst: any) => {
+    if (!inst) return;
+    const totalAmount = Number(inst.totalAmount) || 0;
+    const count = Number(inst.installmentCount) || 1;
+    const paidCount = Number(inst.paidInstallmentCount) || 0;
+    const perInst = count > 0 ? (totalAmount / count) : 0;
+
+    if (paidCount < count && inst.firstDueDate) {
+      try {
+        const baseDate = parseDateRobust(inst.firstDueDate);
+        if (baseDate) {
+          // compute next installment due date
+          baseDate.setMonth(baseDate.getMonth() + paidCount);
+          const dueTime = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
+          const diffDays = Math.round((todayTime - dueTime) / (1000 * 60 * 60 * 24));
+
+          if (diffDays > 0) {
+            overdueDebts.push({
+              name: `${inst.name || "Taksit"} (${paidCount + 1}. Taksit)`,
+              remaining: perInst,
+              daysLate: diffDays,
+              isInstallment: true
+            });
+          } else if (diffDays === 0) {
+            dueTodayDebts.push({
+              name: `${inst.name || "Taksit"} (${paidCount + 1}. Taksit)`,
+              amount: perInst,
+              isInstallment: true
+            });
+          }
+        }
+      } catch (e) {
+        // ignore date parse err
+      }
+    }
+  });
+
+  return { overdueDebts, dueTodayDebts, todayStr };
+}
+
+// REST route to subscribe/register device with current alarms AND debts
 app.post("/api/push-register", (req, res) => {
-  const { subscription, alarms, user } = req.body;
+  const { subscription, alarms, debts, installmentDebts, user } = req.body;
   if (!subscription || !subscription.endpoint) {
     return res.status(400).json({ error: "Geçersiz abonelik bilgisi" });
   }
 
   const endpointHash = subscription.endpoint.slice(-50) || Math.random().toString();
-  subscriptionsMap[endpointHash] = {
+  const existing = subscriptionsMap[endpointHash] || {
     subscription,
-    alarms: alarms || [],
-    user: user || "anonymous"
+    alarms: [],
+    user: user || "anonymous",
+    lastOverduePushTime: 0,
+    lastDueTodayPushDate: ""
+  };
+
+  subscriptionsMap[endpointHash] = {
+    ...existing,
+    subscription,
+    alarms: alarms !== undefined ? alarms : (existing.alarms || []),
+    debts: debts !== undefined ? debts : (existing.debts || []),
+    installmentDebts: installmentDebts !== undefined ? installmentDebts : (existing.installmentDebts || []),
+    user: user || existing.user || "anonymous",
+    updatedAt: Date.now()
   };
 
   saveSubscriptionsToFile();
-  console.log(`[Push Server] Registered/updated subscription for user: ${user}. Total alarms: ${alarms?.length || 0}`);
+  console.log(`[Push Server] Registered/updated subscription for user: ${user}. Total alarms: ${alarms?.length || 0}, Total debts: ${debts?.length || 0}`);
   res.json({ success: true });
+});
+
+// REST route to trigger an instant overdue check push (manual trigger or test)
+app.post("/api/trigger-overdue-push", async (req, res) => {
+  const { subscription, debts, installmentDebts } = req.body;
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: "Geçersiz abonelik bilgisi" });
+  }
+
+  const { overdueDebts, dueTodayDebts } = analyzeUserDebts(debts, installmentDebts);
+
+  if (overdueDebts.length === 0 && dueTodayDebts.length === 0) {
+    return res.json({
+      success: true,
+      message: "Gecikmiş veya vadesi bugün olan herhangi bir borç bulunamadı.",
+      hasOverdue: false
+    });
+  }
+
+  let title = "Bütçem Pro: Borç Hatırlatması ⏰";
+  let body = "";
+
+  if (overdueDebts.length > 0) {
+    const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+    const topDebt = overdueDebts[0];
+    title = `⚠️ Gecikmiş Borç Uyarısı (${overdueDebts.length} Adet)`;
+    body = `Vadesi geçmiş borcunuz var: "${topDebt.name}" (₺${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikmeli). Toplam geciken: ₺${totalOverdue.toLocaleString("tr-TR")}.`;
+  } else if (dueTodayDebts.length > 0) {
+    const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+    const topDebt = dueTodayDebts[0];
+    title = `🚨 Bugün Vadesi Gelen Ödemeniz Var!`;
+    body = `"${topDebt.name}" için ₺${topDebt.amount.toLocaleString("tr-TR")} ödemesinin son günü bugün. Toplam: ₺${totalDue.toLocaleString("tr-TR")}.`;
+  }
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    tag: "overdue-alert-" + Date.now(),
+    icon: "/logo.png",
+    badge: "/logo.png",
+    url: "/?tab=debts"
+  });
+
+  try {
+    await webpush.sendNotification(subscription, payload, {
+      headers: { "Urgency": "high" },
+      TTL: 86400
+    });
+    return res.json({ success: true, message: "Geçmiş borç bildirimi başarıyla telefona gönderildi!" });
+  } catch (err: any) {
+    console.error("[Push Server] Error in trigger-overdue-push:", err);
+    return res.status(500).json({ error: err.message || "Bildirim iletilemedi" });
+  }
 });
 
 // REST route to trigger a delayed test push notification for lockscreen diagnostics
@@ -1672,9 +1900,12 @@ app.post("/api/send-test-push", async (req, res) => {
 
   setTimeout(async () => {
     const payload = JSON.stringify({
-      title: "Bütçem Pro Deneme Sinyali ⏰",
-      body: "Harika! Telefon kapalıyken bile anlık bildirim sistemi başarıyla çalışıyor! PWA ve Logo Bildirim noktası (Badge) aktif. 🎉",
-      tag: "test-push-alarm-" + Date.now()
+      title: "Bütçem Pro Sinyali ⏰",
+      body: "Harika! Telefon kapalıyken bile anlık bildirim sistemi başarıyla çalışıyor! Geçmiş ve yaklaşan borç uyarıları kilit ekranınıza gelecek. 🎉",
+      tag: "test-push-alarm-" + Date.now(),
+      icon: "/logo.png",
+      badge: "/logo.png",
+      url: "/"
     });
 
     try {
@@ -1691,91 +1922,150 @@ app.post("/api/send-test-push", async (req, res) => {
   res.json({ success: true, message: `Test bildirimi ${delay} saniye içinde gönderilecek.` });
 });
 
-// Background checker that runs every 10 seconds to check if any scheduled alarm is due!
+// Background daemon that runs every 10 seconds:
+// 1. Checks specific due alarms
+// 2. Periodically checks overdue debts & due-today debts (twice a day / every 6 hours per device)
 setInterval(async () => {
   const nowTime = Date.now();
   let hasChanges = false;
 
   for (const [endpointHash, details] of Object.entries(subscriptionsMap)) {
-    if (!details.alarms || details.alarms.length === 0) continue;
+    if (!details || !details.subscription) continue;
 
-    const remainingAlarms: any[] = [];
-    const triggeredAlarms: any[] = [];
+    // --- 1. CHECK SPECIFIC SCHEDULED ALARMS ---
+    if (details.alarms && details.alarms.length > 0) {
+      const remainingAlarms: any[] = [];
+      const triggeredAlarms: any[] = [];
 
-    details.alarms.forEach((alarm) => {
-      if (!alarm) return;
-      
-      let alarmTime = NaN;
-      if (alarm.timestamp) {
-        alarmTime = Number(alarm.timestamp);
-      } else if (alarm.date) {
-        try {
-          alarmTime = new Date(alarm.date).getTime();
-          
-          // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
-          if (isNaN(alarmTime)) {
-            const parts = alarm.date.trim().split(" ");
-            if (parts.length === 2) {
-              const datePart = parts[0];
-              const timePart = parts[1];
-              let y, m, d;
-              if (datePart.includes(".")) {
-                const dp = datePart.split(".");
-                d = parseInt(dp[0], 10);
-                m = parseInt(dp[1], 10) - 1;
-                y = parseInt(dp[2], 10);
-              } else if (datePart.includes("-")) {
-                const dp = datePart.split("-");
-                y = parseInt(dp[0], 10);
-                m = parseInt(dp[1], 10) - 1;
-                d = parseInt(dp[2], 10);
+      details.alarms.forEach((alarm) => {
+        if (!alarm) return;
+        
+        let alarmTime = NaN;
+        if (alarm.timestamp) {
+          alarmTime = Number(alarm.timestamp);
+        } else if (alarm.date) {
+          try {
+            alarmTime = new Date(alarm.date).getTime();
+            
+            // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
+            if (isNaN(alarmTime)) {
+              const parts = alarm.date.trim().split(" ");
+              if (parts.length === 2) {
+                const datePart = parts[0];
+                const timePart = parts[1];
+                let y, m, d;
+                if (datePart.includes(".")) {
+                  const dp = datePart.split(".");
+                  d = parseInt(dp[0], 10);
+                  m = parseInt(dp[1], 10) - 1;
+                  y = parseInt(dp[2], 10);
+                } else if (datePart.includes("-")) {
+                  const dp = datePart.split("-");
+                  y = parseInt(dp[0], 10);
+                  m = parseInt(dp[1], 10) - 1;
+                  d = parseInt(dp[2], 10);
+                }
+                const tp = timePart.split(":");
+                const hr = parseInt(tp[0], 10) || 0;
+                const min = parseInt(tp[1], 10) || 0;
+                const sec = parseInt(tp[2], 10) || 0;
+                alarmTime = new Date(y, m, d, hr, min, sec).getTime();
               }
-              const tp = timePart.split(":");
-              const hr = parseInt(tp[0], 10) || 0;
-              const min = parseInt(tp[1], 10) || 0;
-              const sec = parseInt(tp[2], 10) || 0;
-              alarmTime = new Date(y, m, d, hr, min, sec).getTime();
+            }
+          } catch (err) {
+            console.error("[Push Server] parse alarm date error:", err);
+          }
+        }
+
+        if (!isNaN(alarmTime) && alarmTime <= nowTime) {
+          triggeredAlarms.push(alarm);
+        } else {
+          remainingAlarms.push(alarm);
+        }
+      });
+
+      if (triggeredAlarms.length > 0) {
+        hasChanges = true;
+        details.alarms = remainingAlarms;
+
+        // Send a push notification for each triggered alarm!
+        for (const alarm of triggeredAlarms) {
+          const payload = JSON.stringify({
+            title: "Butcem Pro",
+            body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
+            tag: `alarm-${alarm.id}`,
+            icon: "/logo.png",
+            badge: "/logo.png",
+            url: "/?tab=notifications"
+          });
+
+          console.log(`[Push Server] Sending background notification for alarm: "${alarm.title}" to user "${details.user}"`);
+          
+          try {
+            await webpush.sendNotification(details.subscription, payload, {
+              headers: { "Urgency": "high" },
+              TTL: 0
+            });
+            console.log(`[Push Server] Successfully sent notification!`);
+          } catch (pushErr: any) {
+            console.error(`[Push Server] Error sending push notification. Status code: ${pushErr.statusCode || "unknown"}`);
+            if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
+              console.log(`[Push Server] Removing deactivated subscription: ${endpointHash}`);
+              delete subscriptionsMap[endpointHash];
+              break;
             }
           }
-        } catch (err) {
-          console.error("[Push Server] parse alarm date error:", err);
         }
       }
+    }
 
-      if (!isNaN(alarmTime) && alarmTime <= nowTime) {
-        triggeredAlarms.push(alarm);
-      } else {
-        remainingAlarms.push(alarm);
-      }
-    });
+    // --- 2. CHECK OVERDUE DEBTS & DUE TODAY (BACKGROUND PUSH WHEN APP IS CLOSED) ---
+    // We send overdue / due reminders at reasonable intervals (at least 6 hours apart per device)
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+    const lastOverdueTime = details.lastOverduePushTime || 0;
+    const hasDebts = (details.debts && details.debts.length > 0) || (details.installmentDebts && details.installmentDebts.length > 0);
 
-    if (triggeredAlarms.length > 0) {
-      hasChanges = true;
-      details.alarms = remainingAlarms;
+    if (hasDebts && (nowTime - lastOverdueTime > SIX_HOURS_MS)) {
+      const { overdueDebts, dueTodayDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
 
-      // Send a push notification for each triggered alarm!
-      for (const alarm of triggeredAlarms) {
+      if (overdueDebts.length > 0 || dueTodayDebts.length > 0) {
+        let title = "Bütçem Pro: Borç Hatırlatması ⏰";
+        let body = "";
+
+        if (overdueDebts.length > 0) {
+          const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+          const topDebt = overdueDebts[0];
+          title = `⚠️ Gecikmiş Borç Uyarısı (${overdueDebts.length} Adet)`;
+          body = `Ödemesi geçen borcunuz var: "${topDebt.name}" (₺${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikti). Toplam: ₺${totalOverdue.toLocaleString("tr-TR")}.`;
+        } else if (dueTodayDebts.length > 0) {
+          const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+          const topDebt = dueTodayDebts[0];
+          title = `🚨 Bugün Vadesi Gelen Ödemeniz Var!`;
+          body = `"${topDebt.name}" için ₺${topDebt.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün!`;
+        }
+
         const payload = JSON.stringify({
-          title: "Butcem Pro",
-          body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
-          tag: `alarm-${alarm.id}`
+          title,
+          body,
+          tag: "overdue-periodic-" + new Date().toISOString().slice(0, 10),
+          icon: "/logo.png",
+          badge: "/logo.png",
+          url: "/?tab=debts"
         });
 
-        console.log(`[Push Server] Sending background notification for alarm: "${alarm.title}" to user "${details.user}"`);
-        
         try {
+          console.log(`[Push Server] Sending periodic background overdue reminder to user: "${details.user}"`);
           await webpush.sendNotification(details.subscription, payload, {
             headers: { "Urgency": "high" },
-            TTL: 0
+            TTL: 86400
           });
-          console.log(`[Push Server] Successfully sent notification!`);
+          details.lastOverduePushTime = nowTime;
+          hasChanges = true;
         } catch (pushErr: any) {
-          console.error(`[Push Server] Error sending push notification. Status code: ${pushErr.statusCode || "unknown"}`);
-          // If the subscription is no longer valid (e.g. 410 Gone / 404), clear it out
+          console.error(`[Push Server] Error sending overdue push:`, pushErr.statusCode || pushErr.message);
           if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
-            console.log(`[Push Server] Removing deactivated subscription: ${endpointHash}`);
             delete subscriptionsMap[endpointHash];
-            break;
+            hasChanges = true;
           }
         }
       }

@@ -1068,18 +1068,20 @@ export default function App() {
 
       console.log("[Push Client] Registered subscription payload successfully:", subscription);
       
-      // Dispatch subscription details and active alarms to the server-side cron scheduler
+      // Dispatch subscription details, active alarms and debt records to the server-side cron scheduler
       await fetch("/api/push-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subscription,
           alarms: alarmsRef.current,
+          debts: debtsRef.current,
+          installmentDebts: installmentDebtsRef.current,
           user: currentUser || "anonymous"
         })
       });
       console.log("[Push Client] Handshake with background push database successful.");
-      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Arka plan bildirimleri aktif.");
+      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Arka plan borç ve alarm bildirimleri aktif.");
     } catch (err: any) {
       console.warn("[Push Client] Web Push subscription workflow aborted:", err);
       if (err.name === "NotAllowedError") {
@@ -1109,12 +1111,14 @@ export default function App() {
           body: JSON.stringify({
             subscription,
             alarms: alarmsRef.current,
+            debts: debtsRef.current,
+            installmentDebts: installmentDebtsRef.current,
             user: currentUser || "anonymous"
           })
         });
       }
     } catch (err) {
-      console.warn("[Push Client] Could not synchronize alarms state with database daemon:", err);
+      console.warn("[Push Client] Could not synchronize alarms & debts state with database daemon:", err);
     }
   };
 
@@ -1166,14 +1170,14 @@ export default function App() {
         console.warn("[Background SW Sync Warn] Unable to synchronize alarms list to background service worker thread:", err);
       });
 
-      // Synchronize alarms state with the Web Push backend database for closed-app notifications
+      // Synchronize alarms and debts state with the Web Push backend database for closed-app notifications
       try {
         syncAlarmsWithPushServer();
       } catch (err) {
         console.warn("Push sync call deferred:", err);
       }
     }
-  }, [alarms]);
+  }, [alarms, debts, installmentDebts, currentUser]);
 
   // High-Precision Real-time Automated Alarm Checking Engine
   useEffect(() => {
