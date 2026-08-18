@@ -109,24 +109,29 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     const baseName = rawName.replace(/\.json$/i, "");
     const fileName = `${baseName}.json`;
 
-    if (pickFolder && "showSaveFilePicker" in window) {
-      try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{
-            description: "JSON Taksitli Borçlar Dosyası",
-            accept: { "application/json": [".json"] }
-          }]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        alert(`✅ '${fileName}' taksit yedeği başarıyla seçtiğiniz konuma kaydedildi!`);
-        setIsExportModalOpen(false);
-        return;
-      } catch (err: any) {
-        if (err.name === "AbortError") return;
-        console.warn("showSaveFilePicker error:", err);
+    if (pickFolder) {
+      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: "JSON Taksitli Borçlar Dosyası",
+              accept: { "application/json": [".json"] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          alert(`✅ '${fileName}' taksit yedeği başarıyla seçtiğiniz konuma kaydedildi!`);
+          setIsExportModalOpen(false);
+          return;
+        } catch (err: any) {
+          if (err.name === "AbortError") return;
+          console.warn("showSaveFilePicker error:", err);
+          alert(`💡 Tarayıcı güvenlik kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
+        }
+      } else {
+        alert(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
     }
 

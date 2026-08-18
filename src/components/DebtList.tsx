@@ -423,24 +423,29 @@ export const DebtList: React.FC<DebtListProps> = ({
       return;
     }
 
-    if (destination === "file_picker" && "showSaveFilePicker" in window) {
-      try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{
-            description: "JSON Borç Şablonu",
-            accept: { "application/json": [".json"] }
-          }]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        alert(`✅ '${fileName}' borç şablonu başarıyla seçtiğiniz konuma kaydedildi!`);
-        setIsSaveTemplateModalOpen(false);
-        return;
-      } catch (err: any) {
-        if (err.name === "AbortError") return;
-        console.warn("showSaveFilePicker error:", err);
+    if (destination === "file_picker") {
+      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: "JSON Borç Şablonu",
+              accept: { "application/json": [".json"] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          alert(`✅ '${fileName}' borç şablonu başarıyla seçtiğiniz konuma kaydedildi!`);
+          setIsSaveTemplateModalOpen(false);
+          return;
+        } catch (err: any) {
+          if (err.name === "AbortError") return;
+          console.warn("showSaveFilePicker error:", err);
+          alert(`💡 Tarayıcı güvenlik kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
+        }
+      } else {
+        alert(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
     }
 

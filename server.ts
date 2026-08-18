@@ -53,9 +53,10 @@ app.get("/api/download-temp", (req, res) => {
   // Clean up cache for efficiency
   tempWebviewBackups.delete(key);
   
-  // Set headers to force download in stock Chrome
-  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(item.filename)}"`);
-  res.setHeader("Content-Type", "application/octet-stream");
+  // Set headers to force download with clean filename
+  const safeFilename = item.filename.replace(/["\r\n\\]/g, "_");
+  res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(item.filename)}`);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.send(item.content);
 });
 

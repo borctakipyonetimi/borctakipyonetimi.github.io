@@ -3203,6 +3203,68 @@ export default function App() {
     }
   };
 
+  const handleRestoreIncomes = (
+    newIncomes: Income[],
+    mode: "replace" | "merge" = "merge",
+    targetMonth?: number | null,
+    targetYear?: number | null
+  ) => {
+    const mVal = targetMonth !== null && targetMonth !== undefined ? targetMonth : selectedMonth;
+    const yVal = targetYear !== null && targetYear !== undefined ? targetYear : selectedYear;
+
+    const preparedIncomes: Income[] = newIncomes.map((inc, idx) => {
+      let finalDate = inc.date || new Date().toISOString().slice(0, 10);
+      if (mVal !== null && yVal !== null) {
+        let day = 1;
+        try {
+          if (inc.date) {
+            const d = new Date(inc.date);
+            if (!isNaN(d.getDate())) day = d.getDate();
+          }
+        } catch {}
+        const safeDay = Math.min(28, Math.max(1, day));
+        finalDate = `${yVal}-${String(mVal + 1).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+      }
+      return {
+        id: Date.now() + idx + Math.floor(Math.random() * 1000),
+        name: String(inc.name || "Gelir").trim(),
+        amount: Number(inc.amount) || 0,
+        date: finalDate,
+        isRecurring: inc.isRecurring !== false,
+      };
+    });
+
+    let finalIncomes: Income[] = [];
+    if (mode === "replace") {
+      if (mVal !== null && yVal !== null) {
+        const otherMonthsIncomes = incomes.filter((i) => {
+          const parts = parseDateParts(i.date);
+          if (!parts) return true;
+          return !(parts.month === mVal && parts.year === yVal);
+        });
+        finalIncomes = [...otherMonthsIncomes, ...preparedIncomes];
+      } else {
+        finalIncomes = preparedIncomes;
+      }
+    } else {
+      const existingNamesInTarget = new Set(
+        incomes
+          .filter((i) => {
+            if (mVal === null || yVal === null) return true;
+            const parts = parseDateParts(i.date);
+            return parts && parts.month === mVal && parts.year === yVal;
+          })
+          .map((i) => (i.name || "").toLowerCase().trim())
+      );
+      const nonDuplicates = preparedIncomes.filter((i) => !existingNamesInTarget.has((i.name || "").toLowerCase().trim()));
+      finalIncomes = [...incomes, ...nonDuplicates];
+    }
+
+    setIncomes(finalIncomes);
+    saveAllToUser(debts, finalIncomes, alarms, notifications, installmentDebts, payments, expenses, expenseCategories);
+    triggerToast(`🎉 ${preparedIncomes.length} adet gelir kaydı başarıyla güncellendi/yüklendi!`);
+  };
+
   const executeExportBackup = async (customName?: string, pickFolder: boolean = false) => {
     const contactsKey = `${spaceKey}_contacts_directory`;
     const contactTxsKey = `${spaceKey}_contacts_transactions`;
@@ -3237,7 +3299,7 @@ export default function App() {
     const fileName = `${baseName}.json`;
 
     // 1. If user wants to choose folder/location and browser supports File System Access API
-    if (pickFolder && "showSaveFilePicker" in window) {
+    if (pickFolder && typeof window !== "undefined" && "showSaveFilePicker" in window) {
       try {
         const handle = await (window as any).showSaveFilePicker({
           suggestedName: fileName,
@@ -3249,61 +3311,71 @@ export default function App() {
         const writable = await handle.createWritable();
         await writable.write(jsonString);
         await writable.close();
-        triggerToast(`✅ Veri yedeği seçilen konuma kaydedildi: ${fileName}`);
+        triggerToast(`✅ Veri yedeği seçtiğiniz konuma başarıyla kaydedildi: ${fileName}`);
         localStorage.setItem("last_backup_export_date", new Date().toISOString());
         return;
       } catch (err: any) {
         if (err.name === "AbortError") {
-          return;
+          return; // Kullanıcı iptal etti
         }
         console.warn("showSaveFilePicker error:", err);
+        triggerToast(`💡 Tarayıcı/ortam kısıtlaması nedeniyle doğrudan klasör seçilemedi, dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
       }
+    } else if (pickFolder) {
+      triggerToast(`💡 Cihazınızda doğrudan konum seçimi desteklenmediğinden dosya '${fileName}' adıyla İndirilenler klasörünüze kaydediliyor...`);
     }
 
-    triggerToast(`Veri Yedeği (${fileName}) indiriliyor... 📥`);
-
-    // 2. Client-side Blob download
+    // 2. Client-side Clean Single Download
+    let downloadSuccess = false;
     try {
-      const blob = new Blob([jsonString], { type: "application/json" });
+      const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
       const localUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = localUrl;
-      link.download = fileName;
+      link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
-        document.body.removeChild(link);
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
         URL.revokeObjectURL(localUrl);
-      }, 300);
+      }, 500);
+      downloadSuccess = true;
+      triggerToast(`✅ Veri Yedeği başarıyla indirildi: ${fileName}`);
+      localStorage.setItem("last_backup_export_date", new Date().toISOString());
     } catch (e) {
-      console.warn("Local blob download bypassed:", e);
+      console.warn("Local blob download bypassed, attempting server fallback:", e);
     }
 
-    // 3. Server-side download helper fallback (essential for restrictive Android APK WebViews that block blob: schemes)
-    fetch("/api/temp-backup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: jsonString, filename: fileName })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success && data.key) {
-        const downloadUrl = `${window.location.protocol}//${window.location.host}/api/download-temp?key=${data.key}`;
-        const downloadLink = document.createElement("a");
-        downloadLink.href = downloadUrl;
-        downloadLink.download = fileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        setTimeout(() => {
-          document.body.removeChild(downloadLink);
-        }, 300);
+    // 3. Server-side download helper fallback (ONLY called if client blob download failed)
+    if (!downloadSuccess) {
+      try {
+        const res = await fetch("/api/temp-backup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: jsonString, filename: fileName })
+        });
+        const data = await res.json();
+        if (data.success && data.key) {
+          const downloadUrl = `/api/download-temp?key=${data.key}`;
+          const downloadLink = document.createElement("a");
+          downloadLink.href = downloadUrl;
+          downloadLink.setAttribute("download", fileName);
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          setTimeout(() => {
+            if (document.body.contains(downloadLink)) {
+              document.body.removeChild(downloadLink);
+            }
+          }, 500);
+          triggerToast(`✅ Veri Yedeği başarıyla indirildi: ${fileName}`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+        }
+      } catch (err) {
+        console.warn("Direct backup download fallback failed:", err);
       }
-    })
-    .catch(err => {
-      console.warn("Direct backup download fallback failed:", err);
-    });
-
-    localStorage.setItem("last_backup_export_date", new Date().toISOString());
+    }
   };
 
   const handleExportBackup = (directName?: string) => {
@@ -4971,8 +5043,10 @@ export default function App() {
         {activeTab === "income" && (
           <IncomesList
             incomes={filteredIncomesByMonth}
+            allIncomes={incomes}
             onSaveIncome={handleSaveIncome}
             onDeleteIncome={handleDeleteIncome}
+            onRestoreIncomes={handleRestoreIncomes}
             isPremium={isPremium}
             onUpgradeClick={() => setIsUpgradeModalOpen(true)}
             carryOverBalance={statsBag.carryOverBalance}
