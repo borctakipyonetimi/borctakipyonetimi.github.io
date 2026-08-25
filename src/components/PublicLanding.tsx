@@ -3,17 +3,20 @@ import { motion } from "motion/react";
 import { 
   Sparkles, TrendingUp, Coins, Calendar, ArrowRight, ShieldCheck, 
   HelpCircle, MessageSquare, Star, Zap, ChevronDown, Check, Play,
-  BookOpen, Users, Compass, DollarSign, Wallet
+  BookOpen, Users, Compass, DollarSign, Wallet, ArrowUpRight, Crown,
+  Layers, Shield, Bell, CheckCircle2, ChevronRight, Home
 } from "lucide-react";
 
-interface PublicLandingProps {
+export interface PublicLandingProps {
   onStartApp: () => void;
+  onUpgradeToPro?: () => void;
   onNavigateToBlog: () => void;
   onNavigateToPost: (id: string) => void;
 }
 
 export const PublicLanding: React.FC<PublicLandingProps> = ({ 
   onStartApp, 
+  onUpgradeToPro,
   onNavigateToBlog,
   onNavigateToPost
 }) => {
@@ -25,6 +28,15 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
   
   // FAQ Accordion State
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+
+  // Handle Pro upgrade trigger safely
+  const handleProUpgradeClick = () => {
+    if (onUpgradeToPro) {
+      onUpgradeToPro();
+    } else {
+      onStartApp();
+    }
+  };
 
   // Compute stats for calculator widget
   const incomeVal = parseFloat(calcIncome) || 0;
@@ -99,11 +111,87 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
     }
   ];
 
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
-    <div className="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300">
+    <div className="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300 min-h-screen">
       
-      {/* 1. Hero Section - Stunning SaaS Visuals & Clean Framing */}
-      <section className="relative pt-12 pb-20 md:py-32 overflow-hidden border-b border-slate-200/60 dark:border-slate-900/60">
+      {/* Sleek Top Navigation Header */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-6 py-3.5 transition-colors duration-300 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <button 
+            onClick={onStartApp}
+            className="flex items-center gap-2.5 cursor-pointer group text-left"
+            title="Ana Sayfaya Git"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition duration-200">
+              <Sparkles className="w-5 h-5 text-amber-300" />
+            </div>
+            <div>
+              <span className="font-black text-sm sm:text-base tracking-tight text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition flex items-center gap-1.5">
+                BÜTÇEM PRO <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-md font-black border border-indigo-200/40">v2.5</span>
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Finans &amp; Borç Yönetimi</span>
+            </div>
+          </button>
+
+          {/* Nav Links on desktop */}
+          <div className="hidden md:flex items-center gap-6 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            <button 
+              onClick={() => scrollToSection("simulator-section")}
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer"
+            >
+              Simülatör
+            </button>
+            <button 
+              onClick={() => scrollToSection("features-section")}
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer"
+            >
+              Özellikler
+            </button>
+            <button 
+              onClick={() => scrollToSection("pricing-section")}
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer"
+            >
+              Fiyatlandırma
+            </button>
+            <button 
+              onClick={onNavigateToBlog}
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer flex items-center gap-1 text-indigo-600 dark:text-indigo-400"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Rehberler
+            </button>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleProUpgradeClick}
+              className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 select-none"
+              title="Pro Yükseltme"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-500" />
+              <span className="hidden sm:inline">Pro'ya Geç</span>
+            </button>
+            <button
+              onClick={onStartApp}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-indigo-500/20 transition cursor-pointer flex items-center gap-1.5 select-none active:scale-95"
+            >
+              <span>Uygulamayı Aç</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </header>
+      
+      {/* 1. Hero Section - Stunning Visuals & Clean Framing */}
+      <section className="relative pt-10 pb-20 md:py-28 overflow-hidden border-b border-slate-200/60 dark:border-slate-900/60">
         {/* Lights backdrops */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none">
           <div className="absolute top-12 left-10 w-72 h-72 rounded-full bg-indigo-500/10 blur-[120px] dark:bg-indigo-600/5" />
@@ -154,7 +242,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             </button>
             <button
               onClick={onNavigateToBlog}
-              className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl font-black text-xs uppercase tracking-widest transition duration-300 cursor-pointer flex items-center justify-center gap-2 select-none"
+              className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl font-black text-xs uppercase tracking-widest transition duration-300 cursor-pointer flex items-center justify-center gap-2 select-none shadow-xs"
             >
               <BookOpen className="w-4 h-4 text-indigo-500" />
               <span>FİNANSAL REHBERLER / BLOG</span>
@@ -165,11 +253,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
       {/* 2. Public Micro Bütçe Hesaplama Simülatörü Widget */}
       <motion.section 
+        id="simulator-section"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-120px" }}
         transition={{ duration: 0.7, ease: "easeOut" }}
-        className="py-12 bg-white dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50"
+        className="py-16 bg-white dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50 scroll-mt-14"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="text-center space-y-2 mb-8">
@@ -268,7 +357,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
               <button
                 onClick={onStartApp}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-97"
+                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-97"
               >
                 <span>Hepsini Uygulamada Takip Et</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -280,11 +369,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
       {/* 3. Marketing features/USP list - Core Product Benefits */}
       <motion.section 
+        id="features-section"
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.5 }}
-        className="py-16 md:py-24 max-w-6xl mx-auto px-4 sm:px-6 space-y-12"
+        className="py-16 md:py-24 max-w-6xl mx-auto px-4 sm:px-6 space-y-12 scroll-mt-14"
       >
         <div className="text-center space-y-2">
           <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">TEKNOLOJİK ÖZELLİKLER</h3>
@@ -309,6 +399,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
                 Tek tuşla seçtiğiniz aya ait harcama grafiklerini inceler, bütçe sızıntılarını saptar ve bizzat yapay zeka tarafından hazırlanan tasarruf analiz raporunu sunar.
               </p>
             </div>
+            <button 
+              onClick={onStartApp}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
+            >
+              Uygulamada Dene <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
 
           <motion.div 
@@ -327,6 +423,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
                 Kartopu (Snowball) ve Çığ (Avalanche) metotları sayesinde borçlarınızı rasyonel sırayla ödersiniz. Faiz maliyetinizi sıfıra indirmek hiç bu kadar kolay olmamıştı.
               </p>
             </div>
+            <button 
+              onClick={onStartApp}
+              className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
+            >
+              Stratejileri Uygula <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
 
           <motion.div 
@@ -345,6 +447,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
                 Gelecek dönem harcamalarınızı, kredi taksitlerinizi ve faturalarınızı önceden rezerv edip vadesi geldiğinde push alarmları ile pürüzsüzce takip edin.
               </p>
             </div>
+            <button 
+              onClick={onStartApp}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
+            >
+              Takvimi Başlat <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
 
           <motion.div 
@@ -363,6 +471,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
                 Arkadaşlarınıza verdiğiniz veya aldığınız borçları kişiler listenizde tutun. WhatsApp hatırlatma şablonu özelliğini kullanarak nazikçe vade hatırlatın.
               </p>
             </div>
+            <button 
+              onClick={onStartApp}
+              className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
+            >
+              Rehberi Yönet <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
         </div>
       </motion.section>
@@ -384,7 +498,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             </div>
             <button
               onClick={onNavigateToBlog}
-              className="px-5 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl text-[11px] font-black uppercase tracking-wider text-indigo-600 shrink-0 transition cursor-pointer select-none"
+              className="px-5 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl text-[11px] font-black uppercase tracking-wider text-indigo-600 shrink-0 transition cursor-pointer select-none shadow-xs"
             >
               Tüm Makaleleri Oku ➔
             </button>
@@ -429,15 +543,17 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
       {/* 5. Pricing table - Freemium model details */}
       <motion.section 
+        id="pricing-section"
         initial={{ opacity: 0, y: 45 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.7 }}
-        className="py-16 max-w-4xl mx-auto px-4 sm:px-6 space-y-12"
+        className="py-16 max-w-4xl mx-auto px-4 sm:px-6 space-y-12 scroll-mt-14"
       >
         <div className="text-center space-y-2">
           <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">ÜYELİK PAKETLERİ</h3>
           <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Kendinize En Uygun Planı Seçin</h2>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">İhtiyacınıza uygun paketi seçin ve anında kullanmaya başlayın</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
@@ -465,9 +581,10 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
             <button
               onClick={onStartApp}
-              className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-800 dark:text-white font-black text-xs uppercase tracking-widest rounded-xl transition cursor-pointer"
+              className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-800 dark:text-white font-black text-xs uppercase tracking-widest rounded-xl transition cursor-pointer active:scale-97 flex items-center justify-center gap-1.5"
             >
-              Ücretsiz Kullan
+              <span>Ücretsiz Kullan (Ana Sayfa)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </motion.div>
 
@@ -499,10 +616,11 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             </div>
 
             <button
-              onClick={onStartApp}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-lg shadow-indigo-500/20 cursor-pointer animate-pulse"
+              onClick={handleProUpgradeClick}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-lg shadow-indigo-500/20 cursor-pointer active:scale-97 flex items-center justify-center gap-1.5"
             >
-              Hemen Premium Ol 💎
+              <span>Hemen Premium Ol 💎</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </motion.div>
         </div>
@@ -510,11 +628,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
 
       {/* 6. Comprehensive Accordion FAQ - Crawleable High Quality Content */}
       <motion.section 
+        id="faq-section"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-120px" }}
         transition={{ duration: 0.6 }}
-        className="py-16 bg-slate-50 dark:bg-slate-950 border-t border-slate-200/50 dark:border-slate-900/60"
+        className="py-16 bg-slate-50 dark:bg-slate-950 border-t border-slate-200/50 dark:border-slate-900/60 scroll-mt-14"
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
           <div className="text-center space-y-2">
@@ -547,20 +666,60 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               );
             })}
           </div>
+
+          {/* Bottom Banner CTA in FAQ */}
+          <div className="p-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-3xl text-white text-center space-y-4 shadow-xl">
+            <h3 className="text-xl font-black">Bütçenizi Bugün Yönetmeye Başlayın!</h3>
+            <p className="text-xs text-indigo-100 max-w-md mx-auto leading-relaxed">
+              Maaşınız, borçlarınız ve harcamalarınız kontrolünüzde olsun. Bilimsel metotlarla hemen borçlarınızı sıfırlayın.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={onStartApp}
+                className="w-full sm:w-auto px-6 py-3 bg-white text-indigo-700 hover:bg-indigo-50 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-md cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+              >
+                <span>Hemen Ücretsiz Başla</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleProUpgradeClick}
+                className="w-full sm:w-auto px-6 py-3 bg-indigo-900/60 hover:bg-indigo-900/80 text-amber-300 border border-amber-400/30 font-black text-xs uppercase tracking-widest rounded-xl transition cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span>Pro Sürüme Yükselt</span>
+              </button>
+            </div>
+          </div>
         </div>
       </motion.section>
 
       {/* Footer Branding Area */}
-      <footer className="py-12 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-xs space-y-4">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-2">
-          <h4 className="text-white font-black tracking-widest text-sm uppercase">💰 BÜTÇEM PRO</h4>
+      <footer className="py-12 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-xs space-y-5">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-3">
+          <div className="flex items-center justify-center gap-2">
+            <button 
+              onClick={onStartApp}
+              className="text-white font-black tracking-widest text-sm uppercase flex items-center gap-1.5 hover:text-indigo-400 transition cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              💰 BÜTÇEM PRO
+            </button>
+          </div>
           <p className="text-[11px] font-semibold text-slate-500 leading-relaxed max-w-md mx-auto">
             Harcama alışkanlıklarınızı dönüştürün, borçlarınızı bilimsel olarak yönetin ve finansal bağımsızlığın tadını çıkarın. %100 güvenli, yerel öncelikli bütçeleme platformu.
           </p>
         </div>
         
-        {/* Compliance & Regulatory Links required by Google Play and AdSense */}
+        {/* Compliance & Regulatory Links */}
         <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-[10px] font-bold tracking-wider uppercase text-indigo-400">
+          <button onClick={onStartApp} className="hover:text-indigo-300 transition underline cursor-pointer">
+            Ana Sayfa (Bütçemi Yönet)
+          </button>
+          <span className="text-slate-700 hidden sm:inline">•</span>
+          <button onClick={onNavigateToBlog} className="hover:text-indigo-300 transition underline cursor-pointer">
+            Finans Blog / Rehberler
+          </button>
+          <span className="text-slate-700 hidden sm:inline">•</span>
           <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 transition underline">
             Gizlilik Politikası (Privacy Policy)
           </a>
@@ -575,7 +734,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
         </div>
 
         <div className="pt-6 border-t border-slate-800 text-[10px] font-bold text-slate-500 tracking-wider">
-          © 2026 BÜTÇEM PRO • ALL RIGHTS RESERVED.
+          © 2026 BÜTÇEM PRO • TÜM HAKLARI SAKLIDIR.
         </div>
       </footer>
     </div>

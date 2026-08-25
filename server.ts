@@ -1811,9 +1811,11 @@ app.post("/api/push-register", (req, res) => {
   }
 
   const endpointHash = subscription.endpoint.slice(-50) || Math.random().toString();
-  const existing = subscriptionsMap[endpointHash] || {
+  const existing: PushSubscriptionRecord = subscriptionsMap[endpointHash] || {
     subscription,
     alarms: [],
+    debts: [],
+    installmentDebts: [],
     user: user || "anonymous",
     lastOverduePushTime: 0,
     lastDueTodayPushDate: ""

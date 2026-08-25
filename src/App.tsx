@@ -1155,7 +1155,7 @@ export default function App() {
     }
   }, []);
 
-  // Sync scheduled future active alarms to background Android / Chrome Service Worker threads
+  // Sync scheduled future active alarms and debts to background Android / Chrome Service Worker threads using SyncManager API
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.ready.then((reg) => {
@@ -1165,9 +1165,30 @@ export default function App() {
             type: "SYNC_ALARMS",
             alarms: alarms
           });
+          sw.postMessage({
+            type: "SYNC_DEBTS",
+            debts: debts
+          });
+        }
+
+        // Register SyncManager background sync if supported
+        if ("sync" in reg) {
+          try {
+            (reg as any).sync.register("sync-alarms").catch(() => {});
+            (reg as any).sync.register("sync-debts").catch(() => {});
+          } catch (e) {}
+        }
+
+        // Register Periodic Background Sync if supported
+        if ("periodicSync" in reg) {
+          try {
+            (reg as any).periodicSync.register("check-debts-periodic", {
+              minInterval: 12 * 60 * 60 * 1000 // 12 hours
+            }).catch(() => {});
+          } catch (e) {}
         }
       }).catch(err => {
-        console.warn("[Background SW Sync Warn] Unable to synchronize alarms list to background service worker thread:", err);
+        console.warn("[Background SW Sync Warn] Unable to synchronize alarms/debts to background service worker thread:", err);
       });
 
       // Synchronize alarms and debts state with the Web Push backend database for closed-app notifications
@@ -3735,7 +3756,14 @@ export default function App() {
         <PublicLanding
           onStartApp={() => {
             localStorage.setItem("skip_landing", "true");
+            setActiveTab("overview");
             setShowPublicView(null);
+          }}
+          onUpgradeToPro={() => {
+            localStorage.setItem("skip_landing", "true");
+            setActiveTab("overview");
+            setShowPublicView(null);
+            setIsUpgradeModalOpen(true);
           }}
           onNavigateToBlog={() => setShowPublicView("blog")}
           onNavigateToPost={(id) => {
@@ -3755,6 +3783,7 @@ export default function App() {
           onSelectPost={setSelectedPublicPostId}
           onStartApp={() => {
             localStorage.setItem("skip_landing", "true");
+            setActiveTab("overview");
             setShowPublicView(null);
           }}
           onBackToLanding={() => setShowPublicView("landing")}
