@@ -12,6 +12,7 @@ import { AdMobBanner } from "./AdMobBanner";
 import { InstallmentsPortalChart } from "./BudgetCharts";
 import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
+import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
@@ -50,6 +51,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   const [installmentCount, setInstallmentCount] = useState("");
   const [paidInstallmentCount, setPaidInstallmentCount] = useState("0");
   const [firstDueDate, setFirstDueDate] = useState("");
+  const [providerId, setProviderId] = useState<string | undefined>(undefined);
 
   // Export & Import / Backup & Restore States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -262,6 +264,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     setInstallmentCount("");
     setPaidInstallmentCount("0");
     setFirstDueDate(new Date().toISOString().slice(0, 10));
+    setProviderId(undefined);
     setIsModalOpen(true);
   };
 
@@ -273,6 +276,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     setInstallmentCount(inst.installmentCount.toString());
     setPaidInstallmentCount(inst.paidInstallmentCount.toString());
     setFirstDueDate(inst.firstDueDate ? inst.firstDueDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setProviderId(inst.providerId);
     setIsModalOpen(true);
   };
 
@@ -327,6 +331,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       installmentCount: parsedCount,
       paidInstallmentCount: parsedPaid,
       firstDueDate: firstDueDate || new Date().toISOString().slice(0, 10),
+      providerId,
     });
     setIsModalOpen(false);
   };
@@ -589,7 +594,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[130px]">{inst.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <ProviderBadge providerId={inst.providerId} fallbackName={inst.name} size="xs" showLabel={false} />
+                        <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[130px]">{inst.name}</h4>
+                      </div>
                       <p className="text-[8px] opacity-75 font-mono tracking-widest">{cardTheme.brand}</p>
                     </div>
                   </div>
@@ -707,6 +715,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
               <CalendarDays className="w-5 h-5 text-indigo-500" /> {modalTitle}
             </h4>
             <div className="space-y-3">
+              <ProviderSelector
+                selectedProviderId={providerId}
+                onSelect={(id) => setProviderId(id)}
+                onClear={() => setProviderId(undefined)}
+                debtNameHint={name}
+                language={language}
+              />
+
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">BORÇ PLANI ADI</label>
                 <input

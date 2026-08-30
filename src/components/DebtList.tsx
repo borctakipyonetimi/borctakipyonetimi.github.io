@@ -17,6 +17,7 @@ import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
 
 import { PeriodFilter } from "./PeriodFilter";
+import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 
 interface DebtListProps {
   debts: Debt[];
@@ -112,6 +113,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [paid, setPaid] = useState("");
   const [category, setCategory] = useState("Diğer");
   const [dueDate, setDueDate] = useState("");
+  const [providerId, setProviderId] = useState<string | undefined>(undefined);
   const [createAlarm, setCreateAlarm] = useState(false);
   const [isInstallment, setIsInstallment] = useState(false);
   const [installmentCount, setInstallmentCount] = useState("12");
@@ -823,6 +825,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     setPaid("0");
     setCategory("Diğer");
     setDueDate("");
+    setProviderId(undefined);
     setCreateAlarm(false);
     setIsInstallment(false);
     setInstallmentCount("12");
@@ -837,6 +840,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     setPaid(formatNumberWithDots(d.paid.toString()));
     setCategory(d.category);
     setDueDate(d.dueDate || "");
+    setProviderId(d.providerId);
     setCreateAlarm(false);
     setIsInstallment(false);
     setIsModalOpen(true);
@@ -902,6 +906,7 @@ export const DebtList: React.FC<DebtListProps> = ({
           installmentCount: count,
           paidInstallmentCount: paidCount,
           firstDueDate: dueDate || new Date().toISOString().slice(0, 10),
+          providerId,
         });
       }
     } else {
@@ -916,6 +921,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         paid: parsedPaid,
         category,
         dueDate,
+        providerId,
       }, createAlarm);
     }
 
@@ -1670,7 +1676,7 @@ export const DebtList: React.FC<DebtListProps> = ({
 
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center flex-wrap gap-2 text-slate-800 dark:text-slate-100">
-                          <span className="font-bold text-sm">{d.name}</span>
+                          <ProviderBadge providerId={d.providerId} fallbackName={d.name} category={d.category} size="sm" showLabel={true} />
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] font-bold rounded-full">
                             📁 {d.category}
                           </span>
@@ -2028,6 +2034,15 @@ export const DebtList: React.FC<DebtListProps> = ({
             </button>
 
             <div className="space-y-3">
+              <ProviderSelector
+                selectedProviderId={providerId}
+                onSelect={(id) => setProviderId(id)}
+                onClear={() => setProviderId(undefined)}
+                debtNameHint={name}
+                categoryHint={category}
+                language={language}
+              />
+
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">BORÇ TANIMI</label>
                 <input

@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
+import webpush from "web-push";
 
 dotenv.config();
 
@@ -1753,7 +1754,6 @@ const privacyPaths = [
 // ==========================================
 // ROBUST WEB PUSH NOTIFICATION BACKEND SETUP
 // ==========================================
-import webpush from "web-push";
 
 // Resolve storage of VAPID KEYS
 const VAPID_KEYS_FILE = path.join(process.cwd(), "vapid_keys.json");

@@ -2635,7 +2635,8 @@ export default function App() {
         amount: newAmount,
         paid: newPaid,
         category: debtData.category || "Diğer",
-        dueDate: dueDate
+        dueDate: dueDate,
+        providerId: debtData.providerId
       };
       updated = [...debts, newD];
 
@@ -2872,7 +2873,8 @@ export default function App() {
         totalAmount: instData.totalAmount || 0,
         installmentCount: instData.installmentCount || 1,
         paidInstallmentCount: instData.paidInstallmentCount || 0,
-        firstDueDate: instData.firstDueDate || new Date().toISOString().slice(0, 10)
+        firstDueDate: instData.firstDueDate || new Date().toISOString().slice(0, 10),
+        providerId: instData.providerId
       };
       updated = [...installmentDebts, newInst];
 

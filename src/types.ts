@@ -10,6 +10,7 @@ export interface Debt {
   paid: number;
   category: string;
   dueDate: string;
+  providerId?: string;
 }
 
 export interface Income {
@@ -42,6 +43,7 @@ export interface InstallmentDebt {
   installmentCount: number;
   paidInstallmentCount: number;
   firstDueDate: string;
+  providerId?: string;
 }
 
 export interface PaymentLog {
