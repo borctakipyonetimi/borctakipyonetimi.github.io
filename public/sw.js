@@ -3,9 +3,12 @@ const ALARMS_CACHE_NAME = "butcempro-alarms-cache";
 const ALARMS_URL = "/scheduled-alarms.json";
 const DEBTS_CACHE_NAME = "butcempro-debts-cache";
 const DEBTS_URL = "/cached-debts.json";
+const INSTALLMENTS_CACHE_NAME = "butcempro-installments-cache";
+const INSTALLMENTS_URL = "/cached-installments.json";
 
 let activeAlarms = [];
 let activeDebts = [];
+let activeInstallments = [];
 let alarmTimers = [];
 
 self.addEventListener("install", (event) => {
@@ -17,19 +20,21 @@ self.addEventListener("activate", (event) => {
     Promise.all([
       self.clients.claim(),
       loadAndScheduleCachedAlarms(),
-      loadCachedDebts()
+      loadCachedDebts(),
+      loadCachedInstallments()
     ])
   );
 });
 
-// Helper to parse dates formatted in ISO or Turkish locale (dd.mm.yyyy hh:mm:ss or yyyy-mm-dd)
+// Helper to parse dates formatted in ISO, timestamp or Turkish locale (dd.mm.yyyy hh:mm:ss or yyyy-mm-dd)
 function parseDateRobust(dateStr) {
   if (!dateStr) return NaN;
+  if (typeof dateStr === "number") return dateStr;
   let parsed = new Date(dateStr).getTime();
   if (!isNaN(parsed)) return parsed;
 
   try {
-    const parts = dateStr.trim().split(" ");
+    const parts = String(dateStr).trim().split(" ");
     const datePart = parts[0];
     const timePart = parts[1] || "00:00:00";
 
@@ -77,12 +82,12 @@ function rescheduleAlarms() {
     // 1. Check if Notification Triggers are natively supported (PWA offline scheduled notifications when closed)
     if (delay > 0 && 'showTrigger' in self.Notification.prototype && typeof self.TimestampTrigger !== 'undefined') {
       try {
-        self.registration.showNotification("Bütçem Pro", {
-          body: alarm.title,
+        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
+          body: alarm.title || "Planlanmış alarm zamanı!",
           icon: appIcon,
           badge: appBadge,
           vibrate: [200, 100, 200, 100, 300],
-          tag: `alarm-${alarm.id}`,
+          tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
           requireInteraction: true,
           silent: false,
@@ -100,12 +105,12 @@ function rescheduleAlarms() {
     // 2. Active background setTimeout fallback
     if (delay > 0) {
       const timerId = setTimeout(() => {
-        self.registration.showNotification("Bütçem Pro", {
+        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
           body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
           icon: appIcon,
           badge: appBadge,
-          vibrate: [200, 100, 200, 100, 300],
-          tag: `alarm-${alarm.id}`,
+          vibrate: [300, 100, 300, 100, 400],
+          tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
           requireInteraction: true,
           silent: false,
@@ -115,7 +120,7 @@ function rescheduleAlarms() {
         });
 
         if (self.navigator && self.navigator.setAppBadge) {
-          self.navigator.setAppBadge(1).catch(err => console.log("Set badge err:", err));
+          self.navigator.setAppBadge(1).catch(() => {});
         }
       }, delay);
       alarmTimers.push(timerId);
@@ -178,118 +183,201 @@ async function loadCachedDebts() {
   }
 }
 
-// --- SYNCMANAGER API IMPLEMENTATION ---
-// Handles background sync events when application is closed or returning online
-async function handleBackgroundSync(tag) {
-  console.log(`[Service Worker] Executing background sync for tag: "${tag}"`);
+// Save installment debts to cache
+async function saveInstallmentsToCache(installments) {
+  try {
+    const cache = await caches.open(INSTALLMENTS_CACHE_NAME);
+    const response = new Response(JSON.stringify(installments), {
+      headers: { "Content-Type": "application/json" }
+    });
+    await cache.put(INSTALLMENTS_URL, response);
+  } catch (err) {
+    console.error("Failed to save installments to background cache:", err);
+  }
+}
 
-  // 1. Reload latest cached alarms and debts
+// Load installment debts from cache
+async function loadCachedInstallments() {
+  try {
+    const cache = await caches.open(INSTALLMENTS_CACHE_NAME);
+    const response = await cache.match(INSTALLMENTS_URL);
+    if (response) {
+      const installments = await response.json();
+      activeInstallments = installments || [];
+    }
+  } catch (err) {
+    console.error("Failed to load cached installments:", err);
+  }
+}
+
+// --- SYNCMANAGER API IMPLEMENTATION ---
+// Handles background sync and periodic sync events when application is in background or closed
+async function handleBackgroundSync(tag) {
+  console.log(`[Service Worker] Executing background sync listener for tag: "${tag}"`);
+
+  // 1. Reload latest cached alarms, debts, and installments
   await Promise.all([
     loadAndScheduleCachedAlarms(),
-    loadCachedDebts()
+    loadCachedDebts(),
+    loadCachedInstallments()
   ]);
 
   const now = Date.now();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+  const todayStr = today.toISOString().slice(0, 10);
   const appIcon = self.location.origin + "/logo.png";
   const appBadge = self.location.origin + "/logo.png";
 
-  // 2. Check for any due alarms right now
+  // 2. Check for any active alarms due right now (within past 2 hours or due immediately)
   let triggeredAlarmCount = 0;
-  activeAlarms.forEach((alarm) => {
-    if (!alarm || !alarm.date) return;
-    const alarmTime = parseDateRobust(alarm.date);
-    if (!isNaN(alarmTime) && alarmTime <= now && (now - alarmTime < 24 * 60 * 60 * 1000)) {
-      // Trigger notification for this due alarm
-      self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
-        body: alarm.title || "Vadesi gelen ödeme hatırlatması!",
-        icon: appIcon,
-        badge: appBadge,
-        vibrate: [200, 100, 200, 100, 300],
-        tag: `alarm-${alarm.id}`,
-        renotify: true,
-        requireInteraction: true,
-        data: { url: "/?tab=notifications" }
-      });
-      triggeredAlarmCount++;
-    }
-  });
+  if (Array.isArray(activeAlarms)) {
+    activeAlarms.forEach((alarm) => {
+      if (!alarm || !alarm.date) return;
+      const alarmTime = parseDateRobust(alarm.date);
+      if (!isNaN(alarmTime) && alarmTime <= now && (now - alarmTime < 2 * 60 * 60 * 1000)) {
+        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
+          body: alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
+          icon: appIcon,
+          badge: appBadge,
+          vibrate: [300, 100, 300, 100, 400],
+          tag: `alarm-${alarm.id || Date.now()}`,
+          renotify: true,
+          requireInteraction: true,
+          silent: false,
+          actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
+          data: { url: "/?tab=notifications" }
+        });
+        triggeredAlarmCount++;
+      }
+    });
+  }
 
-  // 3. Check for overdue debts or debts due today
-  if (Array.isArray(activeDebts) && activeDebts.length > 0) {
-    const overdueList = [];
-    const dueTodayList = [];
+  // 3. Check standard debts
+  const overdueList = [];
+  const dueTodayList = [];
 
+  if (Array.isArray(activeDebts)) {
     activeDebts.forEach((debt) => {
-      if (debt.isPaid) return;
-      const remaining = (debt.amount || 0) - (debt.paid || 0);
+      if (!debt || debt.isPaid) return;
+      const remaining = (Number(debt.amount) || 0) - (Number(debt.paid) || 0);
       if (remaining <= 0) return;
 
       if (debt.dueDate) {
         const dueTime = parseDateRobust(debt.dueDate);
         if (!isNaN(dueTime)) {
-          const debtDateStr = new Date(dueTime).toISOString().slice(0, 10);
-          if (debtDateStr === todayStr) {
+          if (dueTime >= todayStart && dueTime < todayEnd) {
             dueTodayList.push({ name: debt.name || "Borç", amount: remaining });
-          } else if (dueTime < now) {
-            const daysLate = Math.max(1, Math.floor((now - dueTime) / (1000 * 60 * 60 * 24)));
+          } else if (dueTime < todayStart) {
+            const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
             overdueList.push({ name: debt.name || "Borç", amount: remaining, daysLate });
           }
         }
       }
     });
-
-    if (overdueList.length > 0) {
-      const top = overdueList[0];
-      const totalOverdue = overdueList.reduce((s, d) => s + d.amount, 0);
-      self.registration.showNotification(`⚠️ Gecikmiş Borç Uyarısı (${overdueList.length} Adet)`, {
-        body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarında ödeme ${top.daysLate} gün gecikti! Toplam geciken: ₺${totalOverdue.toLocaleString("tr-TR")}.`,
-        icon: appIcon,
-        badge: appBadge,
-        vibrate: [200, 100, 200, 100, 300],
-        tag: "sw-overdue-sync-" + todayStr,
-        renotify: true,
-        requireInteraction: true,
-        actions: [{ action: "open_app", title: "Borçları Görüntüle" }],
-        data: { url: "/?tab=debts" }
-      });
-    } else if (dueTodayList.length > 0) {
-      const top = dueTodayList[0];
-      self.registration.showNotification("🚨 Bugün Vadesi Gelen Ödemeniz Var!", {
-        body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün!`,
-        icon: appIcon,
-        badge: appBadge,
-        vibrate: [200, 100, 200, 100, 300],
-        tag: "sw-duetoday-sync-" + todayStr,
-        renotify: true,
-        requireInteraction: true,
-        actions: [{ action: "open_app", title: "Ödemeyi Yap" }],
-        data: { url: "/?tab=debts" }
-      });
-    }
   }
 
-  // 4. Update badge
+  // 4. Check installment debts (taksitli borçlar)
+  if (Array.isArray(activeInstallments)) {
+    activeInstallments.forEach((inst) => {
+      if (!inst) return;
+      const count = Number(inst.installmentCount) || 1;
+      const paid = Number(inst.paidInstallmentCount) || 0;
+      const total = Number(inst.totalAmount) || 0;
+      const perInst = count > 0 ? total / count : 0;
+
+      if (paid < count && inst.firstDueDate) {
+        const bDate = new Date(inst.firstDueDate);
+        if (!isNaN(bDate.getTime())) {
+          bDate.setMonth(bDate.getMonth() + paid);
+          const dueTime = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate()).getTime();
+          const instTitle = `${inst.title || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+
+          if (dueTime >= todayStart && dueTime < todayEnd) {
+            dueTodayList.push({ name: instTitle, amount: perInst });
+          } else if (dueTime < todayStart) {
+            const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
+            overdueList.push({ name: instTitle, amount: perInst, daysLate });
+          }
+        }
+      }
+    });
+  }
+
+  // 5. Trigger notifications for overdue / due-today debts
+  if (overdueList.length > 0) {
+    const top = overdueList[0];
+    const totalOverdue = overdueList.reduce((s, d) => s + d.amount, 0);
+    self.registration.showNotification(`⚠️ Gecikmiş Borç Uyarısı (${overdueList.length} Adet)`, {
+      body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarında ödeme ${top.daysLate} gün gecikti! Toplam geciken: ₺${totalOverdue.toLocaleString("tr-TR")}.`,
+      icon: appIcon,
+      badge: appBadge,
+      vibrate: [300, 100, 300, 100, 400],
+      tag: "sw-overdue-sync-" + todayStr,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      actions: [{ action: "open_app", title: "Borçları Görüntüle" }],
+      data: { url: "/?tab=debts" }
+    });
+  } else if (dueTodayList.length > 0) {
+    const top = dueTodayList[0];
+    const totalDueToday = dueTodayList.reduce((s, d) => s + d.amount, 0);
+    self.registration.showNotification("🚨 Bugün Vadesi Gelen Ödemeniz Var!", {
+      body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün! (Toplam ₺${totalDueToday.toLocaleString("tr-TR")})`,
+      icon: appIcon,
+      badge: appBadge,
+      vibrate: [300, 100, 300, 100, 400],
+      tag: "sw-duetoday-sync-" + todayStr,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      actions: [{ action: "open_app", title: "Ödemeyi Yap" }],
+      data: { url: "/?tab=debts" }
+    });
+  }
+
+  // 6. Update App icon badge count
   if (self.navigator && self.navigator.setAppBadge) {
-    self.navigator.setAppBadge(triggeredAlarmCount > 0 ? triggeredAlarmCount : 1).catch(() => {});
+    const totalBadge = (triggeredAlarmCount > 0 ? triggeredAlarmCount : 0) + (overdueList.length > 0 ? overdueList.length : 0);
+    if (totalBadge > 0) {
+      self.navigator.setAppBadge(totalBadge).catch(() => {});
+    }
   }
 }
 
 // Listen to standard Background Sync events (SyncManager API)
 self.addEventListener("sync", (event) => {
-  console.log(`[Service Worker] 'sync' event triggered with tag: ${event.tag}`);
+  console.log(`[Service Worker] Background 'sync' event triggered with tag: "${event.tag}"`);
   event.waitUntil(handleBackgroundSync(event.tag));
 });
 
 // Listen to Periodic Background Sync events (PeriodicSyncManager API)
 self.addEventListener("periodicsync", (event) => {
-  console.log(`[Service Worker] 'periodicsync' event triggered with tag: ${event.tag}`);
+  console.log(`[Service Worker] 'periodicsync' event triggered with tag: "${event.tag}"`);
   event.waitUntil(handleBackgroundSync(event.tag));
 });
 
-// Main message listener from React client
+// Main message listener from React client for instant syncing of debtsRef & alarmsRef
 self.addEventListener("message", (event) => {
   if (!event.data) return;
+
+  if (event.data.type === "SYNC_ALL_DATA") {
+    if (event.data.alarms) {
+      activeAlarms = event.data.alarms;
+      rescheduleAlarms();
+      saveAlarmsToCache(activeAlarms);
+    }
+    if (event.data.debts) {
+      activeDebts = event.data.debts;
+      saveDebtsToCache(activeDebts);
+    }
+    if (event.data.installmentDebts) {
+      activeInstallments = event.data.installmentDebts;
+      saveInstallmentsToCache(activeInstallments);
+    }
+  }
 
   if (event.data.type === "SYNC_ALARMS") {
     activeAlarms = event.data.alarms || [];
@@ -302,7 +390,12 @@ self.addEventListener("message", (event) => {
     saveDebtsToCache(activeDebts);
   }
 
-  if (event.data.type === "TRIGGER_MANUAL_SYNC") {
+  if (event.data.type === "SYNC_INSTALLMENTS") {
+    activeInstallments = event.data.installmentDebts || [];
+    saveInstallmentsToCache(activeInstallments);
+  }
+
+  if (event.data.type === "TRIGGER_MANUAL_SYNC" || event.data.type === "CHECK_NOW") {
     handleBackgroundSync("manual-sync");
   }
 });
@@ -318,35 +411,58 @@ self.addEventListener("push", (event) => {
     }
   }
 
-  if (self.navigator && self.navigator.setAppBadge) {
-    self.navigator.setAppBadge(1).catch(() => {});
-  }
+  const syncTag = data.syncTag || (data.action === "trigger-sync" ? "server-cron-sync" : "push-cron-sync");
 
-  const appIcon = self.location.origin + "/logo.png";
-  const appBadge = self.location.origin + "/logo.png";
+  const syncPromise = (async () => {
+    // 1. When server cron job push triggers while app is closed, register SyncManager sync if supported
+    if (self.registration && self.registration.sync) {
+      try {
+        await self.registration.sync.register(syncTag);
+      } catch (err) {}
+    }
 
-  const options = {
-    body: data.body,
-    icon: appIcon,
-    badge: appBadge,
-    vibrate: [200, 100, 200, 100, 300],
-    tag: data.tag || "butcempro-alarm",
-    renotify: true,
-    requireInteraction: true,
-    silent: false,
-    timestamp: Date.now(),
-    actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
-    data: { url: data.url || "/" }
-  };
+    // 2. Try background sync routine safely
+    try {
+      await handleBackgroundSync(syncTag);
+    } catch (bgErr) {
+      console.warn("[Service Worker] Background sync error:", bgErr);
+    }
 
-  // When push triggers while app is closed, also request a background sync if SyncManager is available
-  if (self.registration && self.registration.sync) {
-    self.registration.sync.register("sync-alarms").catch(() => {});
-  }
+    // 3. Always show notification on device lockscreen / drawer
+    const appIcon = self.location.origin + "/logo.png";
+    const appBadge = self.location.origin + "/logo.png";
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Bütçem Pro", options)
-  );
+    if (self.navigator && self.navigator.setAppBadge) {
+      try {
+        await self.navigator.setAppBadge(1);
+      } catch (e) {}
+    }
+
+    if (data.title || data.body) {
+      const options = {
+        body: data.body || "Vadesi gelen ödeme / borç hatırlatıcısı!",
+        icon: appIcon,
+        badge: appBadge,
+        vibrate: [300, 100, 300, 100, 400],
+        tag: data.tag || `alarm-${Date.now()}`,
+        renotify: true,
+        requireInteraction: true,
+        silent: false,
+        timestamp: Date.now(),
+        actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
+        data: { url: data.url || "/" }
+      };
+
+      try {
+        await self.registration.showNotification(data.title || "Bütçem Pro Hatırlatıcı ⏰", options);
+        console.log("[Service Worker] Successfully displayed notification to user tray:", data.title);
+      } catch (notifErr) {
+        console.error("[Service Worker] Failed to display notification:", notifErr);
+      }
+    }
+  })();
+
+  event.waitUntil(syncPromise);
 });
 
 // Handle notification click routing

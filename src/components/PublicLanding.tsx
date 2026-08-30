@@ -12,13 +12,17 @@ export interface PublicLandingProps {
   onUpgradeToPro?: () => void;
   onNavigateToBlog: () => void;
   onNavigateToPost: (id: string) => void;
+  onNavigateToTab?: (tabId: string) => void;
+  onNavigateToPrivacy?: () => void;
 }
 
 export const PublicLanding: React.FC<PublicLandingProps> = ({ 
   onStartApp, 
   onUpgradeToPro,
   onNavigateToBlog,
-  onNavigateToPost
+  onNavigateToPost,
+  onNavigateToTab,
+  onNavigateToPrivacy
 }) => {
   // Calculator widget state
   const [calcIncome, setCalcIncome] = useState<string>("25000");
@@ -400,7 +404,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               </p>
             </div>
             <button 
-              onClick={onStartApp}
+              onClick={() => onNavigateToTab ? onNavigateToTab("aiStrategy") : onStartApp()}
               className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
             >
               Uygulamada Dene <ChevronRight className="w-3.5 h-3.5" />
@@ -424,7 +428,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               </p>
             </div>
             <button 
-              onClick={onStartApp}
+              onClick={() => onNavigateToTab ? onNavigateToTab("debts") : onStartApp()}
               className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
             >
               Stratejileri Uygula <ChevronRight className="w-3.5 h-3.5" />
@@ -448,7 +452,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               </p>
             </div>
             <button 
-              onClick={onStartApp}
+              onClick={() => onNavigateToTab ? onNavigateToTab("installments") : onStartApp()}
               className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
             >
               Takvimi Başlat <ChevronRight className="w-3.5 h-3.5" />
@@ -472,7 +476,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               </p>
             </div>
             <button 
-              onClick={onStartApp}
+              onClick={() => onNavigateToTab ? onNavigateToTab("contacts") : onStartApp()}
               className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 hover:underline cursor-pointer pt-2"
             >
               Rehberi Yönet <ChevronRight className="w-3.5 h-3.5" />
@@ -720,9 +724,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             Finans Blog / Rehberler
           </button>
           <span className="text-slate-700 hidden sm:inline">•</span>
-          <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 transition underline">
+          <button 
+            onClick={() => onNavigateToPrivacy ? onNavigateToPrivacy() : (onNavigateToTab ? onNavigateToTab("privacy") : onStartApp())} 
+            className="hover:text-indigo-300 transition underline cursor-pointer"
+          >
             Gizlilik Politikası (Privacy Policy)
-          </a>
+          </button>
           <span className="text-slate-700 hidden sm:inline">•</span>
           <a href="mailto:info.borcodemetakip@gmail.com" className="hover:text-indigo-300 transition underline">
             Destek / İletişim (Contact)

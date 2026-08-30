@@ -96,6 +96,7 @@ import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
+import { VerifyEmailNotificationSection } from "./components/VerifyEmailNotificationSection";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
@@ -256,7 +257,12 @@ export default function App() {
 
   const checkTrialStatus = async () => {
     try {
-      const res = await fetch("/api/trial/status");
+      let deviceId = localStorage.getItem("butcem_device_id");
+      if (!deviceId) {
+        deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
+        localStorage.setItem("butcem_device_id", deviceId);
+      }
+      const res = await fetch(`/api/trial/status?userId=${encodeURIComponent(currentUser || "")}&deviceId=${encodeURIComponent(deviceId)}`);
       const data = await res.json();
       setTrialStatus(data);
       
@@ -279,13 +285,12 @@ export default function App() {
             triggerToast(expMsg);
             
             setNotifications(prev => {
-              const alreadyExists = prev.some(n => n.message.includes("deneme süreniz sona erdi"));
+              const alreadyExists = prev.some(n => n.title?.includes("deneme") || (n as any).message?.includes("deneme"));
               if (alreadyExists) return prev;
               return [
                 {
                   id: Date.now(),
-                  title: "Deneme Süresi Sona Erdi",
-                  message: "15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.",
+                  title: "⏳ Deneme Süresi Sona Erdi",
                   time: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
                   date: new Date().toLocaleDateString("tr-TR"),
                   isRead: false,
@@ -306,17 +311,45 @@ export default function App() {
 
   const handleActivateTrial = async () => {
     try {
-      const res = await fetch("/api/trial/activate", { method: "POST" });
+      let deviceId = localStorage.getItem("butcem_device_id");
+      if (!deviceId) {
+        deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
+        localStorage.setItem("butcem_device_id", deviceId);
+      }
+      const res = await fetch("/api/trial/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser || "",
+          deviceId,
+          forceReset: true
+        })
+      });
       const data = await res.json();
       setTrialStatus(data);
       if (data.isActive) {
         setIsPremium(true);
         localStorage.setItem("is_premium", "true");
         localStorage.setItem("premium_source", "trial");
+        const trialEndDate = data.endDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+        localStorage.setItem("trial_end_date", trialEndDate);
         triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
       }
     } catch (e) {
-      triggerToast("Deneme sürümü etkinleştirilemedi. Lütfen internet bağlantınızı kontrol edin.");
+      const trialEndDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+      localStorage.setItem("is_premium", "true");
+      localStorage.setItem("premium_source", "trial");
+      localStorage.setItem("trial_end_date", trialEndDate);
+      setIsPremium(true);
+      setTrialStatus({
+        hasTrial: true,
+        isActive: true,
+        isExpired: false,
+        daysRemaining: 15,
+        startDate: new Date().toISOString(),
+        endDate: trialEndDate
+      });
+      triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
     }
   };
 
@@ -1157,39 +1190,40 @@ export default function App() {
 
   // Sync scheduled future active alarms and debts to background Android / Chrome Service Worker threads using SyncManager API
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then((reg) => {
+    const syncStateWithSW = async () => {
+      if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.ready;
         const sw = reg.active || navigator.serviceWorker.controller;
         if (sw) {
           sw.postMessage({
-            type: "SYNC_ALARMS",
-            alarms: alarms
-          });
-          sw.postMessage({
-            type: "SYNC_DEBTS",
-            debts: debts
+            type: "SYNC_ALL_DATA",
+            alarms: alarmsRef.current,
+            debts: debtsRef.current,
+            installmentDebts: installmentDebtsRef.current
           });
         }
 
         // Register SyncManager background sync if supported
         if ("sync" in reg) {
           try {
-            (reg as any).sync.register("sync-alarms").catch(() => {});
-            (reg as any).sync.register("sync-debts").catch(() => {});
+            await (reg as any).sync.register("sync-alarms");
+            await (reg as any).sync.register("sync-debts");
+            await (reg as any).sync.register("check-debts-sync");
           } catch (e) {}
         }
 
-        // Register Periodic Background Sync if supported
+        // Register Periodic Background Sync if supported (e.g. Chromium / Android PWA)
         if ("periodicSync" in reg) {
           try {
-            (reg as any).periodicSync.register("check-debts-periodic", {
-              minInterval: 12 * 60 * 60 * 1000 // 12 hours
-            }).catch(() => {});
+            await (reg as any).periodicSync.register("check-debts-periodic", {
+              minInterval: 6 * 60 * 60 * 1000 // 6 hours
+            });
           } catch (e) {}
         }
-      }).catch(err => {
+      } catch (err) {
         console.warn("[Background SW Sync Warn] Unable to synchronize alarms/debts to background service worker thread:", err);
-      });
+      }
 
       // Synchronize alarms and debts state with the Web Push backend database for closed-app notifications
       try {
@@ -1197,7 +1231,36 @@ export default function App() {
       } catch (err) {
         console.warn("Push sync call deferred:", err);
       }
-    }
+    };
+
+    // Immediate sync on state change
+    syncStateWithSW();
+
+    // Trigger on visibility change (when user backgrounds app or locks screen)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        syncStateWithSW();
+      }
+    };
+
+    // Trigger on page blur & before unload
+    const handleBlur = () => {
+      syncStateWithSW();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("beforeunload", handleBlur);
+
+    // Heartbeat sync every 60 seconds
+    const interval = setInterval(syncStateWithSW, 60000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("beforeunload", handleBlur);
+      clearInterval(interval);
+    };
   }, [alarms, debts, installmentDebts, currentUser]);
 
   // High-Precision Real-time Automated Alarm Checking Engine
@@ -3759,6 +3822,16 @@ export default function App() {
             setActiveTab("overview");
             setShowPublicView(null);
           }}
+          onNavigateToTab={(tabId) => {
+            localStorage.setItem("skip_landing", "true");
+            setActiveTab(tabId);
+            setShowPublicView(null);
+          }}
+          onNavigateToPrivacy={() => {
+            localStorage.setItem("skip_landing", "true");
+            setActiveTab("privacy");
+            setShowPublicView(null);
+          }}
           onUpgradeToPro={() => {
             localStorage.setItem("skip_landing", "true");
             setActiveTab("overview");
@@ -5585,6 +5658,14 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* 3. E-POSTA İLE BORÇ BİLDİRİM DOĞRULAMA (VERIFY EMAIL FOR NOTIFICATIONS) */}
+            <VerifyEmailNotificationSection
+              debts={debts}
+              installmentDebts={installmentDebts}
+              language={language}
+              onSuccessToast={(msg) => triggerToast(msg)}
+            />
           </div>
         )}
 
@@ -6021,10 +6102,10 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-indigo-500">
-                      GÜVENLİK AYARLARI
+                      GÜVENLİK & BİLDİRİM AYARLARI
                     </h3>
                     <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      Uygulama Giriş Kilidi
+                      PIN Kilidi & E-Posta Bildirim Doğrulama
                     </h2>
                   </div>
                 </div>
@@ -6038,9 +6119,13 @@ export default function App() {
               </div>
 
               <div className="p-6 overflow-y-auto flex-1 scrollbar-none">
-                <SecuritySettingsPanel onSuccessToast={(msg) => {
-                  triggerToast(msg);
-                }} />
+                <SecuritySettingsPanel 
+                  debts={debts}
+                  installmentDebts={installmentDebts}
+                  onSuccessToast={(msg) => {
+                    triggerToast(msg);
+                  }} 
+                />
               </div>
             </motion.div>
           </div>
@@ -6780,7 +6865,7 @@ export default function App() {
                             
                             {trialStatus && trialStatus.hasTrial ? (
                               trialStatus.isActive ? (
-                                <div className="space-y-1 text-center bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20">
+                                <div className="space-y-2 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
                                   <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
                                     ✨ DENEME SÜRÜMÜNÜZ AKTİF
                                   </p>
@@ -6790,15 +6875,29 @@ export default function App() {
                                   <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
                                     Sona Erme: {new Date(trialStatus.endDate || "").toLocaleDateString("tr-TR")}
                                   </p>
+                                  <button
+                                    type="button"
+                                    onClick={handleActivateTrial}
+                                    className="w-full mt-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
+                                  >
+                                    🔄 15 GÜNLÜK DENEMEYİ SIFIRLA / YENİLE
+                                  </button>
                                 </div>
                               ) : (
-                                <div className="space-y-1 text-center bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                                <div className="space-y-2 text-center bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
                                   <p className="text-[11px] font-black text-rose-700 dark:text-rose-450 uppercase leading-none">
                                     ⏳ DENEME SÜRENİZ SONA ERDİ
                                   </p>
                                   <p className="text-[10px] text-rose-600 dark:text-rose-450 font-bold leading-normal">
-                                    15 günlük deneme süreniz dolmuştur. Devam etmek için lütfen aşağıdaki paketleri satın alın.
+                                    15 günlük deneme süreniz dolmuştur. Yeniden denemek veya Pro'ya geçmek için butona tıklayabilirsiniz.
                                   </p>
+                                  <button
+                                    type="button"
+                                    onClick={handleActivateTrial}
+                                    className="w-full mt-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
+                                  >
+                                    🚀 15 GÜNLÜK DENEMEYİ TEKRAR BAŞLAT
+                                  </button>
                                 </div>
                               )
                             ) : (
@@ -6809,7 +6908,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={handleActivateTrial}
-                                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
+                                  className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
                                 >
                                   🚀 15 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
                                 </button>
