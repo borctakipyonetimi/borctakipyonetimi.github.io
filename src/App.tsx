@@ -104,6 +104,8 @@ import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
+import { ProviderBadge } from "./components/ProviderBadge";
+import { getProviderById, detectProviderFromName } from "./data/providers";
 import confetti from "canvas-confetti";
 
 export default function App() {
@@ -428,6 +430,11 @@ export default function App() {
   const [useSystemSound, setUseSystemSound] = useState<boolean>(() => {
     return localStorage.getItem("useSystemSound") === "1";
   });
+  const [marqueeSpeed, setMarqueeSpeed] = useState<number>(() => {
+    const saved = localStorage.getItem("marqueeSpeed");
+    return saved ? parseInt(saved, 10) : 120;
+  });
+  const [marqueePaused, setMarqueePaused] = useState<boolean>(false);
 
   // CSV Report Filter modal states
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -4631,6 +4638,8 @@ export default function App() {
                 originalId: d.id,
                 type: "single" as const,
                 name: d.name,
+                category: d.category,
+                providerId: d.providerId,
                 dueDate: d.dueDate,
                 remainingAmount,
                 isOverdue: diffDays < 0,
@@ -4657,12 +4666,14 @@ export default function App() {
                 id: `installment-${inst.id}`,
                 originalId: inst.id,
                 type: "installment" as const,
-                name: `${inst.name} (${inst.paidInstallmentCount + 1}. Taksit)`,
+                name: inst.name,
+                installmentLabel: `${inst.paidInstallmentCount + 1}. Taksit`,
                 dueDate: nextDueDate,
                 remainingAmount: installmentAmount,
                 isOverdue: diffDays < 0,
                 days: Math.abs(diffDays),
                 actualDiffDays: diffDays,
+                providerId: inst.providerId,
               };
             } catch {
               return null;
@@ -4731,10 +4742,30 @@ export default function App() {
             <div className={`absolute left-0 top-0 bottom-0 px-3 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 ${themeStyles.badgeBg}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
               <span className="animate-pulse tracking-tight">VADE UYARILARI ⏰</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMarqueePaused(!marqueePaused);
+                  triggerToast(marqueePaused ? "Bant Akışı Başlatıldı ▶️" : "Bant Akışı Duraklatıldı ⏸️");
+                }}
+                title={marqueePaused ? "Akışı Başlat" : "Akışı Duraklat"}
+                className="ml-1 px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[9px] text-white font-mono font-bold transition active:scale-90 cursor-pointer flex items-center gap-0.5"
+              >
+                <span>{marqueePaused ? "▶️" : "⏸️"}</span>
+              </button>
             </div>
-            <div className="w-full pl-36 sm:pl-40 overflow-hidden">
-              <div className="animate-marquee whitespace-nowrap flex items-center gap-4 sm:gap-5 text-xs font-bold py-0.5">
+            <div className="w-full pl-44 sm:pl-48 overflow-hidden">
+              <div
+                className={`animate-marquee whitespace-nowrap flex items-center gap-4 sm:gap-5 text-xs font-bold py-0.5 ${marqueePaused ? "[animation-play-state:paused!important]" : ""}`}
+                style={{ animationDuration: `${marqueeSpeed}s` }}
+              >
                 {allAlerts.map((d) => {
+                  const rawName = d.type === "installment" ? d.name : d.name;
+                  const categoryName = d.type === "single" ? d.category : undefined;
+                  const provider = getProviderById(d.providerId) || detectProviderFromName(rawName, categoryName);
+                  const displayName = d.type === "installment" ? `${d.name} (${d.installmentLabel})` : d.name;
+
                   return (
                     <button
                       key={d.id}
@@ -4755,13 +4786,24 @@ export default function App() {
                           : "bg-white/95 dark:bg-slate-900/90 border-slate-300/80 dark:border-slate-700/90 hover:bg-slate-50 dark:hover:bg-slate-800"
                       }`}
                     >
+                      {/* Provider Logo Badge */}
+                      {provider && (
+                        <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
+                      )}
+
                       {d.isOverdue ? (
                         <>
                           <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 animate-pulse">
                             GECİKTİ • {d.days} GÜN
                           </span>
-                          <span className="font-black text-rose-950 dark:text-rose-100 tracking-tight">
-                            {d.name} vadesi geçti!
+                          <span className="font-black text-rose-950 dark:text-rose-100 tracking-tight flex items-center gap-1.5">
+                            <span>{displayName}</span>
+                            {provider && (
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
+                                ({provider.badgeLabel || provider.name})
+                              </span>
+                            )}
+                            <span>vadesi geçti!</span>
                           </span>
                         </>
                       ) : (
@@ -4769,8 +4811,14 @@ export default function App() {
                           <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0">
                             {d.actualDiffDays === 0 ? "BUGÜN" : `${d.days} GÜN`}
                           </span>
-                          <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-                            {d.name} {d.actualDiffDays === 0 ? "vadesi bugün!" : "vadesi yaklaşıyor"}
+                          <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-1.5">
+                            <span>{displayName}</span>
+                            {provider && (
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
+                                ({provider.badgeLabel || provider.name})
+                              </span>
+                            )}
+                            <span>{d.actualDiffDays === 0 ? "vadesi bugün!" : "vadesi yaklaşıyor"}</span>
                           </span>
                         </>
                       )}
@@ -5656,6 +5704,96 @@ export default function App() {
                     }`}
                   >
                     {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 2.5 VADE UYARILARI BANDI AKIŞ HIZI VE DURAKLATMA AYARLARI */}
+            <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-sm space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
+                    Vade Uyarıları Bandı Akış Hızı Ayarı ⏰
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mt-0.5">
+                    Üst bantta kayan borç ve taksit uyarılarının akış hızını kolay okunacak şekilde ayarlayabilirsiniz.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                  <span>⏱️ {marqueeSpeed} sn / döngü</span>
+                </div>
+              </div>
+
+              {/* Fast Selection Presets */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { label: "🐌 Çok Yavaş", val: 180, desc: "180 sn (Çok Rahat)" },
+                  { label: "🐢 Yavaş", val: 130, desc: "130 sn (Tavsiye Edilen)" },
+                  { label: "⚖️ Normal", val: 90, desc: "90 sn (Varsayılan)" },
+                  { label: "🚀 Hızlı", val: 50, desc: "50 sn (Seri Akış)" }
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => {
+                      setMarqueeSpeed(preset.val);
+                      localStorage.setItem("marqueeSpeed", preset.val.toString());
+                      triggerToast(`Vade uyarıları akış hızı: ${preset.label} (${preset.val}s) olarak ayarlandı ⏱️`);
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
+                      marqueeSpeed === preset.val
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md font-bold"
+                        : "bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400"
+                    }`}
+                  >
+                    <span className="text-xs font-black block">{preset.label}</span>
+                    <span className={`text-[10px] font-medium block mt-0.5 ${marqueeSpeed === preset.val ? "text-indigo-100" : "text-slate-400"}`}>
+                      {preset.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Slider & Pause */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span>Hassas Süre Ayarı: {marqueeSpeed} saniye</span>
+                  <span className="text-[10px] text-slate-400 font-normal">30 sn (Çok Hızlı) - 240 sn (Ultra Yavaş)</span>
+                </div>
+                <input
+                  type="range"
+                  min={30}
+                  max={240}
+                  step={5}
+                  value={marqueeSpeed}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setMarqueeSpeed(val);
+                    localStorage.setItem("marqueeSpeed", val.toString());
+                  }}
+                  className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                />
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                  <div>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Bant Akışını Duraklat / Oynat</span>
+                    <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Fare veya parmakla üzerine gelindiğinde de otomatik duraklar</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMarqueePaused(!marqueePaused);
+                      triggerToast(marqueePaused ? "Akış Başlatıldı ▶️" : "Akış Duraklatıldı ⏸️");
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
+                      marqueePaused
+                        ? "bg-amber-500 text-slate-950 shadow-sm"
+                        : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
+                    }`}
+                  >
+                    {marqueePaused ? "AKIŞ DURAKLATILDI ⏸️" : "AKAYOR ▶️"}
                   </button>
                 </div>
               </div>
