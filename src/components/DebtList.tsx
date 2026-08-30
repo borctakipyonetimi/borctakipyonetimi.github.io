@@ -18,6 +18,7 @@ import { t } from "../utils/translations";
 
 import { PeriodFilter } from "./PeriodFilter";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
+import { getProviderById, detectProviderFromName } from "../data/providers";
 
 interface DebtListProps {
   debts: Debt[];
@@ -1676,7 +1677,24 @@ export const DebtList: React.FC<DebtListProps> = ({
 
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center flex-wrap gap-2 text-slate-800 dark:text-slate-100">
-                          <ProviderBadge providerId={d.providerId} fallbackName={d.name} category={d.category} size="sm" showLabel={true} />
+                          {(() => {
+                            const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
+                            return (
+                              <>
+                                {provider && (
+                                  <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
+                                )}
+                                <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                                  {d.name}
+                                </span>
+                                {provider && (
+                                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50">
+                                    {provider.badgeLabel || provider.name}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] font-bold rounded-full">
                             📁 {d.category}
                           </span>

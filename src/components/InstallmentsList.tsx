@@ -13,6 +13,7 @@ import { InstallmentsPortalChart } from "./BudgetCharts";
 import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
+import { getProviderById, detectProviderFromName } from "../data/providers";
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
@@ -594,10 +595,24 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                       </div>
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <ProviderBadge providerId={inst.providerId} fallbackName={inst.name} size="xs" showLabel={false} />
-                        <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[130px]">{inst.name}</h4>
-                      </div>
+                      {(() => {
+                        const provider = getProviderById(inst.providerId) || detectProviderFromName(inst.name);
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {provider && (
+                              <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
+                            )}
+                            <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[140px]" title={inst.name}>
+                              {inst.name}
+                            </h4>
+                            {provider && (
+                              <span className="text-[9px] opacity-85 font-bold">
+                                ({provider.badgeLabel || provider.name})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <p className="text-[8px] opacity-75 font-mono tracking-widest">{cardTheme.brand}</p>
                     </div>
                   </div>
