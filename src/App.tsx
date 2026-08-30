@@ -2205,6 +2205,8 @@ export default function App() {
     const savedContactTxsStr = localStorage.getItem(`${spaceKey}_contacts_transactions`);
     let contactPayablesTotal = 0;
     let contactPayablesPaid = 0;
+    let contactReceivablesTotal = 0;
+    let contactReceivablesCollected = 0;
     if (savedContactTxsStr) {
       try {
         const txs = JSON.parse(savedContactTxsStr);
@@ -2216,6 +2218,12 @@ export default function App() {
               if (t.isPaid) {
                 contactPayablesPaid += amt;
               }
+            } else if (t.type === "receivable") {
+              const amt = Number(t.amount) || 0;
+              contactReceivablesTotal += amt;
+              if (t.isPaid) {
+                contactReceivablesCollected += amt;
+              }
             }
           });
         }
@@ -2224,6 +2232,7 @@ export default function App() {
       }
     }
     const contactPayablesRemaining = contactPayablesTotal - contactPayablesPaid;
+    const contactReceivablesRemaining = contactReceivablesTotal - contactReceivablesCollected;
 
     const trueOverallDebt = debts.reduce((sum, d) => sum + d.amount, 0) + 
       installmentDebts.reduce((sum, inst) => sum + inst.totalAmount, 0) +
@@ -2443,7 +2452,13 @@ export default function App() {
       thisMonthTotalBorc: computedThisMonthTotalBorc,
       thisMonthKalanBorc: computedThisMonthKalanBorc,
       thisMonthPaidBorc: computedThisMonthPaidBorc,
-      carryOverBalance: 0
+      carryOverBalance: 0,
+      contactPayablesTotal,
+      contactPayablesRemaining,
+      contactPayablesPaid,
+      contactReceivablesTotal,
+      contactReceivablesRemaining,
+      contactReceivablesCollected
     };
 
     const filteredIncomesByMonth = incomes.filter((i) => {

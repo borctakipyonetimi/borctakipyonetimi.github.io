@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, StickyNote, Calendar, CheckCircle2 } from "lucide-react";
+import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, StickyNote, Calendar, CheckCircle2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
 import { BarChart, DoughnutChart, LineChart } from "./BudgetCharts";
@@ -161,6 +161,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   // Formatted data arrays for animated SVG graphs
   const comparativeChartData = [
     { label: "Toplam Borç", value: stats.totalDebt, color: "#1e3a8a" },
+    { label: "Kişi Borcu", value: stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0, color: "#8b5cf6" },
     { label: "Gelir", value: stats.totalIncome, color: "#10b981" },
     { label: "Gider", value: stats.totalExpense, color: "#ef4444" },
     { label: "Net Kalan", value: stats.netIncome, color: stats.netIncome >= 0 ? "#f59e0b" : "#ef4444" },
@@ -431,7 +432,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         const customStyle = getActionStyle();
 
         return (
-          <div className="grid grid-cols-3 gap-3 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             {/* Gelir Ekle */}
             <motion.button
               type="button"
@@ -598,7 +599,61 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   {language === "tr" ? "BORÇ EKLE" : "ADD DEBT"}
                 </span>
                 <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
-                  {language === "tr" ? "Kredi, Şahıs" : "Loans, Handouts"}
+                  {language === "tr" ? "Kredi, Banka" : "Loans, Bank"}
+                </span>
+              </div>
+            </motion.button>
+
+            {/* Kişi Borç/Cari Ekle */}
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+              whileHover={{ 
+                scale: 1.05, 
+                y: -5,
+                boxShadow: "0 20px 25px -5px rgba(168, 85, 247, 0.15), 0 10px 10px -5px rgba(168, 85, 247, 0.1)",
+                transition: { type: "spring", stiffness: 400, damping: 15 }
+              }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                onNavigate("contacts");
+              }}
+              className="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border border-purple-200 dark:border-purple-800/50 bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-center gap-2.5 transition-all duration-300 cursor-pointer group text-purple-700 dark:text-purple-300"
+              id="quick-add-contact-btn"
+            >
+              <motion.div 
+                className="absolute inset-0 bg-purple-500/5 dark:bg-purple-500/10 rounded-2xl -z-10"
+                animate={{
+                  scale: [1, 1.06, 1],
+                  opacity: [0.4, 0.8, 0.4]
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 1.0
+                }}
+              />
+
+              <motion.div 
+                className="p-2.5 bg-purple-600 text-white rounded-xl shadow-md shadow-purple-500/20 flex items-center justify-center shrink-0 transition-all duration-300"
+                whileHover={{ 
+                  scale: 1.15,
+                  boxShadow: "0 0 15px rgba(168, 85, 247, 0.6)"
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 12 }}
+              >
+                <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+              </motion.div>
+
+              <div className="flex flex-col space-y-0.5 z-10">
+                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors duration-200">
+                  {language === "tr" ? "KİŞİ BORÇLARI" : "PERSON DEBTS"}
+                </span>
+                <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
+                  {language === "tr" ? "Şahıs, Cari Hesabı" : "Personal, Contacts"}
                 </span>
               </div>
             </motion.button>
@@ -606,13 +661,51 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         );
       })()}
 
-      {/* 4x Grid Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {/* Grid Stats Cards including Kişi Borçları Kartı */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* TOPLAM BORÇ */}
         <div className="p-4 bg-indigo-600 dark:bg-indigo-950/85 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[100px]">
           <span className="text-[10px] font-bold text-indigo-200 block uppercase tracking-wide">TOPLAM BORÇ</span>
           <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalDebt)}</p>
         </div>
 
+        {/* KİŞİ BORÇLARI TOPLAMI (Şahıs Borçları) */}
+        <div 
+          onClick={() => onNavigate("contacts")}
+          className="p-4 bg-purple-700 dark:bg-purple-950/85 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[100px] cursor-pointer"
+        >
+          <div className="flex items-center gap-1 text-[10px] font-bold text-purple-200 uppercase tracking-wide">
+            <Users className="w-3.5 h-3.5 text-purple-300" />
+            <span>KİŞİ BORÇLARI TOPLAMI</span>
+            <ArrowUpRight className="w-3 h-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+          </div>
+          <p className="text-sm sm:text-lg font-black font-mono">
+            {format(stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0)}
+          </p>
+          {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
+            <span className="text-[9px] font-medium text-purple-200/90 block">
+              Alacak: {format(stats.contactReceivablesRemaining)}
+            </span>
+          )}
+        </div>
+
+        {/* AYLIK GELİR */}
+        <div className="p-4 bg-blue-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
+          <span className="text-[10px] font-bold text-blue-105 block uppercase tracking-wide">
+            {language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}
+          </span>
+          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalIncome)}</p>
+        </div>
+
+        {/* AYLIK GİDER */}
+        <div className="p-4 bg-amber-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
+          <span className="text-[10px] font-bold text-amber-105 block uppercase tracking-wide">
+            {language === "tr" ? "AYLIK GİDER" : "MONTHLY OUTFLOW"}
+          </span>
+          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalExpense)}</p>
+        </div>
+
+        {/* BU AY ÖDENEN KISIM */}
         <div className="p-4 bg-emerald-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-lg transition flex flex-col items-center justify-center text-center min-h-[100px]">
           <span className="text-[10px] font-bold text-emerald-100 block uppercase tracking-wide">
             {language === "tr"
@@ -624,7 +717,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 h-full justify-between">
+        {/* NET KALAN REZERV */}
+        <div className={`p-4 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px] ${stats.netIncome >= 0 ? "bg-indigo-600" : "bg-red-700"}`}>
+          <span className="text-[10px] font-bold text-indigo-105 block uppercase tracking-wide">
+            {language === "tr" ? "NET KALAN REZERV" : "NET SURPLUS VALUE"}
+          </span>
+          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.netIncome)}</p>
+        </div>
+
+        {/* BU AYKİ BORÇ & KALAN BORÇ */}
+        <div className="flex flex-col gap-3 h-full justify-between col-span-2 sm:col-span-1">
           <div className="p-3.5 bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/20 text-indigo-950 dark:text-indigo-200 rounded-3xl space-y-0.5 relative overflow-hidden flex-1 shadow-sm flex flex-col items-center justify-center text-center min-h-[50px]">
             <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 block uppercase tracking-wide">
               {language === "tr" ? "BU AYKİ BORÇ TOPLAMI" : "MONTHLY TOTAL LOANS"}
@@ -638,27 +740,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             </span>
             <p className="text-sm sm:text-base font-extrabold font-mono">{format(stats.thisMonthKalanBorc)}</p>
           </div>
-        </div>
-
-        <div className="p-4 bg-blue-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-blue-105 block uppercase tracking-wide">
-            {language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalIncome)}</p>
-        </div>
-
-        <div className="p-4 bg-amber-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-amber-105 block uppercase tracking-wide">
-            {language === "tr" ? "AYLIK GİDER" : "MONTHLY OUTFLOW"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalExpense)}</p>
-        </div>
-
-        <div className={`p-4 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px] ${stats.netIncome >= 0 ? "bg-indigo-600" : "bg-red-700"}`}>
-          <span className="text-[10px] font-bold text-indigo-105 block uppercase tracking-wide">
-            {language === "tr" ? "NET KALAN REZERV" : "NET SURPLUS VALUE"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.netIncome)}</p>
         </div>
       </div>
 

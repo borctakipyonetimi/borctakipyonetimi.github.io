@@ -91,4 +91,10 @@ export interface FinancialStats {
   thisMonthKalanBorc: number;
   thisMonthPaidBorc?: number;
   carryOverBalance?: number;
+  contactPayablesTotal?: number;
+  contactPayablesRemaining?: number;
+  contactPayablesPaid?: number;
+  contactReceivablesTotal?: number;
+  contactReceivablesRemaining?: number;
+  contactReceivablesCollected?: number;
 }
