@@ -43,7 +43,10 @@ import {
   ArrowUpRight,
   LockKeyhole,
   Radio,
-  FileCheck2
+  FileCheck2,
+  Send,
+  Folder,
+  Calendar
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, ExpenseCategory, Alarm, NotificationItem, PaymentLog } from "../types";
 import { translations } from "../utils/translations";
@@ -203,9 +206,9 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
     }
   };
 
-  const handleTriggerDriveExport = async (pickLocation: boolean) => {
+  const handleTriggerDriveExport = async (action: "whatsapp" | "drive" | "share" | "download" | boolean) => {
     if (onExecuteExportBackup) {
-      await onExecuteExportBackup(customBackupName, pickLocation);
+      await onExecuteExportBackup(customBackupName, action as any);
     } else {
       triggerToast("Yedekleme motoru hazırlanıyor...");
     }
@@ -911,7 +914,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
           </motion.div>
         )}
 
-        {/* Tab 2: Google Drive & Local File Export */}
+        {/* Tab 2: Google Drive & WhatsApp Share Hub */}
         {cloudActiveTab === "drive" && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -919,10 +922,10 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             className="space-y-6 relative z-10"
           >
             <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                   <FileCode className="w-4 h-4 text-sky-500" />
-                  Yedek Dosyası Adı
+                  Yedek Dosyası Adı (Özelleştirilebilir)
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -934,37 +937,111 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                   />
                   <span className="text-xs font-mono font-black text-slate-400">.json</span>
                 </div>
+
+                {/* Quick Preset Buttons */}
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCustomBackupName(`butcem_yedek_${new Date().toISOString().slice(0, 10)}`)}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    <Calendar className="w-3 h-3 text-sky-500" /> Bugünün Tarihi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomBackupName("butcem_pro_tam_yedek")}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    👑 Bütçem Pro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomBackupName("finansal_dokum_raporu")}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    📊 Finans Raporu
+                  </button>
+                </div>
               </div>
 
+              {/* 4 Action Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                {/* 1. Google Drive & Android Files / Share */}
+                {/* 1. WhatsApp ile Paylaş */}
                 <button
                   type="button"
-                  onClick={() => handleTriggerDriveExport(true)}
-                  className="p-4 bg-gradient-to-br from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-2xl text-left shadow-lg shadow-indigo-600/20 transition-all flex flex-col justify-between space-y-2 cursor-pointer group active:scale-[0.98]"
+                  onClick={() => handleTriggerDriveExport("whatsapp")}
+                  className="p-4 bg-gradient-to-br from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-left shadow-lg shadow-emerald-600/20 transition-all flex flex-col justify-between space-y-2 cursor-pointer group active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between">
                     <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white">
-                      <FolderUp className="w-5 h-5" />
+                      <Send className="w-5 h-5" />
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20">
-                      GOOGLE DRIVE & PAYLAŞ
+                      WHATSAPP PAYLAŞ
                     </span>
                   </div>
                   <div>
                     <h5 className="text-xs font-black text-white">
-                      📁 Google Drive / Dosyalarım'a Yedekle
+                      🟢 WhatsApp ile Paylaş & Gönder
                     </h5>
-                    <p className="text-[10.5px] text-sky-100 font-medium leading-snug mt-0.5">
-                      Android Dosyalarım, Google Drive veya WhatsApp ile yedek dosyanızı doğrudan seçilen konuma kaydedin.
+                    <p className="text-[10.5px] text-emerald-100 font-medium leading-snug mt-0.5">
+                      Yedek dosyanızı ve finansal özetinizi doğrudan WhatsApp sohbetine veya kendinize iletin.
                     </p>
                   </div>
                 </button>
 
-                {/* 2. Direct JSON File Download */}
+                {/* 2. Google Drive'a Kaydet */}
                 <button
                   type="button"
-                  onClick={() => handleTriggerDriveExport(false)}
+                  onClick={() => handleTriggerDriveExport("drive")}
+                  className="p-4 bg-gradient-to-br from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-2xl text-left shadow-lg shadow-indigo-600/20 transition-all flex flex-col justify-between space-y-2 cursor-pointer group active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                      <Folder className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20">
+                      GOOGLE DRIVE
+                    </span>
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-white">
+                      📁 Google Drive'a Kaydet & Yükle
+                    </h5>
+                    <p className="text-[10.5px] text-sky-100 font-medium leading-snug mt-0.5">
+                      Dosyayı indirin ve mobil menüden veya Google Drive Web sayfasından buluta kaydedin.
+                    </p>
+                  </div>
+                </button>
+
+                {/* 3. Cihaz Paylaşım Menüsü */}
+                <button
+                  type="button"
+                  onClick={() => handleTriggerDriveExport("share")}
+                  className="p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl text-left shadow-md transition-all flex flex-col justify-between space-y-2 cursor-pointer group active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-slate-900/10 dark:bg-white/10 flex items-center justify-center text-slate-800 dark:text-slate-100">
+                      <Share2 className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                      SİSTEM PAYLAŞIMI
+                    </span>
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                      📲 Cihaz Menüsüyle Paylaş
+                    </h5>
+                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-snug mt-0.5">
+                      Telegram, Gmail, Bluetooth, Quick Share veya Android Dosyalarım ile paylaşın.
+                    </p>
+                  </div>
+                </button>
+
+                {/* 4. Doğrudan İndir */}
+                <button
+                  type="button"
+                  onClick={() => handleTriggerDriveExport("download")}
                   className="p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl text-left shadow-md transition-all flex flex-col justify-between space-y-2 cursor-pointer group active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between">
@@ -977,10 +1054,10 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                   </div>
                   <div>
                     <h5 className="text-xs font-black text-slate-800 dark:text-slate-100">
-                      💾 JSON Yedek Dosyası İndir (.json)
+                      💾 JSON Dosyası İndir (.json)
                     </h5>
                     <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-snug mt-0.5">
-                      Tüm finansal veritabanınızı tek bir şifreli JSON dosyası olarak cihazınızın İndirilenler klasörüne kaydedin.
+                      Belirlediğiniz özel dosya adıyla doğrudan cihazınızın İndirilenler klasörüne kaydedin.
                     </p>
                   </div>
                 </button>
@@ -990,7 +1067,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             <div className="p-4 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/70 dark:border-sky-800/70 rounded-2xl flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
               <div className="text-[11.5px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                <strong>Google Drive İpucu:</strong> Android APK veya mobil tarayıcıda <strong>Google Drive & Paylaş</strong> butonuna bastığınızda açılan sistem menüsünden <strong>Google Drive'a Kaydet</strong> seçeneğini seçerek yedeğinizi doğrudan Drive klasörünüze yükleyebilirsiniz.
+                <strong>Google Drive & WhatsApp İpucu:</strong> WhatsApp butonuna bastığınızda özet metin ve indirme bağlantısıyla birlikte WhatsApp sohbeti açılır. Google Drive butonuna bastığınızda dosyanız adlandırılmış olarak indirilir ve Drive bulut klasörünüz açılır.
               </div>
             </div>
           </motion.div>

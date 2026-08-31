@@ -28,7 +28,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Memory cache for temporary backups (lasts 5 minutes)
+// Memory cache for temporary backups (lasts 30 minutes for sharing via WhatsApp / Drive)
 const tempWebviewBackups = new Map<string, { content: string, filename: string, expires: number }>();
 
 app.post("/api/temp-backup", (req, res) => {
@@ -36,10 +36,15 @@ app.post("/api/temp-backup", (req, res) => {
   if (!content) {
     return res.status(400).json({ error: "İçerik boş olamaz" });
   }
-  const key = Math.random().toString(36).substring(2, 15);
-  const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
-  tempWebviewBackups.set(key, { content, filename: filename || "butcem_yedek.json", expires });
-  res.json({ success: true, key });
+  
+  let cleanName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "butcem_pro_yedek";
+  cleanName = cleanName.replace(/\.json$/i, "");
+  const finalFilename = `${cleanName}.json`;
+
+  const key = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  const expires = Date.now() + 30 * 60 * 1000; // 30 minutes
+  tempWebviewBackups.set(key, { content, filename: finalFilename, expires });
+  res.json({ success: true, key, filename: finalFilename });
 });
 
 app.get("/api/download-temp", (req, res) => {
@@ -52,13 +57,15 @@ app.get("/api/download-temp", (req, res) => {
     return res.status(404).send("Yedek linkinin süresi dolmuş veya bulunamadı");
   }
   
-  // Clean up cache for efficiency
-  tempWebviewBackups.delete(key);
-  
   // Set headers to force download with clean filename
-  const safeFilename = item.filename.replace(/["\r\n\\]/g, "_");
-  res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(item.filename)}`);
+  const safeFilename = item.filename.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+  const encodedFilename = encodeURIComponent(item.filename);
+  
+  res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.send(item.content);
 });
 
