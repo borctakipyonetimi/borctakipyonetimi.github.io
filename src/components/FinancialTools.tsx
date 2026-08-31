@@ -717,8 +717,8 @@ export function FinancialTools({
                     AYLIK BORÇ VADE MATRİSİ
                   </h3>
                 </div>
-                <span className="text-xs bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-600 dark:text-slate-450 px-2.5 py-1 rounded-xl uppercase">
-                  HAZİRAN 2026
+                <span className="text-xs bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-xl uppercase">
+                  {new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
                 </span>
               </div>
 
@@ -974,34 +974,31 @@ export function FinancialTools({
                     doc.setTextColor(79, 70, 229); // indigo-600
                     doc.text(`${healthScore} / 100`, 115, blockY + 18);
 
-                    // Section 2: Active Debts Breakdown
+                    // Section 2: Bank & Credit Card Debts
                     let tableY = blockY + 38;
                     doc.setFontSize(11);
                     doc.setFont("Helvetica", "bold");
                     doc.setTextColor(15, 23, 42); // slate-900
-                    doc.text(safeText("2. KALAN AKTİF BORÇLAR DÖKÜMÜ"), 15, tableY);
+                    doc.text(safeText("2. BANKA VEYA KREDİ KARTI BORÇLARI"), 15, tableY);
 
-                    // separator
                     doc.setDrawColor(203, 213, 225);
                     doc.line(15, tableY + 3, 195, tableY + 3);
-
                     tableY += 10;
                     
-                    // check if debts list empty
-                    if (debts.length === 0 && installmentDebts.length === 0) {
+                    if (debts.length === 0) {
                       doc.setFont("Helvetica", "italic");
                       doc.setFontSize(9);
                       doc.setTextColor(100, 116, 139);
-                      doc.text(safeText("Kayıtlı aktif borç veya taksitli borç tespit edilmedi."), 15, tableY);
+                      doc.text(safeText("Kayitli aktif banka borcu bulunmuyor."), 15, tableY);
                       tableY += 8;
                     } else {
                       doc.setFont("Helvetica", "bold");
-                      doc.setFontSize(9);
+                      doc.setFontSize(8);
                       doc.setFillColor(241, 245, 249);
                       doc.rect(15, tableY - 4, 180, 7, "F");
                       doc.setTextColor(71, 85, 105);
-                      doc.text(safeText("Borç Adı & Detayı"), 18, tableY + 1);
-                      doc.text(safeText("Kalan Tutar / Toplam Tutar"), 120, tableY + 1);
+                      doc.text(safeText("Borc Adı / Kategori"), 18, tableY + 1);
+                      doc.text(safeText("Kalan / Toplam Tutar"), 120, tableY + 1);
                       tableY += 10;
 
                       debts.forEach(d => {
@@ -1019,18 +1016,34 @@ export function FinancialTools({
                         doc.line(15, tableY + 3, 195, tableY + 3);
                         tableY += 8;
                       });
+                    }
 
+                    // Section 3: Installment Debts
+                    tableY += 4;
+                    if (tableY > 250) { doc.addPage(); tableY = 25; }
+                    doc.setFontSize(11);
+                    doc.setFont("Helvetica", "bold");
+                    doc.setTextColor(15, 23, 42);
+                    doc.text(safeText("3. TAKSİTLİ BORÇLAR VE KREDİLER"), 15, tableY);
+                    doc.setDrawColor(203, 213, 225);
+                    doc.line(15, tableY + 3, 195, tableY + 3);
+                    tableY += 10;
+
+                    if (installmentDebts.length === 0) {
+                      doc.setFont("Helvetica", "italic");
+                      doc.setFontSize(9);
+                      doc.setTextColor(100, 116, 139);
+                      doc.text(safeText("Kayitli taksitli borc bulunmuyor."), 15, tableY);
+                      tableY += 8;
+                    } else {
                       installmentDebts.forEach(inst => {
-                        if (tableY > 265) {
-                          doc.addPage();
-                          tableY = 25;
-                        }
+                        if (tableY > 265) { doc.addPage(); tableY = 25; }
                         const monthly = inst.totalAmount / inst.installmentCount;
                         const paidValue = inst.paidInstallmentCount * monthly;
                         doc.setFont("Helvetica", "bold");
                         doc.setFontSize(9);
                         doc.setTextColor(30, 41, 59);
-                        doc.text(safeText(`${inst.name} (Taksitli Borç)`), 18, tableY);
+                        doc.text(safeText(`${inst.name} (${inst.paidInstallmentCount}/${inst.installmentCount} Taksit)`), 18, tableY);
                         doc.setFont("Helvetica", "normal");
                         doc.text(`Kalan: ${format(inst.totalAmount - paidValue)} / Toplam: ${format(inst.totalAmount)}`, 120, tableY);
                         doc.setDrawColor(241, 245, 249);
@@ -1039,7 +1052,41 @@ export function FinancialTools({
                       });
                     }
 
-                    // Section 3: AI Assistant Strategy
+                    // Section 4: Contact Debts and Receivables (Cari)
+                    tableY += 4;
+                    if (tableY > 250) { doc.addPage(); tableY = 25; }
+                    doc.setFontSize(11);
+                    doc.setFont("Helvetica", "bold");
+                    doc.setTextColor(15, 23, 42);
+                    doc.text(safeText("4. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ)"), 15, tableY);
+                    doc.setDrawColor(203, 213, 225);
+                    doc.line(15, tableY + 3, 195, tableY + 3);
+                    tableY += 10;
+
+                    if (contactTxs.length === 0) {
+                      doc.setFont("Helvetica", "italic");
+                      doc.setFontSize(9);
+                      doc.setTextColor(100, 116, 139);
+                      doc.text(safeText("Kayitli kisi borcu veya alacagi bulunmuyor."), 15, tableY);
+                      tableY += 8;
+                    } else {
+                      contactTxs.forEach(tx => {
+                        if (tableY > 265) { doc.addPage(); tableY = 25; }
+                        doc.setFont("Helvetica", "bold");
+                        doc.setFontSize(9);
+                        doc.setTextColor(30, 41, 59);
+                        const typeLabel = tx.type === "payable" ? "Kisiye Borc" : "Kisiden Alacak";
+                        const statusLabel = tx.isPaid ? "Odenmis" : "Odenmedi";
+                        doc.text(safeText(`${tx.contactName} (${typeLabel} - ${statusLabel})`), 18, tableY);
+                        doc.setFont("Helvetica", "normal");
+                        doc.text(`Tutar: ${format(tx.amount)}`, 120, tableY);
+                        doc.setDrawColor(241, 245, 249);
+                        doc.line(15, tableY + 3, 195, tableY + 3);
+                        tableY += 8;
+                      });
+                    }
+
+                    // Section 5: AI Assistant Strategy
                     tableY += 5;
                     if (tableY > 240) {
                       doc.addPage();
@@ -1049,7 +1096,7 @@ export function FinancialTools({
                     doc.setFont("Helvetica", "bold");
                     doc.setFontSize(11);
                     doc.setTextColor(79, 70, 229); // indigo-600
-                    doc.text(safeText("3. ASİSTAN STRATEJİ KARARI"), 15, tableY);
+                    doc.text(safeText("5. ASİSTAN STRATEJİ KARARI"), 15, tableY);
                     // separator
                     doc.setDrawColor(203, 213, 225);
                     doc.line(15, tableY + 3, 195, tableY + 3);
@@ -1091,35 +1138,19 @@ export function FinancialTools({
                           <style>
                             body { font-family: sans-serif; padding: 25px; color: #1e293b; background: #fff; }
                             h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; font-size: 18px; }
-                            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-                            .p-4 { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; }
-                            .flex { display: flex; justify-content: space-between; align-items: center; }
-                            .border-b { border-bottom: 1px solid #e2e8f0; }
-                            .pb-1\\.5 { padding-bottom: 6px; }
-                            .py-1 { padding-top: 4px; padding-bottom: 4px; }
-                            .pb-6 { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
-                            .text-xs { font-size: 12px; }
-                            .text-[10px] { font-size: 10px; }
-                            .font-mono { font-family: monospace; }
-                            .space-y-2 > * { margin-bottom: 6px; }
-                            .space-y-3 > * { margin-bottom: 8px; }
-                            .space-y-8 > * { margin-bottom: 20px; }
-                            .bg-slate-50 { background-color: #f8fafc; border: 1px solid #f1f5f9; padding: 12px; border-radius: 8px; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+                            th, td { padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; font-size: 12px; }
+                            th { background-color: #f8fafc; font-weight: bold; font-size: 11px; text-transform: uppercase; }
+                            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+                            .p-3, .p-3\\.5 { padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; }
                             .text-emerald-600 { color: #059669; }
                             .text-rose-500 { color: #f43f5e; }
-                            .text-orange-500 { color: #f97316; }
+                            .text-amber-500 { color: #f59e0b; }
                             .text-indigo-600 { color: #4f46e5; }
-                            .text-center { text-align: center; }
-                            .pt-6 { padding-top: 16px; margin-top: 16px; border-top: 1px solid #e2e8f0; }
-                            .text-slate-400 { color: #94a3b8; }
                             .font-black { font-weight: 800; }
                             .font-bold { font-weight: 700; }
-                            .font-semibold { font-weight: 600; }
-                            .block { display: block; }
-                            .mt-1 { margin-top: 4px; }
-                            .uppercase { text-transform: uppercase; }
-                            .justify-between { justify-content: space-between; }
-                            .text-rose-600 { color: #dc2626; }
+                            .text-right { text-align: right; }
+                            .text-center { text-align: center; }
                           </style>
                         </head>
                         <body>
@@ -1166,128 +1197,245 @@ export function FinancialTools({
             {/* Print/Audit Report Sheet container styled to look extremely clean and official */}
             <div id="financial-audit-report" className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-inner max-w-4xl mx-auto space-y-8 print:border-0 print:shadow-none print:p-0">
               {/* Header inside Statement document */}
-              <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 dark:border-slate-800 pb-6 gap-4">
                 <div>
-                  <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                    📊 BÜTÇEM PRO RESMİ BORÇ VE BÜTÇE DENETİM RAPORU
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-indigo-600 text-white font-black text-[10px] rounded-lg tracking-wider uppercase">
+                      RESMİ DENETİM RAPORU
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 font-mono">
+                      SERİ NO: BP-{Date.now().toString().slice(-6)}
+                    </span>
+                  </div>
+                  <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-2">
+                    📊 BÜTÇEM PRO FİNANSAL BORÇ VE BÜTÇE DENETİM RAPORU
                   </h1>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider font-mono">
-                    Belge Seri: BP-{Date.now().toString().slice(-6)} | Tarih: {new Date().toLocaleDateString("tr-TR")}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    Rapor Düzenleme Tarihi: {new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400 font-black text-[9px] rounded-lg tracking-widest uppercase">
-                    AKTİF GÜNCEL DOSYA
+                <div className="text-right sm:self-center">
+                  <span className="px-3 py-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-400 font-black text-[10px] rounded-xl tracking-widest uppercase border border-emerald-300/40">
+                    ✓ ONAYLI FİNANSAL DOSYA
                   </span>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-405 font-medium mt-1">
-                    Gelişmiş Biyometrik Finansal Profil
-                  </p>
                 </div>
               </div>
 
               {/* Data Summary Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gelir</span>
-                  <strong className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                  <strong className="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
                     {format(totalIncomesSum)}
                   </strong>
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gider</span>
-                  <strong className="text-xs font-black text-rose-500 mt-1 block">
+                  <strong className="text-xs sm:text-sm font-black text-rose-500 mt-1 block">
                     {format(totalExpensesSum)}
                   </strong>
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Banka Borçları</span>
-                  <strong className="text-xs font-black text-orange-500 mt-1 block">
+                  <strong className="text-xs sm:text-sm font-black text-amber-500 mt-1 block">
                     {format(bankAndInstallmentDebt)}
                   </strong>
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kişi Borçları</span>
-                  <strong className="text-xs font-black text-red-500 dark:text-red-400 mt-1 block">
+                  <strong className="text-xs sm:text-sm font-black text-red-500 dark:text-red-400 mt-1 block">
                     {format(contactPayablesRemaining)}
                   </strong>
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kişi Alacakları</span>
-                  <strong className="text-xs font-black text-sky-600 dark:text-sky-400 mt-1 block">
+                  <strong className="text-xs sm:text-sm font-black text-sky-600 dark:text-sky-400 mt-1 block">
                     {format(contactReceivablesRemaining)}
                   </strong>
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-850">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bütçe Sağlık Skoru</span>
-                  <strong className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Sağlık Skoru</span>
+                  <strong className="text-xs sm:text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                     {healthScore} / 100
                   </strong>
                 </div>
               </div>
 
-              {/* Active Debts Detail Sheet */}
+              {/* 1. BANKA VEYA KREDİ KARTI BORÇLARI */}
               <div className="space-y-3">
-                <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  1. KALAN AKTİF BORÇLAR VE YÜKÜMLÜLÜKLER DÖKÜMÜ
-                </h3>
-                {debts.length === 0 && installmentDebts.length === 0 && contactTxs.filter(tx => !tx.isPaid).length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">Kayıtlı aktif borç, taksit veya kişi borcu tespit edilmedi.</p>
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    💳 1. BANKA VEYA KREDİ KARTI BORÇLARI
+                  </h3>
+                  <span className="text-[10px] font-extrabold text-slate-400">
+                    Toplam {debts.length} Kalem
+                  </span>
+                </div>
+
+                {debts.length === 0 ? (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 italic">Kayıtlı aktif banka veya kredi kartı borcu bulunmamaktadır.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {/* Bank & Credit Card Debts */}
-                    {debts.map(d => (
-                      <div key={d.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
-                        <span className="text-slate-700 dark:text-slate-300 font-bold">💳 {d.name} ({d.category})</span>
-                        <span className="font-mono text-slate-600 dark:text-slate-400">Kalan: {format(d.amount - d.paid)} / Toplam: {format(d.amount)}</span>
-                      </div>
-                    ))}
-                    {/* Installment Loans */}
-                    {installmentDebts.map(inst => {
-                      const monthly = inst.totalAmount / inst.installmentCount;
-                      const paidValue = inst.paidInstallmentCount * monthly;
-                      return (
-                        <div key={inst.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
-                          <span className="text-slate-700 dark:text-slate-300 font-bold">🗓️ {inst.name} (Taksitli Borç)</span>
-                          <span className="font-mono text-slate-600 dark:text-slate-400">Kalan: {format(inst.totalAmount - paidValue)} / Toplam: {format(inst.totalAmount)}</span>
-                        </div>
-                      );
-                    })}
-                    {/* Person-to-Person Debts and Receivables */}
-                    {contactTxs.filter(tx => !tx.isPaid).map(tx => (
-                      <div key={tx.id} className="flex justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100 dark:border-slate-800/60 pb-1.5">
-                        <span className="text-slate-700 dark:text-slate-300 font-bold">
-                          👤 {tx.contactName} ({tx.type === "payable" ? "Kişiye Verecek Borç" : "Kişiden Alacak"})
-                        </span>
-                        <span className="font-mono text-slate-600 dark:text-slate-400">
-                          {tx.type === "payable" ? "Borç: " : "Alacak: "} {format(tx.amount)}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                        <tr>
+                          <th className="p-3">Borç / Kredi Adı</th>
+                          <th className="p-3">Kategori</th>
+                          <th className="p-3 text-right">Ödenen Tutar</th>
+                          <th className="p-3 text-right">Kalan Borç</th>
+                          <th className="p-3 text-right">Toplam Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                        {debts.map((d) => {
+                          const remaining = Math.max(0, d.amount - d.paid);
+                          return (
+                            <tr key={d.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                              <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{d.name}</td>
+                              <td className="p-3 text-slate-500 dark:text-slate-400">{d.category}</td>
+                              <td className="p-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{format(d.paid)}</td>
+                              <td className="p-3 text-right font-mono font-bold text-rose-500">{format(remaining)}</td>
+                              <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">{format(d.amount)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
 
-              {/* Strategy & Advice Summary section */}
-              <div className="space-y-2 p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200/20">
-                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                  2. BAŞ ASİSTAN STRATEJİ KARARI
-                </h3>
-                <p className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold leading-relaxed">
-                  {advice.desc}
-                </p>
-                <div className="flex gap-4 text-[10px] text-slate-400 block pt-1 bg-transparent font-medium">
-                  <span>• Öneri: Borçların sıfırlanmasında Kartopu Yöntemi ve asgari ödeme fazlası tasarrufların doğrudan aktarımı planlanmıştır.</span>
+              {/* 2. TAKSİTLİ BORÇLAR & KREDİLER */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    🗓️ 2. TAKSİTLİ BORÇLAR & KREDİLER
+                  </h3>
+                  <span className="text-[10px] font-extrabold text-slate-400">
+                    Toplam {installmentDebts.length} Kalem
+                  </span>
                 </div>
+
+                {installmentDebts.length === 0 ? (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 italic">Kayıtlı taksitli borç veya kredi kalemi bulunmamaktadır.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                        <tr>
+                          <th className="p-3">Taksitli Borç Adı</th>
+                          <th className="p-3">Taksit Durumu</th>
+                          <th className="p-3 text-right">Aylık Taksit</th>
+                          <th className="p-3 text-right">Kalan Borç</th>
+                          <th className="p-3 text-right">Toplam Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                        {installmentDebts.map((inst) => {
+                          const monthly = inst.totalAmount / inst.installmentCount;
+                          const paidValue = inst.paidInstallmentCount * monthly;
+                          const remaining = Math.max(0, inst.totalAmount - paidValue);
+                          return (
+                            <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                              <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{inst.name}</td>
+                              <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                {inst.paidInstallmentCount} / {inst.installmentCount} Taksit
+                              </td>
+                              <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">{format(monthly)}</td>
+                              <td className="p-3 text-right font-mono font-bold text-amber-500">{format(remaining)}</td>
+                              <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">{format(inst.totalAmount)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
-              {/* Disclaimer / footer of print */}
-              <div className="text-center pt-6 border-t border-slate-250 dark:border-slate-800 text-[9px] text-slate-400 font-bold">
-                ⚠️ Bütçem Pro akıllı denetim yazılımı tarafından otomatik mühürlüdür. Bu veri tablosu tamamen kişisel gizlilik standartlarına uygun olarak tarayıcınızda yerel olarak derlenmiştir ve 3. şahıslara sızdırılmaz.
+              {/* 3. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    👥 3. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ)
+                  </h3>
+                  <span className="text-[10px] font-extrabold text-slate-400">
+                    Toplam {contactTxs.length} İşlem
+                  </span>
+                </div>
+
+                {contactTxs.length === 0 ? (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 italic">Kayıtlı kişi borç veya alacak kaydı bulunmamaktadır.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                        <tr>
+                          <th className="p-3">Kişi Adı</th>
+                          <th className="p-3">İşlem Türü</th>
+                          <th className="p-3">Durum</th>
+                          <th className="p-3 text-right">Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                        {contactTxs.map((tx) => (
+                          <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                            <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{tx.contactName}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                tx.type === "payable" 
+                                  ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400"
+                                  : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400"
+                              }`}>
+                                {tx.type === "payable" ? "Kişiye Borç (Verecek)" : "Kişiden Alacak"}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {tx.isPaid ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ Tamamlandı</span>
+                              ) : (
+                                <span className="text-amber-500 font-bold">⌛ Ödeme Bekliyor</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">
+                              {format(tx.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. BAŞ ASİSTAN STRATEJİ VE ANALİZ KARARI */}
+              <div className="space-y-2 p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  🧠 4. BAŞ ASİSTAN STRATEJİ VE ANALİZ KARARI
+                </h3>
+                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold leading-relaxed">
+                  {advice.desc}
+                </p>
+                <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                  • Öneri: Yüksek faizli borçları öncelikle sıfırlamak (Kartopu Yöntemi) ve asgari ödeme üzerindeki tasarruf birikimlerini doğrudan ana para ödemelerine aktarmak bütçe sağlığını en hızlı yükseltecek stratejidir.
+                </p>
+              </div>
+
+              {/* Footer Stamp / Seal */}
+              <div className="text-center pt-6 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 font-bold space-y-1">
+                <p>⚠️ Bütçem Pro akıllı denetim yazılımı tarafından otomatik mühürlüdür.</p>
+                <p className="text-[9px] font-normal">Bu veri tablosu tamamen kişisel gizlilik standartlarına uygun olarak tarayıcınızda yerel olarak derlenmiştir ve 3. şahıslara sızdırılmaz.</p>
               </div>
             </div>
           </motion.div>

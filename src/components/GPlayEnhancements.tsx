@@ -196,7 +196,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
         "Hızlı ve Pratik Hands-Free Kullanım Kolaylığı"
       ],
       actionText: "Sesli Asistanı Deneyin",
-      actionTab: "expenses",
+      actionTab: "voice_assistant",
       badge: "SESLİ KOMUT",
       badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
       iconBg: "bg-purple-500/10 dark:bg-purple-500/20",
@@ -309,8 +309,8 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
         "Tek Tıkla Şablonlu Kibar WhatsApp Hatırlatma Mesajı",
         "Kişi Bazlı Bakiye Özeti ve Detaylı İşlem Geçmişi"
       ],
-      actionText: "Borç Listesine Git",
-      actionTab: "debts",
+      actionText: "Kişi Borçlarına Git",
+      actionTab: "contacts",
       badge: "REHBER TAKİBİ",
       badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
       iconBg: "bg-blue-500/10 dark:bg-blue-500/20",
@@ -504,7 +504,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
       </div>
 
       {/* Live FX Currency Conversion Converter (Active Pro Interactive Tool Widget) */}
-      <div className="p-6 md:p-8 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl space-y-6">
+      <div id="live-currency-converter-widget" className="p-6 md:p-8 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-700 pb-5">
           <div className="space-y-1">
             <h3 className="text-base font-black flex items-center gap-2 text-slate-800 dark:text-white">

@@ -3825,6 +3825,29 @@ export default function App() {
       return;
     }
 
+    if (tabId === "security" || tabId === "security_settings") {
+      setIsSecurityModalOpen(true);
+      setIsSidebarOpen(false);
+      return;
+    }
+
+    if (tabId === "voice_assistant" || tabId === "voice") {
+      setVoiceAssistantEnabled(true);
+      triggerToast("🎙️ Sesli Finans Asistanı aktif edildi! Sağ alt taraftaki mikrofon butonuna basıp konuşabilirsiniz.");
+      setIsSidebarOpen(false);
+      return;
+    }
+
+    if (tabId === "currency" || tabId === "markets") {
+      setActiveTab("gplay_enhancements");
+      setIsSidebarOpen(false);
+      setTimeout(() => {
+        const el = document.getElementById("live-currency-converter-widget");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 150);
+      return;
+    }
+
     const clickedItem = sidebarItems.find(item => item.id === tabId);
     if (clickedItem?.isPro && !isPremium) {
       setPromoFeature(clickedItem.label);
