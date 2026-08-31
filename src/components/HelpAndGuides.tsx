@@ -374,41 +374,36 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       ]
     },
     {
-      id: "global-search-bar",
-      category: "tools",
-      categoryLabel: "Arama & Filtre",
+      id: "debt-search-bar",
+      category: "debt",
+      categoryLabel: "Borç & Arama",
       badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
       icon: "🔍",
-      title: "Evrensel Canlı Arama Çubuğu (Global Search)",
-      summary: "Tüm borçlar, harcamalar, gelirler ve taksitler arasında isim veya kategoriye göre anında arama ve tek tıkla kayda gitme.",
-      badge: "Hızlı Erişim",
-      targetTab: "overview",
-      whatItDoes: "Üst başlıkta (Header) yer alan akıllı arama motoru ile yüzlerce kayıt arasından aradığınız harcama, borç veya maaş kaydını saniyeler içinde bulabilirsiniz. 'Market', 'Kira', 'Ahmet' veya kategori adı yazdığınızda ilgili kayıtları filtreler ve tıklandığında sizi doğrudan o işleme yönlendirir.",
+      title: "Borç Listesinde Canlı Arama & Filtreleme",
+      summary: "Borçlar listesinde kayıtlı borçlarınızı isim veya kategoriye göre anında filtreleyin ve bulun.",
+      badge: "Hızlı Filtre",
+      targetTab: "debts",
+      whatItDoes: "Borçlar sekmesindeki arama çubuğu ile borç adı (ör. 'Garanti Kredi', 'Ahmet Borcu') veya kategori (ör. 'Kredi Kartı', 'Konut') yazarak yüzlerce borç kaydı arasından aradığınız borcu anında filtreleyip görüntüleyebilirsiniz.",
       instructions: [
         {
           step: 1,
-          title: "Arama Çubuğuna Tıklayın veya Kısayolu Kullanın",
-          desc: "Sayfanın en üstünde yer alan 'Borç, harcama veya gelir ara...' kutusuna tıklayın ya da klavyenizden 'Ctrl + K' (Mac'te ⌘ + K) kısayoluna basın."
+          title: "Borçlar Sekmesine Geçin",
+          desc: "Menüden veya özetten 'Borçlar' sekmesine tıklayın."
         },
         {
           step: 2,
-          title: "Aramak İstediğiniz İsim veya Kategoriyi Yazın",
-          desc: "Örneğin 'Market', 'Kredi', 'Maaş', 'Elektrik' gibi bir kelime veya tutar yazmaya başlayın. Sonuçlar anlık olarak filtrelenir."
+          title: "Arama Kutusuna Yazmaya Başlayın",
+          desc: "Borç listesinin üstündeki 'Borç listesinde ara...' kutusuna aramak istediğiniz borcun adını, kategorisini veya tutarını yazın."
         },
         {
           step: 3,
-          title: "Kategori Filtre Sekmelerini Kullanın",
-          desc: "Açılan pencerenin üstündeki 'Tümü', 'Borçlar', 'Giderler', 'Gelirler' ve 'Taksitler' hap butonlarına basarak listeyi daraltın."
-        },
-        {
-          step: 4,
-          title: "Sonuca Tıklayın ve Doğrudan Kayda Ulaşın",
-          desc: "Listelenen sonuca tıkladığınızda veya klavyeden Enter tuşuna bastığınızda, sistem otomatik olarak ilgili sekmeye geçer ve borç/taksit kartını vurgular."
+          title: "Sonuçları İnceleyin veya Temizleyin",
+          desc: "Eşleşen borç kayıtları anlık olarak listelenir. Aramayı sıfırlamak için kutudaki 'X' butonuna tıklamanız yeterlidir."
         }
       ],
       proTips: [
-        "Klavyenizin Aşağı ve Yukarı yön oklarıyla arama sonuçları arasında gezinebilir, Enter ile anında seçim yapabilirsiniz.",
-        "Kutuya herhangi bir şey yazmadan tıkladığınızda en son eklenen kayıtları hızlı liste halinde görebilirsiniz."
+        "Arama yaparken aynı zamanda 'Ödenmemiş' / 'Ödenmiş' sekmeleri ve sıralama ölçütleriyle birlikte kombine filtreleme yapabilirsiniz.",
+        "Tutar rakamı yazarak (örneğin '5000') o tutara sahip borçları da doğrudan listeleyebilirsiniz."
       ]
     },
     {

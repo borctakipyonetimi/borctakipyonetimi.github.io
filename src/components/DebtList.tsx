@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -75,6 +75,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   const { format, currencySymbol } = useCurrency();
   const [activeTab, setActiveTab] = useState<"unpaid" | "paid">("unpaid");
   const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
   const itemsPerPage = 8;
@@ -96,7 +97,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   useEffect(() => {
     setCurrentPage(1);
     setSelectedDebtIds([]);
-  }, [activeTab, sortBy, selectedMonth, selectedYear]);
+  }, [activeTab, sortBy, searchQuery, selectedMonth, selectedYear]);
   
   // Edit & Add Dialog states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -621,7 +622,16 @@ export const DebtList: React.FC<DebtListProps> = ({
       if (activeTab === "unpaid" && d.paid >= d.amount) return false;
       if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. Period filter: strictly match selected month & year
+      // 2. Search filter: match name, category, or amount
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const matchName = (d.name || "").toLowerCase().includes(q);
+        const matchCategory = (d.category || "").toLowerCase().includes(q);
+        const matchAmount = d.amount.toString().includes(q) || (d.amount - d.paid).toString().includes(q);
+        if (!matchName && !matchCategory && !matchAmount) return false;
+      }
+
+      // 3. Period filter: strictly match selected month & year
       if (selectedMonth !== null && selectedYear !== null) {
         if (!d.dueDate) return true;
         const dParts = parseDateParts(d.dueDate);
@@ -1577,6 +1587,32 @@ export const DebtList: React.FC<DebtListProps> = ({
         </div>
       </div>
 
+      {/* Borçlar Özel Arama Çubuğu */}
+      <div className="relative flex items-center w-full bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-1.5 px-3 shadow-xs hover:border-indigo-500/50 transition-colors">
+        <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 shrink-0 mr-2.5" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={language === "tr" ? "Borç listesinde ara... (İsim veya Kategori)" : "Search in debt list... (Name or Category)"}
+          className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none"
+        />
+        {searchQuery && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              {filteredDebts.length} {language === "tr" ? "sonuç" : "results"}
+            </span>
+            <button
+              onClick={() => setSearchQuery("")}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              title="Aramayı Temizle"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Tabs list and sorting mechanism */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-100/80 dark:bg-slate-800/40 p-1.5 rounded-2xl border border-slate-200/40 dark:border-slate-700/60 shadow-sm">
         <div className="flex bg-slate-200/50 dark:bg-slate-800 p-1 rounded-xl flex-1">
@@ -1620,8 +1656,20 @@ export const DebtList: React.FC<DebtListProps> = ({
       {/* Debt Cards Listing */}
       <div className="space-y-3">
         {filteredDebts.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-400 font-medium">
-            Gösterilecek borç bulunmuyor.
+          <div className="text-center py-8 text-xs text-slate-400 font-medium space-y-2">
+            {searchQuery ? (
+              <div>
+                <p>"{searchQuery}" aramasına uygun borç kaydı bulunamadı.</p>
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-2 text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                >
+                  Aramayı Temizle
+                </button>
+              </div>
+            ) : (
+              <p>Gösterilecek borç bulunmuyor.</p>
+            )}
           </div>
         ) : (
           (() => {
