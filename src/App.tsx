@@ -3848,6 +3848,16 @@ export default function App() {
       return;
     }
 
+    if (tabId === "cloud_sync" || tabId === "cloud" || tabId === "backup_cloud") {
+      setActiveTab("gplay_enhancements");
+      setIsSidebarOpen(false);
+      setTimeout(() => {
+        const el = document.getElementById("cloud-backup-sync-widget");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 150);
+      return;
+    }
+
     const clickedItem = sidebarItems.find(item => item.id === tabId);
     if (clickedItem?.isPro && !isPremium) {
       setPromoFeature(clickedItem.label);
@@ -5893,9 +5903,29 @@ export default function App() {
             triggerToast={triggerToast}
             debts={debts}
             installmentDebts={installmentDebts}
+            incomes={incomes}
+            alarms={alarms}
+            notifications={notifications}
+            payments={payments}
             format={format}
             onRestoreBackup={handleRestoreBackup}
             onNavigate={handleNavClick}
+            onExecuteExportBackup={executeExportBackup}
+            onProcessBackupJSON={processBackupJSON}
+            onOpenGoogleLogin={() => handleQuickLogin("google")}
+            onManualSyncAll={async () => {
+              await saveAllToUser(
+                debts,
+                incomes,
+                alarms,
+                notifications,
+                installmentDebts,
+                payments,
+                expenses,
+                expenseCategories
+              );
+            }}
+            isOfflineMode={isOfflineMode}
           />
         )}
 
