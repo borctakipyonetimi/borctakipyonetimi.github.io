@@ -1,5 +1,27 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Bot, Send, User, Sparkles, Brain, Flame, Target, MessageSquareCode, Settings, TrendingUp } from "lucide-react";
+import { 
+  Bot, 
+  Send, 
+  User, 
+  Sparkles, 
+  Brain, 
+  Target, 
+  MessageSquareCode, 
+  Settings, 
+  TrendingUp, 
+  Copy, 
+  CheckCheck, 
+  Volume2, 
+  VolumeX, 
+  RotateCcw, 
+  Mic, 
+  MicOff, 
+  X, 
+  ShieldCheck, 
+  Zap, 
+  ArrowRight,
+  TrendingDown
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Debt, Income, Expense, InstallmentDebt, FinancialStats } from "../types";
 import { getApiUrl } from "../utils/api";
@@ -9,6 +31,7 @@ import { parseDateParts } from "../utils/dateUtils";
 interface ChatMessage {
   sender: "user" | "bot";
   text: string;
+  timestamp?: string;
 }
 
 interface AIChatProps {
@@ -29,77 +52,177 @@ const TURKISH_MONTHS = [
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
 ];
 
-// Helper to highlight words between **
-const renderTextWithBold = (text: string) => {
+// Helper to highlight words between ** and money/percentage patterns
+const renderFormattedSpan = (text: string) => {
   const parts = text.split(/\*\*([^*]+)\*\*/g);
   return parts.map((part, i) => {
     if (i % 2 === 1) {
       return (
-        <strong key={i} className="font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-500/5 dark:bg-indigo-500/15 px-1 py-0.5 rounded text-[11px] sm:text-xs">
+        <strong 
+          key={i} 
+          className="font-bold text-slate-900 dark:text-white bg-indigo-500/10 dark:bg-indigo-400/20 px-1.5 py-0.5 rounded-md text-[11px] sm:text-xs tracking-tight"
+        >
           {part}
         </strong>
       );
     }
+    
+    // Highlight currency and percentages inside normal text
+    const moneyParts = part.split(/(₺\s?[\d\.,]+|\$\s?[\d\.,]+|€\s?[\d\.,]+|%\s?[\d\.,]+)/g);
+    if (moneyParts.length > 1) {
+      return (
+        <React.Fragment key={i}>
+          {moneyParts.map((mp, j) => {
+            if (/^(₺|\$|€|%)/.test(mp.trim())) {
+              return (
+                <span 
+                  key={j} 
+                  className="font-bold text-indigo-700 dark:text-indigo-300 font-mono text-[11px] sm:text-xs"
+                >
+                  {mp}
+                </span>
+              );
+            }
+            return mp;
+          })}
+        </React.Fragment>
+      );
+    }
+    
     return part;
   });
 };
 
+// FormattedText component designed specifically for mobile vertical layout and high contrast
 const FormattedText: React.FC<{ text: string }> = ({ text }) => {
-  const lines = text.split("\n");
-  return (
-    <div className="space-y-2 text-xs md:text-sm leading-relaxed font-sans">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={idx} className="h-1" />;
-        }
+  const rawLines = text.split("\n");
+  
+  // Group table rows together if markdown table exists
+  const blocks: Array<{ type: "table" | "line"; content: string | string[] }> = [];
+  let currentTable: string[] = [];
 
-        // Subheaders or Header Section
-        if (
-          trimmed.startsWith("###") || 
-          trimmed.startsWith("📊") || 
-          trimmed.startsWith("🚀") || 
-          trimmed.startsWith("🎯") || 
-          trimmed.startsWith("🔔") || 
-          trimmed.startsWith("📈") || 
-          trimmed.startsWith("💡") ||
-          trimmed.startsWith("🚨") ||
-          trimmed.startsWith("🟢") ||
-          trimmed.startsWith("⚡")
-        ) {
-          const cleanText = trimmed.replace(/^###\s*/, "");
+  rawLines.forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      currentTable.push(trimmed);
+    } else {
+      if (currentTable.length > 0) {
+        blocks.push({ type: "table", content: [...currentTable] });
+        currentTable = [];
+      }
+      blocks.push({ type: "line", content: line });
+    }
+  });
+
+  if (currentTable.length > 0) {
+    blocks.push({ type: "table", content: [...currentTable] });
+  }
+
+  return (
+    <div className="space-y-2.5 text-xs sm:text-sm leading-relaxed font-sans text-slate-800 dark:text-slate-200">
+      {blocks.map((block, bIdx) => {
+        if (block.type === "table") {
+          const tableLines = block.content as string[];
+          if (tableLines.length < 2) return null;
+          
+          // Parse header and rows (skipping delimiter line like | :--- |)
+          const rows = tableLines.map(row => 
+            row.split("|")
+              .map(c => c.trim())
+              .filter((c, idx, arr) => idx > 0 && idx < arr.length - 1)
+          );
+          
+          const headerRow = rows[0];
+          const dataRows = rows.slice(1).filter(r => !r.every(c => /^:?-+:?$/.test(c)));
+
           return (
-            <div key={idx} className="font-extrabold text-slate-900 dark:text-white border-b border-indigo-500/10 dark:border-indigo-500/5 pb-1 pt-2 flex items-center gap-1.5 tracking-wide text-xs sm:text-sm mt-2">
-              <span className="text-indigo-400">✧</span>
-              <span>{renderTextWithBold(cleanText)}</span>
+            <div key={bIdx} className="my-3 overflow-x-auto rounded-xl border border-indigo-500/20 dark:border-indigo-500/30 shadow-xs">
+              <table className="w-full text-left text-[11px] sm:text-xs border-collapse">
+                <thead>
+                  <tr className="bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-900 dark:text-indigo-200 font-bold border-b border-indigo-500/20">
+                    {headerRow.map((h, hIdx) => (
+                      <th key={hIdx} className="p-2 sm:p-2.5 whitespace-nowrap">
+                        {renderFormattedSpan(h)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50 bg-white/50 dark:bg-slate-800/50">
+                  {dataRows.map((r, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 transition">
+                      {r.map((cell, cIdx) => (
+                        <td key={cIdx} className="p-2 sm:p-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                          {renderFormattedSpan(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           );
         }
 
-        // Bullet point lines starting with •, - or *
+        const line = block.content as string;
+        const trimmed = line.trim();
+        
+        if (!trimmed) {
+          return <div key={bIdx} className="h-1" />;
+        }
+
+        // Section Headers (### or emojis like 📊, 🚀, 💡, 🎯, 💰, 📌, ⚠️, 🟢, ⚡, 💵, 💸, 📈, 📉, 🔍, 🏆)
+        if (
+          trimmed.startsWith("###") ||
+          trimmed.startsWith("##") ||
+          trimmed.startsWith("#") ||
+          /^(📊|🚀|💡|🎯|💰|📌|⚠️|🟢|⚡|💵|💸|📈|📉|🔍|🏆|🚨|⚖️|✨)/.test(trimmed)
+        ) {
+          const cleanText = trimmed.replace(/^#{1,4}\s*/, "");
+          return (
+            <div 
+              key={bIdx} 
+              className="mt-3.5 mb-1.5 p-2 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent dark:from-indigo-500/20 dark:via-purple-500/10 dark:to-transparent rounded-lg border-l-3 border-indigo-500 font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs sm:text-sm tracking-tight"
+            >
+              <span>{renderFormattedSpan(cleanText)}</span>
+            </div>
+          );
+        }
+
+        // Numbered Step Items (e.g. 1. Adım, 1️⃣, 2., 3.) - Vertically aligned step card
+        const numMatch = trimmed.match(/^(\d+[\.\)]|\d+️⃣)\s*(.*)/);
+        if (numMatch) {
+          const stepNumber = numMatch[1].replace(/[\.\)️⃣]/g, "").trim();
+          const stepContent = numMatch[2];
+          return (
+            <div 
+              key={bIdx} 
+              className="flex items-start gap-2.5 p-2.5 rounded-xl bg-indigo-50/50 dark:bg-slate-800/80 border border-indigo-500/15 dark:border-slate-700/60 my-1.5 transition hover:border-indigo-500/30"
+            >
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                {stepNumber}
+              </div>
+              <div className="flex-1 text-slate-800 dark:text-slate-200">
+                {renderFormattedSpan(stepContent)}
+              </div>
+            </div>
+          );
+        }
+
+        // Bullet Points (•, -, *) - Distinct indented item with bullet dot
         if (trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*")) {
           const cleanText = trimmed.replace(/^[•\-\*]\s*/, "");
           return (
-            <div key={idx} className="flex items-start gap-2 pl-2 text-slate-700 dark:text-slate-300 py-0.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 dark:bg-emerald-500 mt-1.5 shrink-0 animate-pulse" />
-              <div className="flex-1">{renderTextWithBold(cleanText)}</div>
+            <div key={bIdx} className="flex items-start gap-2 pl-1 sm:pl-2 py-0.5 text-slate-700 dark:text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 mt-2 shrink-0" />
+              <div className="flex-1 leading-relaxed">{renderFormattedSpan(cleanText)}</div>
             </div>
           );
         }
 
-        // Numeric lists starting with numbers
-        if (/^\d+️⃣/.test(trimmed) || /^\d+\./.test(trimmed)) {
-          return (
-            <div key={idx} className="pl-2 border-l-2 border-indigo-500 dark:border-indigo-600 bg-indigo-500/5 dark:bg-indigo-500/10 py-1.5 rounded-r-md my-1 text-slate-800 dark:text-slate-200">
-              {renderTextWithBold(line)}
-            </div>
-          );
-        }
-
-        // Default paragraph
+        // Default Paragraph
         return (
-          <p key={idx} className="text-slate-700 dark:text-slate-300">
-            {renderTextWithBold(line)}
+          <p key={bIdx} className="text-slate-700 dark:text-slate-300 leading-relaxed">
+            {renderFormattedSpan(line)}
           </p>
         );
       })}
@@ -149,12 +272,15 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
   }, [currentUser]);
 
+  const initialBotWelcome = language === "tr"
+    ? "Merhaba! 🌟 Ben en güncel Gemini 3.7 Flash altyapısıyla güçlendirilen Bütçem Pro akıllı finans koçunuz.\n\n### 💡 Size Nasıl Yardımcı Olabilirim?\n• **Borç Kapatma Stratejisi**: Kartopu veya Çığ yöntemleriyle borçlarınızı en az faizle kapatma yol haritası.\n• **Aylık Gelir/Gider Analizi**: 50/30/20 kuralına göre bütçe disiplininizi değerlendirme.\n• **Tasarruf Tavsiyeleri**: Kategori bazlı harcama kısıntısı fırsatları.\n• **Güncel Piyasa & Döviz**: Canlı Google Arama entegrasyonu ile Dolar, Euro, Altın ve piyasa faiz oranları.\n\nAşağıdaki hızlı butonları kullanabilir veya sorunuzu doğrudan yazabilirsiniz!"
+    : "Hello! 🌟 I am your Bütçem Pro AI financial advisor powered by Gemini 3.7 Flash.\n\n### 💡 How can I assist you today?\n• **Debt Payoff Roadmap**: Snowball or Avalanche strategies tailored to your loans.\n• **Cash Flow Analysis**: 50/30/20 budget review and balance management.\n• **Savings Recommendations**: Actionable ways to reduce discretionary expenses.\n• **Market Rates**: Live Google Search grounding for USD, EUR, Gold and inflation.\n\nFeel free to choose a prompt below or ask any financial question!";
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       sender: "bot",
-      text: language === "tr"
-        ? "Merhaba! 😊 Ben bütçe ve borç yönetim asistanınız. Borçlarınız, aylık harcamalarınız, tasarruf stratejileri (Kartopu / Avalanche yöntemi), gelir-gider optimizasyonu veya 'hangi borcu erken ödemeliyim?' gibi finansal konular için bana dilediğinizi sorabilirsiniz. Bütçe verilerinizi analiz etmek için sabırsızlanıyorum!"
-        : "Hello! 😊 I am your budget and debt management advisor. You can ask me anything about your loans, monthly outlays, savings pathways (Snowball / Avalanche method), cash flow optimization, or 'which debt to pay first?'. Ready to help analyze your wallet!",
+      text: initialBotWelcome,
+      timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -162,9 +288,13 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [apiKeyInput, setApiKeyInput] = useState(() => localStorage.getItem("user_gemini_api_key") || "");
   const [showApiKeyField, setShowApiKeyField] = useState(false);
   const [isApiKeySaved, setIsApiKeySaved] = useState(() => !!localStorage.getItem("user_gemini_api_key"));
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
   
-  // Custom scroll refs to target ONLY the scrollable chat container, preventing parent window scroll jump
+  // Custom scroll refs to target ONLY the scrollable chat container
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     if (chatContainerRef.current) {
@@ -176,19 +306,124 @@ export const AIChat: React.FC<AIChatProps> = ({
   };
 
   useEffect(() => {
-    // Only scroll if there are user messages or loading transitions, avoiding auto-scrolling the parent viewport on initial mount
     if (messages.length > 1 || loading) {
-      // Small timeout guarantees layout has finished rendering new nodes
       const t = setTimeout(() => scrollToBottom("smooth"), 80);
       return () => clearTimeout(t);
     }
   }, [messages, loading]);
 
+  // Handle Speech Recognition for voice input in chat
+  const toggleSpeechRecognition = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Tarayıcınız ses tanıma özelliğini desteklemiyor. Lütfen Google Chrome veya uyumlu bir mobil tarayıcı kullanın.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = language === "tr" ? "tr-TR" : "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setInputValue((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error("Speech recognition startup error:", e);
+      setIsListening(false);
+    }
+  };
+
+  // Handle Text-to-Speech (TTS)
+  const toggleSpeakText = (text: string, idx: number) => {
+    if (!("speechSynthesis" in window)) {
+      alert("Tarayıcınız sesli okuma özelliğini desteklemiyor.");
+      return;
+    }
+
+    if (speakingIdx === idx) {
+      window.speechSynthesis.cancel();
+      setSpeakingIdx(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    
+    // Clean markdown characters for pleasant speech audio
+    const cleanSpeech = text
+      .replace(/###/g, "")
+      .replace(/\*\*/g, "")
+      .replace(/•/g, "")
+      .replace(/\|/g, " ")
+      .replace(/-/g, " ")
+      .replace(/[📊🚀💡🎯💰📌⚠️🟢⚡💵💸📈📉🔍🏆🚨⚖️✨]/g, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+    utterance.lang = language === "tr" ? "tr-TR" : "en-US";
+    utterance.rate = 1.05;
+
+    utterance.onend = () => {
+      setSpeakingIdx(null);
+    };
+
+    utterance.onerror = () => {
+      setSpeakingIdx(null);
+    };
+
+    setSpeakingIdx(idx);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleCopyMessage = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const handleClearChat = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    setSpeakingIdx(null);
+    setMessages([
+      {
+        sender: "bot",
+        text: initialBotWelcome,
+        timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+      },
+    ]);
+  };
+
   const generateClientFallbackReply = (query: string): string => {
     const q = (query || "").toLowerCase();
     
     const dRatio = stats.totalIncome > 0 ? (stats.remaining / stats.totalIncome) : 0;
-    const dRatioPerc = dRatio * 100;
     const expensePercentage = stats.totalIncome > 0 ? (stats.totalExpense / stats.totalIncome) * 100 : 0;
     const savingsRate = stats.totalIncome > 0 ? ((stats.netIncome / stats.totalIncome) * 100) : 0;
 
@@ -199,23 +434,6 @@ export const AIChat: React.FC<AIChatProps> = ({
       { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
       { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
     ];
-
-    const categoryKeywords: Record<string, string[]> = {
-      "Kira": ["kira", "ev", "konut", "depo", "otel", "apart", "rezidans"],
-      "Market": ["market", "gıda", "gida", "yemek", "manav", "kasap", "mutfak", "bim", "migros", "carrefoursa", "şok", "sok", "alışveriş", "alisveris", "groseri", "tekel"],
-      "Ulaşım": ["ulaşım", "ulasim", "yol", "akaryakıt", "akaryakit", "benzin", "otobüs", "otobus", "metro", "taksi", "bilet", "yakıt", "yakit", "otoyol", "köprü", "hgs", "egzoz", "sanayi", "araba"],
-      "Faturalar": ["fatura", "elektrik", "su", "doğalgaz", "dogalgaz", "gaz", "internet", "telefon", "aidat", "asansör", "asansor", "tv", "abonelik"],
-      "Eğlence": ["eğlence", "eglence", "sinema", "kafe", "oyun", "netflix", "konser", "bira", "bar", "restoran", "lokanta", "pub", "ps5", "alkol", "hediye", "hobi", "tatil", "gezi"],
-      "Sağlık": ["sağlık", "saglik", "hastane", "ilaç", "ilac", "eczane", "doktor", "muayene", "diş", "dis", "optik", "gözlük", "reçete", "recete"]
-    };
-
-    let matchedCategory: string | null = null;
-    for (const [catName, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(k => q.includes(k))) {
-        matchedCategory = catName;
-        break;
-      }
-    }
 
     let reply = `✨ **Bütçem Pro Gelişmiş Finansal Analiz Raporu**\n\n`;
 
@@ -247,7 +465,6 @@ export const AIChat: React.FC<AIChatProps> = ({
       const calculatedIncome = mIncomes.reduce((sum, i) => sum + i.amount, 0);
       const calculatedExpense = mExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-      // Prefer authoritative numbers from stats props (100% matched with top bar and dashboard)
       const tIncome = stats?.totalIncome !== undefined ? stats.totalIncome : calculatedIncome;
       const tExpense = stats?.totalExpense !== undefined ? stats.totalExpense : calculatedExpense;
       const nIncome = stats?.netIncome !== undefined ? stats.netIncome : (tIncome - tExpense);
@@ -261,8 +478,8 @@ export const AIChat: React.FC<AIChatProps> = ({
         catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + e.amount;
       });
 
-      reply += `📊 **${monthName.toUpperCase()} ${yNum} - DETAYLI AYLIK ANALİZ RAPORU** 📊\n\n`;
-      reply += `Sistemimizdeki bütçe ve gider kayıtlarınızı bizzat tarayarak **${monthName} ${yNum}** dönemi gelir/gider ve borç tablonuzu çıkardım:\n\n`;
+      reply += `### 📊 ${monthName.toUpperCase()} ${yNum} - DETAYLI AYLIK ANALİZ RAPORU\n`;
+      reply += `Sistemimizdeki bütçe ve gider kayıtlarınızı tarayarak **${monthName} ${yNum}** dönemi gelir/gider ve borç tablonuzu çıkardım:\n\n`;
 
       const totalDebtsRem = debts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
       const totalInstsRem = installmentDebts.reduce((sum, inst) => {
@@ -292,20 +509,10 @@ export const AIChat: React.FC<AIChatProps> = ({
       reply += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}\n`;
       reply += `• **Bu Ay Ödenen Borç Tutarı**: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}\n`;
       reply += `• **Bu Ayki Toplam Borç Yükü**: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}\n`;
-      reply += `• **Genel Toplam Kalan Borç Portföyü (Tüm Vadeler)**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
+      reply += `• **Genel Toplam Kalan Borç Portföyü**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
 
-      reply += `### 📋 Borç Dağılımı Detayları\n`;
-      reply += `• **Nakit Borçlar (Kalan Toplam)**: ₺${totalDebtsRem.toLocaleString("tr-TR")}\n`;
-      reply += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${totalInstsRem.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kişi Borçları (Verecek - Kalan)**: ₺${contactPayablesRem.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n\n`;
-
-      if (mExpenses.length === 0) {
-        reply += `🚨 **Harcama Uyarısı**: Bu seçili ay için kaydedilmiş herhangi bir harcama kalemi bulunamadı. Lütfen analiz için harcamalarınızı girin.\n`;
-      } else {
+      if (mExpenses.length > 0) {
         reply += `### 📉 Kategori Karşılaştırma Analizi\n`;
-        reply += `Aşağıdaki tabloda bu ayın harcama kategorileri, tutarları ve toplam aylık gider içindeki yüzdesel ağırlıkları gösterilmiştir:\n\n`;
-
         reply += `| Gider Kategorisi | Harcanan Tutar | Gider Oranı (%) | Öneri Seviyesi |\n`;
         reply += `| :--- | :--- | :---: | :---: |\n`;
 
@@ -330,203 +537,59 @@ export const AIChat: React.FC<AIChatProps> = ({
           reply += `| **${c.name}** | ₺${c.value.toLocaleString("tr-TR")} | %${c.pct.toFixed(1)} | ${recStatus} |\n`;
         });
 
-        reply += `\n`;
-
-        if (sortedCats.length > 0) {
-          const topCat = sortedCats[0];
-          reply += `💡 **En Kritik Harcama Kalemi**: Bu ay bütçenizi en çok zorlayan kategori **%${topCat.pct.toFixed(1)}** pay oranıyla **"${topCat.name}"** olmuştur (Tutar: ₺${topCat.value.toLocaleString("tr-TR")}).\n\n`;
-        }
-
-        reply += `### 🎯 Bütçe Disiplini Değerlendirmesi (50/30/20 Kuralı)\n`;
-        const essentialPct = tIncome > 0 ? (tExpense / tIncome) * 100 : 0;
-        reply += `• **Zorunlu ve Kişisel Gider Oranı**: Gelirinizin **%${essentialPct.toFixed(1)}** kadarı harcanmış durumda.\n`;
-        if (essentialPct > 80) {
-          reply += `• ⚠️ **Durum Analizi**: Harcama oranınız bütçe sınırlarını çok aşıyor. Gelirin %80'inden fazlasını harcamak, borç kapatmayı ve birikim yapmayı neredeyse imkansız kılar. Acilen lüks taksitleri durdurmalı ve abonelikleri iptal etmelisiniz.\n`;
-        } else if (essentialPct > 50) {
-          reply += `• ⚖️ **Durum Analizi**: İdeal sınırlandırmaya yakınsınız ancak hala bir miktar bütçe sızıntısı var. Gider kalemlerinde yapacağınız %10'luk bir kısıntı tasarruf hızınızı ikiye katlayabilir.\n`;
-        } else {
-          reply += `• 🟢 **Durum Analizi**: Tebrikler! Tasarruf limitleriniz oldukça güvenli bölgede. Finansal bağımsızlığınıza çok daha hızlı ulaşacaksınız.\n`;
-        }
-
         reply += `\n### 💡 Tasarruf ve Optimizasyon Önerileri\n`;
-        sortedCats.slice(0, 3).forEach((c, idx) => {
-          const possibleSaving = c.value * 0.15;
-          reply += `${idx + 1}️⃣ **${c.name} Tasarrufu**: %15 tasarruf ile bu kalemde yapacağınız küçük fedakarlıklar size ayda **₺${possibleSaving.toFixed(0)}** ek bakiye kazandıracaktır. `;
-          if (c.name.toLowerCase().includes("market")) {
-            reply += "Haftalık alışveriş listesi yapın ve aç karnına asla alışverişe çıkmayın. Markaların kendi etiketli ekonomik ürünlerini tercih edin.";
-          } else if (c.name.toLowerCase().includes("fatura")) {
-            reply += "Kullanılmayan cihazları prizden çekin, akıllı termostat kullanın ve abonelik planlarınızı daha uygun tarifelere düşürün.";
-          } else if (c.name.toLowerCase().includes("yemek") || c.name.toLowerCase().includes("yeme")) {
-            reply += "Dışarıdan sipariş verme oranını azaltarak evde pratik yemekler hazırlayın. İş yerine kendi hazırladığınız sefertasını götürün.";
-          } else if (c.name.toLowerCase().includes("ulaşım") || c.name.toLowerCase().includes("ulasim")) {
-            reply += "Kısa mesafelerde yürümeyi veya bisiklet kullanmayı tercih edin, toplu taşımayı önceliklendirin ve ortak araç kullanımını değerlendirin.";
-          } else {
-            reply += "Fayda-maliyet analizini iyi yapın, satın almadan önce 48 saat bekleyin ve nakit ödemeleri tercih edin.";
-          }
-          reply += `\n`;
-        });
+        reply += `1. **Gereksiz Abonelikleri İptal Edin**: Düzenli olarak kullanmadığınız dijital üyelikleri gözden geçirin.\n`;
+        reply += `2. **Otomatik Tasarruf Kuralı**: Maaş yatar yatmaz en az %10'unu ayrı bir birikim hesabına aktarın.\n`;
+        reply += `3. **Kartopu Borç Kapatma**: En küçük borcu kapatıp psikolojik ivme kazanın.\n`;
       }
-    } else if (matchedCategory) {
-      let totalCatSpent = 0;
-      const catObj = categoriesList.find((c) => c.name.toLowerCase() === matchedCategory!.toLowerCase());
-      const catId = catObj ? catObj.id : null;
-
-      const matchedExpenses = expenses.filter((e) => {
-        const desc = (e.description || "").toLowerCase();
-        const inDesc = desc.includes(matchedCategory!.toLowerCase()) || categoryKeywords[matchedCategory!].some(k => desc.includes(k));
-        const inCatId = catId ? e.categoryId === catId : false;
-        return inDesc || inCatId;
-      });
-
-      totalCatSpent = matchedExpenses.reduce((sum, curr) => sum + curr.amount, 0);
-      const catRatioOfExpense = stats.totalExpense > 0 ? (totalCatSpent / stats.totalExpense) * 100 : 0;
-      const catRatioOfIncome = stats.totalIncome > 0 ? (totalCatSpent / stats.totalIncome) * 100 : 0;
-
-      reply += `🔍 **Harcama Kalemi Derinlemesine İncelemesi: ${matchedCategory}**\n\n`;
-      reply += `Bütçe kayıtlarınızda **${matchedCategory}** kategorisi veya açıklamasına yönelik harcamalarınızı bizzat taradım:\n\n`;
-      reply += `• **Kayıtlı Harcama Sayısı**: ${matchedExpenses.length} adet işlem \n`;
-      reply += `• **Sektörel Toplam Gider**: ₺${totalCatSpent.toLocaleString("tr-TR")}\n`;
-      reply += `• **Harcama Yükü (Gider Oranı)**: Toplam giderlerinizin **%${catRatioOfExpense.toFixed(1)}** kadarını oluşturuyor.\n`;
-      reply += `• **Gelir Tüketim Oranı**: Aylık toplam gelirinizin **%${catRatioOfIncome.toFixed(1)}** kadarını sömürüyor.\n\n`;
-
-      if (matchedExpenses.length > 0) {
-        reply += `📊 **Son Harcama Detayları**:\n`;
-        matchedExpenses.slice(0, 5).forEach((e) => {
-          reply += `- ₺${e.amount.toLocaleString("tr-TR")} ➔ *"${e.description || "Açıklama Belirtilmemiş"}"* (${e.date ? e.date.split("T")[0] : "Tarih yok"})\n`;
-        });
-        reply += `\n`;
-      }
-
-      reply += `💡 **Asistan Tasarruf Önerisi**:\n`;
-      if (totalCatSpent > stats.totalIncome * 0.15) {
-        reply += `⚠️ **${matchedCategory}** harcamalarınız aylık gelirinizin %15 sınırını aşmış durumda. Bu kalemde her ay ekstra **%20 tasarruf** yaparak ayda **₺${(totalCatSpent * 0.2).toFixed(0)}** cebinizde tutabilir ve bu kaynağı borçlarınızı eritmek için kullanabilirsiniz! Harici abonelikleri veya lüks liyakat harcamalarını yeniden gözden geçirin.\n`;
-      } else {
-        reply += `🟢 Bu kategorideki harcamalarınız makul sınırda (%15 altında) seyrediyor. Mevcut tasarruflu bütçe disiplininizi tebrik ederim! Yeni lüks taksitler yaratmayarak bu istikrarı koruyun.\n`;
-      }
-
-    } else if (q.includes("risk") || q.includes("analiz") || q.includes("durum") || q.includes("bütçe") || q.includes("butce") || q.includes("genel") || q.includes("karne") || q.includes("sağlık") || q.includes("saglik") || q.includes("rapor")) {
-      reply += `📊 **Kişiselleştirilmiş Bütçe Karnesi ve Risk Analizi**\n\n`;
-      reply += `Aylık kayıtlı hesap parametreleriniz üzerinden gerçekleştirdiğim finansal sağlık taraması çıktısı:\n\n`;
-      reply += `| Mali Metrik | Değer | Bütçe Oran Payı | Durum |\n`;
-      reply += `| :--- | :--- | :--- | :---: |\n`;
-      reply += `| **Aylık Gelir** | ₺${stats.totalIncome.toLocaleString("tr-TR")} | %100 | Nakit Girişi |\n`;
-      reply += `| **Aylık Gider** | ₺${stats.totalExpense.toLocaleString("tr-TR")} | %${expensePercentage.toFixed(1)} | Harcama Oranı |\n`;
-      reply += `| **Net Bakiye** | ₺${stats.netIncome.toLocaleString("tr-TR")} | %${savingsRate.toFixed(1)} | Aylık Tasarruf |\n`;
-      reply += `| **Kalan Borç** | ₺${stats.remaining.toLocaleString("tr-TR")} | %${dRatioPerc.toFixed(0)} | Borç/Gelir Yükü |\n\n`;
-
-      reply += `🚨 **Cari Borç Risk Seviyeniz**: `;
-      if (dRatio > 5) {
-        reply += `⚡ **KIRMIZI ALARM (YÜKSEK MALI RİSK)**\n`;
-        reply += `Mevcut toplam borç yükünüz, aylık gelirinizin **${dRatio.toFixed(1)} katı**! Finansal güvenliğiniz tehlikede. Harcamalarınızı acilen dondurmalı, taksitli borçlanmayı durdurmalı ve tüm bütçe fazlasını en küçük borca kanalize etmelisiniz.\n\n`;
-      } else if (dRatio > 2.5) {
-        reply += `⚖️ **SARI ALARM (ORTA SEVİYE RİSK)**\n`;
-        reply += `Geri ödenmesi gereken borç portföyünüz aylık gelirinizin **${dRatio.toFixed(1)} katı** düzeyinde. Bütçeniz kontrol edilebilir durumda ancak yeni taksitler eklemek sizi yüksek risk sınırına itecektir. Kar topu stratejisiyle acilen borç kapatmaya odaklanın.\n\n`;
-      } else {
-        reply += `🟢 **YEŞİL BÖLGE (GÜVENLİ VE RESİLİENT)**\n`;
-        reply += `Toplam borç yükünüz aylık gelirinizin **${dRatio.toFixed(1)} katı** seviyesinde ve oldukça güvenli sınırda. Mevcut bütçe planınızı koruyarak borçlarınızı takvimine göre sıfırlayabilirsiniz.\n\n`;
-      }
-
-      reply += `💪 **Mali Güçlenme Tavsiyeleriniz**:\n`;
-      if (savingsRate < 10) {
-        reply += `- **Tasarruf Sızıntısı**: Aylık tasarruf oranınız (%${savingsRate.toFixed(1)}) çok düşük. Acil durum fonu oluşturmak için aylık gider bütçenizden en az **%15 kısıntı** planlamalıyız.\n`;
-      } else {
-        reply += `- **Yüksek Likidite Gücü**: Aylık tasarruf oranınız (%${savingsRate.toFixed(1)}) son derece güçlü. Biriktirdiğiniz bu net bakiye fazlasını borç kapatma hızlandırıcısı olarak asgari ödemelerin üzerine ekleyin.\n`;
-      }
-      if (installmentDebts.length > 2) {
-        reply += `- **Taksit Blokajı**: Devam eden **${installmentDebts.length} aktif taksitiniz** gelecekteki nakit akışınızı rehin tutuyor. Gelecek aylarda yeni taksitli işlem yapmayacağınıza dair kendinize söz verin.\n`;
-      }
-
-    } else if (q.includes("borç") || q.includes("borc") || q.includes("kapat") || q.includes("erit") || q.includes("strateji") || q.includes("kartopu") || q.includes("avalanche") || q.includes("çığ") || q.includes("cig") || q.includes("öde")) {
-      reply += `🚀 **Akıllı Borç Sıfırlama ve Yapılandırma Stratejisi**\n\n`;
-      
-      if (debts.length === 0) {
-        reply += `Şu anda sistemde kayıtlı aktif nakit borç kaleminiz bulunmuyor. Yeni borçlar ekleyerek asistanın gerçek-zamanlı kar topu simülasyonunu başlatabilirsiniz!\n\n`;
-      } else {
-        reply += `Mevcut **${debts.length} adet** borç kaleminiz analiz edilerek borçsuz bir yaşama en hızlı ulaşmanızı sağlayacak iki temel metodoloji simüle edilmiştir:\n\n`;
-        
-        const sortedSnowball = [...debts].sort((a, b) => (a.amount - a.paid) - (b.amount - b.paid));
-        const sortedAvalanche = [...debts].sort((a, b) => (b.amount - b.paid) - (a.amount - a.paid));
-
-        reply += `1️⃣ **Kartopu (Snowball) Stratejisi (Psikolojik & En Hızlı Sonuç)**:\n`;
-        reply += `• Kalan net bakiyesi en düşük olan borca agresif ödeme yapıp onu yok edin, diğerlerine asgari yatırın. Bir borcun tamamen silindiğini görmek sizi inanılmaz motive eder.\n`;
-        reply += `👉 **Kartopu İlk Hedefiniz**: En az kalan borç olan **"${sortedSnowball[0].name}"** borcunu kapatmaya odaklanın. Kalan Ödenecek: **₺${(sortedSnowball[0].amount - sortedSnowball[0].paid).toLocaleString("tr-TR")}**.\n\n`;
-
-        reply += `2️⃣ **Çığ (Avalanche) Stratejisi (Matematiksel / En Ekonomik Yol)**:\n`;
-        reply += `• Tutarı veya maliyeti en yüksek olan borca öncelik tanıyın. Böylece toplamda katlanacağınız enflasyonist vade yükünü ve faiz kaybını minimuma indirirsiniz.\n`;
-        reply += `👉 **Çığ İlk Hedefiniz**: En büyük kalan borç olan **"${sortedAvalanche[0].name}"** borcuna odaklanın. Kalan Ödenecek: **₺${(sortedAvalanche[0].amount - sortedAvalanche[0].paid).toLocaleString("tr-TR")}**.\n\n`;
-
-        const monthlyReserve = stats.netIncome;
-        reply += `⏱️ **Borç Eritme Zaman Projeksiyonu**:\n`;
-        if (monthlyReserve > 100) {
-          const monthsNeeded = stats.remaining / monthlyReserve;
-          reply += `• Her ay biriktirdiğiniz **₺${monthlyReserve.toLocaleString("tr-TR")}** tasarruf fazlasının tamamını borç kapatmaya yönlendirirseniz, teorik olarak **${monthsNeeded.toFixed(1)} ay sonra** tamamen borçsuz ve özgür bir hayata kavuşabilirsiniz! 🎉\n\n`;
-        } else {
-          reply += `• ⚠️ Aylık kullanılabilir tasarruf rezerviniz yetersiz (Negatif veya çok düşük nakit akışı). Borçlarınızı planlı sürede sıfırlayabilmek için aylık harcamalarınızı kısmalı veya acilen ek gelir yaratmalısınız. Giderleri azaltmadan borçların azalması matematiksel olarak imkansızdır.\n\n`;
-        }
-      }
-
-    } else if (q.includes("tasarruf") || q.includes("tasaruf") || q.includes("para biriktir") || q.includes("biriktir") || q.includes("tasarruf yöntemi") || q.includes("gider") || q.includes("harcama") || q.includes("bakiye") || q.includes("birikim")) {
-      reply += `🎯 **Profesyonel Tasarruf ve Birikim Rehberi**\n\n`;
-      reply += `Aylık toplam kalibre edilmiş geliriniz olan **₺${stats.totalIncome.toLocaleString("tr-TR")}** temel alınarak oluşturulan tasarruf matrisiniz aşağıdadır:\n\n`;
-      
-      const necessityLimit = stats.totalIncome * 0.50;
-      const wantLimit = stats.totalIncome * 0.30;
-      const savingTarget = stats.totalIncome * 0.20;
-
-      reply += `💡 **İdeal 50/30/20 Bütçe Bölüşümü**:\n`;
-      reply += `- **Zorunlu Giderler (Ev, Fatura, Gıda - %50)**: Maksimum **₺${necessityLimit.toLocaleString("tr-TR")}** ayrılmalı. (Sizin Mevcut Gideriniz: ₺${stats.totalExpense.toLocaleString("tr-TR")})\n`;
-      reply += `- **Kişisel İstekler (Sosyal Yaşam - %30)**: Maksimum **₺${wantLimit.toLocaleString("tr-TR")}** ayrılmalı.\n`;
-      reply += `- **Borç Ödeme ve Birikim Fonu (%20)**: Aylık asgari **₺${savingTarget.toLocaleString("tr-TR")}** hedef koyulmalı.\n\n`;
-
-      reply += `🌟 **Eyleme Geçilebilir Tasarruf Reçetesi**:\n`;
-      reply += `1. **Acil Durum Fonu (Emergency Fund)**: Olası harika fırsatlar veya beklenmedik krizler için asgari 3 aylık yaşamsal harcamalarınızı kapsayan (Önerilen Güvence Kaynağı: **₺${(stats.totalExpense * 3).toLocaleString("tr-TR")}**) bir kenar akçesi biriktirmeye başlayın.\n`;
-      if (expenses.length > 0) {
-        reply += `2. **Gereksiz Abonelikler ve Harcama Optimizasyonu**: Sistemde kayıtlı **${expenses.length} adet harcamanızı** tek tek gözden geçirdim. Küçük ve tekrarlayan harcamaları keserek ayda ortalama **₺400** ila **₺1.500** arasında doğrudan ek bütçe yaratabilirsiniz.\n`;
-      } else {
-        reply += `2. **Gider Kaydı Tutma**: Şu an hiç anlık gider kalemi girmemişsiniz. Harcamalarınızı disipline etmek ve nereye bütçe sızıntısı olduğunu teşhis etmek için 'Harcamalar' sekmesinden harcamalarınızı kaydetmeye başlayın.\n`;
-      }
-
-    } else if (q.includes("merhaba") || q.includes("selam") || q.includes("hey") || q.includes("nasılsın") || q.includes("kimsin") || q.includes("yardım") || q.includes("help")) {
-      reply += `👋 **Merhaba! Ben Bütçem Pro Bireysel Finans Danışmanınız.**\n\n`;
-      reply += `Finansal hedeflerinize emin adımlarla yürümeniz, tüm borçlarınızı planlı şekilde sıfırlamanız ve bütçenizi en verimli şekilde yönetebilmeniz için bizzat buradayım.\n\n`;
-      reply += `Aşağıdaki konuları bütçe verilerinizle bizzat hesaplayabiliyorum. Bana dilediğinizi yazabilirsiniz:\n`;
-      reply += `• 📊 **Genel Bütçe Karnesi**: "Mevcut bütçe durumum genel olarak nasıl?"\n`;
-      reply += `• 🚀 **Borç Eritme Stratejileri**: "Borçlarımı kartopu veya avalanche ile nasıl eritirim?"\n`;
-      reply += `• 🎯 **Gider ve Tasarruf Tüyoları**: "Birikim yapmak için hangi harcamalarımı kısmalıyım?"\n`;
-      reply += `• 🔍 **Kategori Analizi**: "Market (veya faturalar) için ne kadar harcama yaptım?"\n\n`;
-      reply += `Sorularınızı bekliyorum!`;
-
-    } else {
-      reply += `👋 **Bütçem Pro Bireysel Finansal Tavsiye Özet Raporu**\n\n`;
-      reply += `Yazdığınız soruyu bütçenizin genel matematiksel verileriyle ilişkilendirerek detaylı şekilde analiz ettim:\n\n`;
-      reply += `• **Aylık Gelir Kaynağınız**: ₺${stats.totalIncome.toLocaleString("tr-TR")}\n`;
-      reply += `• **Aylık Gider Yükünüz**: ₺${stats.totalExpense.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kalan Serbest Net Rezerve**: ₺${stats.netIncome.toLocaleString("tr-TR")}\n`;
-      reply += `• **Geri Ödenecek Kalan Toplam Borç**: ₺${stats.remaining.toLocaleString("tr-TR")} (Ödenen: ₺${stats.totalPaid.toLocaleString("tr-TR")})\n\n`;
-      reply += `Bana borç kapatma simülasyonları (*Kartopu/Çığ yöntemleri*), sektörel harcama analizleri (*market, fatura, kira harcamaları*) veya tasarruf yöntemleri hakkında sorular yöneltebilirsiniz. Bütçe bizzat hesaplanarak size en rasyonel öneriler sunulacaktır!`;
+      return reply;
     }
 
-    reply += `\n\n---\n`;
-    reply += `⚙️ *Bilgi: Bu analiz çevrimdışı finans hesaplama motoru tarafından bütçe verileriniz bizzat hesaplanarak üretilmiştir. Çevrimiçi yapay zekayı (Gemini 3.5) aktifleştirmek isterseniz, yan menüdeki **Yapay Zekâ Motor Ayarları** alanından kendi Gemini API Anahtarınızı kolayca kaydedebilirsiniz.*`;
+    if (q.includes("risk") || q.includes("durum")) {
+      reply += `### 🔍 Bütçe Risk ve Sağlık Değerlendirmesi\n`;
+      reply += `• **Aylık Toplam Gelir**: ₺${stats.totalIncome.toLocaleString("tr-TR")}\n`;
+      reply += `• **Aylık Toplam Gider**: ₺${stats.totalExpense.toLocaleString("tr-TR")}\n`;
+      reply += `• **Net Kalan Bakiye**: ₺${stats.netIncome.toLocaleString("tr-TR")}\n`;
+      reply += `• **Genel Kalan Borç**: ₺${stats.remaining.toLocaleString("tr-TR")}\n\n`;
 
+      if (stats.netIncome < 0) {
+        reply += `⚠️ **Yüksek Risk Uyarısı**: Aylık harcamalarınız gelirinizi aşıyor. Bütçenizde her ay ₺${Math.abs(stats.netIncome).toLocaleString("tr-TR")} açık oluşuyor. Acil olarak isteğe bağlı harcamaları durdurmalı ve borç yapılandırması yapmalısınız.\n`;
+      } else if (stats.netIncome < stats.totalIncome * 0.15) {
+        reply += `⚖️ **Orta Seviye Risk**: Bütçeniz pozitif bakiye veriyor ancak beklenmedik masraflara karşı tasarruf marjınız dar. Acil durum fonu oluşturmanızı öneririm.\n`;
+      } else {
+        reply += `🟢 **Güvenli Durum**: Gelirinizin %${savingsRate.toFixed(0)} kadarını koruyabiliyorsunuz. Borçlarınızı erken kapatmak veya yatırıma yönlendirmek için harika bir pozisyondasınız.\n`;
+      }
+      return reply;
+    }
+
+    if (q.includes("kartopu") || q.includes("avalanche") || q.includes("çığ") || q.includes("borç kapatma") || q.includes("en hızlı")) {
+      reply += `### 🚀 Bilimsel Borç Kapatma Stratejileri\n\n`;
+      reply += `1. **Kartopu Yöntemi (Snowball Method)**: En küçük bakiyeli borcu ilk sıraya koyup tüm ekstra paranızla onu sıfırlayın. Diğer borçların sadece asgari tutarını ödeyin. İlk borç kapandığında muazzam bir motivasyon kazanırsınız!\n\n`;
+      reply += `2. **Çığ Yöntemi (Avalanche Method)**: En yüksek faiz oranına sahip borcu ilk sıraya koyup ekstra ödemeyi oraya yönlendirin. Matematiksel olarak en az faizi ödemenizi sağlar.\n\n`;
+      reply += `3. **Bütçem Pro Önerisi**: Toplam borç yükünüz ₺${stats.remaining.toLocaleString("tr-TR")} seviyesinde. Hızlı zaferler için **Kartopu yöntemini** tercih etmenizi tavsiye ederim.\n`;
+      return reply;
+    }
+
+    reply += `### 🎯 Finansal Rehberlik ve Tavsiye\n`;
+    reply += `Bütçe verilerinize göre aylık geliriniz **₺${stats.totalIncome.toLocaleString("tr-TR")}**, gideriniz **₺${stats.totalExpense.toLocaleString("tr-TR")}** ve kalan borç portföyünüz **₺${stats.remaining.toLocaleString("tr-TR")}** olarak görünmektedir.\n\n`;
+    reply += `• Daha detaylı analiz için yukarıdaki **"Raporu Hazırla"** butonuna basabilir veya doğrudan döviz, altın, borç kapatma stratejileri sorabilirsiniz.`;
     return reply;
   };
 
-  const handleSend = async (textToSend?: string) => {
-    const question = textToSend || inputValue.trim();
-    if (!question) return;
+  const handleSend = async (customText?: string) => {
+    const question = customText || inputValue;
+    if (!question.trim() || loading) return;
 
-    if (!textToSend) {
-      setInputValue("");
-    }
-
-    setMessages((prev) => [...prev, { sender: "user", text: question }]);
+    const timeStr = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const newMsg: ChatMessage = { sender: "user", text: question, timestamp: timeStr };
+    setMessages((prev) => [...prev, newMsg]);
+    setInputValue("");
     setLoading(true);
 
-    const userApiKey = localStorage.getItem("user_gemini_api_key") || undefined;
+    const userApiKey = localStorage.getItem("user_gemini_api_key") || "";
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
       const response = await fetch(getApiUrl("/api/chat"), {
@@ -543,6 +606,8 @@ export const AIChat: React.FC<AIChatProps> = ({
             stats,
             contacts,
             contactTransactions: contactTxs,
+            selectedMonth,
+            selectedYear
           },
           chatHistory: messages.slice(-10),
           userApiKey: userApiKey,
@@ -556,16 +621,19 @@ export const AIChat: React.FC<AIChatProps> = ({
       }
 
       const data = await response.json();
-      setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
+      const botTime = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [...prev, { sender: "bot", text: data.reply, timestamp: botTime }]);
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.warn("[AIChat Frontend Fallback] Backend chat failed or is offline. Generating high-quality mathematical fallback response directly in client:", err);
+      console.warn("[AIChat Frontend Fallback] Backend chat response fallback:", err);
       const fallbackReply = generateClientFallbackReply(question);
+      const botTime = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
       setMessages((prev) => [
         ...prev,
         {
           sender: "bot",
           text: fallbackReply,
+          timestamp: botTime
         },
       ]);
     } finally {
@@ -582,7 +650,6 @@ export const AIChat: React.FC<AIChatProps> = ({
     const yNum = selectedYear !== null && selectedYear !== undefined ? selectedYear : new Date().getFullYear();
     const monthName = TURKISH_MONTHS[mNum] || "Mevcut Ay";
 
-    // Filter expenses for this specific month & year safely
     const monthlyExpenses = expenses.filter((e) => {
       if (selectedMonth === null || selectedYear === null) return true;
       const parts = parseDateParts(e.date);
@@ -603,13 +670,11 @@ export const AIChat: React.FC<AIChatProps> = ({
       }
     });
 
-    // Compute category totals
     const categoryMap: { [key: number]: number } = {};
     monthlyExpenses.forEach((e) => {
       categoryMap[e.categoryId] = (categoryMap[e.categoryId] || 0) + e.amount;
     });
 
-    // Construct prompt details
     let categoryDetailsStr = "";
     const availableCategories = expenseCategories && expenseCategories.length > 0 ? expenseCategories : [
       { id: 1, name: "Kira" },
@@ -642,45 +707,29 @@ export const AIChat: React.FC<AIChatProps> = ({
     const thisMonthDebtTotal = stats?.thisMonthTotalBorc ?? (thisMonthDebtDue + thisMonthDebtPaid);
     const overallRemainingDebt = stats?.remaining ?? 0;
 
-    // Standard debts
     let debtsDetailsStr = "";
     if (debts && debts.length > 0) {
       debts.forEach((d) => {
         const rem = Math.max(0, d.amount - d.paid);
-        debtsDetailsStr += `- ${d.name} (${d.category}): Toplam ₺${d.amount.toLocaleString("tr-TR")}, Ödenen: ₺${d.paid.toLocaleString("tr-TR")}, Kalan Borç: ₺${rem.toLocaleString("tr-TR")} (Vade: ${d.dueDate || "Belirtilmemiş"})\n`;
+        debtsDetailsStr += `- ${d.name} (${d.category}): Toplam ₺${d.amount.toLocaleString("tr-TR")}, Ödenen: ₺${d.paid.toLocaleString("tr-TR")}, Kalan: ₺${rem.toLocaleString("tr-TR")}\n`;
       });
     } else {
       debtsDetailsStr = "- Kayıtlı standart borç bulunmamaktadır.\n";
     }
 
-    // Installment debts
     let installmentDetailsStr = "";
     if (installmentDebts && installmentDebts.length > 0) {
       installmentDebts.forEach((inst) => {
         const perInstallment = inst.totalAmount / (inst.installmentCount || 1);
         const remCount = Math.max(0, inst.installmentCount - inst.paidInstallmentCount);
         const remAmount = Math.max(0, inst.totalAmount - (inst.paidInstallmentCount * perInstallment));
-        installmentDetailsStr += `- ${inst.name}: Toplam ₺${inst.totalAmount.toLocaleString("tr-TR")}, Taksit: ${inst.installmentCount} ay x ₺${perInstallment.toLocaleString("tr-TR")}, Ödenen: ${inst.paidInstallmentCount} taksit, Kalan Taksit: ${remCount} ay (Kalan Tutar: ₺${remAmount.toLocaleString("tr-TR")})\n`;
+        installmentDetailsStr += `- ${inst.name}: Toplam ₺${inst.totalAmount.toLocaleString("tr-TR")}, Taksit: ${inst.installmentCount} ay x ₺${perInstallment.toLocaleString("tr-TR")}, Kalan Taksit: ${remCount} ay (Kalan: ₺${remAmount.toLocaleString("tr-TR")})\n`;
       });
     } else {
       installmentDetailsStr = "- Kayıtlı taksitli borç bulunmamaktadır.\n";
     }
 
-    // Contact/person debts
-    let contactDebtsDetailsStr = "";
-    if (contactTxs && contactTxs.length > 0) {
-      contactTxs.forEach((tx) => {
-        const contact = contacts.find((c) => c.id === tx.contactId);
-        const contactName = contact ? contact.name : "Bilinmeyen Kişi";
-        const typeStr = tx.type === "payable" ? "Borcumuz var (Verecek)" : "Alacağımız var (Alacak)";
-        const statusStr = tx.isPaid ? "Ödendi" : "Açık (Ödenmedi)";
-        contactDebtsDetailsStr += `- Kişi: ${contactName}, Tür: ${typeStr}, Miktar: ₺${tx.amount.toLocaleString("tr-TR")}, Durum: ${statusStr}, Açıklama: ${tx.description || "Yok"} (Vade: ${tx.dueDate || "Belirtilmemiş"})\n`;
-      });
-    } else {
-      contactDebtsDetailsStr = "- Kayıtlı kişi borcu/alacağı bulunmamaktadır.\n";
-    }
-
-    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun. Ayrıca, bütçeme ek olarak aşağıda detayları verilen tüm borçlarımı (standart borçlar, taksitli borçlar, kişi borçları vb.) analiz et, borç durumumu ve borç erteleme/kapatma önceliklerimi (Kartopu veya Avalanche yöntemlerine göre hangisi uygunsa) de rapora dahil et.
+    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun. Ayrıca, bütçeme ek olarak aşağıda detayları verilen tüm borçlarımı analiz et, borç durumumu ve borç erteleme/kapatma önceliklerimi (Kartopu veya Avalanche yöntemlerine göre) rapora dahil et.
 
 Aylık Finansal Durum Özetim (${monthName} ${yNum}):
 - Toplam Aylık Gelir: ₺${totalMonthlyIncome.toLocaleString("tr-TR")}
@@ -689,7 +738,7 @@ Aylık Finansal Durum Özetim (${monthName} ${yNum}):
 - Bu Ay Vadesi Gelen Kalan Borç: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}
 - Bu Ay Ödenen Borç Tutarı: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}
 - Bu Ay Toplam Borç Yükü: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}
-- Genel Toplam Kalan Borç Yükü (Tüm Vadeler): ₺${overallRemainingDebt.toLocaleString("tr-TR")}
+- Genel Toplam Kalan Borç Yükü: ₺${overallRemainingDebt.toLocaleString("tr-TR")}
 
 Kategori Bazlı Harcama Dağılımım (${monthName} ${yNum}):
 ${categoryDetailsStr}
@@ -700,100 +749,83 @@ ${debtsDetailsStr}
 Mevcut Taksitli Borçlarım:
 ${installmentDetailsStr}
 
-Mevcut Kişi Borçları ve Alacaklarım (Rehber Kayıtları):
-${contactDebtsDetailsStr}
-
-Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart borçlar, taksitli borçlar ve kişi borçları/alacakları) bir bütün olarak analiz et. Bütçemin ideal 50/30/20 kuralına uygunluğunu değerlendir ve borçlarımı kapatmak için bana özel rasyonel bir yol haritası sun.`;
+Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve net maddeler halinde düzenli bir analiz raporu sun.`;
 
     handleSend(prompt);
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in w-full max-w-4xl mx-auto">
       
-      {/* Dynamic Animated Header Section with Centered layout text */}
-      <div className="flex flex-col items-center justify-center text-center pb-5 border-b border-slate-200/60 dark:border-slate-800/85 w-full">
-        <div className="flex flex-col items-center justify-center gap-3.5 w-full">
-          <div className="relative">
-            {/* Pulsing ambient glowing background halo */}
-            <motion.div
-              className="absolute inset-x-[-4px] inset-y-[-4px] bg-gradient-to-tr from-indigo-500/25 to-pink-500/25 rounded-2xl blur-md"
-              animate={{
-                scale: [1, 1.25, 1],
-                opacity: [0.4, 0.8, 0.4],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: 2.5,
-                ease: "easeInOut",
-              }}
-            />
-            {/* Spinning geometric background decoration (no random Hydration bugs) */}
-            <motion.div
-              className="absolute inset-0 border-2 border-indigo-500/30 rounded-2xl"
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 12, ease: "linear" }}
-            />
-            <div className="relative p-3 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl shadow-md text-white">
-              <Sparkles className="w-5 h-5 animate-pulse" />
+      {/* Modern AI Header with Gemini 3.7 Flash badge and actions */}
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-md border border-indigo-500/20 relative overflow-hidden">
+        {/* Background glow effects */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-purple-500/15 rounded-full blur-xl pointer-events-none" />
+        
+        <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="relative">
+              <motion.div
+                className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl blur-xs"
+                animate={{ opacity: [0.4, 0.8, 0.4] }}
+                transition={{ repeat: Infinity, duration: 2.5 }}
+              />
+              <div className="relative p-3 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-2xl text-white shadow-md">
+                <Bot className="w-6 h-6" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">
+                  Bütçem AI Finans Asistanı
+                </h3>
+                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 rounded-full flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                  Gemini 3.7 Flash
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 font-medium mt-0.5 flex items-center justify-center sm:justify-start gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Canlı Piyasa Arama & Akıllı Borç Koçu Aktif</span>
+              </p>
             </div>
           </div>
-          
-          <div className="flex flex-col items-center justify-center text-center space-y-1.5 select-none">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <motion.h2
-                animate={{ y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                className="text-2xl sm:text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase text-center flex items-center justify-center gap-2"
-              >
-                YAPAY ZEKA ASİSTAN 🤖
-              </motion.h2>
-              <div className="w-16 h-1 bg-indigo-500 rounded-full my-1.5 opacity-80" />
-              {/* Pulsing state indicator badge */}
-              <motion.span
-                animate={{
-                  scale: [1, 1.08, 1],
-                }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 2,
-                  ease: "easeInOut"
-                }}
-                className="px-2.5 py-0.5 text-[9px] font-black tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-500/20 uppercase shrink-0"
-              >
-                AKTİF DESTEK ⚡
-              </motion.span>
-            </div>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-wider uppercase text-center">
-              Yapay Zekâ Destekli Borç Eritme ve Bütçe Planlama Motoru
-            </p>
+
+          {/* Quick Chat Control Buttons */}
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleClearChat}
+              title="Sohbeti Temizle"
+              className="px-3 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/15 flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Temizle</span>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleGenerateMonthlyReport}
+              disabled={loading}
+              className="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Aylık Rapor</span>
+            </motion.button>
           </div>
         </div>
       </div>
 
-      {/* Security and Info Banner */}
-      <div className="p-4 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/10 dark:to-purple-500/10 rounded-2xl flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3.5 border border-indigo-100/30 dark:border-indigo-900/20 relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 text-indigo-500/5 pointer-events-none">
-          <Brain className="w-24 h-24" />
-        </div>
-        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-indigo-500 shrink-0">
-          <Brain className="w-5 h-5 animate-pulse" />
-        </div>
-        <div className="text-xs">
-          <p className="font-extrabold text-slate-800 dark:text-slate-100 text-center sm:text-left">
-            Bütçe Verileriniz %100 Güvende
-          </p>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1 leading-relaxed text-center sm:text-left">
-            Finansal kayıtlarınız sunucuya kaydedilmez. Yapay zekâmız verilerinizi anlık ve şifreli olarak analiz edip size özel kişiselleştirilmiş borç kapatma önerileri hazırlar.
-          </p>
-        </div>
-      </div>
-
-      {/* Chat Messages Area */}
-      <div className="p-1 border border-slate-200/50 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/30 rounded-3xl shadow-xs">
+      {/* Main Chat Conversation Container */}
+      <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+        
+        {/* Messages Scroll Viewport */}
         <div
           ref={chatContainerRef}
-          className="h-100 overflow-y-auto space-y-4 p-4 pr-1.5 scrollbar-thin scrollbar-thumb-slate-250 scroll-smooth"
+          className="h-[380px] sm:h-[460px] md:h-[500px] overflow-y-auto p-3.5 sm:p-5 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 scroll-smooth"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => {
@@ -801,71 +833,98 @@ Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart bor�
               return (
                 <motion.div
                   key={idx}
-                  initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className={`flex items-start gap-3 max-w-[85%] ${
-                    isUser ? "ml-auto flex-row-reverse" : "mr-auto"
-                  }`}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className={`flex flex-col ${isUser ? "items-end" : "items-start"} w-full`}
                 >
-                  {/* Sender Avatar */}
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs relative overflow-hidden transition-all ${
-                      isUser
-                        ? "bg-slate-800 text-white"
-                        : "bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white"
-                    }`}
-                  >
-                    {!isUser && (
-                      <motion.div
-                        className="absolute inset-0 bg-white/20"
-                        animate={{ opacity: [0, 0.3, 0] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                      />
+                  {/* Sender Header Badge */}
+                  <div className={`flex items-center gap-1.5 mb-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+                    <span className="flex items-center gap-1">
+                      {isUser ? <User className="w-3 h-3 text-indigo-500" /> : <Bot className="w-3 h-3 text-indigo-500" />}
+                      <span>{isUser ? "Siz" : "Gemini 3.7 Flash Asistan"}</span>
+                    </span>
+                    {msg.timestamp && (
+                      <span className="text-[9px] opacity-70 font-normal">
+                        • {msg.timestamp}
+                      </span>
                     )}
-                    {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
 
-                  {/* Message Bubble */}
-                  <div className="space-y-1">
-                    <span className={`text-[9px] font-black tracking-wider uppercase block text-slate-400 dark:text-slate-500 ${isUser ? "text-right" : "text-left"}`}>
-                      {isUser ? "Siz" : "Hesap Yapay Zekası"}
-                    </span>
-                    <div
-                      className={`px-4 py-3 rounded-2xl text-xs md:text-sm shadow-xs whitespace-pre-wrap leading-relaxed transition-all duration-300 ${
-                        isUser
-                          ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-tr-none hover:shadow-md"
-                          : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200/40 dark:border-slate-700/60 hover:shadow-md"
-                      }`}
-                    >
-                      {isUser ? (
-                        msg.text
-                      ) : (
+                  {/* Message Card Bubble */}
+                  <div
+                    className={`max-w-[95%] sm:max-w-[85%] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4.5 transition-all shadow-xs ${
+                      isUser
+                        ? "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-tr-xs"
+                        : "bg-slate-50/90 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 rounded-tl-xs border border-slate-200/80 dark:border-slate-700/80"
+                    }`}
+                  >
+                    {isUser ? (
+                      <p className="text-xs sm:text-sm font-medium leading-relaxed break-words whitespace-pre-wrap">
+                        {msg.text}
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
                         <FormattedText text={msg.text} />
-                      )}
-                    </div>
+                        
+                        {/* Bot Action Bar (Copy & Voice Speak) */}
+                        <div className="pt-2 mt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-2 text-[10px] text-slate-400 dark:text-slate-500">
+                          <span className="flex items-center gap-1 font-semibold text-indigo-500 dark:text-indigo-400">
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>Doğrulanmış Finansal Analiz</span>
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => toggleSpeakText(msg.text, idx)}
+                              title={speakingIdx === idx ? "Sesli Okumayı Durdur" : "Sesli Oku"}
+                              className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                                speakingIdx === idx
+                                  ? "bg-indigo-500 text-white border-indigo-500 animate-pulse"
+                                  : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600"
+                              }`}
+                            >
+                              {speakingIdx === idx ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                            </button>
+
+                            <button
+                              onClick={() => handleCopyMessage(msg.text, idx)}
+                              title="Metni Kopyala"
+                              className="p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition cursor-pointer flex items-center gap-1"
+                            >
+                              {copiedIdx === idx ? (
+                                <>
+                                  <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span className="text-[9px] text-emerald-500 font-bold">Kopyalandı</span>
+                                </>
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
             })}
           </AnimatePresence>
 
+          {/* Loading Animation with Gemini Shimmer */}
           {loading && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-start gap-3 max-w-[80%] mr-auto"
+              className="flex items-start gap-3 max-w-[85%]"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-xs animate-pulse">
-                <Bot className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-xs animate-pulse shrink-0">
+                <Sparkles className="w-4 h-4 text-amber-300" />
               </div>
-              <div className="space-y-1">
-                <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500 block">
-                  Hesap Yapay Zekası
-                </span>
-                <div className="px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 text-xs text-slate-400 dark:text-slate-500 border border-slate-200/40 dark:border-slate-700/60 shadow-xs flex items-center gap-2">
-                  <span className="font-semibold text-indigo-500 animate-pulse">Bütçeniz analiz ediliyor</span>
-                  <span className="flex items-center gap-0.5 mt-0.5">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                  <span>Gemini 3.7 Flash bütçenizi analiz ediyor</span>
+                  <span className="flex items-center gap-0.5">
                     <motion.span
                       animate={{ y: [0, -3, 0] }}
                       transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
@@ -883,130 +942,140 @@ Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart bor�
                     />
                   </span>
                 </div>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Borç vadeleri, gelir-gider dengesi ve güncel piyasa parametreleri hesaplanıyor...
+                </p>
               </div>
             </motion.div>
           )}
         </div>
-      </div>
-      
-      {/* Monthly Analysis Report Generator Card */}
-      {(() => {
-        const mNum = selectedMonth !== null && selectedMonth !== undefined ? selectedMonth : new Date().getMonth();
-        const yNum = selectedYear !== null && selectedYear !== undefined ? selectedYear : new Date().getFullYear();
-        const monthName = TURKISH_MONTHS[mNum] || "Mevcut Ay";
-        return (
-          <div className="p-4 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-blue-500/10 rounded-2xl border border-indigo-500/20 dark:border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-xl text-white shadow-3xs">
-                <TrendingUp className="w-5 h-5 animate-pulse" />
-              </div>
-              <div className="text-left w-full sm:w-auto">
-                <h4 className="text-xs font-extrabold text-slate-800 dark:text-white uppercase tracking-wider">
-                  {monthName} {yNum} Aylık Analiz Raporu
-                </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                  Gider kategorilerini otomatik kıyasla ve tasarruf analizini al
-                </p>
-              </div>
+
+        {/* Quick Suggested Questions Bar (Scrollable on small mobile screens) */}
+        <div className="px-3.5 py-2.5 bg-slate-50/70 dark:bg-slate-800/50 border-t border-slate-200/70 dark:border-slate-800/80">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
+            <MessageSquareCode className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Hızlı Finansal Sorular:</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              {
+                text: "Mevcut bütçemin genel risk durumu nedir?",
+                label: "🔍 Bütçe Risk Durumum",
+              },
+              {
+                text: "Borçlarımı en hızlı nasıl kapatabilirim? Kartopu mu Avalanche mi?",
+                label: "🚀 Borç Kapatma Planı",
+              },
+              {
+                text: "Gereksiz harcamaları azaltıp nasıl tasarruf fonu yaparım?",
+                label: "🎯 Tasarruf Yönetimi",
+              },
+              {
+                text: "Bugün güncel dolar, euro kuru ve altın fiyatları ne kadar?",
+                label: "📈 Güncel Dolar & Altın",
+              },
+              {
+                text: "Hangi borcumu öncelikli olarak ödemeliyim?",
+                label: "⚖️ Borç Önceliği",
+              },
+            ].map((qn, i) => (
+              <motion.button
+                key={i}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleQuickQuestion(qn.text)}
+                disabled={loading}
+                className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition shadow-2xs cursor-pointer shrink-0 disabled:opacity-40"
+              >
+                {qn.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Input Bar with Voice Mic, Enter submission, and Send Button */}
+        <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !loading && inputValue.trim()) handleSend();
+                }}
+                disabled={loading}
+                placeholder={isListening ? "Dinleniyor... Lütfen konuşun..." : "Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"}
+                className={`w-full pl-3.5 pr-9 py-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border ${
+                  isListening 
+                    ? "border-red-500 ring-2 ring-red-500/20" 
+                    : "border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10"
+                } rounded-2xl text-xs sm:text-sm focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 transition font-medium`}
+              />
+              
+              {inputValue && (
+                <button
+                  type="button"
+                  onClick={() => setInputValue("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+
+            {/* Voice Input Mic Button */}
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleGenerateMonthlyReport}
-              disabled={loading}
-              className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase rounded-xl shadow-md cursor-pointer transition-all disabled:opacity-40 select-none shrink-0"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleSpeechRecognition}
+              type="button"
+              title={isListening ? "Dinlemeyi Durdur" : "Sesli Soru Sor"}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition shadow-2xs shrink-0 cursor-pointer ${
+                isListening
+                  ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-500/20"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+              }`}
             >
-              Raporu Hazırla 📊
+              {isListening ? <MicOff className="w-4.5 h-4.5" /> : <Mic className="w-4.5 h-4.5" />}
+            </motion.button>
+
+            {/* Send Message Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleSend()}
+              disabled={loading || !inputValue.trim()}
+              className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer transition"
+            >
+              <Send className="w-4.5 h-4.5" />
             </motion.button>
           </div>
-        );
-      })()}
-
-      {/* Suggested Quick Questions Panel with beautiful tag stylings - Headings & Layout Centered */}
-      <div className="space-y-2 text-center">
-        <span className="text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase flex items-center justify-center gap-1.5 w-full">
-          <MessageSquareCode className="w-3.5 h-3.5 text-indigo-500" /> Önerilen Hızlı Sorular
-        </span>
-        <div className="flex flex-wrap gap-2.5 justify-center">
-          {[
-            {
-              text: "Mevcut bütçemin genel risk durumu nedir?",
-              label: "🔍 Bütçe Risk Durumum",
-              color: "hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/20 dark:hover:text-blue-400",
-            },
-            {
-              text: "Borçlarımı en hızlı nasıl kapatabilirim? Kartopu mu Avalanche mi?",
-              label: "🚀 Borç Kapatma Stratejileri",
-              color: "hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/20 dark:hover:text-amber-400",
-            },
-            {
-              text: "Gereksiz harcamaları azaltıp nasıl tasarruf fonu yaparım?",
-              label: "🎯 Tasarruf Yönetimi",
-              color: "hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/20 dark:hover:text-emerald-400",
-            },
-          ].map((qn, i) => (
-            <motion.button
-              key={i}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleQuickQuestion(qn.text)}
-              disabled={loading}
-              className={`text-[11px] font-semibold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-250/30 dark:border-slate-700/50 px-3.5 py-2 rounded-xl transition duration-200 cursor-pointer shadow-3xs hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed ${qn.color}`}
-            >
-              {qn.label}
-            </motion.button>
-          ))}
         </div>
+
       </div>
 
-      {/* Message Input Box with modern border glows */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !loading && inputValue.trim()) handleSend();
-          }}
-          disabled={loading}
-          placeholder="Örn: Bu ayki bütçe hedeflerimi aşmamak için ne yapmalıyım?"
-          className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 focus:border-indigo-500 rounded-2xl text-xs md:text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 placeholder-slate-400 dark:placeholder-slate-500 shadow-2xs font-medium"
-        />
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => handleSend()}
-          disabled={loading || !inputValue.trim()}
-          className="w-12 h-12 bg-gradient-to-tr from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/10 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer"
-        >
-          <Send className="w-4.5 h-4.5" />
-        </motion.button>
-      </div>
-
-      {/* REPOSITIONED: Collapsible API Key settings panel is placed underneath with gorgeous, modern card style */}
-      <div className="relative overflow-hidden bg-gradient-to-tr from-indigo-500/[0.04] via-purple-500/[0.01] to-transparent dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-transparent border border-indigo-500/20 dark:border-indigo-500/25 p-5 rounded-3xl shadow-xs hover:shadow-sm transition-all duration-300 mt-4">
-        {/* Background ambient light */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-indigo-500/10 to-pink-500/5 rounded-full blur-xl pointer-events-none" />
-        
+      {/* Advanced Gemini API Key / Engine Settings Drawer */}
+      <div className="overflow-hidden bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xs">
         <button
           onClick={() => setShowApiKeyField(!showApiKeyField)}
-          className="w-full flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-3.5 cursor-pointer focus:outline-none"
+          className="w-full flex items-center justify-between gap-3 text-left cursor-pointer focus:outline-none"
         >
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <span className="p-2.5 bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 rounded-xl shrink-0">
-              <Settings className="w-4.5 h-4.5 animate-[spin_12s_linear_infinite]" />
+          <div className="flex items-center gap-3">
+            <span className="p-2 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">
+              <Settings className="w-4 h-4" />
             </span>
-            <div className="space-y-0.5">
-              <span className="text-xs font-black tracking-wider uppercase text-slate-800 dark:text-slate-200 block text-center sm:text-left">
-                YAPAY ZEKA MOTOR AYARLARI <span className="text-indigo-500 dark:text-indigo-400">(PRO BULUT MODU)</span>
+            <div>
+              <span className="text-xs font-bold uppercase text-slate-800 dark:text-slate-200 block">
+                Yapay Zekâ Motor Ayarları
               </span>
-              <p className="text-[10px] text-slate-400 dark:text-slate-505 font-bold block text-center sm:text-left uppercase tracking-wide">
-                Gelişmiş bütçe analiz motorunun çalışma profilini yapılandırın
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                Özel Gemini API anahtarı veya model ayarlarını yapılandırın
               </p>
             </div>
           </div>
-          <span className="text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-650 dark:text-indigo-300 px-3.5 py-1.5 rounded-xl font-extrabold transition uppercase tracking-wider select-none">
-            {showApiKeyField ? "Gizle ▲" : "Göster / Değiştir ▼"}
+          <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-xl font-bold transition uppercase tracking-wider">
+            {showApiKeyField ? "Gizle ▲" : "Yapılandır ▼"}
           </span>
         </button>
 
@@ -1016,14 +1085,14 @@ Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart bor�
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.28, ease: "easeInOut" }}
-              className="overflow-hidden mt-4 pt-4 border-t border-indigo-500/10 dark:border-indigo-500/20 space-y-4"
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="overflow-hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-3"
             >
-              <p className="text-[10.5px] sm:text-xs text-slate-500 dark:text-slate-450 leading-relaxed font-semibold text-center max-w-lg mx-auto">
-                Sistemimiz varsayılan olarak tüm gelişmiş bütçe analiz raporlarını <strong className="text-indigo-650 dark:text-indigo-400 bg-indigo-500/5 px-1 py-0.5 rounded">Çevrimdışı Analiz Motoru</strong> ile süper hızlı hesaplar. Dilerseniz kendi <strong className="text-indigo-600 dark:text-indigo-400">Gemini API Key</strong> anahtarınızı bağlayarak yapay zekayı anlık etkinleştirebilirsiniz.
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+                Bütçem Pro varsayılan olarak sunucu taraflı <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">Gemini 3.7 Flash</strong> motoru ile çalışır. Dilerseniz kendi Google AI Studio API anahtarınızı bağlayabilirsiniz.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto items-stretch">
+              <div className="flex flex-col sm:flex-row gap-2 items-stretch max-w-lg">
                 <input
                   type="password"
                   value={apiKeyInput}
@@ -1031,8 +1100,8 @@ Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart bor�
                     setApiKeyInput(e.target.value);
                     setIsApiKeySaved(false);
                   }}
-                  placeholder="AIzaSy... ile başlayan API anahtarınızı yapıştırın"
-                  className="flex-1 px-4 py-2.5 text-xs bg-white/70 dark:bg-slate-900/60 dark:text-white border border-slate-250 dark:border-slate-700 focus:border-indigo-550 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/15 placeholder-slate-400 dark:placeholder-slate-500 transition-all font-medium text-center shadow-inner"
+                  placeholder="AIzaSy... API anahtarınızı yapıştırın"
+                  className="flex-1 px-3.5 py-2 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
                 />
                 <button
                   type="button"
@@ -1040,21 +1109,17 @@ Lütfen yukarıdaki harcama verileri ile tüm borç portföyümü (standart bor�
                     localStorage.setItem("user_gemini_api_key", apiKeyInput);
                     setIsApiKeySaved(true);
                   }}
-                  className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 font-extrabold text-xs text-white rounded-2xl shadow-sm hover:shadow-md transition active:scale-95 cursor-pointer shrink-0"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 font-bold text-xs text-white rounded-xl shadow-xs transition cursor-pointer shrink-0"
                 >
-                  Anahtarı Kaydet 💾
+                  Kaydet 💾
                 </button>
               </div>
               
               {isApiKeySaved && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-3 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-[10.5px] sm:text-xs font-extrabold border border-emerald-500/20 flex items-center justify-center gap-1.5 max-w-md mx-auto shadow-xs"
-                >
-                  <span className="flex w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                  <span>Gemini premium akıllı mod başarıyla aktifleştirildi! 🚀</span>
-                </motion.div>
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold border border-emerald-500/20 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>Özel Gemini API anahtarı başarıyla kaydedildi!</span>
+                </div>
               )}
             </motion.div>
           )}

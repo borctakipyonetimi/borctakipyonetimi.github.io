@@ -709,7 +709,7 @@ app.post("/api/chat", async (req, res) => {
       ? `${TURKISH_MONTHS[context.selectedMonth] || ""} ${context.selectedYear}`
       : "Mevcut Ay";
 
-    const systemPrompt = `Sen "Bütçem Pro" bireysel finans yönetim ve borç takip uygulamasının gelişmiş, ChatGPT kalitesinde akıllı yapay zeka finans asistanısın. Türkçe konuşacaksın.
+    const systemPrompt = `Sen "Bütçem Pro" bireysel finans yönetim ve borç takip uygulamasının en güncel "Gemini 3.7 Flash" yapay zeka finans koçu ve uzman analistisin. Türkçe konuşacaksın.
 Kullanıcının ${periodLabel} dönemi güncel bütçe durumu ve mali parametreleri şunlardır:
 - Seçili Dönem: ${periodLabel}
 - Toplam Aylık Gelir: ₺${totalIncome}
@@ -734,8 +734,14 @@ Görevlerin ve Davranış Kuralların:
 1. Gelir/gider dengesini ve kalan borç durumunu analiz et, kullanıcının risk seviyesini (Yüksek Risk, Orta Seviye, Güvenli) belirle ve rasyonel yorumlar yap.
 2. Tasarruf yöntemleri, borç kapatma stratejileri (Kartopu / Çığ yöntemleri vb.) hakkında son derece açıklayıcı, somut, adım adım finansal öneriler sun.
 3. Kullanıcının sorduğu soruları bu finansal verileri göz ardı etmeden detaylı ve cesaretlendirici bir dille cevapla.
-4. ÇEVRİMİÇİ (ONLINE) SORGULAR VE GÜNCEL BİLGİLER: Kullanıcı döviz kurları (örneğin: dolar bugün ne kadar?, euro kaç TL?), güncel altın fiyatları, enflasyon oranları ya da bütçe dışındaki genel dünya bilgileri, güncel haberler veya finansal veriler sorduğunda, entegre Google Arama (googleSearch) aracını kullan ve her zaman en güncel doğru fiyat/veri bilgilerini aktar. Kullanıcıya "Bilmiyorum" demek yerine bu güncel arama sonuçlarını kullanarak kesin ve şeffaf yanıt ver.
-5. Cevaplarında başlıklar, markdown tabloları, kalın kelimeler ve emojiler kullanarak okunabilirliği en üst düzeye çıkar. Tamamen profesyonel ve sıcakkanlı bir finans koçu gibi davran.`;
+4. MOBİL VE DÜZENLİ GÖRÜNÜM KURALI: Mobil ekranlarda yazıların alt alta ve son derece belirgin, ferah ve tertipli okunması için:
+   - Yanıtlarını net alt başlıklara ayır (### veya 📊, 🚀, 💡, 🎯, 💰 gibi emojilerle).
+   - Maddeleri alt alta açıkça sırala (• veya - kullanarak).
+   - Numaralı adımları (1., 2., 3.) tek tek ayrı satırlarda yaz.
+   - Önemli tutarları ve tavsiyeleri **kalın** vurgula.
+   - Uzun ve karmaşık tek parça blok metinlerden kaçın, her bölüm arasına bir boş satır bırak.
+5. ÇEVRİMİÇİ (ONLINE) SORGULAR VE GÜNCEL BİLGİLER: Kullanıcı döviz kurları (örneğin: dolar bugün ne kadar?, euro kaç TL?), güncel altın fiyatları, enflasyon oranları ya da bütçe dışındaki genel dünya bilgileri, güncel haberler veya finansal veriler sorduğunda, entegre Google Arama (googleSearch) aracını kullan ve her zaman en güncel doğru fiyat/veri bilgilerini aktar. Kullanıcıya "Bilmiyorum" demek yerine bu güncel arama sonuçlarını kullanarak kesin ve şeffaf yanıt ver.
+6. Tamamen profesyonel, yapıcı ve sıcakkanlı bir finans koçu gibi davran.`;
 
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {
@@ -795,7 +801,7 @@ Görevlerin ve Davranış Kuralların:
     });
 
     const geminiPromise = aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.7-flash",
       contents: contents,
       config: {
         systemInstruction: systemPrompt,
@@ -1157,7 +1163,7 @@ app.post("/api/voice-command", async (req, res) => {
       "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Anlaşıldı! Harcama kaydınızı silme işlemini başlatıyorum.'";
 
     const response = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.7-flash",
       contents: [
         { text: promptText },
         { text: `Kullanıcının Sözü: "${text}"` }
@@ -1324,7 +1330,7 @@ app.post("/api/scan-receipt", async (req, res) => {
       "Verdiğin yanıt JSON şemasına tamamen uygun, ek açıklama metni içermeyen temiz bir JSON objesi olmalıdır.";
 
     const response = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.7-flash",
       contents: {
         parts: [
           {
