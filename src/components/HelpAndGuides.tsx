@@ -374,6 +374,44 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       ]
     },
     {
+      id: "global-search-bar",
+      category: "tools",
+      categoryLabel: "Arama & Filtre",
+      badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+      icon: "🔍",
+      title: "Evrensel Canlı Arama Çubuğu (Global Search)",
+      summary: "Tüm borçlar, harcamalar, gelirler ve taksitler arasında isim veya kategoriye göre anında arama ve tek tıkla kayda gitme.",
+      badge: "Hızlı Erişim",
+      targetTab: "overview",
+      whatItDoes: "Üst başlıkta (Header) yer alan akıllı arama motoru ile yüzlerce kayıt arasından aradığınız harcama, borç veya maaş kaydını saniyeler içinde bulabilirsiniz. 'Market', 'Kira', 'Ahmet' veya kategori adı yazdığınızda ilgili kayıtları filtreler ve tıklandığında sizi doğrudan o işleme yönlendirir.",
+      instructions: [
+        {
+          step: 1,
+          title: "Arama Çubuğuna Tıklayın veya Kısayolu Kullanın",
+          desc: "Sayfanın en üstünde yer alan 'Borç, harcama veya gelir ara...' kutusuna tıklayın ya da klavyenizden 'Ctrl + K' (Mac'te ⌘ + K) kısayoluna basın."
+        },
+        {
+          step: 2,
+          title: "Aramak İstediğiniz İsim veya Kategoriyi Yazın",
+          desc: "Örneğin 'Market', 'Kredi', 'Maaş', 'Elektrik' gibi bir kelime veya tutar yazmaya başlayın. Sonuçlar anlık olarak filtrelenir."
+        },
+        {
+          step: 3,
+          title: "Kategori Filtre Sekmelerini Kullanın",
+          desc: "Açılan pencerenin üstündeki 'Tümü', 'Borçlar', 'Giderler', 'Gelirler' ve 'Taksitler' hap butonlarına basarak listeyi daraltın."
+        },
+        {
+          step: 4,
+          title: "Sonuca Tıklayın ve Doğrudan Kayda Ulaşın",
+          desc: "Listelenen sonuca tıkladığınızda veya klavyeden Enter tuşuna bastığınızda, sistem otomatik olarak ilgili sekmeye geçer ve borç/taksit kartını vurgular."
+        }
+      ],
+      proTips: [
+        "Klavyenizin Aşağı ve Yukarı yön oklarıyla arama sonuçları arasında gezinebilir, Enter ile anında seçim yapabilirsiniz.",
+        "Kutuya herhangi bir şey yazmadan tıkladığınızda en son eklenen kayıtları hızlı liste halinde görebilirsiniz."
+      ]
+    },
+    {
       id: "financial-calculator-tools",
       category: "tools",
       categoryLabel: "Mali Araçlar",

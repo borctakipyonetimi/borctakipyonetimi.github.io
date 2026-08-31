@@ -105,6 +105,7 @@ import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
+import { GlobalSearchBar } from "./components/GlobalSearchBar";
 import { getProviderById, detectProviderFromName } from "./data/providers";
 import confetti from "canvas-confetti";
 
@@ -4577,6 +4578,22 @@ export default function App() {
               </motion.div>
             );
           })()}
+        </div>
+
+        {/* Global Instant Search Bar */}
+        <div className="w-full md:flex-1 md:max-w-md lg:max-w-lg xl:max-w-xl mx-0 md:mx-2 relative z-20">
+          <GlobalSearchBar
+            debts={debts}
+            expenses={expenses}
+            expenseCategories={expenseCategories}
+            incomes={incomes}
+            installmentDebts={installmentDebts}
+            onNavigate={handleNavClick}
+            setFocusedDebtId={setFocusedDebtId}
+            setFocusedInstallmentId={setFocusedInstallmentId}
+            language={language}
+            triggerToast={triggerToast}
+          />
         </div>
 
         {/* Right side navigation toolbar / tools */}
