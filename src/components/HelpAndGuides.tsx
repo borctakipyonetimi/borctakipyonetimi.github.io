@@ -3,17 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   BookOpen, HelpCircle, Mail, MessageSquare, Shield, Star, User, Award, Zap, 
   BarChart3, Layers, Lock, ThumbsUp, Calendar, ArrowRight, Heart, Send, 
-  CheckCircle2, AlertTriangle, ShieldCheck, PenSquare, ArrowUpRight, Scale
+  CheckCircle2, AlertTriangle, ShieldCheck, PenSquare, ArrowUpRight, Scale,
+  Bot, Mic, Camera, Users, CreditCard, Calculator, Cloud, Bell, Sparkles,
+  CloudSun, FileSpreadsheet, Search, Check, ChevronDown, ChevronUp, ExternalLink,
+  Info, Compass, Smartphone, RefreshCw
 } from "lucide-react";
 
 interface HelpAndGuidesProps {
   activeTab: string;
   onNavigate: (tab: string) => void;
+}
+
+interface GuideItem {
+  id: string;
+  category: "ai" | "debt" | "contacts" | "budget" | "tools" | "security";
+  categoryLabel: string;
+  badgeColor: string;
+  icon: string;
+  title: string;
+  summary: string;
+  badge?: string;
+  targetTab?: string;
+  whatItDoes: string;
+  instructions: { step: number; title: string; desc: string }[];
+  proTips: string[];
 }
 
 interface BlogPost {
@@ -31,6 +49,11 @@ interface BlogPost {
 }
 
 export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavigate }) => {
+  // Search & Filter state for Guide section
+  const [guideSearchQuery, setGuideSearchQuery] = useState("");
+  const [selectedGuideCategory, setSelectedGuideCategory] = useState<string>("all");
+  const [expandedGuideId, setExpandedGuideId] = useState<string | null>("gemini-ai");
+
   // Feedback states
   const [contactName, setContactName] = useState("");
   const [contactMsg, setContactMsg] = useState("");
@@ -44,9 +67,9 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
   const feedbackCategories = [
     { id: "general", label: "💬 Genel Görüş", color: "border-slate-200 text-slate-700 bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" },
-    { id: "suggestion", label: "💡 İstek & Öneri", color: "border-indigo-100 text-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/20 dark:text-indigo-450 dark:border-indigo-900/30" },
-    { id: "bug", label: "🐛 Hata Bildirimi", color: "border-rose-100 text-rose-750 bg-rose-50/50 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/30" },
-    { id: "cooperation", label: "🤝 Ortaklık", color: "border-emerald-100 text-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30" }
+    { id: "suggestion", label: "💡 İstek & Öneri", color: "border-indigo-100 text-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30" },
+    { id: "bug", label: "🐛 Hata Bildirimi", color: "border-rose-100 text-rose-700 bg-rose-50/50 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30" },
+    { id: "cooperation", label: "🤝 Ortaklık", color: "border-emerald-100 text-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30" }
   ];
 
   const handleSendMessage = () => {
@@ -72,6 +95,408 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       setFeedbackCategory("general");
     }, 4500);
   };
+
+  // Comprehensive User Guide Data for All Application Modules and Features
+  const guideCategories = [
+    { id: "all", label: "Tümü", icon: "✨" },
+    { id: "ai", label: "Yapay Zeka & Asistan", icon: "🤖" },
+    { id: "debt", label: "Borç & Taksitler", icon: "💳" },
+    { id: "contacts", label: "Cari & Rehber", icon: "👤" },
+    { id: "budget", label: "Bütçe & Harcamalar", icon: "📊" },
+    { id: "tools", label: "Hesaplama Araçları", icon: "🧮" },
+    { id: "security", label: "Bulut & Güvenlik", icon: "☁️" },
+  ];
+
+  const guideItems: GuideItem[] = [
+    {
+      id: "gemini-ai",
+      category: "ai",
+      categoryLabel: "Yapay Zeka",
+      badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+      icon: "🤖",
+      title: "Gemini 3.7 Flash Finans Asistanı & Canlı Piyasa Bilgisi",
+      summary: "En güncel Gemini 3.7 Flash modeli, canlı Google Arama entegrasyonu (Döviz, Altın, Enflasyon) ve kişiselleştirilmiş bütçe-borç koçluğu.",
+      badge: "Yeni Nesil AI",
+      targetTab: "aiStrategy",
+      whatItDoes: "Bütçem Pro AI Danışmanı; gelirlerinizi, giderlerinizi, vadesi gelen borçlarınızı ve taksitlerinizi anlık tarayarak size özel tasarruf ve borç kapatma yol haritaları çıkarır. Ayrıca entegre Google Search sayesinde güncel Dolar, Euro kurları, gram/çeyrek altın fiyatları ve piyasa faiz oranlarını anında öğrenmenizi sağlar.",
+      instructions: [
+        {
+          step: 1,
+          title: "Yapay Zeka Sekmesine Geçin",
+          desc: "Üst gezinme çubuğundaki 'Yapay Zeka' sekmesine tıklayın veya ana sayfadaki asistan butonuna dokunun."
+        },
+        {
+          step: 2,
+          title: "Hazır Butonları veya Özel Sorunuzu Kullanın",
+          desc: "Sayfadaki '🔍 Bütçe Risk Durumum', '🚀 Borç Kapatma Planı', '🎯 Tasarruf Yönetimi' veya '📈 Güncel Dolar & Altın' hızlı butonlarına tıklayın ya da aklınızdaki soruyu metin kutusuna yazın."
+        },
+        {
+          step: 3,
+          title: "Tek Tıkla Aylık Analiz Raporu Oluşturun",
+          desc: "Üstteki mor 'Aylık Rapor' butonuna bastığınızda seçili aya ait tüm gelir-gider dengesini, kategori karşılaştırmalarını ve borç risk puanınızı içeren detaylı bir rapor üretilir."
+        },
+        {
+          step: 4,
+          title: "Sesli Soru Sorun & Sesli Dinleyin",
+          desc: "Giriş kutusundaki mikrofon simgesine basarak konuşabilir, asistanın cevabının altındaki ses simgesine (🔊) dokunarak Türkçe sesli okuma özelliğini dinleyebilirsiniz."
+        }
+      ],
+      proTips: [
+        "Kendi ücretsiz Google Gemini API anahtarınızı girerek asistanı kotasız ve ultra hızlı kullanabilirsiniz.",
+        "Asistana 'Market harcamalarımı %20 kısmak için bana haftalık alışveriş planı yap' gibi spesifik sorular sorabilirsiniz."
+      ]
+    },
+    {
+      id: "voice-assistant",
+      category: "ai",
+      categoryLabel: "Sesli Asistan",
+      badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+      icon: "🎙️",
+      title: "Akıllı Sesli Asistan (AI Voice Assistant)",
+      summary: "Mikrofonla Türkçe konuşarak anında harcama, gelir, borç ekleme ve sesli finansal durum raporu dinleme.",
+      badge: "Hands-Free",
+      targetTab: "overview",
+      whatItDoes: "Klavyeye dokunmadan, günlük konuşma diliyle mali işlemler yapmanızı sağlar. 'Marketten 450 lira harcadım', 'Maaş yattı 35 bin TL', 'Ahmet'e 1500 lira borç verdim' gibi doğal ifadeleri analiz ederek ilgili modüle otomatik veri ekler.",
+      instructions: [
+        {
+          step: 1,
+          title: "Sesli Asistanı Başlatın",
+          desc: "Ekranın altındaki mor mikrofon simgesine dokunun ve tarayıcınızın mikrofon erişimine izin verin."
+        },
+        {
+          step: 2,
+          title: "Komutunuzu Doğal Şekilde Söyleyin",
+          desc: "'500 lira benzin aldım', '2000 TL kira ödedim' veya 'Bana durum raporu ver' şeklinde net bir cümle kurun."
+        },
+        {
+          step: 3,
+          title: "İşlem Onayını Kontrol Edin",
+          desc: "Yapay zeka sesinizi metne döker, tutar ve kategoriyi otomatik ayıklar. Ekrana gelen onay kartında 'Onayla ve Kaydet' düğmesine dokunarak işlemi bitirin."
+        },
+        {
+          step: 4,
+          title: "Gürültülü Ortamlarda Manuel Giriş",
+          desc: "Çok gürültülü bir ortamdaysanız, sesli asistan penceresindeki klavye kutucuğuna komutu yazarak da aynı akıllı motoru çalıştırabilirsiniz."
+        }
+      ],
+      proTips: [
+        "'Bütçe durumumu oku' dediğinizde sesli asistan o anki net bakiyenizi, toplam borcunuzu ve aylık giderinizi Türkçe seslendirir.",
+        "Komut içinde kategori belirtirseniz (ör: 'fatura', 'market', 'yakıt'), harcama doğrudan o kategoriye atanır."
+      ]
+    },
+    {
+      id: "receipt-scanner",
+      category: "ai",
+      categoryLabel: "Fiş & Fatura OCR",
+      badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      icon: "📸",
+      title: "Kamera & Galeri ile AI Fiş / Fatura Tarama (OCR)",
+      summary: "Alışveriş fişinizin fotoğrafını çekin; tutar, tarih, dükkan adı ve kategori saniyeler içinde otomatik algılansın.",
+      badge: "Görsel Zeka",
+      targetTab: "expenses",
+      whatItDoes: "Kamera veya galeriden yüklenen alışveriş fişlerini Gemini Vision yapay zeka modeliyle tarar. Fiş üzerindeki toplam tutarı, fiş tarihini, mağaza/şirket ismini ve harcama türünü (Market, Gıda, Akaryakıt vb.) ayıklayıp tek tıkla gider listesine ekler.",
+      instructions: [
+        {
+          step: 1,
+          title: "Giderler Sekmesinde Tarayıcıyı Açın",
+          desc: "'Giderler' sekmesine gelin ve üst kısımdaki '📸 Fiş / Fatura Tara' butonuna tıklayın."
+        },
+        {
+          step: 2,
+          title: "Fotoğraf Çekin veya Galeriden Yükleyin",
+          desc: "Kameranızı açarak fişin net bir fotoğrafını çekin veya dosya seçici ile önceden çektiğiniz fiş resmini yükleyin."
+        },
+        {
+          step: 3,
+          title: "Otomatik Ayrıştırmayı İnceleyin",
+          desc: "Yapay zeka görseli tarayarak Tutar (₺), Tarih, Mağaza Adı ve Kategori bilgilerini ekrandaki kutucuklara otomatik doldurur."
+        },
+        {
+          step: 4,
+          title: "Gidere Kaydedin",
+          desc: "Bilgileri kontrol ettikten sonra 'Harcama Olarak Kaydet' butonuna basarak harcama listenize dahil edin."
+        }
+      ],
+      proTips: [
+        "Fişin düz bir zeminde, gölgesiz ve özellikle alt kısımdaki 'TOPLAM / KDV' satırının okunaklı olması tarama hızını ve kesinliğini artırır.",
+        "Yüklenen fiş görselleri sunucularda saklanmaz, analiz tamamlandığı an bellekten kalıcı olarak silinir."
+      ]
+    },
+    {
+      id: "contacts-debt",
+      category: "contacts",
+      categoryLabel: "Cari Hesaplar & Rehber",
+      badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      icon: "👤",
+      title: "Kişi Rehberi & Cari Borç-Alacak Takibi & WhatsApp Hatırlatma",
+      summary: "Arkadaşlarınıza, müşterilerinize ve akrabalarınıza verdiğiniz/aldığınız borçları kişi bazlı takip edin, telefon rehberinizi aktarın ve tek tıkla WhatsApp hatırlatması gönderin.",
+      badge: "WhatsApp Entegre",
+      targetTab: "contacts",
+      whatItDoes: "Kişisel ve ticari borç-alacak ilişkilerinizi dijital bir cari hesap defteri gibi yönetir. Telefon rehberinizdeki kişileri .vcf dosyası ile aktarabilir, her kişi için alacak veya borç kaydı açabilir, parçalı ödemeler kaydedebilir ve tek dokunuşla WhatsApp üzerinden nazik hatırlatma mesajları gönderebilirsiniz.",
+      instructions: [
+        {
+          step: 1,
+          title: "Kişiler & Cari Sekmesine Gelin",
+          desc: "Menüden 'Kişiler & Cari' sekmesini seçin."
+        },
+        {
+          step: 2,
+          title: "Kişi Ekleyin veya Telefon Rehberinizi Yükleyin",
+          desc: "'Yeni Kişi Ekle' formundan ad/telefon girin veya '📁 Telefon Rehberini (.vcf) Aktar' butonunu kullanarak telefonunuzdan dışa aktardığınız rehber dosyasını tek tıkla yükleyin."
+        },
+        {
+          step: 3,
+          title: "Borç veya Alacak Kaydı Oluşturun",
+          desc: "Kişi kartına tıklayarak 'Alacak Ekle' (verdiğiniz borç) veya 'Borç Ekle' (aldığınız borç) butonuna basın; tutar, açıklama ve son ödeme vadesini belirleyin."
+        },
+        {
+          step: 4,
+          title: "Tek Tıkla WhatsApp Hatırlatma Gönderin",
+          desc: "Kişi kartındaki yeşil WhatsApp simgesine dokunun; sistem kişi adı, kalan bakiye ve vadeyi içeren şık bir mesaj şablonu oluşturarak WhatsApp'ı otomatik açar."
+        },
+        {
+          step: 5,
+          title: "Ödeme / Tahsilat Alın",
+          desc: "Karşı taraf ödeme yaptıkça 'Tahsilat / Ödeme Ekle' diyerek kalan bakiyeyi parça parça veya tamamen sıfırlayın."
+        }
+      ],
+      proTips: [
+        "Filtreleme seçeneklerinden 'Yalnızca Alacaklarım' veya 'Yalnızca Borçlarım'ı seçerek toplam alacak ve borç portföyünüzü anında görebilirsiniz.",
+        "İşlem geçmişi sekmesinden yapılan tüm kısmi ödemelerin tarih ve saat dökümünü inceleyebilirsiniz."
+      ]
+    },
+    {
+      id: "snowball-avalanche-methods",
+      category: "debt",
+      categoryLabel: "Borç Stratejileri",
+      badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+      icon: "🎯",
+      title: "Kartopu (Snowball) ve Çığ (Avalanche) Borç Kapatma Metotları",
+      summary: "Borçlarınızı rastgele değil, finans dünyasının kabul ettiği bilimsel sıralama modelleriyle en az faiz ve maksimum motivasyonla kapatın.",
+      badge: "Bilimsel Finans",
+      targetTab: "debts",
+      whatItDoes: "Borçlarınızı faiz oranı ve anapara büyüklüklerine göre optimize eder. Kartopu yöntemiyle en küçük borçtan başlayıp psikolojik zaferler kazanabilir, Çığ yöntemiyle en yüksek faizli borca odaklanıp toplam faiz giderinizi binlerce lira azaltabilirsiniz.",
+      instructions: [
+        {
+          step: 1,
+          title: "Tüm Borçlarınızı Sisteme Tanımlayın",
+          desc: "'Borçlar' sekmesine gidip kredi kartı, ihtiyaç kredisi ve şahıs borçlarınızı faiz oranları ve vadesiyle eksiksiz kaydedin."
+        },
+        {
+          step: 2,
+          title: "Stratejinizi Belirleyin",
+          desc: "Hızlı zafer ve motivasyon istiyorsanız 'Kartopu', en az faizi ödemek istiyorsanız 'Çığ (Avalanche)' yöntemini seçin."
+        },
+        {
+          step: 3,
+          title: "Öncelikli Borca Ekstra Ödeme Yapın",
+          desc: "Listede ilk sıradaki borca elinizdeki tüm ekstra tasarruf bütçesini yönlendirirken, diğer borçların asgari tutarlarını aksatmadan ödeyin."
+        },
+        {
+          step: 4,
+          title: "Kapanan Borcun Bütçesini Bir Sonrakine Aktarın",
+          desc: "İlk borç bittiğinde, onun aylık ödeme tutarını bir sonraki borca ekleyin. Böylece borç ödeme gücünüz bir kartopu gibi katlanarak büyür."
+        }
+      ],
+      proTips: [
+        "Yapay zeka asistanına 'Borçlarımı Çığ yöntemiyle sırala ve bu ay hangisine ne kadar ödemeliyim?' diye sorarak anlık simülasyon alabilirsiniz.",
+        "Ödeme geçmişi butonundan borcun kalan ana parasının nasıl eridiğini grafiksel olarak izleyin."
+      ]
+    },
+    {
+      id: "installment-tracker",
+      category: "debt",
+      categoryLabel: "Taksitli Borçlar",
+      badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      icon: "📅",
+      title: "Taksitli Harcama, Kredi ve Vade Planlayıcı",
+      summary: "Kredi kartı taksitleri, beyaz eşya, konut ve araç kredilerini ay ay planlayın, kalan taksitleri ve aylık bütçe payını otomatik yönetin.",
+      badge: "Otomatik Plan",
+      targetTab: "installments",
+      whatItDoes: "Gelecek aylara yayılan taksitlerinizi tek ekranda toplar. Toplam taksit sayısı, ödenen taksit sayısı ve aylık taksit tutarını hesaplar. Seçilen ayın bütçesine düşen taksit yükünü otomatik olarak Aylık Finansal Özet paneline aktarır.",
+      instructions: [
+        {
+          step: 1,
+          title: "Taksitler Sekmesine Gidin",
+          desc: "Menüden 'Taksitler' sekmesini açın ve 'Yeni Taksit Ekle' butonuna tıklayın."
+        },
+        {
+          step: 2,
+          title: "Taksit Detaylarını Girin",
+          desc: "Taksit adı (Örn: 'Laptop Taksiti'), toplam tutar, taksit adedi (Örn: 6 Ay) ve ilk taksit başlangıç tarihini seçin."
+        },
+        {
+          step: 3,
+          title: "Aylık Taksit Ödemelerini Kaydedin",
+          desc: "Her ay taksit gününüz geldiğinde ilgili taksit kartındaki 'Taksit Öde' butonuna basarak ödenen taksit sayacını 1 artırın."
+        },
+        {
+          step: 4,
+          title: "Gelecek Ayların Taksit Yükünü Önceden Görün",
+          desc: "Üst kısımdaki Ay seçicisinden gelecek ayları seçerek önümüzdeki aylarda ne kadar taksit ödeyeceğinizi önceden analiz edin."
+        }
+      ],
+      proTips: [
+        "Taksit bittiğinde sistem taksiti otomatik 'Tamamlandı' rozetiyle arşivler.",
+        "Taksitli alışverişlerinizi yapmadan önce 'Finansal Araçlar' sekmesindeki Kredi Hesaplayıcı ile toplam maliyetini kontrol edebilirsiniz."
+      ]
+    },
+    {
+      id: "weather-budget-widget",
+      category: "budget",
+      categoryLabel: "Akıllı Tasarruf",
+      badgeColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+      icon: "⛅",
+      title: "Hava Durumu & Psikolojik Tasarruf Widget'ı",
+      summary: "Yaşadığınız şehrin hava koşullarına göre dürtüsel harcamaları önleyen akıllı davranışsal ekonomi rehberi.",
+      badge: "Davranışsal Finans",
+      targetTab: "overview",
+      whatItDoes: "Hava durumu ile tüketim psikolojisi arasındaki bilimsel bağı analiz eder. Yağmurlu günlerde online sipariş ve kahve harcamalarını, güneşli günlerde dışarıda yeme-içme dürtülerini kontrol altına almanız için anlık bütçe tavsiyeleri sunar.",
+      instructions: [
+        {
+          step: 1,
+          title: "Bütçe Özetinde Hava Durumu Kartını Bulun",
+          desc: "Dashboard ana sayfasında yer alan 'Hava Durumu & Bütçe Rehberi' bileşenini görüntüleyin."
+        },
+        {
+          step: 2,
+          title: "Şehrinizi Seçin veya Konum İzni Verin",
+          desc: "Açılır menüden şehrinizi seçerek ya da konum butonuna dokunarak anlık meteorolojik verileri çekin."
+        },
+        {
+          step: 3,
+          title: "Günün Tasarruf Stratejisini İnceleyin",
+          desc: "Günün hava durumuna özel (Güneşli, Yağmurlu, Karlı, Bulutlu) bütçe tüyolarını okuyarak dürtüsel harcamalarınızı engelleyin."
+        }
+      ],
+      proTips: [
+        "Yağmurlu günlerde kurye ve teslimat ücretlerinden kaçınmak için evde yemek hazırlama tavsiyelerini uygulayarak ayda binlerce lira tasarruf sağlayabilirsiniz."
+      ]
+    },
+    {
+      id: "financial-calculator-tools",
+      category: "tools",
+      categoryLabel: "Mali Araçlar",
+      badgeColor: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
+      icon: "🧮",
+      title: "Finansal Hesaplama & Mali Simülasyon Araçları",
+      summary: "Kredi hesaplama, KKDF/BSMV faiz simülatörü, acil durum fonu ve net servet (Net Worth) hesaplayıcı tek merkezde.",
+      badge: "Mali Simülatör",
+      targetTab: "financialTools",
+      whatItDoes: "Karmaşık bankacılık ve yatırım formüllerini tek tıkla çözümler. İhtiyaç/taşıt/konut kredisi taksitlerini faiz ve vergileriyle hesaplar, acil durum fonu ihtiyacınızı belirler ve toplam varlık-yükümlülük dengenizden net servetinizi çıkarır.",
+      instructions: [
+        {
+          step: 1,
+          title: "Finansal Araçlar Sekmesine Geçin",
+          desc: "Menüden 'Finansal Araçlar' sekmesini açın."
+        },
+        {
+          step: 2,
+          title: "Kredi Hesaplayıcı:",
+          desc: "Çekmek istediğiniz kredi tutarını, vadeyi (ay) ve aylık faiz oranını girin. KKDF, BSMV dahil aylık taksit ve toplam geri ödeme tutarını anında görün."
+        },
+        {
+          step: 3,
+          title: "Acil Durum Fonu Hesaplayıcı:",
+          desc: "Aylık zorunlu giderlerinizi (Kira, Fatura, Mutfak) girerek 3 ila 6 aylık güvenli acil durum rezervi hedefinizi hesaplayın."
+        },
+        {
+          step: 4,
+          title: "Net Varlık (Net Worth) Hesabı:",
+          desc: "Tüm varlıklarınızı (Nakit, Altın, Ev, Araba) ve tüm borçlarınızı girerek gerçek finansal net değerinizi öğrenin."
+        }
+      ],
+      proTips: [
+        "Kredi çekmeden önce farklı faiz oranlarını simüle ederek bütçenizi zorlamayacak maksimum taksit tutarını belirleyin."
+      ]
+    },
+    {
+      id: "budget-rules-and-analytics",
+      category: "budget",
+      categoryLabel: "Bütçe Disiplini",
+      badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+      icon: "📊",
+      title: "Aylık/Yıllık Karşılaştırmalı Grafikler & 50/30/20 Kuralı",
+      summary: "Gelir-gider dengesini dinamik pasta ve çubuk grafiklerle izleyin, 50/30/20 bütçe oranınızı denetleyin.",
+      badge: "Görsel Analiz",
+      targetTab: "monthly",
+      whatItDoes: "Gelirlerinizi ve giderlerinizi ay bazında karşılaştırır. 50/30/20 kuralına göre %50 Temel İhtiyaçlar, %30 İstekler ve %20 Tasarruf/Borç oranlarınıza ne kadar uyduğunuzu renkli barometrelerle gösterir.",
+      instructions: [
+        {
+          step: 1,
+          title: "Aylık veya Yıllık Analiz Sekmesine Gelin",
+          desc: "Menüden 'Aylık Analiz' veya 'Yıllık Analiz' sekmesini seçin."
+        },
+        {
+          step: 2,
+          title: "Ay / Yıl Seçicisini Kullanın",
+          desc: "İncelemek istediğiniz dönemi seçerek o döneme ait net gelir, toplam gider ve kalan rezerv grafiklerini inceleyin."
+        },
+        {
+          step: 3,
+          title: "Kategori Dağılımını Gözden Geçirin",
+          desc: "En çok hangi kategoride (Örn: Market, Kira, Ulaşım) harcama yaptığınızı pasta grafik üzerinden kontrol edin."
+        }
+      ],
+      proTips: [
+        "Aylık harcamanız gelirinizin %90'ını aştığında sistem otomatik risk uyarısı verir."
+      ]
+    },
+    {
+      id: "cloud-sync-and-security",
+      category: "security",
+      categoryLabel: "Bulut & Güvenlik",
+      badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      icon: "☁️",
+      title: "Google ile Giriş, Bulut Senkronizasyonu & Güvenli Yedekleme",
+      summary: "Verilerinizi Firebase Firestore ile cihazlar arası senkronize edin veya %100 çevrimdışı yerel profillerle kullanın. Excel / CSV / JSON dışa aktarma.",
+      badge: "Çoklu Cihaz",
+      targetTab: "overview",
+      whatItDoes: "Tüm finansal kayıtlarınızı ister Google hesabınızla şifreli bulut veritabanında saklayın, ister cihazınızın yerel hafızasında (Local Storage) tamamen anonim tutun. Excel, CSV ve JSON formatlarında tek tıkla veri yedekleme ve geri yükleme imkanı sunar.",
+      instructions: [
+        {
+          step: 1,
+          title: "Google ile Giriş Yapın veya Profil Seçin",
+          desc: "Sağ üstteki kullanıcı butonuna basarak Google hesabınızla giriş yapabilir ve telefon/bilgisayar arasında verilerinizi anında eşzamanlayabilirsiniz."
+        },
+        {
+          step: 2,
+          title: "Çoklu Profil / Aile Alanı Kullanımı",
+          desc: "Kişisel, İş veya Aile Bütçesi için ayrı ayrı bağımsız profiller oluşturup aralarında tek tıkla geçiş yapabilirsiniz."
+        },
+        {
+          step: 3,
+          title: "Excel / CSV / JSON Yedek İndirin",
+          desc: "'Ayarlar' veya 'Profil' menüsünden 'Excel / CSV İndir' butonuna basarak verilerinizi tablo halinde bilgisayarınıza kaydedebilirsiniz."
+        },
+        {
+          step: 4,
+          title: "Çevrimdışı Çalışma Garantisi",
+          desc: "İnternetiniz olmasa bile tüm işlemlerinizi kaydedebilirsiniz; internet bağlantısı sağlandığında verileriniz otomatik buluta eşitlenir."
+        }
+      ],
+      proTips: [
+        "Düzenli aralıklarla 'JSON Yedek Al' butonuna basarak verilerinizin bir kopyasını kendi arşivinizde saklamanız tavsiye edilir."
+      ]
+    }
+  ];
+
+  const filteredGuides = useMemo(() => {
+    return guideItems.filter((item) => {
+      const matchesCategory = selectedGuideCategory === "all" || item.category === selectedGuideCategory;
+      const q = guideSearchQuery.trim().toLowerCase();
+      if (!q) return matchesCategory;
+
+      const matchesSearch = 
+        item.title.toLowerCase().includes(q) ||
+        item.summary.toLowerCase().includes(q) ||
+        item.whatItDoes.toLowerCase().includes(q) ||
+        item.instructions.some(ins => ins.title.toLowerCase().includes(q) || ins.desc.toLowerCase().includes(q)) ||
+        item.proTips.some(tip => tip.toLowerCase().includes(q));
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [guideItems, selectedGuideCategory, guideSearchQuery]);
 
   const blogPosts: BlogPost[] = [
     {
@@ -180,109 +605,274 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     }
   ];
 
+  // 1. KULLANIM KILAVUZU & DETAYLI TALİMATLAR (activeTab === "help")
   if (activeTab === "help") {
     return (
-      <div className="space-y-6">
-        {/* Centered & Animated Page Title */}
-        <div className="flex flex-col items-center justify-center text-center py-4 select-none">
-          <motion.h2
-            animate={{ y: [0, -4, 0] }}
-            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-            className="text-2xl sm:text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5"
-          >
-            <HelpCircle className="w-7 h-7 text-indigo-500 animate-pulse" /> SİSTEM KULLANIM REHBERİ
-          </motion.h2>
-          <div className="w-16 h-1 bg-indigo-500 rounded-full mt-2 opacity-80" />
-        </div>
-
+      <div className="space-y-6 animate-fade-in w-full max-w-5xl mx-auto">
+        
         {/* Modern Interactive Header inside Guide */}
-        <motion.div 
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-tr from-indigo-500/10 via-purple-500/5 to-transparent p-6 rounded-3xl border border-indigo-550/15 text-center space-y-3 relative overflow-hidden"
-        >
-          {/* Neon lights backdrop */}
-          <div className="absolute -top-12 -left-12 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl" />
-          <div className="absolute -bottom-12 -right-12 w-28 h-28 bg-purple-500/10 rounded-full blur-2xl" />
-          
-          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium max-w-lg mx-auto relative z-10 leading-relaxed">
-            Akıllı sistemimizdeki modülleri, taksit hesaplama yapılarını ve asistan yeteneklerini keşfederek finansal bağımsızlığınız için bütçenizi kontrol altına alın.
-          </p>
-        </motion.div>
+        <div className="p-6 sm:p-7 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg border border-indigo-500/20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* 1. Finansal Genel Bakış */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-indigo-400 dark:hover:border-indigo-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">📊</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">1. ÖZET VE FİNANSAL YÖNETİM MERKEZİ</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              Dashboard genel bakış paneli finansal sağlığınızın yönetim üssüdür. Toplam borcunuzu, ödediğiniz kısımları ve kalan borcunuzu anlık izler. Gelirleriniz ile harcama bütçenizi kıyaslayarak <strong>Net Kalan Rezervinizi</strong> hesaplar ve bütçe durumunu görselleştirir.
-            </p>
-          </div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-[11px] font-bold tracking-wide uppercase">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>Bütçem Pro Kapsamlı Kullanım Kılavuzu</span>
+              </div>
+              <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center md:justify-start gap-2.5">
+                <Compass className="w-7 h-7 text-indigo-400" /> UYGULAMA VE ÖZELLİK REHBERİ
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl font-medium leading-relaxed">
+                Gemini 3.7 Flash yapay zeka koçu, sesli asistan, kamera ile fiş tarama, kişi rehberi & WhatsApp borç takibi ve finansal hesaplama araçlarının tüm kullanma talimatlarını adım adım keşfedin.
+              </p>
+            </div>
 
-          {/* 2. Harcamalar ve Kategoriler */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-rose-400 dark:hover:border-rose-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">🛒</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">2. HARCAMA VE DİNAMİK KATEGORİ SEÇİCİ</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              Kategorilerinize özel renkler ve emojiler (simgeler) tanımlayabilirsiniz. Mevcut ay harcamalarınız bütçenizin <strong>%90 limitini</strong> aştığında Expenses listesinde bir dikkat bandı belirir. Veri grafikleriyle de anlık harcama dağılımını inceleyebilirsiniz.
-            </p>
-          </div>
-
-          {/* 3. Borçlar ve Geri Ödemeler */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-emerald-400 dark:hover:border-emerald-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">💳</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">3. BORÇ VE DETAYLI GERİ ÖDEME PLANI</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              Tek seferlik kişisel veya kurumsal tüm borçlarınızı buraya kaydedin. Bölümdeki <strong>Geri Ödeme Ekle</strong> butonu ile borçlarınızı parça parça ödeyebilir ve ödeme geçmişi loglarıyla her bir ödemenin tarihini takip edebilirsiniz.
-            </p>
-          </div>
-
-          {/* 4. Gelir Kaynakları */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-sky-400 dark:hover:border-sky-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">🏦</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">4. GELİR VE AKTİF REZERV YÖNETİMİ</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              Maaş, ek kazançlar veya kira geliri gibi kaynaklarınızı kaydedin. Bu veriler toplam borç/ödeme dengesi raporlama motoruna anlık aktarılır. Asistan analiz algoritmasında gelirinize düşen borç yükünü oranlayarak rasyonel veriler sağlar.
-            </p>
-          </div>
-
-          {/* 5. Taksitli Alışverişler */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-purple-400 dark:hover:border-purple-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">📊</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">5. TAKSİTLİ HARCAMA VE KREDİLER</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              Kredi kartı taksitleri, taşıt/konut kredileri gibi vadeli ödeme planlarınız için bu modülü kullanın. Toplam taksit adedini ve ödenen taksit miktarını girdiğinizde kalan borç anlık gösterilir. <strong>Taksit Öde</strong> butonu yeni taksit kaydetmenizi sağlar.
-            </p>
-          </div>
-
-          {/* 6. AI Asistan */}
-          <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-amber-400 dark:hover:border-amber-800/80 hover:shadow-xs transition duration-300">
-            <span className="text-xl">🤖</span>
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">6. YAPAY ZEKA DESTEKLİ BÜTÇE ASİSTANI</h4>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
-              <strong>Gemini AI</strong> motoruna dayalı anlık asistan finans durumunuzu saniyeler içinde analiz eder. Finansal risk seviyenizi (Düşük, Orta, Yüksek, Kritik) ölçerek, gelir-gider dağılımınızı iyileştirmeniz için özel ve rasyonel tavsiyeler üretir.
-            </p>
+            <div className="flex flex-wrap gap-2 justify-center shrink-0">
+              <button
+                onClick={() => onNavigate("aiStrategy")}
+                className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Bot className="w-4 h-4" /> Asistanı Dene
+              </button>
+              <button
+                onClick={() => onNavigate("blog")}
+                className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/15 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <BookOpen className="w-4 h-4" /> Finans Kütüphanesi
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+        {/* Search Bar & Category Filter Chips */}
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5">
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+            <input
+              type="text"
+              value={guideSearchQuery}
+              onChange={(e) => setGuideSearchQuery(e.target.value)}
+              placeholder="Kılavuzda özellik, komut veya talimat arayın (Örn: Fiş Tarama, WhatsApp, Kartopu, Sesli Asistan, Kredi)..."
+              className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+            />
+            {guideSearchQuery && (
+              <button
+                onClick={() => setGuideSearchQuery("")}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+
+          {/* Categories */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {guideCategories.map((cat) => {
+              const isSelected = selectedGuideCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedGuideCategory(cat.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                    isSelected
+                      ? "bg-indigo-600 text-white shadow-xs shadow-indigo-500/20"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700/60"
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dynamic Detailed Guide Cards Grid */}
+        <div className="space-y-4">
+          {filteredGuides.length === 0 ? (
+            <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+              <span className="text-4xl">🔍</span>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Aradığınız kriterlere uygun kılavuz bulunamadı</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Arama kelimenizi değiştirerek veya kategori filtresini 'Tümü' yaparak tekrar deneyebilirsiniz.
+              </p>
+              <button
+                onClick={() => { setGuideSearchQuery(""); setSelectedGuideCategory("all"); }}
+                className="px-4 py-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-xs rounded-xl"
+              >
+                Filtreleri Sıfırla
+              </button>
+            </div>
+          ) : (
+            filteredGuides.map((guide) => {
+              const isExpanded = expandedGuideId === guide.id;
+
+              return (
+                <motion.div
+                  key={guide.id}
+                  layout
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden transition-all duration-200 hover:border-indigo-500/40"
+                >
+                  {/* Card Header (Clickable Accordion) */}
+                  <div
+                    onClick={() => setExpandedGuideId(isExpanded ? null : guide.id)}
+                    className="p-4 sm:p-5 flex items-start sm:items-center justify-between gap-3.5 cursor-pointer select-none transition bg-slate-50/40 dark:bg-slate-900/40 hover:bg-indigo-50/30 dark:hover:bg-slate-800/50"
+                  >
+                    <div className="flex items-start sm:items-center gap-3.5 flex-1">
+                      <div className="text-2xl sm:text-3xl p-2.5 rounded-2xl bg-indigo-50 dark:bg-slate-800 shrink-0 border border-indigo-100 dark:border-slate-700">
+                        {guide.icon}
+                      </div>
+
+                      <div className="space-y-1 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-lg border ${guide.badgeColor}`}>
+                            {guide.categoryLabel}
+                          </span>
+                          {guide.badge && (
+                            <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              {guide.badge}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight">
+                          {guide.title}
+                        </h3>
+
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium line-clamp-2 leading-relaxed">
+                          {guide.summary}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0">
+                      <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hidden sm:inline">
+                        {isExpanded ? "Daralt" : "Kılavuzu İncele"}
+                      </span>
+                      <div className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content Details */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="border-t border-slate-100 dark:border-slate-800 p-4 sm:p-6 space-y-5 bg-white dark:bg-slate-900"
+                      >
+                        {/* What It Does Box */}
+                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">
+                            <Info className="w-4 h-4" />
+                            <span>Bu Özellik Ne İşe Yarar?</span>
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                            {guide.whatItDoes}
+                          </p>
+                        </div>
+
+                        {/* Step-by-Step Instructions */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span>Adım Adım Kullanım Talimatları:</span>
+                          </h4>
+
+                          <div className="grid gap-2.5 sm:grid-cols-2">
+                            {guide.instructions.map((step) => (
+                              <div
+                                key={step.step}
+                                className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 space-y-1"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                                    {step.step}
+                                  </span>
+                                  <h5 className="font-extrabold text-xs text-slate-800 dark:text-slate-100">
+                                    {step.title}
+                                  </h5>
+                                </div>
+                                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed font-medium pl-8">
+                                  {step.desc}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Pro Tips */}
+                        {guide.proTips && guide.proTips.length > 0 && (
+                          <div className="p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                              <Sparkles className="w-4 h-4 text-amber-500" />
+                              <span>Uzman İpuçları & Püf Noktaları:</span>
+                            </div>
+                            <ul className="space-y-1 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                              {guide.proTips.map((tip, tIdx) => (
+                                <li key={tIdx} className="flex items-start gap-2">
+                                  <span className="text-amber-500 font-bold">•</span>
+                                  <span>{tip}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Direct Action Navigation Button */}
+                        {guide.targetTab && (
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              onClick={() => onNavigate(guide.targetTab!)}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                            >
+                              <span>Bu Özelliğe Git</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Bottom CTA to Knowledge Base */}
+        <div className="p-5 bg-gradient-to-r from-slate-100 to-indigo-50 dark:from-slate-800 dark:to-indigo-950/30 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div className="space-y-1">
+            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Daha Fazla Finansal Strateji mi Arıyorsunuz?</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              50/30/20 kuralı, kredi skoru yükseltme ve enflasyonist ortamda borçlanma makalelerimizi okuyun.
+            </p>
+          </div>
           <button
             onClick={() => onNavigate("blog")}
-            className="px-6 py-3 bg-gradient-to-r from-indigo-500 via-violet-600 to-indigo-700 text-white font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
-            <BookOpen className="w-4 h-4 animate-pulse" /> Akademik Finansal Strateji Rehberlerini İnceleyin
+            <BookOpen className="w-4 h-4" /> Makaleleri Oku
           </button>
         </div>
+
       </div>
     );
   }
 
+  // 2. AKADEMİK FİNANS KÜTÜPHANESİ & BLOG (activeTab === "blog")
   if (activeTab === "blog") {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in w-full max-w-5xl mx-auto">
         {/* Centered & Animated Page Title */}
-        <div className="flex flex-col items-center justify-center text-center py-4 select-none">
+        <div className="flex flex-col items-center justify-center text-center py-2 select-none">
           <motion.h2
             animate={{ y: [0, -4, 0] }}
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
@@ -295,7 +885,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
         {/* Modern Blog Header Banner */}
         <div className="flex flex-col items-center justify-center text-center p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl">
-          <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold max-w-xl">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-xl">
             Mali geleceğinizi planlamak ve borç sarmalından bilimsel metotlarla kurtulmak için hazırlanan finans içerikleri.
           </p>
         </div>
@@ -329,7 +919,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                     <span>{post.title}</span>
                   </h3>
 
-                  <p className="text-[11.5px] text-slate-500 dark:text-slate-450 leading-relaxed font-semibold mb-4">
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold mb-4">
                     {post.introduction}
                   </p>
 
@@ -350,13 +940,13 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                         <div className="grid gap-3 sm:grid-cols-3">
                           {post.tips.map((tip, idx) => (
                             <div key={idx} className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1 hover:border-slate-350 dark:hover:border-slate-700 transition duration-300 shadow-3xs">
-                              <span className="inline-flex w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-850 text-slate-700 dark:text-slate-300 font-extrabold text-[10px] items-center justify-center mb-1">
+                              <span className="inline-flex w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold text-[10px] items-center justify-center mb-1">
                                 0{idx + 1}
                               </span>
                               <h4 className="font-extrabold text-[11px] text-slate-800 dark:text-slate-100 uppercase tracking-tight leading-none">
                                 {tip.title}
                               </h4>
-                              <p className="text-[10.5px] text-slate-500 dark:text-slate-450 leading-relaxed font-semibold">
+                              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
                                 {tip.desc}
                               </p>
                             </div>
@@ -365,7 +955,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
 
                         <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-start gap-3 mt-4">
                           <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                          <p className="text-[11px] text-emerald-600 dark:text-emerald-450 leading-relaxed font-semibold">
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 leading-relaxed font-semibold">
                             <strong>Özet Öneri:</strong> {post.conclusion}
                           </p>
                         </div>
@@ -377,7 +967,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-end">
                   <button
                     onClick={() => setSelectedPostId(isExpanded ? null : post.id)}
-                    className="px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 rounded-xl cursor-pointer text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all active:scale-95"
+                    className="px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl cursor-pointer text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all active:scale-95"
                   >
                     {isExpanded ? (
                       <span>📖 OKUMAYI KAPAT</span>
@@ -396,23 +986,21 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     );
   }
 
+  // 3. GERİ BİLDİRİM & İLETİŞİM (activeTab === "feedback")
   if (activeTab === "feedback") {
     return (
-      <div className="space-y-6">
-        {/* Editorial Subheader */}
+      <div className="space-y-6 animate-fade-in w-full max-w-5xl mx-auto">
         <div className="border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
           <h2 className="text-lg font-black flex items-center gap-2 text-slate-800 dark:text-slate-100 uppercase tracking-tight">
             <Mail className="w-5 h-5 text-rose-500" /> BİZE ULAŞIN & GERİ BİLDİRİM
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-505 mt-1 font-semibold">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-semibold">
             Bütçem Pro uygulamasını en kusursuz ve profesyonel hale getirmek için fikirleriniz bizim için hazinedir.
           </p>
         </div>
 
-        {/* Dual Column Layout for Feedback Hub */}
         <div className="grid gap-6 md:grid-cols-5 items-start">
-          {/* Form Side - Span 3 */}
-          <div className="md:col-span-3 bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-250 dark:border-slate-750/70 shadow-sm space-y-5">
+          <div className="md:col-span-3 bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
             {isSuccessSubmitted ? (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -432,7 +1020,6 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
               </motion.div>
             ) : (
               <div className="space-y-4">
-                {/* Name field */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">ADINIZ SOYADINIZ (İSTEĞE BAĞLI)</label>
                   <div className="relative">
@@ -442,12 +1029,11 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
                       placeholder="Örn. Ahmet Yılmaz"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-950 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-950 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Feedback Categories Grid */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">GERİ BİLDİRİM TÜRÜ</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -464,10 +1050,9 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                   </div>
                 </div>
 
-                {/* Dynamic Star Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">UYGULAMA PUANINIZ</label>
-                  <div className="flex items-center gap-1.5 bg-linear-to-r from-slate-50 to-transparent dark:from-slate-900 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-1.5 bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-900 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -475,7 +1060,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                         onClick={() => setFeedbackRating(star)}
                         onMouseEnter={() => setShowRatingHover(star)}
                         onMouseLeave={() => setShowRatingHover(null)}
-                        className="text-slate-350 dark:text-slate-700 transition transform hover:scale-125 cursor-pointer text-base"
+                        className="text-slate-300 dark:text-slate-700 transition transform hover:scale-125 cursor-pointer text-base"
                       >
                         <Star 
                           className="w-5 h-5 transition-colors" 
@@ -490,7 +1075,6 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                   </div>
                 </div>
 
-                {/* Message field */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">MESAJINIZ / ÖNERİNİZ</label>
                   <div className="relative">
@@ -500,16 +1084,15 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                       onChange={(e) => setContactMsg(e.target.value)}
                       rows={4}
                       placeholder="Kullanıcı deneyimini güçlendirmek için her türlü fikre, geliştirilmesini istediğiniz ek modül önerilerine açığız..."
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-950 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all leading-relaxed"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-950 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all leading-relaxed"
                     />
                   </div>
                 </div>
 
-                {/* Send Button */}
                 <button
                   disabled={!contactMsg}
                   onClick={handleSendMessage}
-                  className="w-full py-3 bg-linear-to-r from-rose-500 via-pink-600 to-rose-600 text-white font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg disabled:opacity-40 select-none transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 text-white font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg disabled:opacity-40 select-none transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5" /> E-POSTA İLE GERİ BİLDİRİM GÖNDER
                 </button>
@@ -517,7 +1100,6 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
             )}
           </div>
 
-          {/* Quick Support Info Side - Span 2 */}
           <div className="md:col-span-2 space-y-4">
             <div className="p-5 bg-gradient-to-br from-indigo-500/10 to-transparent dark:from-indigo-950/10 rounded-3xl border border-indigo-200/30 dark:border-indigo-900/40 space-y-4">
               <span className="p-2 bg-indigo-500/15 text-indigo-500 rounded-xl inline-block">
@@ -533,7 +1115,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
               <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-1 text-[11px]">
                 <p className="text-slate-400 font-bold uppercase tracking-wide text-[9px] block">İnceleme Süresi</p>
                 <p className="text-slate-700 dark:text-slate-300 font-black">24 Saat içerisinde yanıt garantisi</p>
-                <p className="text-slate-500 dark:text-slate-450 leading-normal font-semibold">
+                <p className="text-slate-500 dark:text-slate-400 leading-normal font-semibold">
                   Proje açık kaynaklı olup, Serkan Sağlam mentörlüğünde geliştirilmektedir.
                 </p>
               </div>
@@ -545,7 +1127,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                 <p className="font-semibold text-slate-500">📧 E-posta:</p>
                 <a 
                   href="mailto:info.borcodemetakip@gmail.com" 
-                  className="font-black underline text-indigo-500 dark:text-indigo-400 hover:text-indigo-650 tracking-wide break-all"
+                  className="font-black underline text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 tracking-wide break-all"
                 >
                   info.borcodemetakip@gmail.com
                 </a>
@@ -557,11 +1139,11 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     );
   }
 
+  // 4. GİZLİLİK POLİTİKASI (activeTab === "privacy")
   if (activeTab === "privacy") {
     return (
-      <div className="space-y-4">
-        {/* Centered & Animated Page Title */}
-        <div className="flex flex-col items-center justify-center text-center py-4 select-none">
+      <div className="space-y-4 animate-fade-in w-full max-w-4xl mx-auto">
+        <div className="flex flex-col items-center justify-center text-center py-2 select-none">
           <motion.h2
             animate={{ y: [0, -4, 0] }}
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
@@ -572,62 +1154,53 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
           <div className="w-16 h-1 bg-indigo-500 rounded-full mt-2 opacity-80" />
         </div>
 
-        <div className="space-y-4 text-xs md:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pr-2">
+        <div className="space-y-4 text-xs md:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pr-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <p className="font-semibold text-slate-700 dark:text-slate-300">Son Güncelleme: 2 Haziran 2026</p>
           
           <p>
             <strong>Bütçem Pro</strong> bireysel finans yönetimi, borç ve taksit takip platformu olarak, kullanıcı gizliliğini ve veri egemenliğini en üst öncelik olarak kabul eder. Uygulamamızı kullanırken mali verilerinizin gizliliği ve güvenliği hakkında bilmeniz gereken tüm detaylar aşağıda açıklanmıştır:
           </p>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight text-xs">
-              1. Verilerin Tamamen Yerel Depolanması (Zero-Server Architecture)
+              1. Verilerin Tamamen Yerel Depolanması & Güvenli Bulut Opsiyonu
             </h3>
             <p>
-              Girdiğiniz hiçbir hassas finansal veri (maaş, ek gelir, her türlü borç, taksit tutarı, harcama kayıtları veya işlem detayları) harici bir bulut veritabanına ya da sunucularımıza <strong>kaydedilmez</strong>. Tüm mali kayıtlarınız, sadece kendi cihazınızın tarayıcısında çalışan güvenli yerel depolama biriminde (<strong>Local Storage / IndexedDB</strong>) barındırılır. Verilerinize erişim, kontrol ve silme yetkisi tamamen fiziksel olarak cihaza sahip olan kullanıcıya aittir.
+              Girdiğiniz hassas finansal veriler (maaş, ek gelir, borç, taksit tutarı, harcama kayıtları) varsayılan olarak cihazınızın tarayıcısında çalışan güvenli yerel depolama biriminde (<strong>Local Storage / IndexedDB</strong>) barındırılır. Google ile giriş yaptığınızda ise verileriniz Firebase Firestore bulut altyapısında şifreli olarak korunur.
             </p>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight text-xs">
               2. Fiş Tarayıcı (OCR) ve Kamera İzinleri Çalışma Mantığı
             </h3>
             <p>
-              Uygulamadaki Fiş/Fatura Tarayıcı özelliğini kullandığınızda, cihazınızın kamerasına erişim veya galeriden dosya yükleme izni istenir. Kameradan alınan anlık akış veya yüklenen görsel, faturadaki verileri (tutar, tarih, KDV oranı vb.) OCR teknolojisi ile otomatik olarak ayıklamak üzere güvenli API uç noktamıza şifreli (HTTPS) bağlantı aracılığıyla gönderilir. 
-              <strong> Bu görsel dosyalar sunucu tarafında veri okuma işleminin hemen ardından bellekten anında, kalıcı olarak silinir;</strong> sunucu disklerinde hiçbir şekilde yedeklenmez ve depolanmaz.
+              Uygulamadaki Fiş/Fatura Tarayıcı özelliğini kullandığınızda kamera erişimi veya dosya yükleme izni istenir. 
+              <strong> Bu görsel dosyalar veri okuma işleminin hemen ardından bellekten anında kalıcı olarak silinir;</strong> sunucu disklerinde hiçbir şekilde yedeklenmez ve depolanmaz.
             </p>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight text-xs">
               3. Yapay Zeka Finans Asistanı ve API Anahtarları
             </h3>
             <p>
-              Bütçem Pro yerleşik yapay zeka asistanı (Gemini AI), finansal verilerinizi rasyonel şekilde analiz etmek üzere tasarlanmıştır. Asistanla konuşurken veya otomatik analiz gerçekleştirilirken, yerelde kayıtlı özet bütçe metrikleriniz API çağrısına güvenli üst bilgi şeklinde dahil edilir. Kullanıcılar kendi kişbileyici Gemini API anahtarlarını girmek isterlerse, bu anahtar yine sadece cihazlarında yerel olarak saklanır. AI etkileşim geçmişiniz hiçbir reklam platformu veya veri brokeri ile ticari amaçla kesinlikle paylaşılmaz.
+              Bütçem Pro yerleşik yapay zeka asistanı (Gemini AI), finansal verilerinizi rasyonel şekilde analiz etmek üzere tasarlanmıştır. Kullanıcılar kendi Gemini API anahtarlarını girmek isterlerse, bu anahtar sadece cihazlarında yerel olarak saklanır.
             </p>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight text-xs">
               4. Çerezler ve Üçüncü Taraf Reklam Servisleri (AdMob / AdSense)
             </h3>
             <p>
-              Uygulamanın ücretsiz sürümünde yer alan reklam alanları için Google AdMob kullanılmaktadır. Google AdMob, size daha ilgi çekici veya ülkenizin mevzuatına uygun reklamlar sunabilmek adına geçici reklam tanımlayıcıları ve çerezler (cookies) kullanabilir. "Reklamsız Pro Sürüm" tercih edildiğinde bu çerezlerin ve reklam takip mekanizmalarının tamamı devre dışı bırakılır.
+              Uygulamanın ücretsiz sürümünde yer alan reklam alanları için Google AdMob/AdSense kullanılmaktadır. Reklam tanımlayıcıları mevzuata uygun şekilde yönetilir.
             </p>
           </div>
 
-          <div className="space-y-2.5">
-            <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight text-xs">
-              5. Veri Yedekleme, Taşınabilirlik ve İmha Haklarınız
-            </h3>
+          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
             <p>
-              Yedekleme ve cihazlar arası veri transferi amacıyla "Cevrimdışı JSON Yedek İndir" özelliğini dilediğiniz zaman kullanabilirsiniz. This işlem verilerinizi tamamen şifresiz bir metin dosyası olarak cihazınıza kaydeder. Dosyanın güvenliğini sağlamak sizin sorumluluğunuzdadır. İstediğiniz an uygulamanın Ayarlar menüsünden "Tüm Verileri Sıfırla" butonuna dokunarak veya tarayıcı önbelleğinizi temizleyerek Bütçem Pro bünyesindeki tüm kayıtlarınızı geri dönülemez biçimde kalıcı olarak imha edebilirsiniz.
-            </p>
-          </div>
-
-          <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <p>
-              Gizlilik sözleşmemiz veya veri güvenliği politikamızla ilgili merak ettiğiniz tüm sorular ya da geri bildirimler için bizimle <a href="mailto:info.borcodemetakip@gmail.com" className="underline font-bold text-indigo-500 hover:text-indigo-650 transition">info.borcodemetakip@gmail.com</a> adresinden doğrudan iletişime geçebilirsiniz.
+              Gizlilik sözleşmemiz veya veri güvenliği politikamızla ilgili merak ettiğiniz tüm sorular için <a href="mailto:info.borcodemetakip@gmail.com" className="underline font-bold text-indigo-500 hover:text-indigo-600 transition">info.borcodemetakip@gmail.com</a> adresinden bizimle iletişime geçebilirsiniz.
             </p>
           </div>
         </div>
@@ -635,11 +1208,10 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     );
   }
 
-  // default to About ("about")
+  // 5. HAKKIMIZDA (activeTab === "about")
   return (
-    <div className="space-y-6">
-      {/* Centered & Animated Page Title */}
-      <div className="flex flex-col items-center justify-center text-center py-4 select-none">
+    <div className="space-y-6 animate-fade-in w-full max-w-4xl mx-auto">
+      <div className="flex flex-col items-center justify-center text-center py-2 select-none">
         <motion.h2
           animate={{ y: [0, -4, 0] }}
           transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
@@ -650,14 +1222,13 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
         <div className="w-16 h-1 bg-indigo-500 rounded-full mt-2 opacity-80" />
       </div>
 
-      {/* Premium Header Banner */}
       <div className="p-6 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-3xl shadow-md border border-indigo-500/30 space-y-3 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-10 select-none pointer-events-none">
           <Star className="w-32 h-32 text-white animate-spin-slow" />
         </div>
         <div className="flex items-center gap-2.5">
           <span className="px-2.5 py-1 bg-indigo-500/40 border border-indigo-400/40 text-[10px] font-black tracking-widest uppercase rounded-lg">
-            Sürüm 5.0 Ultimate Edition
+            Sürüm 5.2 Ultimate Edition
           </span>
           <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
         </div>
@@ -669,15 +1240,13 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
         </p>
       </div>
 
-      {/* Core Systems Feature Bento Grid */}
       <div className="space-y-3">
         <h4 className="text-xs font-black tracking-wider text-slate-400 dark:text-slate-500 uppercase">
           SİSTEM ENTEGRASYONLARI VE YETENEKLERİ
         </h4>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {/* Card 1: Debt Tracker */}
-          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-805 rounded-2xl flex items-start gap-3 hover:border-indigo-100 dark:hover:border-slate-700 transition">
+          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-start gap-3 hover:border-indigo-100 dark:hover:border-slate-700 transition">
             <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">
               <Layers className="w-4 h-4" />
             </div>
@@ -689,21 +1258,19 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
             </div>
           </div>
 
-          {/* Card 2: AI Advisor */}
-          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-805 rounded-2xl flex items-start gap-3 hover:border-emerald-100 dark:hover:border-slate-705 transition">
+          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-start gap-3 hover:border-emerald-100 dark:hover:border-slate-700 transition">
             <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
               <Zap className="w-4 h-4" />
             </div>
             <div className="space-y-1">
-              <h5 className="text-xs font-extrabold text-slate-800 dark:text-slate-100">Yapay Zeka Danışmanı</h5>
+              <h5 className="text-xs font-extrabold text-slate-800 dark:text-slate-100">Gemini 3.7 Flash Danışmanı</h5>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal font-semibold">
-                Gemini AI veri motoruyla desteklenen, gelir ve harcama profilinize analiz yapan akıllı bütçe asistanı.
+                Google Search ve akıllı finans motoruyla desteklenen, gelir ve harcama profilinize analiz yapan akıllı bütçe asistanı.
               </p>
             </div>
           </div>
 
-          {/* Card 3: Charts & Statistics */}
-          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-805 rounded-2xl flex items-start gap-3 hover:border-amber-100 dark:hover:border-slate-705 transition">
+          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-start gap-3 hover:border-amber-100 dark:hover:border-slate-700 transition">
             <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
               <BarChart3 className="w-4 h-4" />
             </div>
@@ -715,23 +1282,21 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
             </div>
           </div>
 
-          {/* Card 4: Local Storage Safety */}
-          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-805 rounded-2xl flex items-start gap-3 hover:border-blue-100 dark:hover:border-slate-705 transition">
+          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-start gap-3 hover:border-blue-100 dark:hover:border-slate-700 transition">
             <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
               <Lock className="w-4 h-4" />
             </div>
             <div className="space-y-1">
               <h5 className="text-xs font-extrabold text-slate-800 dark:text-slate-100">Yüzde Yüz Veri Güvenliği</h5>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal font-semibold">
-                Tüm mali bilgileriniz sadece sizin tarayıcınızda (Local Storage) barındırılır, harici sunucularla kesinlikle paylaşılmaz.
+                Mali bilgileriniz şifreli yerel depolamada ve güvenli Firestore bulutunda tam gizlilikle barındırılır.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Developer and License Badge Block */}
-      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg shrink-0">
             <User className="w-4 h-4" />
