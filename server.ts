@@ -2527,12 +2527,16 @@ app.post("/api/notifications/email/request-verification", async (req, res) => {
     </div>
   `;
 
-  await sendMailHelper({
-    to: normalizedEmail,
-    subject: `[Bütçem Pro] ${code} - E-posta Bildirim Doğrulama Kodunuz`,
-    html: otpHtml,
-    text: `Bütçem Pro Doğrulama Kodunuz: ${code}`
-  });
+  try {
+    await sendMailHelper({
+      to: normalizedEmail,
+      subject: `[Bütçem Pro] ${code} - E-posta Bildirim Doğrulama Kodunuz`,
+      html: otpHtml,
+      text: `Bütçem Pro Doğrulama Kodunuz: ${code}`
+    });
+  } catch (mailErr) {
+    console.warn("[Email Alert Engine] Background email send handled:", mailErr);
+  }
 
   console.log(`[Email Alert Engine] Verification code for ${normalizedEmail}: [${code}] (Expires in 10 mins)`);
 

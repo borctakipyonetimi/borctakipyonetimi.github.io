@@ -1,0 +1,29 @@
+{
+  "test@example.com": {
+    "email": "test@example.com",
+    "verified": false,
+    "alertOverdue": true,
+    "alertDueToday": true,
+    "frequency": "daily_morning",
+    "minAmountThreshold": 0,
+    "debts": [],
+    "installmentDebts": [],
+    "user": "Kullanıcı",
+    "createdAt": 1788387306966,
+    "verificationCode": "421101",
+    "codeExpiresAt": 1788387906966
+  },
+  "nettenkazanma2@gmail.com": {
+    "email": "nettenkazanma2@gmail.com",
+    "verified": true,
+    "alertOverdue": true,
+    "alertDueToday": true,
+    "frequency": "daily_morning",
+    "minAmountThreshold": 0,
+    "debts": [],
+    "installmentDebts": [],
+    "user": "Bütçem Pro",
+    "createdAt": 1788387350735,
+    "verifiedAt": 1788387497465
+  }
+}
