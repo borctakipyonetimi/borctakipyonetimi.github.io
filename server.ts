@@ -1926,89 +1926,239 @@ function parseDateRobust(dateStr: any): Date | null {
   return null;
 }
 
-// Helper: Calculate overdue and due today debts for a user
+// Helper: Comprehensive debt analysis (Active portfolio, overdue, due today, upcoming, inventory)
 function analyzeUserDebts(debts: any[] = [], installmentDebts: any[] = []) {
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
-  let overdueDebts: Array<{ name: string; remaining: number; daysLate: number; isInstallment?: boolean }> = [];
-  let dueTodayDebts: Array<{ name: string; amount: number; isInstallment?: boolean }> = [];
+  let overdueDebts: Array<{ name: string; remaining: number; daysLate: number; isInstallment?: boolean; dueDateStr?: string }> = [];
+  let dueTodayDebts: Array<{ name: string; amount: number; isInstallment?: boolean; dueDateStr?: string }> = [];
+  let upcomingDebts: Array<{ name: string; remaining: number; daysLeft: number; isInstallment?: boolean; dueDateStr?: string }> = [];
+  let otherActiveDebts: Array<{ name: string; remaining: number; isInstallment?: boolean; dueDateStr?: string }> = [];
+  let allActiveDebts: Array<{ name: string; remaining: number; isInstallment?: boolean; status: string; dueDateStr?: string }> = [];
+
+  let totalActiveDebt = 0;
+  let totalActiveCount = 0;
 
   // Single debts analysis
-  debts.forEach((d: any) => {
+  (debts || []).forEach((d: any) => {
     if (!d) return;
-    const amount = Number(d.amount) || 0;
+    const amount = Number(d.amount) || Number(d.totalAmount) || 0;
     const paid = Number(d.paid) || 0;
-    const remaining = Math.max(0, amount - paid);
+    const remaining = d.remaining !== undefined 
+      ? Number(d.remaining) 
+      : d.remainingAmount !== undefined 
+      ? Number(d.remainingAmount) 
+      : Math.max(0, amount - paid);
 
-    if (remaining > 0 && d.dueDate) {
+    if (remaining <= 0) return; // Fully settled, skip
+
+    totalActiveDebt += remaining;
+    totalActiveCount++;
+
+    const dateField = d.dueDate || d.date || d.paymentDate || d.vadeTarihi || "";
+    let classified = false;
+
+    if (dateField) {
       try {
-        const due = parseDateRobust(d.dueDate);
+        const due = parseDateRobust(dateField);
         if (due) {
           const dueTime = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
           const diffDays = Math.round((todayTime - dueTime) / (1000 * 60 * 60 * 24));
+          const formattedDueDate = due.toLocaleDateString("tr-TR");
+          const debtName = d.name || "Borç";
 
           if (diffDays > 0) {
             overdueDebts.push({
-              name: d.name || "Borç",
+              name: debtName,
               remaining,
               daysLate: diffDays,
-              isInstallment: false
+              isInstallment: false,
+              dueDateStr: formattedDueDate
             });
+            allActiveDebts.push({
+              name: debtName,
+              remaining,
+              isInstallment: false,
+              status: `${diffDays} gün gecikti 🚨`,
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
           } else if (diffDays === 0) {
             dueTodayDebts.push({
-              name: d.name || "Borç",
+              name: debtName,
               amount: remaining,
-              isInstallment: false
+              isInstallment: false,
+              dueDateStr: formattedDueDate
             });
+            allActiveDebts.push({
+              name: debtName,
+              remaining,
+              isInstallment: false,
+              status: "Bugün son gün ⏰",
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
+          } else {
+            const daysLeft = Math.abs(diffDays);
+            upcomingDebts.push({
+              name: debtName,
+              remaining,
+              daysLeft,
+              isInstallment: false,
+              dueDateStr: formattedDueDate
+            });
+            allActiveDebts.push({
+              name: debtName,
+              remaining,
+              isInstallment: false,
+              status: `${daysLeft} gün sonra`,
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
           }
         }
       } catch (e) {
         // ignore date parse err
       }
     }
+
+    if (!classified) {
+      otherActiveDebts.push({
+        name: d.name || "Borç",
+        remaining,
+        isInstallment: false,
+        dueDateStr: "Tarih Belirtilmedi"
+      });
+      allActiveDebts.push({
+        name: d.name || "Borç",
+        remaining,
+        isInstallment: false,
+        status: "Vade Tarihi Yok",
+        dueDateStr: "-"
+      });
+    }
   });
 
   // Installment debts analysis
-  installmentDebts.forEach((inst: any) => {
+  (installmentDebts || []).forEach((inst: any) => {
     if (!inst) return;
     const totalAmount = Number(inst.totalAmount) || 0;
     const count = Number(inst.installmentCount) || 1;
     const paidCount = Number(inst.paidInstallmentCount) || 0;
     const perInst = count > 0 ? (totalAmount / count) : 0;
+    const remainingInstallments = Math.max(0, count - paidCount);
+    const remainingAmount = inst.remainingAmount !== undefined
+      ? Number(inst.remainingAmount)
+      : remainingInstallments * perInst;
 
-    if (paidCount < count && inst.firstDueDate) {
+    if (remainingAmount <= 0 || remainingInstallments <= 0) return; // Fully settled, skip
+
+    totalActiveDebt += remainingAmount;
+    totalActiveCount++;
+
+    const firstDateField = inst.firstDueDate || inst.dueDate || inst.date || "";
+    let classified = false;
+
+    if (firstDateField) {
       try {
-        const baseDate = parseDateRobust(inst.firstDueDate);
+        const baseDate = parseDateRobust(firstDateField);
         if (baseDate) {
-          // compute next installment due date
+          // Compute next active installment due date
           baseDate.setMonth(baseDate.getMonth() + paidCount);
           const dueTime = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
           const diffDays = Math.round((todayTime - dueTime) / (1000 * 60 * 60 * 24));
+          const formattedDueDate = baseDate.toLocaleDateString("tr-TR");
+          const installmentLabel = `${inst.name || "Taksit"} (${paidCount + 1}/${count}. Taksit)`;
 
           if (diffDays > 0) {
             overdueDebts.push({
-              name: `${inst.name || "Taksit"} (${paidCount + 1}. Taksit)`,
+              name: installmentLabel,
               remaining: perInst,
               daysLate: diffDays,
-              isInstallment: true
+              isInstallment: true,
+              dueDateStr: formattedDueDate
             });
+            allActiveDebts.push({
+              name: `${inst.name || "Taksit"} (${remainingInstallments} Taksit)`,
+              remaining: remainingAmount,
+              isInstallment: true,
+              status: `${diffDays} gün gecikti 🚨`,
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
           } else if (diffDays === 0) {
             dueTodayDebts.push({
-              name: `${inst.name || "Taksit"} (${paidCount + 1}. Taksit)`,
+              name: installmentLabel,
               amount: perInst,
-              isInstallment: true
+              isInstallment: true,
+              dueDateStr: formattedDueDate
             });
+            allActiveDebts.push({
+              name: `${inst.name || "Taksit"} (${remainingInstallments} Taksit)`,
+              remaining: remainingAmount,
+              isInstallment: true,
+              status: "Bugün son gün ⏰",
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
+          } else {
+            const daysLeft = Math.abs(diffDays);
+            upcomingDebts.push({
+              name: installmentLabel,
+              remaining: perInst,
+              daysLeft,
+              isInstallment: true,
+              dueDateStr: formattedDueDate
+            });
+            allActiveDebts.push({
+              name: `${inst.name || "Taksit"} (${remainingInstallments} Taksit)`,
+              remaining: remainingAmount,
+              isInstallment: true,
+              status: `${daysLeft} gün sonra`,
+              dueDateStr: formattedDueDate
+            });
+            classified = true;
           }
         }
       } catch (e) {
         // ignore date parse err
       }
     }
+
+    if (!classified) {
+      otherActiveDebts.push({
+        name: `${inst.name || "Taksit"} (${remainingInstallments} Taksit)`,
+        remaining: remainingAmount,
+        isInstallment: true,
+        dueDateStr: "Tarih Belirtilmedi"
+      });
+      allActiveDebts.push({
+        name: `${inst.name || "Taksit"} (${remainingInstallments} Taksit)`,
+        remaining: remainingAmount,
+        isInstallment: true,
+        status: "Vade Tarihi Yok",
+        dueDateStr: "-"
+      });
+    }
   });
 
-  return { overdueDebts, dueTodayDebts, todayStr };
+  const totalOverdueAmount = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+  const totalDueTodayAmount = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+
+  return {
+    overdueDebts,
+    dueTodayDebts,
+    upcomingDebts,
+    otherActiveDebts,
+    allActiveDebts,
+    totalActiveDebt,
+    totalOverdueAmount,
+    totalDueTodayAmount,
+    totalActiveCount,
+    todayStr
+  };
 }
 
 // REST route to subscribe/register device with current alarms AND debts
@@ -2177,15 +2327,39 @@ const saveEmailSubscribersToFile = () => {
 };
 
 // Generate HTML email template for overdue debts
+// Generate rich HTML email template for debt overview, overdue alerts, and reminders
 function generateOverdueEmailHtml(
   email: string,
   user: string,
-  overdueDebts: Array<{ name: string; remaining: number; daysLate: number; isInstallment?: boolean }>,
-  dueTodayDebts: Array<{ name: string; amount: number; isInstallment?: boolean }>,
-  isTest = false
+  analysis: any,
+  isTest = false,
+  isWelcome = false
 ) {
-  const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
-  const totalDueToday = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+  let overdueDebts: any[] = [];
+  let dueTodayDebts: any[] = [];
+  let upcomingDebts: any[] = [];
+  let allActiveDebts: any[] = [];
+  let totalActiveDebt = 0;
+  let totalOverdueAmount = 0;
+  let totalDueTodayAmount = 0;
+  let totalActiveCount = 0;
+
+  if (Array.isArray(analysis)) {
+    overdueDebts = analysis;
+    totalOverdueAmount = overdueDebts.reduce((sum, d) => sum + (Number(d.remaining) || 0), 0);
+    totalActiveDebt = totalOverdueAmount;
+    totalActiveCount = overdueDebts.length;
+  } else if (analysis && typeof analysis === "object") {
+    overdueDebts = analysis.overdueDebts || [];
+    dueTodayDebts = analysis.dueTodayDebts || [];
+    upcomingDebts = analysis.upcomingDebts || [];
+    allActiveDebts = analysis.allActiveDebts || [];
+    totalActiveDebt = Number(analysis.totalActiveDebt) || 0;
+    totalOverdueAmount = Number(analysis.totalOverdueAmount) || overdueDebts.reduce((sum, d) => sum + (Number(d.remaining) || 0), 0);
+    totalDueTodayAmount = Number(analysis.totalDueTodayAmount) || dueTodayDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    totalActiveCount = Number(analysis.totalActiveCount) || allActiveDebts.length || (overdueDebts.length + dueTodayDebts.length + upcomingDebts.length);
+  }
+
   const nowFormatted = new Date().toLocaleDateString("tr-TR", {
     day: "numeric",
     month: "long",
@@ -2194,45 +2368,75 @@ function generateOverdueEmailHtml(
     minute: "2-digit"
   });
 
-  const overdueRows = overdueDebts
-    .map(
-      (d) => `
-      <tr style="border-bottom: 1px solid #f1f5f9;">
-        <td style="padding: 12px 14px; font-weight: 700; color: #1e293b; font-size: 14px;">
-          ${d.name} ${d.isInstallment ? '<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-weight: 800;">TAKSİT</span>' : ""}
-        </td>
-        <td style="padding: 12px 14px; color: #e11d48; font-weight: 800; font-size: 14px; text-align: right;">
-          ₺${d.remaining.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-        </td>
-        <td style="padding: 12px 14px; text-align: center;">
-          <span style="background: #ffe4e6; color: #be123c; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 800;">
-            ${d.daysLate} Gün Gecikti
-          </span>
-        </td>
-      </tr>
-    `
-    )
-    .join("");
+  // Badge & Title customization
+  let badgeLabel = "⚠️ BORÇ BİLDİRİMİ";
+  let headingTitle = "Güncel Borç Durum & Hatırlatma Raporu";
 
-  const dueTodayRows = dueTodayDebts
-    .map(
-      (d) => `
-      <tr style="border-bottom: 1px solid #f1f5f9;">
-        <td style="padding: 12px 14px; font-weight: 700; color: #1e293b; font-size: 14px;">
-          ${d.name} ${d.isInstallment ? '<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-weight: 800;">TAKSİT</span>' : ""}
-        </td>
-        <td style="padding: 12px 14px; color: #d97706; font-weight: 800; font-size: 14px; text-align: right;">
-          ₺${d.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-        </td>
-        <td style="padding: 12px 14px; text-align: center;">
-          <span style="background: #fef3c7; color: #b45309; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 800;">
-            Bugün Son Gün
-          </span>
-        </td>
-      </tr>
-    `
-    )
-    .join("");
+  if (isWelcome) {
+    badgeLabel = "🎉 BİLDİRİMLER AKTİFLEŞTİRİLDİ";
+    headingTitle = "E-Posta Bildirimleriniz Devrede!";
+  } else if (isTest) {
+    badgeLabel = "🧪 TEST RAPORU & DOĞRULAMA";
+    headingTitle = "Bütçem Pro Test ve Borç Raporu";
+  } else if (overdueDebts.length > 0) {
+    badgeLabel = "🚨 GECİKMİŞ BORÇ UYARISI";
+    headingTitle = "Vadesi Geçmiş Borç Uyarısı!";
+  } else if (dueTodayDebts.length > 0) {
+    badgeLabel = "⏰ BUGÜN SON GÜN UYARISI";
+    headingTitle = "Bugün Vadesi Dolan Ödemeniz Var!";
+  }
+
+  const overdueRows = overdueDebts.map(d => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 12px 14px; font-weight: 700; color: #1e293b; font-size: 13px;">
+        ${d.name} ${d.isInstallment ? '<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-weight: 800;">TAKSİT</span>' : ''}
+        ${d.dueDateStr ? `<div style="font-size: 11px; color: #94a3b8; font-weight: 500; margin-top: 2px;">Vade: ${d.dueDateStr}</div>` : ''}
+      </td>
+      <td style="padding: 12px 14px; color: #e11d48; font-weight: 800; font-size: 14px; text-align: right;">
+        ₺${(Number(d.remaining) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+      </td>
+      <td style="padding: 12px 14px; text-align: center;">
+        <span style="background: #ffe4e6; color: #be123c; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 800;">
+          ${d.daysLate} Gün Gecikti
+        </span>
+      </td>
+    </tr>
+  `).join("");
+
+  const dueTodayRows = dueTodayDebts.map(d => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 12px 14px; font-weight: 700; color: #1e293b; font-size: 13px;">
+        ${d.name} ${d.isInstallment ? '<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-weight: 800;">TAKSİT</span>' : ''}
+      </td>
+      <td style="padding: 12px 14px; color: #d97706; font-weight: 800; font-size: 14px; text-align: right;">
+        ₺${(Number(d.amount) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+      </td>
+      <td style="padding: 12px 14px; text-align: center;">
+        <span style="background: #fef3c7; color: #b45309; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 800;">
+          Bugün Son Gün
+        </span>
+      </td>
+    </tr>
+  `).join("");
+
+  const allActiveRows = allActiveDebts.slice(0, 10).map(d => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 10px 14px; font-weight: 700; color: #1e293b; font-size: 12px;">
+        ${d.name} ${d.isInstallment ? '<span style="font-size: 9px; background: #e0e7ff; color: #4338ca; padding: 1px 5px; border-radius: 4px; font-weight: 800;">TAKSİT</span>' : ''}
+      </td>
+      <td style="padding: 10px 14px; color: #64748b; font-size: 12px; text-align: center;">
+        ${d.dueDateStr || '-'}
+      </td>
+      <td style="padding: 10px 14px; color: #0f172a; font-weight: 800; font-size: 13px; text-align: right;">
+        ₺${(Number(d.remaining) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+      </td>
+      <td style="padding: 10px 14px; text-align: center;">
+        <span style="background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700;">
+          ${d.status || 'Aktif'}
+        </span>
+      </td>
+    </tr>
+  `).join("");
 
   return `
 <!DOCTYPE html>
@@ -2257,32 +2461,38 @@ function generateOverdueEmailHtml(
           <tr>
             <td style="padding: 28px 28px 18px 28px; text-align: center;">
               <div style="display: inline-block; background: #e0e7ff; color: #4338ca; padding: 8px 16px; border-radius: 9999px; font-size: 11px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px;">
-                ${isTest ? "🧪 TEST E-POSTA BİLDİRİMİ" : "⚠️ OTOMATİK ÖDEME UYARISI"}
+                ${badgeLabel}
               </div>
               <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 900; letter-spacing: -0.02em;">
-                ${overdueDebts.length > 0 ? "Vadesi Geçmiş Borç Uyarısı" : "Vadesi Bugün Dolan Ödeme Uyarısı"}
+                ${headingTitle}
               </h1>
               <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px; font-weight: 500;">
-                Sayın ${user || "Bütçem Pro Kullanıcısı"}, ${nowFormatted} itibarıyla kayıtlı ödemelerinizin durumu aşağıdadır.
+                Sayın ${user || "Bütçem Pro Kullanıcısı"}, ${nowFormatted} itibarıyla kayıtlı borç ve ödemelerinizin güncel durumu aşağıdadır.
               </p>
             </td>
           </tr>
 
-          <!-- Metrics summary card -->
+          <!-- Metrics summary 3-column card -->
           <tr>
-            <td style="padding: 0 28px 18px 28px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #fff1f2; border: 1px solid #ffe4e6; border-radius: 16px; padding: 16px;">
+            <td style="padding: 0 28px 20px 28px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
                 <tr>
-                  <td style="text-align: center; border-right: 1px solid #fecdd3; padding: 8px;">
-                    <div style="font-size: 11px; font-weight: 800; color: #9f1239; text-transform: uppercase;">Toplam Geciken</div>
-                    <div style="font-size: 22px; font-weight: 900; color: #e11d48; margin-top: 4px;">
-                      ₺${totalOverdue.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                  <td style="text-align: center; border-right: 1px solid #e2e8f0; padding: 16px 8px; width: 33%;">
+                    <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">Toplam Kalan Borç</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 4px;">
+                      ₺${totalActiveDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
                     </div>
                   </td>
-                  <td style="text-align: center; padding: 8px;">
-                    <div style="font-size: 11px; font-weight: 800; color: #9f1239; text-transform: uppercase;">Geciken Kalem</div>
-                    <div style="font-size: 22px; font-weight: 900; color: #e11d48; margin-top: 4px;">
-                      ${overdueDebts.length} Adet
+                  <td style="text-align: center; border-right: 1px solid #e2e8f0; padding: 16px 8px; width: 33%;">
+                    <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">Geciken Tutar</div>
+                    <div style="font-size: 18px; font-weight: 900; color: ${totalOverdueAmount > 0 ? '#e11d48' : '#10b981'}; margin-top: 4px;">
+                      ${totalOverdueAmount > 0 ? `₺${totalOverdueAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}` : '₺0,00 (Temiz ✅)'}
+                    </div>
+                  </td>
+                  <td style="text-align: center; padding: 16px 8px; width: 34%;">
+                    <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">Aktif Borç Sayısı</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #4f46e5; margin-top: 4px;">
+                      ${totalActiveCount} Kalem
                     </div>
                   </td>
                 </tr>
@@ -2296,15 +2506,15 @@ function generateOverdueEmailHtml(
           <!-- Overdue debts table -->
           <tr>
             <td style="padding: 0 28px 18px 28px;">
-              <h3 style="margin: 0 0 10px 0; color: #334155; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
-                🚨 Vadesi Geçmiş Borç Detayları
+              <h3 style="margin: 0 0 10px 0; color: #be123c; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+                🚨 Vadesi Geçmiş Borç Detayları (${overdueDebts.length} Kalem)
               </h3>
-              <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+              <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: #ffffff; border: 1px solid #ffe4e6; border-radius: 12px; overflow: hidden;">
                 <thead>
-                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                    <th style="padding: 10px 14px; text-align: left; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Borç / Taksit</th>
-                    <th style="padding: 10px 14px; text-align: right; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Tutar</th>
-                    <th style="padding: 10px 14px; text-align: center; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Durum</th>
+                  <tr style="background: #fff1f2; border-bottom: 1px solid #ffe4e6;">
+                    <th style="padding: 10px 14px; text-align: left; font-size: 11px; color: #9f1239; font-weight: 800; text-transform: uppercase;">Borç / Taksit</th>
+                    <th style="padding: 10px 14px; text-align: right; font-size: 11px; color: #9f1239; font-weight: 800; text-transform: uppercase;">Tutar</th>
+                    <th style="padding: 10px 14px; text-align: center; font-size: 11px; color: #9f1239; font-weight: 800; text-transform: uppercase;">Durum</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2324,7 +2534,7 @@ function generateOverdueEmailHtml(
           <tr>
             <td style="padding: 0 28px 18px 28px;">
               <h3 style="margin: 0 0 10px 0; color: #b45309; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
-                ⏰ Bugün Vadesi Dolan Ödemeler
+                ⏰ Bugün Vadesi Dolan Ödemeler (${dueTodayDebts.length} Kalem)
               </h3>
               <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: #ffffff; border: 1px solid #fef3c7; border-radius: 12px; overflow: hidden;">
                 <thead>
@@ -2344,6 +2554,50 @@ function generateOverdueEmailHtml(
               : ""
           }
 
+          ${
+            allActiveDebts.length > 0 && overdueDebts.length === 0 && dueTodayDebts.length === 0
+              ? `
+          <!-- All active debts table -->
+          <tr>
+            <td style="padding: 0 28px 18px 28px;">
+              <h3 style="margin: 0 0 10px 0; color: #334155; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+                📋 Kayıtlı Aktif Borç Listesi
+              </h3>
+              <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <thead>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <th style="padding: 10px 14px; text-align: left; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Borç / Taksit</th>
+                    <th style="padding: 10px 14px; text-align: center; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Vade</th>
+                    <th style="padding: 10px 14px; text-align: right; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Kalan</th>
+                    <th style="padding: 10px 14px; text-align: center; font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase;">Durum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allActiveRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          ${
+            totalActiveCount === 0
+              ? `
+          <tr>
+            <td style="padding: 0 28px 20px 28px;">
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px; text-align: center;">
+                <div style="font-size: 24px; margin-bottom: 6px;">🎉</div>
+                <div style="color: #166534; font-weight: 800; font-size: 14px;">Harika! Kayıtlı Ödenmemiş Borcunuz Yok</div>
+                <div style="color: #15803d; font-size: 12px; margin-top: 4px;">Bütçem Pro'da takip edilen tüm borç ve taksitleriniz düzenli ve ödenmiş durumdadır.</div>
+              </div>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
           <!-- Action CTA -->
           <tr>
             <td style="padding: 8px 28px 24px 28px; text-align: center;">
@@ -2357,7 +2611,7 @@ function generateOverdueEmailHtml(
           <tr>
             <td style="background: #f8fafc; padding: 20px 28px; border-top: 1px solid #e2e8f0; text-align: center;">
               <p style="margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.5;">
-                Bu otomatik bilgilendirme e-postası, <strong>${email}</strong> adresi için Bütçem Pro <em>Ayarlar > E-posta Bildirim Doğrulama</em> tercihleriniz doğrultusunda gönderilmiştir.
+                Bu bilgilendirme e-postası, <strong>${email}</strong> adresi için Bütçem Pro <em>Ayarlar &gt; E-posta Bildirim Doğrulama</em> sisteminiz doğrultusunda iletilmiştir.
               </p>
               <p style="margin: 6px 0 0 0; font-size: 10px; color: #cbd5e1;">
                 Bütçem Pro &copy; ${new Date().getFullYear()} - Akıllı Bütçe ve Borç Takip Asistanı
@@ -2455,15 +2709,25 @@ async function sendMailHelper(options: {
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
     const transporter = getMailTransporter();
-    const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || '"Bütçem Pro" <bildirim@butcempro.app>';
+    const user = cleanCredential(process.env.SMTP_USER || process.env.GMAIL_USER);
+    
+    // When sending through Gmail SMTP, the From address must align with authenticated user for optimal inbox deliverability
+    const authEmail = user || (process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : "bildirim@butcempro.app");
+    const fromAddress = `"Bütçem Pro Bildirim" <${authEmail}>`;
+    const replyTo = process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : authEmail;
     
     if (transporter) {
       const info = await transporter.sendMail({
         from: fromAddress,
+        replyTo: replyTo,
         to: options.to,
         subject: options.subject,
         html: options.html,
-        text: options.text || options.subject
+        text: options.text || options.subject,
+        headers: {
+          "X-Application": "Butcem-Pro",
+          "X-Priority": "1"
+        }
       });
       console.log(`[Email Engine] Real email successfully sent to ${options.to} (MessageID: ${info.messageId})`);
       return { success: true, messageId: info.messageId, simulated: false };
@@ -2549,7 +2813,7 @@ app.post("/api/notifications/email/request-verification", async (req, res) => {
 });
 
 // 2. Verify OTP code and activate email alerts
-app.post("/api/notifications/email/verify", (req, res) => {
+app.post("/api/notifications/email/verify", async (req, res) => {
   const { email, code, debts, installmentDebts, preferences } = req.body;
   if (!email || !code) {
     return res.status(400).json({ error: "E-posta ve doğrulama kodu zorunludur." });
@@ -2583,16 +2847,42 @@ app.post("/api/notifications/email/verify", (req, res) => {
     if (typeof preferences.minAmountThreshold === "number") subscriber.minAmountThreshold = preferences.minAmountThreshold;
   }
 
-  if (debts) subscriber.debts = debts;
-  if (installmentDebts) subscriber.installmentDebts = installmentDebts;
+  if (debts && Array.isArray(debts)) subscriber.debts = debts;
+  if (installmentDebts && Array.isArray(installmentDebts)) subscriber.installmentDebts = installmentDebts;
+
+  // Run comprehensive debt analysis for real amounts
+  const debtAnalysis = analyzeUserDebts(subscriber.debts || [], subscriber.installmentDebts || []);
+
+  console.log(`[Email Alert Engine] Verified email: ${normalizedEmail}. Total active debts: ${debtAnalysis.totalActiveCount}, Total remaining: ₺${debtAnalysis.totalActiveDebt}, Overdue: ₺${debtAnalysis.totalOverdueAmount}`);
+
+  // Send an immediate confirmation / welcome email with current debt summary
+  let welcomeSent = false;
+  try {
+    const welcomeHtml = generateOverdueEmailHtml(
+      normalizedEmail,
+      subscriber.user || "Bütçem Pro Kullanıcısı",
+      debtAnalysis,
+      false,
+      true
+    );
+    const welcomeResult = await sendMailHelper({
+      to: normalizedEmail,
+      subject: `[Bütçem Pro] 🎉 E-posta Bildirimleriniz Aktifleştirildi (Güncel Borç Raporunuz)`,
+      html: welcomeHtml
+    });
+    welcomeSent = welcomeResult.success && !welcomeResult.simulated;
+    subscriber.lastEmailSentAt = Date.now();
+    subscriber.lastSentDebtSummary = `${debtAnalysis.overdueDebts.length} gecikmiş, ${debtAnalysis.dueTodayDebts.length} bugün vadesi gelen, toplam ₺${debtAnalysis.totalActiveDebt} borç`;
+  } catch (confirmMailErr) {
+    console.warn("[Email Alert Engine] Welcome confirmation email dispatch warning:", confirmMailErr);
+  }
 
   saveEmailSubscribersToFile();
 
-  console.log(`[Email Alert Engine] Successfully verified email notifications for: ${normalizedEmail}`);
-
   res.json({
     success: true,
-    message: "E-posta adresiniz gecikmiş borç uyarıları için başarıyla doğrulandı ve kaydedildi! 🎉",
+    welcomeSent,
+    message: "E-posta adresiniz gecikmiş borç uyarıları için başarıyla doğrulandı ve aktifleştirildi! 🎉",
     subscriber: {
       email: subscriber.email,
       verified: subscriber.verified,
@@ -2600,7 +2890,10 @@ app.post("/api/notifications/email/verify", (req, res) => {
       alertDueToday: subscriber.alertDueToday,
       frequency: subscriber.frequency,
       minAmountThreshold: subscriber.minAmountThreshold,
-      verifiedAt: subscriber.verifiedAt
+      verifiedAt: subscriber.verifiedAt,
+      totalActiveDebt: debtAnalysis.totalActiveDebt,
+      totalOverdueAmount: debtAnalysis.totalOverdueAmount,
+      totalActiveCount: debtAnalysis.totalActiveCount
     }
   });
 });
@@ -2620,6 +2913,8 @@ app.get("/api/notifications/email/status", (req, res) => {
     });
   }
 
+  const debtAnalysis = analyzeUserDebts(subscriber.debts || [], subscriber.installmentDebts || []);
+
   res.json({
     registered: true,
     verified: subscriber.verified,
@@ -2629,7 +2924,11 @@ app.get("/api/notifications/email/status", (req, res) => {
     frequency: subscriber.frequency,
     minAmountThreshold: subscriber.minAmountThreshold,
     verifiedAt: subscriber.verifiedAt,
-    lastEmailSentAt: subscriber.lastEmailSentAt
+    lastEmailSentAt: subscriber.lastEmailSentAt,
+    lastSentDebtSummary: subscriber.lastSentDebtSummary,
+    totalActiveDebt: debtAnalysis.totalActiveDebt,
+    totalOverdueAmount: debtAnalysis.totalOverdueAmount,
+    totalActiveCount: debtAnalysis.totalActiveCount
   });
 });
 
@@ -2649,8 +2948,8 @@ app.post("/api/notifications/email/update-preferences", (req, res) => {
     if (typeof preferences.minAmountThreshold === "number") subscriber.minAmountThreshold = preferences.minAmountThreshold;
   }
 
-  if (debts !== undefined) subscriber.debts = debts;
-  if (installmentDebts !== undefined) subscriber.installmentDebts = installmentDebts;
+  if (debts !== undefined && Array.isArray(debts)) subscriber.debts = debts;
+  if (installmentDebts !== undefined && Array.isArray(installmentDebts)) subscriber.installmentDebts = installmentDebts;
 
   saveEmailSubscribersToFile();
 
@@ -2689,21 +2988,44 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     return res.status(400).json({ error: "E-posta adresi belirtilmedi." });
   }
 
-  let { overdueDebts, dueTodayDebts } = analyzeUserDebts(debts || [], installmentDebts || []);
+  const sub = emailSubscribersMap[normalizedEmail];
+  // Always use the latest available debts (provided in body or saved in subscriber record)
+  const userDebts = (debts && Array.isArray(debts) && debts.length > 0) ? debts : (sub?.debts || []);
+  const userInstDebts = (installmentDebts && Array.isArray(installmentDebts) && installmentDebts.length > 0) ? installmentDebts : (sub?.installmentDebts || []);
 
-  // If user has no current overdue debts, generate realistic sample data for diagnostic test
-  if (overdueDebts.length === 0 && dueTodayDebts.length === 0) {
-    overdueDebts = [
-      { name: "Garanti Kredi Kartı Asgari", remaining: 4850, daysLate: 3, isInstallment: false },
-      { name: "Kira / Aidat Ödemesi", remaining: 12000, daysLate: 1, isInstallment: false }
-    ];
-    dueTodayDebts = [
-      { name: "Buzdolabı Taksiti (4. Taksit)", amount: 2450, isInstallment: true }
-    ];
+  if (debts && Array.isArray(debts) && sub) sub.debts = debts;
+  if (installmentDebts && Array.isArray(installmentDebts) && sub) sub.installmentDebts = installmentDebts;
+  if (sub) saveEmailSubscribersToFile();
+
+  const analysis = analyzeUserDebts(userDebts, userInstDebts);
+
+  // If user has zero registered debts at all in system, provide test mock items so they can see how late alerts render
+  let reportAnalysis = analysis;
+  if (analysis.totalActiveCount === 0) {
+    reportAnalysis = {
+      ...analysis,
+      totalActiveDebt: 19300,
+      totalOverdueAmount: 16850,
+      totalDueTodayAmount: 2450,
+      totalActiveCount: 3,
+      overdueDebts: [
+        { name: "Garanti Kredi Kartı Asgari (Test)", remaining: 4850, daysLate: 3, isInstallment: false, dueDateStr: "3 gün önce" },
+        { name: "Kira / Aidat Ödemesi (Test)", remaining: 12000, daysLate: 1, isInstallment: false, dueDateStr: "Dün" }
+      ],
+      dueTodayDebts: [
+        { name: "Buzdolabı Taksiti (4. Taksit) (Test)", amount: 2450, isInstallment: true }
+      ]
+    };
   }
 
-  const html = generateOverdueEmailHtml(normalizedEmail, user || "Bütçem Pro Kullanıcısı", overdueDebts, dueTodayDebts, true);
-  const subject = `[Bütçem Pro Test] ⚠️ Gecikmiş Borç & Ödeme Hatırlatıcı Bildirimi (${new Date().toLocaleDateString("tr-TR")})`;
+  const html = generateOverdueEmailHtml(
+    normalizedEmail,
+    user || sub?.user || "Bütçem Pro Kullanıcısı",
+    reportAnalysis,
+    true,
+    false
+  );
+  const subject = `[Bütçem Pro Test] ⚠️ Borç & Ödeme Hatırlatıcı Bildirimi (${new Date().toLocaleDateString("tr-TR")})`;
 
   const sendResult = await sendMailHelper({
     to: normalizedEmail,
@@ -2713,7 +3035,7 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
 
   const hasSmtp = !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
 
-  console.log(`[Email Alert Engine] Sent test email to: ${normalizedEmail} (Delivered: ${!sendResult.simulated}, HasSMTP: ${hasSmtp})`);
+  console.log(`[Email Alert Engine] Sent test email to: ${normalizedEmail} (Delivered: ${!sendResult.simulated && sendResult.success}, HasSMTP: ${hasSmtp}, TotalDebt: ₺${reportAnalysis.totalActiveDebt})`);
 
   res.json({
     success: sendResult.success,
@@ -2721,14 +3043,16 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     simulated: sendResult.simulated,
     smtpConfigured: hasSmtp,
     message: sendResult.simulated 
-      ? `Test e-postası ${normalizedEmail} adresi için başarıyla hazırlandı ve doğrulandı! (Doğrudan gelen kutunuza anlık iletim için Ayarlar veya ortam değişkenlerine SMTP bilgilerinizi tanımlayabilirsiniz).`
+      ? `Test e-postası ${normalizedEmail} adresi için başarıyla simüle edildi ve doğrulandı! (Doğrudan gelen kutunuza anlık iletim için Ayarlar veya ortam değişkenlerine SMTP bilgilerinizi tanımlayabilirsiniz).`
       : sendResult.success
         ? `Test e-postası ${normalizedEmail} adresine başarıyla gönderildi! Lütfen gelen kutunuzu kontrol edin.`
         : `E-posta gönderiminde hata oluştu: ${sendResult.error}`,
     htmlPreview: html,
-    overdueCount: overdueDebts.length,
-    dueTodayCount: dueTodayDebts.length,
-    totalOverdueAmount: overdueDebts.reduce((sum, d) => sum + d.remaining, 0)
+    overdueCount: reportAnalysis.overdueDebts.length,
+    dueTodayCount: reportAnalysis.dueTodayDebts.length,
+    totalOverdueAmount: reportAnalysis.totalOverdueAmount,
+    totalActiveDebt: reportAnalysis.totalActiveDebt,
+    totalActiveCount: reportAnalysis.totalActiveCount
   });
 });
 
@@ -2748,14 +3072,31 @@ setInterval(async () => {
 
       const lastSent = sub.lastEmailSentAt || 0;
       if (nowTime - lastSent > TWELVE_HOURS_MS) {
-        const { overdueDebts, dueTodayDebts } = analyzeUserDebts(sub.debts || [], sub.installmentDebts || []);
+        const subDebts = sub.debts || [];
+        const subInstDebts = sub.installmentDebts || [];
+        const analysis = analyzeUserDebts(subDebts, subInstDebts);
+        const { overdueDebts, dueTodayDebts } = analysis;
         const qualifyingOverdue = overdueDebts.filter(d => d.remaining >= (sub.minAmountThreshold || 0));
         const qualifyingDueToday = dueTodayDebts.filter(d => d.amount >= (sub.minAmountThreshold || 0));
 
         if ((sub.alertOverdue && qualifyingOverdue.length > 0) || (sub.alertDueToday && qualifyingDueToday.length > 0)) {
           console.log(`[Email Alert Engine] Automated background overdue alert triggered for verified subscriber: ${sub.email}`);
           
-          const html = generateOverdueEmailHtml(sub.email, sub.user || "Bütçem Pro Kullanıcısı", qualifyingOverdue, qualifyingDueToday, false);
+          const filteredAnalysis = {
+            ...analysis,
+            overdueDebts: qualifyingOverdue,
+            dueTodayDebts: qualifyingDueToday,
+            totalOverdueAmount: qualifyingOverdue.reduce((s, d) => s + (Number(d.remaining) || 0), 0),
+            totalDueTodayAmount: qualifyingDueToday.reduce((s, d) => s + (Number(d.amount) || 0), 0),
+          };
+
+          const html = generateOverdueEmailHtml(
+            sub.email,
+            sub.user || "Bütçem Pro Kullanıcısı",
+            filteredAnalysis,
+            false,
+            false
+          );
           const subject = `⚠️ Bütçem Pro: ${qualifyingOverdue.length > 0 ? `${qualifyingOverdue.length} Adet Gecikmiş Borç` : "Bugün Vadesi Gelen Ödeme"} Uyarısı ⏰`;
           
           await sendMailHelper({
@@ -2765,7 +3106,7 @@ setInterval(async () => {
           });
 
           sub.lastEmailSentAt = nowTime;
-          sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmiş, ${qualifyingDueToday.length} bugün vadesi gelen`;
+          sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmiş, ${qualifyingDueToday.length} bugün vadesi gelen (Toplam Kalan: ₺${analysis.totalActiveDebt})`;
           saveEmailSubscribersToFile();
         }
       }

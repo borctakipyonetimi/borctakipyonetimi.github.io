@@ -20,10 +20,30 @@
     "alertDueToday": true,
     "frequency": "daily_morning",
     "minAmountThreshold": 0,
-    "debts": [],
-    "installmentDebts": [],
+    "debts": [
+      {
+        "name": "Kredi Borcu",
+        "amount": 15000,
+        "paid": 5000,
+        "remaining": 10000,
+        "dueDate": "2026-08-15"
+      }
+    ],
+    "installmentDebts": [
+      {
+        "name": "Beyaz Eşya Taksiti",
+        "totalAmount": 12000,
+        "installmentCount": 6,
+        "paidInstallmentCount": 1,
+        "firstDueDate": "2026-08-01"
+      }
+    ],
     "user": "Bütçem Pro",
     "createdAt": 1788387350735,
-    "verifiedAt": 1788387497465
+    "verifiedAt": 1788387497465,
+    "verificationCode": "483357",
+    "codeExpiresAt": 1788389207245,
+    "lastEmailSentAt": 1788388609371,
+    "lastSentDebtSummary": "1 gecikmiş, 0 bugün vadesi gelen"
   }
 }
