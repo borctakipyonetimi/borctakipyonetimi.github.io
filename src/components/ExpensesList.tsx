@@ -666,18 +666,24 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
+  const handleDragStart = (e: any, index: number) => {
     setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = "move";
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+    }
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
+  const handleDragOver = (e: any, index: number) => {
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
     setDragOverIndex(index);
   };
 
-  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
+  const handleDrop = (e: any, targetIndex: number) => {
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
     if (
       draggedIndex === null ||
       draggedIndex === targetIndex ||
@@ -1377,10 +1383,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       draggable={
                         !isInlineEditingCategory && !!onUpdateAllCategories
                       }
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragStart={(e: any) => handleDragStart(e, idx)}
+                      onDragOver={(e: any) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
-                      onDrop={(e) => handleDrop(e, idx)}
+                      onDrop={(e: any) => handleDrop(e, idx)}
                       onDragLeave={() => {
                         if (dragOverIndex === idx) setDragOverIndex(null);
                       }}

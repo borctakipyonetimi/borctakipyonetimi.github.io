@@ -362,7 +362,7 @@ export default function App() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly" | "lifetime">("yearly");
   const [isRestoring, setIsRestoring] = useState(false);
-  const [restoreStep, setRestoreStep] = useState<"method" | "gpa" | "restoring" | "success">("method");
+  const [restoreStep, setRestoreStep] = useState<"method" | "firebase" | "gpa" | "restoring" | "success">("method");
   const [gpaInput, setGpaInput] = useState("");
   const [restoredPlanType, setRestoredPlanType] = useState<"monthly" | "yearly" | "lifetime">("yearly");
   const [restoreStatusLog, setRestoreStatusLog] = useState("");
@@ -582,27 +582,33 @@ export default function App() {
       let unlocked = false;
       const unlockAudio = () => {
         if (unlocked) return;
+        unlocked = true;
         
         // Try to play a silent WAV to authorize subsequent HTML5 Audio requests
-        const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
-        silentAudio.play()
-          .then(() => {
-            unlocked = true;
-            console.log("Audio session unlocked dynamically via user gesture.");
-            window.removeEventListener("click", unlockAudio);
-            window.removeEventListener("touchstart", unlockAudio);
-          })
-          .catch((e) => {
-            console.warn("Silent audio context unlock deferred:", e);
-          });
+        try {
+          const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
+          silentAudio.play()
+            .then(() => {
+              console.log("Audio session unlocked dynamically via user gesture.");
+              window.removeEventListener("click", unlockAudio);
+              window.removeEventListener("touchstart", unlockAudio);
+            })
+            .catch((e) => {
+              console.warn("Silent audio context unlock deferred:", e);
+            });
+        } catch {}
 
-        // Also resume Web Audio context
+        // Also resume Web Audio context safely
         try {
           const AudioCtxConstructor = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioCtxConstructor) {
             const testCtx = new AudioCtxConstructor();
             if (testCtx.state === "suspended") {
-              testCtx.resume();
+              testCtx.resume().finally(() => {
+                setTimeout(() => testCtx.close().catch(() => {}), 500);
+              });
+            } else {
+              setTimeout(() => testCtx.close().catch(() => {}), 500);
             }
           }
         } catch (e) {
@@ -610,8 +616,8 @@ export default function App() {
         }
       };
 
-      window.addEventListener("click", unlockAudio, { passive: true });
-      window.addEventListener("touchstart", unlockAudio, { passive: true });
+      window.addEventListener("click", unlockAudio, { passive: true, once: true });
+      window.addEventListener("touchstart", unlockAudio, { passive: true, once: true });
     }
   }, []);
 
@@ -947,6 +953,12 @@ export default function App() {
               osc.start(nowTime);
               osc.stop(nowTime + 0.72);
             }
+
+            setTimeout(() => {
+              try {
+                audioCtx.close().catch(() => {});
+              } catch {}
+            }, 1500);
           }
         } catch (synthError) {
           console.log("Synthesizer fallback suppressed by restriction:", synthError);

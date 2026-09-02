@@ -10,6 +10,7 @@ export interface Debt {
   paid: number;
   category: string;
   dueDate: string;
+  date?: string;
   providerId?: string;
 }
 
@@ -34,6 +35,12 @@ export interface NotificationItem {
   id: number;
   title: string;
   desc?: string;
+  message?: string;
+  time?: string;
+  date?: string;
+  isRead?: boolean;
+  type?: string;
+  link?: string;
 }
 
 export interface InstallmentDebt {
@@ -57,6 +64,7 @@ export interface PaymentLog {
 export interface Expense {
   id: number;
   categoryId: number;
+  category?: string;
   amount: number;
   description: string;
   date: string;

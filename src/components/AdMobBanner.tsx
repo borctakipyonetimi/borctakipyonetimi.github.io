@@ -20,14 +20,18 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   const [isWebView, setIsWebView] = useState(false);
   const adInited = useRef(false);
 
-  // Dynamically check premium status, auth, and WebView environment
+  // Dynamically check premium status, auth, and WebView environment with event-based sync
   useEffect(() => {
     const checkStatus = () => {
-      setIsPremium(localStorage.getItem("is_premium") === "true");
-      setIsLoggedIn(!!localStorage.getItem("currentUser"));
+      const nextPrem = localStorage.getItem("is_premium") === "true";
+      const nextLogged = !!localStorage.getItem("currentUser");
+      setIsPremium((prev) => (prev !== nextPrem ? nextPrem : prev));
+      setIsLoggedIn((prev) => (prev !== nextLogged ? nextLogged : prev));
     };
     checkStatus();
-    const interval = setInterval(checkStatus, 1500);
+
+    window.addEventListener("storage", checkStatus);
+    window.addEventListener("premium_status_changed", checkStatus);
 
     // Detect if we are running inside an Android WebView context (APK wrapper)
     if (typeof window !== "undefined" && navigator) {
@@ -36,7 +40,10 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       setIsWebView(webViewActive);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener("storage", checkStatus);
+      window.removeEventListener("premium_status_changed", checkStatus);
+    };
   }, []);
 
   // Initialize Google AdSense responsive ad units safely inside React lifecycle

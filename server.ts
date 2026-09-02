@@ -9,6 +9,15 @@ import webpush from "web-push";
 
 dotenv.config();
 
+// Top-level crash guards to ensure the server process never terminates unexpectedly
+process.on("uncaughtException", (err) => {
+  console.error("[Server Process Guard] Uncaught Exception caught:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Server Process Guard] Unhandled Rejection caught at:", promise, "reason:", reason);
+});
+
 const app = express();
 const PORT = 3000;
 
@@ -30,6 +39,20 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Memory cache for temporary backups (lasts 30 minutes for sharing via WhatsApp / Drive)
 const tempWebviewBackups = new Map<string, { content: string, filename: string, expires: number }>();
+
+// Periodic memory cleanup to prevent memory accumulation
+setInterval(() => {
+  try {
+    const now = Date.now();
+    for (const [key, val] of tempWebviewBackups.entries()) {
+      if (now > val.expires) {
+        tempWebviewBackups.delete(key);
+      }
+    }
+  } catch (e) {
+    console.error("Backup cache cleanup error:", e);
+  }
+}, 5 * 60 * 1000);
 
 app.post("/api/temp-backup", (req, res) => {
   const { content, filename } = req.body;
@@ -2710,190 +2733,203 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
 // 2. Periodically checks overdue debts & due-today debts (push notifications)
 // 3. Periodically checks overdue debts for verified email subscribers (automated email alerts)
 setInterval(async () => {
-  const nowTime = Date.now();
-  let hasChanges = false;
+  try {
+    const nowTime = Date.now();
+    let hasChanges = false;
 
-  // Check verified email subscribers for automated overdue emails (once every 12 hours)
-  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
-  for (const [emailKey, sub] of Object.entries(emailSubscribersMap)) {
-    if (!sub.verified || (!sub.alertOverdue && !sub.alertDueToday)) continue;
+    // Check verified email subscribers for automated overdue emails (once every 12 hours)
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    for (const [emailKey, sub] of Object.entries(emailSubscribersMap)) {
+      if (!sub.verified || (!sub.alertOverdue && !sub.alertDueToday)) continue;
 
-    const lastSent = sub.lastEmailSentAt || 0;
-    if (nowTime - lastSent > TWELVE_HOURS_MS) {
-      const { overdueDebts, dueTodayDebts } = analyzeUserDebts(sub.debts || [], sub.installmentDebts || []);
-      const qualifyingOverdue = overdueDebts.filter(d => d.remaining >= (sub.minAmountThreshold || 0));
-      const qualifyingDueToday = dueTodayDebts.filter(d => d.amount >= (sub.minAmountThreshold || 0));
+      const lastSent = sub.lastEmailSentAt || 0;
+      if (nowTime - lastSent > TWELVE_HOURS_MS) {
+        const { overdueDebts, dueTodayDebts } = analyzeUserDebts(sub.debts || [], sub.installmentDebts || []);
+        const qualifyingOverdue = overdueDebts.filter(d => d.remaining >= (sub.minAmountThreshold || 0));
+        const qualifyingDueToday = dueTodayDebts.filter(d => d.amount >= (sub.minAmountThreshold || 0));
 
-      if ((sub.alertOverdue && qualifyingOverdue.length > 0) || (sub.alertDueToday && qualifyingDueToday.length > 0)) {
-        console.log(`[Email Alert Engine] Automated background overdue alert triggered for verified subscriber: ${sub.email}`);
-        
-        const html = generateOverdueEmailHtml(sub.email, sub.user || "Bütçem Pro Kullanıcısı", qualifyingOverdue, qualifyingDueToday, false);
-        const subject = `⚠️ Bütçem Pro: ${qualifyingOverdue.length > 0 ? `${qualifyingOverdue.length} Adet Gecikmiş Borç` : "Bugün Vadesi Gelen Ödeme"} Uyarısı ⏰`;
-        
-        await sendMailHelper({
-          to: sub.email,
-          subject,
-          html
-        });
+        if ((sub.alertOverdue && qualifyingOverdue.length > 0) || (sub.alertDueToday && qualifyingDueToday.length > 0)) {
+          console.log(`[Email Alert Engine] Automated background overdue alert triggered for verified subscriber: ${sub.email}`);
+          
+          const html = generateOverdueEmailHtml(sub.email, sub.user || "Bütçem Pro Kullanıcısı", qualifyingOverdue, qualifyingDueToday, false);
+          const subject = `⚠️ Bütçem Pro: ${qualifyingOverdue.length > 0 ? `${qualifyingOverdue.length} Adet Gecikmiş Borç` : "Bugün Vadesi Gelen Ödeme"} Uyarısı ⏰`;
+          
+          await sendMailHelper({
+            to: sub.email,
+            subject,
+            html
+          });
 
-        sub.lastEmailSentAt = nowTime;
-        sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmiş, ${qualifyingDueToday.length} bugün vadesi gelen`;
-        saveEmailSubscribersToFile();
+          sub.lastEmailSentAt = nowTime;
+          sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmiş, ${qualifyingDueToday.length} bugün vadesi gelen`;
+          saveEmailSubscribersToFile();
+        }
       }
     }
-  }
 
-  for (const [endpointHash, details] of Object.entries(subscriptionsMap)) {
-    if (!details || !details.subscription) continue;
+    for (const [endpointHash, details] of Object.entries(subscriptionsMap)) {
+      if (!details || !details.subscription) continue;
 
-    // --- 1. CHECK SPECIFIC SCHEDULED ALARMS ---
-    if (details.alarms && details.alarms.length > 0) {
-      const remainingAlarms: any[] = [];
-      const triggeredAlarms: any[] = [];
+      // --- 1. CHECK SPECIFIC SCHEDULED ALARMS ---
+      if (details.alarms && details.alarms.length > 0) {
+        const remainingAlarms: any[] = [];
+        const triggeredAlarms: any[] = [];
 
-      details.alarms.forEach((alarm) => {
-        if (!alarm) return;
-        
-        let alarmTime = NaN;
-        if (alarm.timestamp) {
-          alarmTime = Number(alarm.timestamp);
-        } else if (alarm.date) {
-          try {
-            alarmTime = new Date(alarm.date).getTime();
-            
-            // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
-            if (isNaN(alarmTime)) {
-              const parts = alarm.date.trim().split(" ");
-              if (parts.length === 2) {
-                const datePart = parts[0];
-                const timePart = parts[1];
-                let y, m, d;
-                if (datePart.includes(".")) {
-                  const dp = datePart.split(".");
-                  d = parseInt(dp[0], 10);
-                  m = parseInt(dp[1], 10) - 1;
-                  y = parseInt(dp[2], 10);
-                } else if (datePart.includes("-")) {
-                  const dp = datePart.split("-");
-                  y = parseInt(dp[0], 10);
-                  m = parseInt(dp[1], 10) - 1;
-                  d = parseInt(dp[2], 10);
+        details.alarms.forEach((alarm) => {
+          if (!alarm) return;
+          
+          let alarmTime = NaN;
+          if (alarm.timestamp) {
+            alarmTime = Number(alarm.timestamp);
+          } else if (alarm.date) {
+            try {
+              alarmTime = new Date(alarm.date).getTime();
+              
+              // Secondary Turkish locale parser fallback for "dd.mm.yyyy hh:mm:ss"
+              if (isNaN(alarmTime)) {
+                const parts = alarm.date.trim().split(" ");
+                if (parts.length === 2) {
+                  const datePart = parts[0];
+                  const timePart = parts[1];
+                  let y, m, d;
+                  if (datePart.includes(".")) {
+                    const dp = datePart.split(".");
+                    d = parseInt(dp[0], 10);
+                    m = parseInt(dp[1], 10) - 1;
+                    y = parseInt(dp[2], 10);
+                  } else if (datePart.includes("-")) {
+                    const dp = datePart.split("-");
+                    y = parseInt(dp[0], 10);
+                    m = parseInt(dp[1], 10) - 1;
+                    d = parseInt(dp[2], 10);
+                  }
+                  const tp = timePart.split(":");
+                  const hr = parseInt(tp[0], 10) || 0;
+                  const min = parseInt(tp[1], 10) || 0;
+                  const sec = parseInt(tp[2], 10) || 0;
+                  alarmTime = new Date(y, m, d, hr, min, sec).getTime();
                 }
-                const tp = timePart.split(":");
-                const hr = parseInt(tp[0], 10) || 0;
-                const min = parseInt(tp[1], 10) || 0;
-                const sec = parseInt(tp[2], 10) || 0;
-                alarmTime = new Date(y, m, d, hr, min, sec).getTime();
+              }
+            } catch (err) {
+              console.error("[Push Server] parse alarm date error:", err);
+            }
+          }
+
+          if (!isNaN(alarmTime) && alarmTime <= nowTime) {
+            triggeredAlarms.push(alarm);
+          } else {
+            remainingAlarms.push(alarm);
+          }
+        });
+
+        if (triggeredAlarms.length > 0) {
+          hasChanges = true;
+          details.alarms = remainingAlarms;
+
+          // Send a push notification for each triggered alarm!
+          for (const alarm of triggeredAlarms) {
+            const payload = JSON.stringify({
+              title: "Butcem Pro",
+              body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
+              tag: `alarm-${alarm.id}`,
+              action: "trigger-sync",
+              syncTag: "server-cron-sync",
+              icon: "/logo.png",
+              badge: "/logo.png",
+              url: "/?tab=notifications"
+            });
+
+            console.log(`[Push Server] Sending background notification for alarm: "${alarm.title}" to user "${details.user}"`);
+            
+            try {
+              await webpush.sendNotification(details.subscription, payload, {
+                headers: { "Urgency": "high" },
+                TTL: 0
+              });
+              console.log(`[Push Server] Successfully sent notification!`);
+            } catch (pushErr: any) {
+              console.error(`[Push Server] Error sending push notification. Status code: ${pushErr.statusCode || "unknown"}`);
+              if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
+                console.log(`[Push Server] Removing deactivated subscription: ${endpointHash}`);
+                delete subscriptionsMap[endpointHash];
+                break;
               }
             }
-          } catch (err) {
-            console.error("[Push Server] parse alarm date error:", err);
           }
         }
+      }
 
-        if (!isNaN(alarmTime) && alarmTime <= nowTime) {
-          triggeredAlarms.push(alarm);
-        } else {
-          remainingAlarms.push(alarm);
-        }
-      });
+      // --- 2. CHECK OVERDUE DEBTS & DUE TODAY (BACKGROUND PUSH WHEN APP IS CLOSED) ---
+      // We send overdue / due reminders at reasonable intervals (at least 6 hours apart per device)
+      const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+      const lastOverdueTime = details.lastOverduePushTime || 0;
+      const hasDebts = (details.debts && details.debts.length > 0) || (details.installmentDebts && details.installmentDebts.length > 0);
 
-      if (triggeredAlarms.length > 0) {
-        hasChanges = true;
-        details.alarms = remainingAlarms;
+      if (hasDebts && (nowTime - lastOverdueTime > SIX_HOURS_MS)) {
+        const { overdueDebts, dueTodayDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
 
-        // Send a push notification for each triggered alarm!
-        for (const alarm of triggeredAlarms) {
+        if (overdueDebts.length > 0 || dueTodayDebts.length > 0) {
+          let title = "Bütçem Pro: Borç Hatırlatması ⏰";
+          let body = "";
+
+          if (overdueDebts.length > 0) {
+            const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+            const topDebt = overdueDebts[0];
+            title = `⚠️ Gecikmiş Borç Uyarısı (${overdueDebts.length} Adet)`;
+            body = `Ödemesi geçen borcunuz var: "${topDebt.name}" (₺${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikti). Toplam: ₺${totalOverdue.toLocaleString("tr-TR")}.`;
+          } else if (dueTodayDebts.length > 0) {
+            const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+            const topDebt = dueTodayDebts[0];
+            title = `🚨 Bugün Vadesi Gelen Ödemeniz Var!`;
+            body = `"${topDebt.name}" için ₺${topDebt.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün!`;
+          }
+
           const payload = JSON.stringify({
-            title: "Butcem Pro",
-            body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
-            tag: `alarm-${alarm.id}`,
+            title,
+            body,
+            tag: "overdue-periodic-" + new Date().toISOString().slice(0, 10),
             action: "trigger-sync",
             syncTag: "server-cron-sync",
             icon: "/logo.png",
             badge: "/logo.png",
-            url: "/?tab=notifications"
+            url: "/?tab=debts"
           });
 
-          console.log(`[Push Server] Sending background notification for alarm: "${alarm.title}" to user "${details.user}"`);
-          
           try {
+            console.log(`[Push Server] Sending periodic background overdue reminder to user: "${details.user}"`);
             await webpush.sendNotification(details.subscription, payload, {
               headers: { "Urgency": "high" },
-              TTL: 0
+              TTL: 86400
             });
-            console.log(`[Push Server] Successfully sent notification!`);
+            details.lastOverduePushTime = nowTime;
+            hasChanges = true;
           } catch (pushErr: any) {
-            console.error(`[Push Server] Error sending push notification. Status code: ${pushErr.statusCode || "unknown"}`);
+            console.error(`[Push Server] Error sending overdue push:`, pushErr.statusCode || pushErr.message);
             if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
-              console.log(`[Push Server] Removing deactivated subscription: ${endpointHash}`);
               delete subscriptionsMap[endpointHash];
-              break;
+              hasChanges = true;
             }
           }
         }
       }
     }
 
-    // --- 2. CHECK OVERDUE DEBTS & DUE TODAY (BACKGROUND PUSH WHEN APP IS CLOSED) ---
-    // We send overdue / due reminders at reasonable intervals (at least 6 hours apart per device)
-    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
-    const lastOverdueTime = details.lastOverduePushTime || 0;
-    const hasDebts = (details.debts && details.debts.length > 0) || (details.installmentDebts && details.installmentDebts.length > 0);
-
-    if (hasDebts && (nowTime - lastOverdueTime > SIX_HOURS_MS)) {
-      const { overdueDebts, dueTodayDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
-
-      if (overdueDebts.length > 0 || dueTodayDebts.length > 0) {
-        let title = "Bütçem Pro: Borç Hatırlatması ⏰";
-        let body = "";
-
-        if (overdueDebts.length > 0) {
-          const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
-          const topDebt = overdueDebts[0];
-          title = `⚠️ Gecikmiş Borç Uyarısı (${overdueDebts.length} Adet)`;
-          body = `Ödemesi geçen borcunuz var: "${topDebt.name}" (₺${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikti). Toplam: ₺${totalOverdue.toLocaleString("tr-TR")}.`;
-        } else if (dueTodayDebts.length > 0) {
-          const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
-          const topDebt = dueTodayDebts[0];
-          title = `🚨 Bugün Vadesi Gelen Ödemeniz Var!`;
-          body = `"${topDebt.name}" için ₺${topDebt.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün!`;
-        }
-
-        const payload = JSON.stringify({
-          title,
-          body,
-          tag: "overdue-periodic-" + new Date().toISOString().slice(0, 10),
-          action: "trigger-sync",
-          syncTag: "server-cron-sync",
-          icon: "/logo.png",
-          badge: "/logo.png",
-          url: "/?tab=debts"
-        });
-
-        try {
-          console.log(`[Push Server] Sending periodic background overdue reminder to user: "${details.user}"`);
-          await webpush.sendNotification(details.subscription, payload, {
-            headers: { "Urgency": "high" },
-            TTL: 86400
-          });
-          details.lastOverduePushTime = nowTime;
-          hasChanges = true;
-        } catch (pushErr: any) {
-          console.error(`[Push Server] Error sending overdue push:`, pushErr.statusCode || pushErr.message);
-          if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
-            delete subscriptionsMap[endpointHash];
-            hasChanges = true;
-          }
-        }
-      }
+    if (hasChanges) {
+      saveSubscriptionsToFile();
     }
-  }
-
-  if (hasChanges) {
-    saveSubscriptionsToFile();
+  } catch (daemonErr) {
+    console.error("[Daemon Guard] Background check error safely caught:", daemonErr);
   }
 }, 10000);
+
+// Global Express Error Middleware
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[Express Global Error Handler]:", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Sunucu hatası engellendi", message: err?.message || "Bilinmeyen hata" });
+  }
+});
+
 
 // Crawler & AdSense file helper
 const serveStaticPlainTextFile = (fileName: string, defaultContent: string, contentType = "text/plain; charset=utf-8") => {
