@@ -98,7 +98,6 @@ import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
-import { VerifyEmailNotificationSection } from "./components/VerifyEmailNotificationSection";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
@@ -108,7 +107,6 @@ import { PublicBlog } from "./components/PublicBlog";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
-import { checkAndTriggerAutomaticDailyDebtAlert } from "./utils/automatedMail";
 import { analyzeDebtsComprehensive } from "./utils/debtAnalyzer";
 import confetti from "canvas-confetti";
 
@@ -477,7 +475,7 @@ export default function App() {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
-  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings" | "email">("feed");
+  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings">("feed");
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
@@ -1961,34 +1959,6 @@ export default function App() {
         }, 1500); // slight delay after mount for high premium presentation feel
       }
     }
-  }, [debts, installmentDebts, currentUser]);
-
-  // Automatically check and dispatch verified daily email debt alerts
-  useEffect(() => {
-    if (debts.length === 0 && installmentDebts.length === 0) return;
-    const verifiedEmail = localStorage.getItem("notif_verified_email");
-    if (!verifiedEmail) return;
-
-    let preferences = {
-      alertOverdue: true,
-      alertDueToday: true,
-      frequency: "daily_morning" as const,
-      minAmountThreshold: 0,
-    };
-    try {
-      const rawPrefs = localStorage.getItem("notif_email_preferences");
-      if (rawPrefs) preferences = { ...preferences, ...JSON.parse(rawPrefs) };
-    } catch {}
-
-    const analysis = analyzeDebtsComprehensive(debts, installmentDebts);
-    checkAndTriggerAutomaticDailyDebtAlert(
-      verifiedEmail,
-      currentUser || "Bütçem Pro Kullanıcısı",
-      debts,
-      installmentDebts,
-      preferences,
-      analysis
-    );
   }, [debts, installmentDebts, currentUser]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)
@@ -5528,19 +5498,6 @@ export default function App() {
                 <span>Bildirim & Ses Ayarları</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setNotifSectionTab("email")}
-                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
-                  notifSectionTab === "email"
-                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                }`}
-              >
-                <Mail className="w-4 h-4" />
-                <span>E-Posta Raporu Gönder</span>
-              </button>
             </div>
 
             {/* SEÇİLEN BÖLÜM 1: BİLDİRİMLER VE ALARMLAR LİSTESİ */}
@@ -6043,20 +6000,6 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* SEÇİLEN BÖLÜM 3: E-POSTA RAPOR SERVİSİ */}
-            {notifSectionTab === "email" && (
-              <div className="space-y-4 animate-fade-in">
-                <VerifyEmailNotificationSection
-                  debts={debts}
-                  installmentDebts={installmentDebts}
-                  incomes={incomes}
-                  expenses={expenses}
-                  language={language}
-                  onSuccessToast={(msg) => triggerToast(msg)}
-                />
               </div>
             )}
           </div>

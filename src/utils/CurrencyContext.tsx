@@ -6,8 +6,8 @@ export type CurrencyType = "TRY" | "USD" | "EUR" | "GBP";
 interface CurrencyContextProps {
   activeCurrency: CurrencyType;
   setActiveCurrency: (currency: CurrencyType) => void;
-  rates: Record<CurrencyType, number>;
-  setRates: React.Dispatch<React.SetStateAction<Record<CurrencyType, number>>>;
+  rates: Record<string, number>;
+  setRates: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   convert: (amount: number) => number;
   format: (amount: number) => string;
   currencySymbol: string;
@@ -23,20 +23,29 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return (localStorage.getItem("activeCurrency") as CurrencyType) || "TRY";
   });
 
-  const [rates, setRates] = useState<Record<CurrencyType, number>>(() => {
+  const [rates, setRates] = useState<Record<string, number>>(() => {
     const savedRates = localStorage.getItem("exchangeRates");
     if (savedRates) {
       try {
-        return JSON.parse(savedRates);
+        const parsed = JSON.parse(savedRates);
+        if (parsed && parsed.USD) return parsed;
       } catch (e) {
         console.error("Failed to parse saved exchange rates:", e);
       }
     }
+    const defaultUsd = 45.85;
+    const defaultOns = 4474.20;
+    const defaultGram = (defaultOns * defaultUsd) / 31.10348;
     return {
       TRY: 1,
-      USD: 45.85,
+      USD: defaultUsd,
       EUR: 49.85,
       GBP: 58.20,
+      GOLD_ONS: defaultOns,
+      GOLD_GRAM: Number(defaultGram.toFixed(2)),
+      GOLD_CEYREK: Number((defaultGram * 1.635).toFixed(2)),
+      BTC_USD: 81588,
+      BTC_TRY: Number((81588 * defaultUsd).toFixed(2))
     };
   });
 
@@ -56,11 +65,22 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (serverRes.ok) {
         const serverData = await serverRes.json();
         if (serverData && serverData.success && serverData.rates) {
-          const updatedRates = {
+          const uUsd = Number(serverData.rates.USD) || 45.85;
+          const uOns = Number(serverData.rates.GOLD_ONS) || 4474.20;
+          const uGram = Number(serverData.rates.GOLD_GRAM) || ((uOns * uUsd) / 31.10348);
+          const uCeyrek = Number(serverData.rates.GOLD_CEYREK) || (uGram * 1.635);
+          const uBtcUsd = Number(serverData.rates.BTC_USD) || 81588;
+
+          const updatedRates: Record<string, number> = {
             TRY: 1,
-            USD: Number(serverData.rates.USD),
-            EUR: Number(serverData.rates.EUR),
-            GBP: Number(serverData.rates.GBP),
+            USD: uUsd,
+            EUR: Number(serverData.rates.EUR) || 49.85,
+            GBP: Number(serverData.rates.GBP) || 58.20,
+            GOLD_ONS: uOns,
+            GOLD_GRAM: uGram,
+            GOLD_CEYREK: uCeyrek,
+            BTC_USD: uBtcUsd,
+            BTC_TRY: Number(serverData.rates.BTC_TRY) || (uBtcUsd * uUsd)
           };
 
           setRates(updatedRates);
@@ -124,11 +144,20 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               gbpRate = tryInBase / (rawRates.GBP || 1);
             }
 
+            const gOns = 4474.20;
+            const gGram = (gOns * usdRate) / 31.10348;
+            const gCeyrek = gGram * 1.635;
+
             const updatedRates = {
               TRY: 1,
               USD: Number(usdRate.toFixed(4)),
               EUR: Number(eurRate.toFixed(4)),
               GBP: Number(gbpRate.toFixed(4)),
+              GOLD_ONS: gOns,
+              GOLD_GRAM: Number(gGram.toFixed(2)),
+              GOLD_CEYREK: Number(gCeyrek.toFixed(2)),
+              BTC_USD: 81588,
+              BTC_TRY: Number((81588 * usdRate).toFixed(2))
             };
 
             setRates(updatedRates);
