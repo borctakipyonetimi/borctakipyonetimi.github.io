@@ -22,27 +22,21 @@
     "minAmountThreshold": 0,
     "debts": [
       {
-        "name": "Kredi Borcu",
+        "id": "1",
+        "title": "Kredi Kartı Borcu",
         "amount": 15000,
-        "paid": 5000,
-        "remaining": 10000,
-        "dueDate": "2026-08-15"
+        "paid": 3000,
+        "remaining": 12000,
+        "dueDate": "2026-08-15",
+        "isPaid": false
       }
     ],
-    "installmentDebts": [
-      {
-        "name": "Beyaz Eşya Taksiti",
-        "totalAmount": 12000,
-        "installmentCount": 6,
-        "paidInstallmentCount": 1,
-        "firstDueDate": "2026-08-01"
-      }
-    ],
-    "user": "Bütçem Pro",
+    "installmentDebts": [],
+    "user": "Mehmet Bey",
     "createdAt": 1788387350735,
     "verifiedAt": 1788387497465,
-    "verificationCode": "483357",
-    "codeExpiresAt": 1788389207245,
+    "verificationCode": "236753",
+    "codeExpiresAt": 1788394490197,
     "lastEmailSentAt": 1788388609371,
     "lastSentDebtSummary": "1 gecikmiş, 0 bugün vadesi gelen"
   }

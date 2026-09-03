@@ -1967,7 +1967,7 @@ function analyzeUserDebts(debts: any[] = [], installmentDebts: any[] = []) {
           const dueTime = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
           const diffDays = Math.round((todayTime - dueTime) / (1000 * 60 * 60 * 24));
           const formattedDueDate = due.toLocaleDateString("tr-TR");
-          const debtName = d.name || "Borç";
+          const debtName = d.name || d.title || d.description || d.person || d.creditor || "Kayıtlı Borç";
 
           if (diffDays > 0) {
             overdueDebts.push({
@@ -2025,14 +2025,15 @@ function analyzeUserDebts(debts: any[] = [], installmentDebts: any[] = []) {
     }
 
     if (!classified) {
+      const fallbackName = d.name || d.title || d.description || d.person || d.creditor || "Kayıtlı Borç";
       otherActiveDebts.push({
-        name: d.name || "Borç",
+        name: fallbackName,
         remaining,
         isInstallment: false,
         dueDateStr: "Tarih Belirtilmedi"
       });
       allActiveDebts.push({
-        name: d.name || "Borç",
+        name: fallbackName,
         remaining,
         isInstallment: false,
         status: "Vade Tarihi Yok",
@@ -2327,6 +2328,69 @@ const saveEmailSubscribersToFile = () => {
 };
 
 // Generate HTML email template for overdue debts
+// Generate structured plain-text email for optimal deliverability and spam filter compliance
+function generateOverdueEmailText(
+  email: string,
+  user: string,
+  analysis: any,
+  isTest = false,
+  isWelcome = false
+): string {
+  let overdueDebts: any[] = [];
+  let dueTodayDebts: any[] = [];
+  let totalActiveDebt = 0;
+  let totalOverdueAmount = 0;
+  let totalActiveCount = 0;
+
+  if (analysis && typeof analysis === "object") {
+    overdueDebts = analysis.overdueDebts || [];
+    dueTodayDebts = analysis.dueTodayDebts || [];
+    totalActiveDebt = Number(analysis.totalActiveDebt) || 0;
+    totalOverdueAmount = Number(analysis.totalOverdueAmount) || 0;
+    totalActiveCount = Number(analysis.totalActiveCount) || (overdueDebts.length + dueTodayDebts.length);
+  }
+
+  const lines: string[] = [];
+  lines.push(`Sayın ${user || "Bütçem Pro Kullanıcısı"},`);
+  lines.push("");
+
+  if (isWelcome) {
+    lines.push("Bütçem Pro e-posta bildirimleriniz başarıyla aktifleştirildi. Güncel borç durumunuz:");
+  } else if (isTest) {
+    lines.push("Bu ileti Bütçem Pro tarafından gönderilen test ve borç durumu bildirim raporudur:");
+  } else {
+    lines.push("Bütçem Pro kayıtlı borç ve ödemelerinizin güncel durum özeti:");
+  }
+
+  lines.push("");
+  lines.push(`* Toplam Kalan Borç: ₺${totalActiveDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`);
+  lines.push(`* Geciken Borç Tutarı: ₺${totalOverdueAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`);
+  lines.push(`* Aktif Borç Kalem Sayısı: ${totalActiveCount}`);
+  lines.push("");
+
+  if (overdueDebts.length > 0) {
+    lines.push("--- VADESİ GEÇMİŞ BORÇLAR ---");
+    overdueDebts.forEach((d) => {
+      lines.push(`- ${d.name}: ₺${(Number(d.remaining) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} (${d.daysLate} gün gecikti)`);
+    });
+    lines.push("");
+  }
+
+  if (dueTodayDebts.length > 0) {
+    lines.push("--- BUGÜN VADESİ GELEN BORÇLAR ---");
+    dueTodayDebts.forEach((d) => {
+      lines.push(`- ${d.name}: ₺${(Number(d.amount) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} (Bugün Son Gün)`);
+    });
+    lines.push("");
+  }
+
+  lines.push("Bütçem Pro - Akıllı Bütçe ve Borç Takip Asistanı");
+  lines.push(`Bu bilgilendirme e-postası ${email} adresi için oluşturulmuştur.`);
+  lines.push("Not: Bu iletiyi gelen kutunuzda göremiyorsanız lütfen Spam / Tanıtımlar klasörünüzü kontrol ediniz.");
+
+  return lines.join("\n");
+}
+
 // Generate rich HTML email template for debt overview, overdue alerts, and reminders
 function generateOverdueEmailHtml(
   email: string,
@@ -2601,9 +2665,9 @@ function generateOverdueEmailHtml(
           <!-- Action CTA -->
           <tr>
             <td style="padding: 8px 28px 24px 28px; text-align: center;">
-              <a href="https://butcempro.app/?tab=debts" target="_blank" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 14px; font-weight: 800; font-size: 14px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
-                Bütçem Pro'da Ödemeyi İşle & Görüntüle 💳
-              </a>
+              <div style="display: inline-block; background: #4f46e5; color: #ffffff; padding: 14px 28px; border-radius: 14px; font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">
+                Bütçem Pro Borç Takip Asistanı
+              </div>
             </td>
           </tr>
 
@@ -2663,7 +2727,7 @@ function getMailTransporter() {
   const rawHost = process.env.SMTP_HOST;
   let host = cleanHost(rawHost);
   const user = cleanCredential(process.env.SMTP_USER || process.env.GMAIL_USER);
-  const pass = cleanCredential(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS);
+  const pass = cleanCredential(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS).replace(/\s+/g, "");
   const rawPort = Number(process.env.SMTP_PORT);
 
   if (!user || !pass) {
@@ -2677,7 +2741,7 @@ function getMailTransporter() {
 
   if (host) {
     const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
-    const secure = process.env.SMTP_SECURE === "true" || port === 465;
+    const secure = process.env.SMTP_SECURE === "true" || process.env.SMTP_SECURE === "ssl" || port === 465;
 
     return nodemailer.createTransport({
       host,
@@ -2713,7 +2777,7 @@ async function sendMailHelper(options: {
     
     // When sending through Gmail SMTP, the From address must align with authenticated user for optimal inbox deliverability
     const authEmail = user || (process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : "bildirim@butcempro.app");
-    const fromAddress = `"Bütçem Pro Bildirim" <${authEmail}>`;
+    const fromAddress = `"Bütçem Pro" <${authEmail}>`;
     const replyTo = process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : authEmail;
     
     if (transporter) {
@@ -2725,8 +2789,8 @@ async function sendMailHelper(options: {
         html: options.html,
         text: options.text || options.subject,
         headers: {
-          "X-Application": "Butcem-Pro",
-          "X-Priority": "1"
+          "Auto-Submitted": "auto-generated",
+          "X-Entity-Ref-ID": `butcempro-${Date.now()}`
         }
       });
       console.log(`[Email Engine] Real email successfully sent to ${options.to} (MessageID: ${info.messageId})`);
@@ -2787,16 +2851,19 @@ app.post("/api/notifications/email/request-verification", async (req, res) => {
       <div style="display: inline-block; background: #f1f5f9; border: 2px dashed #6366f1; border-radius: 14px; padding: 16px 32px; margin-bottom: 24px;">
         <span style="font-family: monospace; font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #4f46e5;">${code}</span>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; margin: 0;">Bu kod 10 dakika boyunca geçerlidir. Siz talep etmediyseniz bu iletiyi dikkate almayınız.</p>
+      <p style="color: #64748b; font-size: 13px; margin: 0 0 12px 0;">Bu kod <strong>10 dakika</strong> boyunca geçerlidir.</p>
+      <p style="color: #94a3b8; font-size: 11px; margin: 0; line-height: 1.5;">Not: İletiyi gelen kutunuzda göremiyorsanız lütfen Spam / Tanıtımlar klasörünüzü kontrol ediniz.</p>
     </div>
   `;
+
+  const otpText = `Sayın Bütçem Pro Kullanıcısı,\n\nE-posta bildirimlerini aktifleştirmek için 6 haneli doğrulama kodunuz: ${code}\n\nBu kod 10 dakika boyunca geçerlidir.\n\nNot: Bu e-posta gelen kutunuzda değilse lütfen Spam / Tanıtımlar klasörünüzü kontrol ediniz.\n\nBütçem Pro Ekibi`;
 
   try {
     await sendMailHelper({
       to: normalizedEmail,
-      subject: `[Bütçem Pro] ${code} - E-posta Bildirim Doğrulama Kodunuz`,
+      subject: `Bütçem Pro Doğrulama Kodunuz: ${code}`,
       html: otpHtml,
-      text: `Bütçem Pro Doğrulama Kodunuz: ${code}`
+      text: otpText
     });
   } catch (mailErr) {
     console.warn("[Email Alert Engine] Background email send handled:", mailErr);
@@ -2865,10 +2932,18 @@ app.post("/api/notifications/email/verify", async (req, res) => {
       false,
       true
     );
+    const welcomeText = generateOverdueEmailText(
+      normalizedEmail,
+      subscriber.user || "Bütçem Pro Kullanıcısı",
+      debtAnalysis,
+      false,
+      true
+    );
     const welcomeResult = await sendMailHelper({
       to: normalizedEmail,
-      subject: `[Bütçem Pro] 🎉 E-posta Bildirimleriniz Aktifleştirildi (Güncel Borç Raporunuz)`,
-      html: welcomeHtml
+      subject: `Bütçem Pro: E-posta Bildirimleriniz Aktifleştirildi (Güncel Borç Raporu)`,
+      html: welcomeHtml,
+      text: welcomeText
     });
     welcomeSent = welcomeResult.success && !welcomeResult.simulated;
     subscriber.lastEmailSentAt = Date.now();
@@ -3025,12 +3100,20 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     true,
     false
   );
-  const subject = `[Bütçem Pro Test] ⚠️ Borç & Ödeme Hatırlatıcı Bildirimi (${new Date().toLocaleDateString("tr-TR")})`;
+  const text = generateOverdueEmailText(
+    normalizedEmail,
+    user || sub?.user || "Bütçem Pro Kullanıcısı",
+    reportAnalysis,
+    true,
+    false
+  );
+  const subject = `Bütçem Pro: Güncel Borç Raporu ve Ödeme Özeti (${new Date().toLocaleDateString("tr-TR")})`;
 
   const sendResult = await sendMailHelper({
     to: normalizedEmail,
     subject,
-    html
+    html,
+    text
   });
 
   const hasSmtp = !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
@@ -3042,10 +3125,11 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     delivered: !sendResult.simulated && sendResult.success,
     simulated: sendResult.simulated,
     smtpConfigured: hasSmtp,
+    messageId: sendResult.messageId,
     message: sendResult.simulated 
       ? `Test e-postası ${normalizedEmail} adresi için başarıyla simüle edildi ve doğrulandı! (Doğrudan gelen kutunuza anlık iletim için Ayarlar veya ortam değişkenlerine SMTP bilgilerinizi tanımlayabilirsiniz).`
       : sendResult.success
-        ? `Test e-postası ${normalizedEmail} adresine başarıyla gönderildi! Lütfen gelen kutunuzu kontrol edin.`
+        ? `Test e-postası ${normalizedEmail} adresine başarıyla gönderildi! Lütfen gelen kutunuzu (ve Spam / Tanıtımlar klasörünüzü) kontrol edin.`
         : `E-posta gönderiminde hata oluştu: ${sendResult.error}`,
     htmlPreview: html,
     overdueCount: reportAnalysis.overdueDebts.length,
@@ -3097,12 +3181,20 @@ setInterval(async () => {
             false,
             false
           );
-          const subject = `⚠️ Bütçem Pro: ${qualifyingOverdue.length > 0 ? `${qualifyingOverdue.length} Adet Gecikmiş Borç` : "Bugün Vadesi Gelen Ödeme"} Uyarısı ⏰`;
+          const text = generateOverdueEmailText(
+            sub.email,
+            sub.user || "Bütçem Pro Kullanıcısı",
+            filteredAnalysis,
+            false,
+            false
+          );
+          const subject = `${qualifyingOverdue.length > 0 ? `Bütçem Pro: ${qualifyingOverdue.length} Adet Gecikmiş Borç Bildirimi` : "Bütçem Pro: Bugün Vadesi Dolan Ödeme Hatırlatması"}`;
           
           await sendMailHelper({
             to: sub.email,
             subject,
-            html
+            html,
+            text
           });
 
           sub.lastEmailSentAt = nowTime;

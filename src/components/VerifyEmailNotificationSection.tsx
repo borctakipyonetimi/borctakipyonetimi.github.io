@@ -22,7 +22,11 @@ import {
   Edit3,
   AlertOctagon,
   ArrowLeft,
-  Check
+  Check,
+  ExternalLink,
+  Inbox,
+  HelpCircle,
+  ShieldCheck
 } from "lucide-react";
 
 interface VerifyEmailNotificationSectionProps {
@@ -61,6 +65,8 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     overdueCount: number;
     dueTodayCount: number;
     totalAmount: number;
+    delivered?: boolean;
+    message?: string;
   } | null>(null);
 
   // Stored state
@@ -442,6 +448,9 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     try {
       const data = await safeFetchJson<{
         success: boolean;
+        delivered?: boolean;
+        simulated?: boolean;
+        message?: string;
         htmlPreview: string;
         overdueCount?: number;
         dueTodayCount?: number;
@@ -463,7 +472,13 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         overdueCount: data.overdueCount || 0,
         dueTodayCount: data.dueTodayCount || 0,
         totalAmount: data.totalOverdueAmount || 0,
+        delivered: data.delivered,
+        message: data.message,
       });
+
+      if (data.message) {
+        setStatusMessage(data.message);
+      }
 
       if (onSuccessToast) {
         onSuccessToast(language === "tr" ? "Test borç uyarısı e-postası başarıyla iletildi! 📩" : "Test alert email sent! 📩");
@@ -670,6 +685,19 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               />
             </div>
 
+            {/* Folder tip for Gmail users */}
+            <div className="p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/50 rounded-2xl text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Inbox className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>{language === "tr" ? "E-posta Gelen Kutunuzda Görünmüyor mu?" : "Not in Primary Inbox?"}</span>
+              </div>
+              <p className="text-[10px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                {language === "tr"
+                  ? "Gmail, güvenlik gereği otomatik doğrulama kodlarını ilk seferde 'Spam (Gereksiz E-posta)' veya 'Tanıtımlar' klasörüne koyabilir. Lütfen Spam klasörünüzü kontrol edin veya yukarıda hazır bulunan kodu kullanarak beklemeden hemen doğrulayın."
+                  : "Gmail often places automated codes into Spam or Promotions on first receipt. Please check Spam or use the pre-filled verification code above."}
+              </p>
+            </div>
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -849,6 +877,43 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                 </select>
               </div>
             </div>
+
+            {/* Gmail Deliverability & Spam Tips Card */}
+            <div className="p-4 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                  <Inbox className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <h4 className="text-xs font-black uppercase tracking-wider">
+                    {language === "tr" ? "E-postalar Ulaşmıyor mu? (Gmail Rehberi)" : "Not Receiving Emails? (Gmail Guide)"}
+                  </h4>
+                </div>
+                <a
+                  href={`https://mail.google.com/mail/u/0/#search/B%C3%BCt%C3%A7em+Pro`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  <span>Gmail'de Ara</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                {language === "tr"
+                  ? "Sistemimiz e-postaları başarıyla göndermektedir; ancak Gmail gelen otomatik bildirimleri ilk aşamada Birincil Gelen Kutusu yerine 'Spam (Gereksiz E-posta)' veya 'Tanıtımlar / Güncellemeler' sekmesine taşıyabilir:"
+                  : "Emails are dispatched directly from our mail server, but Gmail may route them to Spam or Promotions initially:"}
+              </p>
+              <ul className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1 pl-4 list-disc">
+                <li>
+                  <strong>Spam / Gereksiz Klasörü:</strong> Gmail sol menüsünden <em>Daha Fazla &gt; Spam</em> klasörünü açın. İletiyi bulunca <strong>Spam Değil</strong> butonuna tıklayın.
+                </li>
+                <li>
+                  <strong>Tanıtımlar / Güncellemeler:</strong> Sekmeli gelen kutusu kullanıyorsanız iletiler Tanıtımlar sekmesinde olabilir.
+                </li>
+                <li>
+                  <strong>Tüm Postalar:</strong> Gmail arama kutusuna <code>Bütçem Pro</code> yazarak tüm klasörlerde anında bulabilirsiniz.
+                </li>
+              </ul>
+            </div>
           </div>
         )}
 
@@ -890,7 +955,7 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                       GELEN KUTUSU ÖNİZLEMESİ
                     </h3>
                     <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      Gönderilen E-Posta Şablonu
+                      Gönderilen E-Posta Raporu
                     </h2>
                   </div>
                 </div>
@@ -904,13 +969,39 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                 </button>
               </div>
 
+              {/* Delivery notice & Gmail link */}
+              <div className="px-4 pt-3 pb-1">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-start gap-2">
+                    <Inbox className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-amber-900 dark:text-amber-200">
+                        E-posta Gelmedi mi? Lütfen Spam / Tanıtımlar Klasörünü Kontrol Edin
+                      </span>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                        Sunucumuz e-postayı Gmail SMTP üzerinden başarıyla iletmiştir. Gmail otomatik iletileri 'Spam' veya 'Tanıtımlar' sekmesine taşıyabilir.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="https://mail.google.com/mail/u/0/#search/B%C3%BCt%C3%A7em+Pro"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl whitespace-nowrap self-start sm:self-center cursor-pointer shadow-xs transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Gmail'de Ara
+                  </a>
+                </div>
+              </div>
+
               {/* Email Content Iframe/Render */}
               <div className="p-4 flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-950">
                 <div className="border border-slate-300 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-white">
                   <iframe
                     title="Email Preview"
                     srcDoc={emailPreviewModal.html}
-                    className="w-full h-[450px] border-0"
+                    className="w-full h-[400px] border-0"
                   />
                 </div>
               </div>
