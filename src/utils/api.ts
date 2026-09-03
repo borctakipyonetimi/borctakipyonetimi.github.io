@@ -16,15 +16,19 @@ export function getBackendCandidateUrls(): string[] {
     }
   }
 
-  // 2. Current origin if valid (e.g. running on web or container)
+  // 2. Current origin if valid
   if (typeof window !== "undefined") {
     const { protocol, origin, hostname } = window.location;
-    if (protocol.startsWith("http") && !hostname.includes("localhost") && !hostname.includes("127.0.0.1")) {
+    if (protocol.startsWith("http")) {
       candidates.push(origin);
+      // On Cloud Run domain, use current origin only to avoid cross-subdomain cookie check redirects
+      if (hostname.endsWith(".run.app")) {
+        return candidates;
+      }
     }
   }
 
-  // 3. Cloud Run URLs
+  // 3. Cloud Run URLs for external/static hosts only
   if (!candidates.includes(CLOUD_RUN_DEV_URL)) {
     candidates.push(CLOUD_RUN_DEV_URL);
   }
@@ -95,19 +99,27 @@ export async function safeFetchJson<T = any>(
   const candidateUrls: string[] = [initialUrl];
   if (fallbackBaseUrl) {
     const base = fallbackBaseUrl.endsWith("/") ? fallbackBaseUrl.slice(0, -1) : fallbackBaseUrl;
-    candidateUrls.push(`${base}${cleanPath}`);
-  }
-
-  for (const base of getBackendCandidateUrls()) {
     const full = `${base}${cleanPath}`;
     if (!candidateUrls.includes(full)) {
       candidateUrls.push(full);
     }
   }
 
+  // Only append additional backend candidates if not running directly on *.run.app
+  if (typeof window !== "undefined" && !window.location.hostname.endsWith(".run.app")) {
+    for (const base of getBackendCandidateUrls()) {
+      const full = `${base}${cleanPath}`;
+      if (!candidateUrls.includes(full)) {
+        candidateUrls.push(full);
+      }
+    }
+  }
+
+  let primaryError: Error | null = null;
   let lastError: Error | null = null;
 
-  for (const currentUrl of candidateUrls) {
+  for (let i = 0; i < candidateUrls.length; i++) {
+    const currentUrl = candidateUrls[i];
     try {
       const res = await fetch(currentUrl, options);
       const rawText = await res.text();
@@ -117,27 +129,35 @@ export async function safeFetchJson<T = any>(
       try {
         json = JSON.parse(rawText);
       } catch {
-        // Not valid JSON (likely HTML 404 page or server error page), try next candidate URL
+        // Not valid JSON (likely HTML 404 page or redirect), try next candidate
         continue;
       }
 
       if (!res.ok) {
-        throw new Error(json?.error || json?.message || `İşlem gerçekleştirilemedi (${res.status})`);
+        const appErr = new Error(json?.error || json?.message || `İşlem gerçekleştirilemedi (${res.status})`);
+        if (i === 0) primaryError = appErr;
+        throw appErr;
       }
 
       return json;
     } catch (err: any) {
       lastError = err;
+      if (i === 0 && !primaryError) {
+        primaryError = err;
+      }
       // If error was an explicit application error from valid JSON, don't keep polling
-      if (err?.message && !err.message.includes("Failed to fetch") && !err.message.includes("NetworkError") && !err.message.includes("Sunucu beklenmeyen")) {
+      if (
+        err?.message &&
+        !err.message.includes("Failed to fetch") &&
+        !err.message.includes("NetworkError") &&
+        !err.message.includes("Sunucu beklenmeyen")
+      ) {
         throw err;
       }
     }
   }
 
-  throw new Error(
-    lastError?.message ||
-    "E-posta sunucusuna bağlanılamadı. Uygulamanız şu an çevrimdışı veya sunucu bağlantısı kapalı."
-  );
+  const finalMsg = primaryError?.message || lastError?.message || "E-posta sunucusuna bağlanılamadı.";
+  throw new Error(finalMsg);
 }
 

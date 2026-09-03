@@ -42,7 +42,15 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     service: "butcem-pro-backend",
     time: new Date().toISOString(),
-    smtpConfigured: !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER),
+    smtpConfigured: !!(
+      currentCustomSmtp?.user ||
+      process.env.SMTP_HOST ||
+      process.env.SMTP_USER ||
+      process.env.SMTP_USERNAME ||
+      process.env.GMAIL_USER ||
+      process.env.EMAIL_USER ||
+      process.env.MAIL_USER
+    ),
   });
 });
 
@@ -2778,45 +2786,85 @@ function saveCustomSmtpToFile() {
 // Nodemailer transporter resolver
 function getMailTransporter(customOverride?: CustomSmtpConfig) {
   const activeConfig = customOverride || currentCustomSmtp;
-  const rawHost = activeConfig?.host || process.env.SMTP_HOST;
-  let host = cleanHost(rawHost);
-  const user = cleanCredential(activeConfig?.user || process.env.SMTP_USER || process.env.GMAIL_USER);
-  const pass = cleanCredential(activeConfig?.pass || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS).replace(/\s+/g, "");
-  const rawPort = Number(activeConfig?.port || process.env.SMTP_PORT);
+
+  const user = cleanCredential(
+    activeConfig?.user ||
+    process.env.SMTP_USER ||
+    process.env.SMTP_USERNAME ||
+    process.env.EMAIL_USER ||
+    process.env.MAIL_USER ||
+    process.env.MAIL_USERNAME ||
+    process.env.GMAIL_USER ||
+    process.env.EMAIL_FROM ||
+    process.env.SMTP_FROM
+  );
+
+  const pass = cleanCredential(
+    activeConfig?.pass ||
+    process.env.SMTP_PASS ||
+    process.env.SMTP_PASSWORD ||
+    process.env.EMAIL_PASS ||
+    process.env.EMAIL_PASSWORD ||
+    process.env.MAIL_PASS ||
+    process.env.MAIL_PASSWORD ||
+    process.env.GMAIL_APP_PASSWORD ||
+    process.env.GMAIL_PASS ||
+    process.env.GMAIL_PASSWORD
+  ).replace(/\s+/g, "");
 
   if (!user || !pass) {
     return null;
   }
 
-  // If user is Gmail and host is either empty or defaulted
-  if (!host && (user.includes("@gmail.com") || process.env.GMAIL_USER)) {
-    host = "smtp.gmail.com";
+  const rawHost = activeConfig?.host ||
+    process.env.SMTP_HOST ||
+    process.env.MAIL_HOST ||
+    process.env.EMAIL_HOST ||
+    process.env.GMAIL_HOST;
+
+  let host = cleanHost(rawHost);
+
+  // Auto-detect host from email domain if missing
+  if (!host) {
+    const domain = user.includes("@") ? user.split("@")[1].toLowerCase() : "";
+    if (domain === "gmail.com" || domain === "googlemail.com") {
+      host = "smtp.gmail.com";
+    } else if (domain === "outlook.com" || domain === "hotmail.com" || domain === "live.com") {
+      host = "smtp.office365.com";
+    } else if (domain === "yahoo.com") {
+      host = "smtp.mail.yahoo.com";
+    } else if (domain === "yandex.com" || domain === "yandex.ru") {
+      host = "smtp.yandex.com";
+    } else if (domain) {
+      host = `smtp.${domain}`;
+    } else {
+      host = "smtp.gmail.com";
+    }
   }
 
-  if (host) {
-    const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
-    const secure = activeConfig?.secure ?? (process.env.SMTP_SECURE === "true" || process.env.SMTP_SECURE === "ssl" || port === 465);
+  const rawPort = Number(
+    activeConfig?.port ||
+    process.env.SMTP_PORT ||
+    process.env.MAIL_PORT ||
+    process.env.EMAIL_PORT
+  );
 
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-  }
+  const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
+  const secureEnv = process.env.SMTP_SECURE || process.env.MAIL_SECURE;
+  const secure = activeConfig?.secure ?? (secureEnv === "true" || secureEnv === "ssl" || port === 465);
 
-  // Fallback direct Gmail service
-  if (user.includes("@gmail.com") || process.env.GMAIL_USER) {
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: { user, pass }
-    });
-  }
-
-  return null;
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    tls: {
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
+  });
 }
 
 // Test SMTP Connection with detailed diagnostic feedback
