@@ -37,6 +37,15 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "butcem-pro-backend",
+    time: new Date().toISOString(),
+    smtpConfigured: !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER),
+  });
+});
+
 // Memory cache for temporary backups (lasts 30 minutes for sharing via WhatsApp / Drive)
 const tempWebviewBackups = new Map<string, { content: string, filename: string, expires: number }>();
 

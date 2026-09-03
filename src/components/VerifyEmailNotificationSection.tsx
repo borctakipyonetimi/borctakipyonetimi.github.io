@@ -33,7 +33,9 @@ import {
   ShieldCheck,
   Server,
   Wifi,
-  WifiOff
+  WifiOff,
+  Share2,
+  Copy
 } from "lucide-react";
 
 interface VerifyEmailNotificationSectionProps {
@@ -142,6 +144,97 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         .catch(() => {});
     }
   }, [verifiedEmail]);
+
+  const [copiedReport, setCopiedReport] = useState(false);
+  const [showServerDeployHelp, setShowServerDeployHelp] = useState(false);
+
+  // Generate plain text report formatted for email and sharing
+  const generatePlainTextReport = () => {
+    let text = `Bütçem Pro - Güncel Borç ve Ödeme Durumu Raporu\n`;
+    text += `Tarih: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n`;
+    text += `Alıcı: ${verifiedEmail || emailInput || "Kullanıcı"}\n\n`;
+    text += `GENEL DURUM ÖZETİ:\n`;
+    text += `• Toplam Kayıtlı Borç: ₺${debtAnalysis.totalActiveDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}\n`;
+    text += `• Vadesi Geciken Tutar: ₺${debtAnalysis.totalOverdueAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}\n`;
+    text += `• Toplam Borç Kalemi: ${debtAnalysis.totalActiveCount} Kalem\n`;
+    text += `• Gecikmiş Borç: ${debtAnalysis.overdueCount} Kalem\n`;
+    text += `• Bugün Vadesi Dolan: ${debtAnalysis.dueTodayCount} Kalem\n\n`;
+
+    if (debtAnalysis.overdueDebts.length > 0) {
+      text += `🚨 VADESİ GEÇMİŞ BORÇLAR (${debtAnalysis.overdueDebts.length} KALEM):\n`;
+      debtAnalysis.overdueDebts.forEach((d, idx) => {
+        text += `${idx + 1}. ${d.name} ${d.isInstallment ? "[Taksit]" : ""}\n`;
+        text += `   Tutar: ₺${d.remaining.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}\n`;
+        text += `   Vade: ${d.dueDateStr} (${d.daysLate ? `${d.daysLate} gün gecikti` : "Gecikmede"})\n\n`;
+      });
+    } else {
+      text += `✅ Vadesi geçmiş borcunuz bulunmamaktadır.\n\n`;
+    }
+
+    if (debtAnalysis.dueTodayDebts.length > 0) {
+      text += `⏰ BUGÜN SON GÜN OLANLAR (${debtAnalysis.dueTodayDebts.length} KALEM):\n`;
+      debtAnalysis.dueTodayDebts.forEach((d, idx) => {
+        text += `${idx + 1}. ${d.name} ${d.isInstallment ? "[Taksit]" : ""}\n`;
+        text += `   Tutar: ₺${d.remaining.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}\n`;
+        text += `   Vade: Bugün\n\n`;
+      });
+    }
+
+    text += `----------------------------------------\n`;
+    text += `Bütçem Pro Finansal Borç ve Bütçe Takip Asistanı\n`;
+    return text;
+  };
+
+  // 1-Click Native Email (Gmail / Mail Client)
+  const handleSendNativeEmail = () => {
+    const targetEmail = verifiedEmail || emailInput || "";
+    const subject = encodeURIComponent(
+      `Bütçem Pro Borç Durum Raporu (${debtAnalysis.overdueCount > 0 ? `${debtAnalysis.overdueCount} Gecikmiş Borç, ₺${debtAnalysis.totalOverdueAmount.toLocaleString("tr-TR")}` : "Temiz Durum"})`
+    );
+    const body = encodeURIComponent(generatePlainTextReport());
+    const mailtoUrl = `mailto:${encodeURIComponent(targetEmail)}?subject=${subject}&body=${body}`;
+    window.location.href = mailtoUrl;
+    if (onSuccessToast) {
+      onSuccessToast(
+        language === "tr"
+          ? "Gmail / E-posta uygulamanız açılıyor... İletiyi anında gönderebilirsiniz! ✉️"
+          : "Opening email app... ✉️"
+      );
+    }
+  };
+
+  const handleCopyReportText = async () => {
+    try {
+      await navigator.clipboard.writeText(generatePlainTextReport());
+      setCopiedReport(true);
+      setTimeout(() => setCopiedReport(false), 2500);
+      if (onSuccessToast) {
+        onSuccessToast(
+          language === "tr"
+            ? "Borç raporu metni panoya kopyalandı! 📋"
+            : "Debt report copied to clipboard! 📋"
+        );
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleShareReportNative = async () => {
+    const text = generatePlainTextReport();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Bütçem Pro Borç Raporu",
+          text: text,
+        });
+      } catch {
+        // User dismissed
+      }
+    } else {
+      handleCopyReportText();
+    }
+  };
 
   // Countdown timer for code resend
   useEffect(() => {
@@ -810,6 +903,7 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                   onClick={handleSendTestEmail}
                   disabled={isSendingTest}
                   className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                  title="Bulut sunucusu üzerinden e-posta uyarısı gönderin"
                 >
                   {isSendingTest ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -817,6 +911,16 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                     <Send className="w-3.5 h-3.5" />
                   )}
                   {language === "tr" ? "Test Uyarısı Gönder" : "Send Test Alert"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendNativeEmail}
+                  className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-black rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                  title="Telefonunuzun Gmail uygulamasını açarak raporu anında kendinize iletin"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  {language === "tr" ? "Gmail ile Gönder" : "Send via Gmail"}
                 </button>
 
                 <button
@@ -1096,16 +1200,74 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               {/* Delivery status or offline notice */}
               <div className="px-4 pt-3 pb-1">
                 {emailPreviewModal.isOfflineFallback ? (
-                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-2xl flex items-start gap-2.5 text-xs">
-                    <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-rose-900 dark:text-rose-200">
-                        E-posta Sunucusuna Ulaşılamadı (Fiziksel E-Posta Gönderilmedi)
-                      </span>
-                      <p className="text-[11px] text-rose-800 dark:text-rose-300 font-medium">
-                        Uygulamanız şu anda çevrimdışı modda çalıştığı için e-posta sunucuya aktarılamadı. Ancak cihazınızdaki borç kayıtları eksiksiz taranmış olup aşağıda tam doğrulukla raporlanmıştır.
-                      </p>
+                  <div className="p-3.5 bg-gradient-to-br from-rose-500/10 via-amber-500/10 to-transparent border border-rose-300/80 dark:border-rose-900/60 rounded-2xl space-y-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 shrink-0">
+                        <AlertTriangle className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <span className="font-black text-rose-900 dark:text-rose-200 block text-xs">
+                          Mobil APK / Harici Cihaz Modu (Doğrudan Sunucu Bağlantısı Kapalı)
+                        </span>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                          Uygulamanız harici bir cihazda / telefonda (APK) çalıştığı için güvenlik protokolleri gereği geliştirme sunucusuna doğrudan erişemedi. Ancak borç kayıtlarınız <strong>tam doğrulukla taranmış ve raporlanmıştır</strong>. Aşağıdaki butonla raporu Gmail üzerinden kendinize hemen iletebilirsiniz:
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Quick Action Buttons for Offline / Mobile Mode */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSendNativeEmail}
+                        className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                      >
+                        <Mail className="w-4 h-4" />
+                        <span>Gmail ile Hemen Gönder</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyReportText}
+                        className="px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {copiedReport ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedReport ? "Kopyalandı!" : "Raporu Kopyala"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleShareReportNative}
+                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Paylaş (WhatsApp / vb.)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowServerDeployHelp(!showServerDeployHelp)}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline ml-auto cursor-pointer"
+                      >
+                        {showServerDeployHelp ? "Rehberi Gizle" : "💡 Otomatik Sunucu Bağlantı Rehberi"}
+                      </button>
+                    </div>
+
+                    {showServerDeployHelp && (
+                      <div className="p-3 bg-white/90 dark:bg-slate-900/90 rounded-xl border border-indigo-200 dark:border-indigo-900 text-[11px] space-y-1.5 text-slate-700 dark:text-slate-300">
+                        <p className="font-bold text-indigo-600 dark:text-indigo-400">
+                          APK'dan Sunucuya Otomatik Bağlantı Nasıl Kurulur?
+                        </p>
+                        <ol className="list-decimal pl-4 space-y-1">
+                          <li>
+                            <strong>AI Studio Deploy (Önerilen):</strong> Google AI Studio ekranının sağ üst köşesindeki <em>Deploy</em> veya <em>Share (Paylaş)</em> butonuna basarak uygulamayı genel bulut adresine açabilirsiniz.
+                          </li>
+                          <li>
+                            <strong>Kendi Sunucunuz:</strong> Kendi sunucunuz varsa (Render, Railway veya VPS), Ayarlar altındaki <em>Sunucu URL</em> kutusuna adresinizi girebilirsiniz.
+                          </li>
+                        </ol>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
@@ -1144,17 +1306,27 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                   Alıcı: <strong className="text-slate-800 dark:text-slate-100">{verifiedEmail}</strong>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setEmailPreviewModal(null)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl cursor-pointer"
-                >
-                  Anladım / Kapat
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSendNativeEmail}
+                    className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95 transition"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Gmail ile Gönder</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailPreviewModal(null)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black rounded-xl cursor-pointer"
+                  >
+                    Kapat
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
