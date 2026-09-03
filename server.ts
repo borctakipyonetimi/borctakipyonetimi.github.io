@@ -3093,16 +3093,16 @@ app.post("/api/notifications/email/verify", async (req, res) => {
 
 // Direct Rich HTML Email Send endpoint
 app.post("/api/notifications/email/send-direct", async (req, res) => {
-  const { recipientEmail, subject, htmlContent } = req.body;
-  if (!recipientEmail || typeof recipientEmail !== "string" || !recipientEmail.includes("@")) {
-    return res.status(400).json({ success: false, error: "Geçerli bir alıcı e-posta adresi giriniz." });
-  }
-
   try {
+    const { recipientEmail, subject, htmlContent } = req.body || {};
+    if (!recipientEmail || typeof recipientEmail !== "string" || !recipientEmail.includes("@")) {
+      return res.status(400).json({ success: false, error: "Geçerli bir alıcı e-posta adresi giriniz." });
+    }
+
     const mailResult = await sendMailHelper({
       to: recipientEmail.trim(),
       subject: subject || `Bütçem Pro: Finansal Rapor ve Bütçe Özeti (${new Date().toLocaleDateString("tr-TR")})`,
-      html: htmlContent,
+      html: htmlContent || "<p>Bütçem Pro Finansal Raporu</p>",
     });
 
     if (mailResult.success) {
@@ -3110,7 +3110,7 @@ app.post("/api/notifications/email/send-direct", async (req, res) => {
         success: true,
         simulated: mailResult.simulated,
         message: mailResult.simulated
-          ? "E-posta simüle edildi."
+          ? "SMTP sunucusu henüz yapılandırılmadığı için gönderim simüle edildi. Canlı e-posta gönderimi için Gelişmiş Bildirim Ayarları bölümünden e-posta/SMTP şifrenizi tanımlayabilirsiniz."
           : "Finansal rapor e-postası başarıyla alıcıya gönderildi! 🚀",
       });
     } else {
@@ -3722,6 +3722,23 @@ app.get(privacyPaths, (req, res) => {
     }
   }
   res.status(404).send("Gizlilik politikası dosyası bulunamadı. Lütfen /public/privacy-policy.html dosyasının varlığından emin olun.");
+});
+
+// Explicit JSON 404 handler for any unhandled /api/* endpoints (prevents falling through to HTML SPA page)
+app.use("/api/*", (req, res) => {
+  res.status(404).json({ success: false, error: `API uç noktası bulunamadı: ${req.originalUrl}` });
+});
+
+// Global JSON error middleware for any /api errors
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.originalUrl && req.originalUrl.startsWith("/api")) {
+    console.error("[API Error Handler]:", err);
+    return res.status(err.status || 500).json({
+      success: false,
+      error: err.message || "Sunucuda beklenmeyen bir API hatası oluştu."
+    });
+  }
+  next(err);
 });
 
 // Vite middleware flow

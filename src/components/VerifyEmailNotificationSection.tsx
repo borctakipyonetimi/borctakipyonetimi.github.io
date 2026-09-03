@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { safeFetchJson } from "../utils/api";
 import {
   generateRichFinancialEmailThemeHtml,
   generateFormattedAsciiFinancialTableText,
@@ -168,7 +169,12 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
 
     setIsSendingDirect(true);
     try {
-      const res = await fetch("/api/notifications/email/send-direct", {
+      const data = await safeFetchJson<{
+        success: boolean;
+        simulated?: boolean;
+        message?: string;
+        error?: string;
+      }>("/api/notifications/email/send-direct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -178,10 +184,15 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         }),
       });
 
-      const data = await res.json();
       if (data.success) {
-        if (onSuccessToast) {
-          onSuccessToast(data.message || "E-posta başarıyla gönderildi! 🚀");
+        if (data.simulated) {
+          if (onSuccessToast) {
+            onSuccessToast(data.message || "E-posta simüle edildi. Canlı e-posta gönderimi için SMTP ayarlarınızı tanımlayınız.");
+          }
+        } else {
+          if (onSuccessToast) {
+            onSuccessToast(data.message || "E-posta başarıyla alıcıya ulaştırıldı! 🚀");
+          }
         }
       } else {
         if (onSuccessToast) {
@@ -190,7 +201,7 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
       }
     } catch (err: any) {
       if (onSuccessToast) {
-        onSuccessToast(`İşlem hatası: ${err.message || "Baglantı kurulamadı."}`);
+        onSuccessToast(`Gönderim uyarısı: ${err.message || "Bağlantı kurulamadı."}`);
       }
     } finally {
       setIsSendingDirect(false);
