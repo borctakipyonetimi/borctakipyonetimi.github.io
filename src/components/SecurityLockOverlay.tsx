@@ -12,8 +12,10 @@ import {
   Key,
   HelpCircle,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Fingerprint
 } from "lucide-react";
+import { BiometricFingerprintScanner } from "./BiometricFingerprintScanner";
 
 interface SecurityLockOverlayProps {
   onUnlockSuccess: () => void;
@@ -37,6 +39,9 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
     };
   });
 
+  const [activeUnlockMethod, setActiveUnlockMethod] = useState<"fingerprint" | "pin">(() => {
+    return settings.biometricsEnabled !== false ? "fingerprint" : "pin";
+  });
   const [pinInput, setPinInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -163,7 +168,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950 z-[9999] flex flex-col items-center justify-center p-4 overflow-hidden select-none">
+    <div className="fixed inset-0 bg-slate-950 z-[9999] flex flex-col items-center justify-center p-4 overflow-y-auto select-none">
       {/* Visual background gradient effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.18),rgba(255,255,255,0))]" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -172,19 +177,21 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
       <motion.div
         animate={shakeCode ? { x: [-10, 10, -10, 10, 0] } : {}}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-sm bg-white/5 dark:bg-slate-900/40 backdrop-blur-xl border border-white/10 dark:border-slate-800/60 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 text-center select-none"
+        className="w-full max-w-sm bg-white/5 dark:bg-slate-900/60 backdrop-blur-xl border border-white/10 dark:border-slate-800/80 rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-center select-none my-auto"
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {/* Lock Icon and Header */}
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 relative">
-            <Lock className="w-6 h-6 animate-pulse text-indigo-400" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping" />
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 relative">
+            <Lock className="w-5 h-5 animate-pulse text-indigo-400" />
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping" />
           </div>
 
-          <h2 className="text-base font-black text-white tracking-widest uppercase mt-4">Güvenlik Kilidi</h2>
+          <h2 className="text-base font-black text-white tracking-widest uppercase mt-3">Güvenlik Kilidi</h2>
           <p className="text-[11px] text-slate-400 max-w-xs mx-auto leading-relaxed font-semibold">
             {isRecovering 
               ? "Şifrenizi sıfırlamak için güvenlik sorusunun cevabını doğrulayın."
+              : activeUnlockMethod === "fingerprint"
+              ? "Biyometrik parmak izi sensörüne dokunarak hızlıca kilit açın."
               : "Finansal kayıtlarınızı korumak amacıyla 4 haneli PIN şifresini girin."
             }
           </p>
@@ -203,15 +210,65 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
           </div>
         )}
 
+        {/* METHOD SWITCH BUTTONS (FINGERPRINT vs PIN) */}
+        {!isRecovering && lockoutTime === 0 && settings.biometricsEnabled !== false && (
+          <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveUnlockMethod("fingerprint");
+                setErrorMsg("");
+              }}
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeUnlockMethod === "fingerprint"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Fingerprint className="w-3.5 h-3.5" />
+              <span>Parmak İzi</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveUnlockMethod("pin");
+                setErrorMsg("");
+              }}
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeUnlockMethod === "pin"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>PIN Kodu</span>
+            </button>
+          </div>
+        )}
+
+        {/* FINGERPRINT UNLOCK VIEW */}
+        {!isRecovering && lockoutTime === 0 && activeUnlockMethod === "fingerprint" && settings.biometricsEnabled !== false && (
+          <BiometricFingerprintScanner
+            mode="unlock"
+            autoStart={true}
+            onSuccess={() => {
+              onUnlockSuccess();
+            }}
+            onCancel={() => {
+              setActiveUnlockMethod("pin");
+            }}
+          />
+        )}
+
         {/* PIN DISPLAY MODE */}
-        {!isRecovering && lockoutTime === 0 && (
+        {!isRecovering && lockoutTime === 0 && activeUnlockMethod === "pin" && (
           <div className="space-y-4">
             {/* Visual Indicators for entered PIN */}
-            <div className="flex justify-center gap-4 py-2">
+            <div className="flex justify-center gap-4 py-1">
               {[0, 1, 2, 3].map((idx) => (
                 <div
                   key={idx}
-                  className={`w-4.5 h-4.5 rounded-full border-2 transition-all duration-200 ${
+                  className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
                     pinInput.length > idx
                       ? "bg-indigo-500 border-indigo-400 scale-110 shadow-lg shadow-indigo-500/40"
                       : "border-slate-600 bg-slate-900/60"
@@ -234,26 +291,33 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
             )}
 
             {/* NUMERIC KEYPAD */}
-            <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto pt-2">
+            <div className="grid grid-cols-3 gap-2.5 max-w-[260px] mx-auto pt-1">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
                 <button
                   key={num}
                   type="button"
                   onClick={() => handlePinKeyPress(num)}
                   disabled={lockoutTime > 0}
-                  className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 dark:bg-slate-800/40 dark:hover:bg-slate-800/70 border border-white/5 text-lg font-black text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center select-none"
+                  className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-white/5 hover:bg-white/10 dark:bg-slate-800/50 dark:hover:bg-slate-800/80 border border-white/5 text-lg font-black text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center select-none"
                 >
                   {num}
                 </button>
               ))}
 
-              <div className="w-14 h-14" />
+              <button
+                type="button"
+                onClick={() => setActiveUnlockMethod("fingerprint")}
+                className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center"
+                title="Parmak İzine Geç"
+              >
+                <Fingerprint className="w-5 h-5 text-indigo-400" />
+              </button>
 
               <button
                 type="button"
                 onClick={() => handlePinKeyPress("0")}
                 disabled={lockoutTime > 0}
-                className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 dark:bg-slate-800/40 dark:hover:bg-slate-800/70 border border-white/5 text-lg font-black text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center"
+                className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-white/5 hover:bg-white/10 dark:bg-slate-800/50 dark:hover:bg-slate-800/80 border border-white/5 text-lg font-black text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center"
               >
                 0
               </button>
@@ -262,14 +326,14 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
                 type="button"
                 onClick={() => handlePinKeyPress("delete")}
                 disabled={lockoutTime > 0}
-                className="w-14 h-14 rounded-full bg-slate-800/20 hover:bg-slate-800/40 border border-white/5 text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center"
+                className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-slate-800/30 hover:bg-slate-800/50 border border-white/5 text-white hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center"
               >
                 <Delete className="w-5 h-5 text-slate-300" />
               </button>
             </div>
 
             {/* Forgot PIN handler */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={() => {
@@ -334,7 +398,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
                 }}
                 className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer"
               >
-                Şifre Denemeye Dön
+                Geri Dön
               </button>
               <button
                 type="submit"
@@ -348,9 +412,10 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
         )}
 
         <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex items-center justify-center gap-1 mt-1">
-          <span>🔒 Güvenli Veri Kalkanı 256-bit</span>
+          <span>🔒 Biyometrik Veri Kalkanı 256-bit</span>
         </div>
       </motion.div>
     </div>
   );
 };
+
