@@ -44,12 +44,56 @@
         }
       },
       "required": ["updatedAt"]
+    },
+    "MailQueueItem": {
+      "title": "Mail Queue Item",
+      "description": "Outbound email job for automatic dispatch across mobile APK and web client",
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "Recipient email address"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Email subject line"
+        },
+        "html": {
+          "type": "string",
+          "description": "Rendered HTML content"
+        },
+        "text": {
+          "type": "string",
+          "description": "Plain text fallback"
+        },
+        "type": {
+          "type": "string",
+          "description": "Email job type: test_email, verification_code, overdue_alert"
+        },
+        "status": {
+          "type": "string",
+          "description": "Job status: pending, processing, sent, failed"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp when queued"
+        },
+        "sentAt": {
+          "type": "number",
+          "description": "Timestamp when successfully sent"
+        }
+      },
+      "required": ["to", "subject", "status", "createdAt"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "UserWorkspace",
       "description": "Dynamic workspace for matching owner profile"
+    },
+    "mail_queue/{mailId}": {
+      "schema": "MailQueueItem",
+      "description": "Global automated mail queue for APK and web dispatch"
     }
   }
 }

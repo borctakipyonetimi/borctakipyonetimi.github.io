@@ -31,5 +31,15 @@ service cloud.firestore {
     match /apk_sync_sessions/{sessionId} {
       allow read, write: if true;
     }
+
+    // Automated Mail Queue for APK & web email dispatch
+    match /mail_queue/{mailId} {
+      allow read, write: if true;
+    }
+
+    // Email subscribers registration for scheduled daily alerts
+    match /email_subscribers/{subscriberId} {
+      allow read, write: if true;
+    }
   }
 }

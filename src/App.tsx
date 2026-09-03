@@ -106,6 +106,8 @@ import { PublicBlog } from "./components/PublicBlog";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
+import { checkAndTriggerAutomaticDailyDebtAlert } from "./utils/automatedMail";
+import { analyzeDebtsComprehensive } from "./utils/debtAnalyzer";
 import confetti from "canvas-confetti";
 
 export default function App() {
@@ -1956,6 +1958,34 @@ export default function App() {
         }, 1500); // slight delay after mount for high premium presentation feel
       }
     }
+  }, [debts, installmentDebts, currentUser]);
+
+  // Automatically check and dispatch verified daily email debt alerts
+  useEffect(() => {
+    if (debts.length === 0 && installmentDebts.length === 0) return;
+    const verifiedEmail = localStorage.getItem("notif_verified_email");
+    if (!verifiedEmail) return;
+
+    let preferences = {
+      alertOverdue: true,
+      alertDueToday: true,
+      frequency: "daily_morning" as const,
+      minAmountThreshold: 0,
+    };
+    try {
+      const rawPrefs = localStorage.getItem("notif_email_preferences");
+      if (rawPrefs) preferences = { ...preferences, ...JSON.parse(rawPrefs) };
+    } catch {}
+
+    const analysis = analyzeDebtsComprehensive(debts, installmentDebts);
+    checkAndTriggerAutomaticDailyDebtAlert(
+      verifiedEmail,
+      currentUser || "Bütçem Pro Kullanıcısı",
+      debts,
+      installmentDebts,
+      preferences,
+      analysis
+    );
   }, [debts, installmentDebts, currentUser]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)

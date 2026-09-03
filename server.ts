@@ -3152,6 +3152,61 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
   });
 });
 
+// 7. Send automated overdue / due today debt alert email
+app.post("/api/notifications/email/send-alert", async (req, res) => {
+  const { email, debts, installmentDebts, user, analysis: clientAnalysis, isWelcome } = req.body;
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return res.status(400).json({ error: "E-posta adresi belirtilmedi." });
+  }
+
+  const sub = emailSubscribersMap[normalizedEmail];
+  const userDebts = (debts && Array.isArray(debts)) ? debts : (sub?.debts || []);
+  const userInstDebts = (installmentDebts && Array.isArray(installmentDebts)) ? installmentDebts : (sub?.installmentDebts || []);
+
+  const computedAnalysis = analyzeUserDebts(userDebts, userInstDebts);
+  const analysis = clientAnalysis || computedAnalysis;
+
+  const html = generateOverdueEmailHtml(
+    normalizedEmail,
+    user || sub?.user || "Bütçem Pro Kullanıcısı",
+    analysis,
+    false,
+    !!isWelcome
+  );
+  const text = generateOverdueEmailText(
+    normalizedEmail,
+    user || sub?.user || "Bütçem Pro Kullanıcısı",
+    analysis,
+    false,
+    !!isWelcome
+  );
+  const subject = isWelcome 
+    ? `Bütçem Pro: E-posta Bildirimleriniz Aktifleştirildi 🎉`
+    : (analysis?.overdueCount > 0)
+      ? `🚨 Acil Borç Hatırlatması: ${analysis.overdueCount} Adet Gecikmiş Ödemeniz Bulunuyor!`
+      : `📅 Günlük Borç ve Ödeme Özeti: Bugün ${analysis?.dueTodayCount || 0} Adet Ödemeniz Var`;
+
+  const sendResult = await sendMailHelper({
+    to: normalizedEmail,
+    subject,
+    html,
+    text
+  });
+
+  if (sendResult.success && sub) {
+    sub.lastEmailSentAt = Date.now();
+    saveEmailSubscribersToFile();
+  }
+
+  res.json({
+    success: sendResult.success,
+    delivered: !sendResult.simulated && sendResult.success,
+    simulated: sendResult.simulated,
+    messageId: sendResult.messageId,
+  });
+});
+
 // Background daemon that runs every 10 seconds:
 // 1. Checks specific due alarms
 // 2. Periodically checks overdue debts & due-today debts (push notifications)

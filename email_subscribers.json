@@ -20,24 +20,47 @@
     "alertDueToday": true,
     "frequency": "daily_morning",
     "minAmountThreshold": 0,
-    "debts": [
-      {
-        "id": "1",
-        "title": "Kredi Kartı Borcu",
-        "amount": 15000,
-        "paid": 3000,
-        "remaining": 12000,
-        "dueDate": "2026-08-15",
-        "isPaid": false
-      }
-    ],
+    "debts": [],
     "installmentDebts": [],
-    "user": "Mehmet Bey",
+    "user": "Test User",
     "createdAt": 1788387350735,
     "verifiedAt": 1788387497465,
-    "verificationCode": "236753",
-    "codeExpiresAt": 1788394490197,
-    "lastEmailSentAt": 1788388609371,
+    "verificationCode": "317196",
+    "codeExpiresAt": 1788399760292,
+    "lastEmailSentAt": 1788399164383,
     "lastSentDebtSummary": "1 gecikmiş, 0 bugün vadesi gelen"
+  },
+  "dexchainxmd@gmail.com": {
+    "email": "dexchainxmd@gmail.com",
+    "verified": true,
+    "alertOverdue": true,
+    "alertDueToday": true,
+    "frequency": "daily_morning",
+    "minAmountThreshold": 0,
+    "debts": [
+      {
+        "id": 1,
+        "name": "Örnek Finansal Borç",
+        "amount": 5000,
+        "paid": 1500,
+        "category": "Diğer",
+        "dueDate": ""
+      }
+    ],
+    "installmentDebts": [
+      {
+        "id": 1,
+        "name": "Telefon Taksidi (Örnek)",
+        "totalAmount": 12000,
+        "installmentCount": 12,
+        "paidInstallmentCount": 3,
+        "firstDueDate": "2026-08-31"
+      }
+    ],
+    "user": "Bütçem Pro Kullanıcısı",
+    "createdAt": 1788397500614,
+    "verifiedAt": 1788397506011,
+    "lastEmailSentAt": 1788397507368,
+    "lastSentDebtSummary": "0 gecikmiş, 0 bugün vadesi gelen, toplam ₺12500 borç"
   }
 }

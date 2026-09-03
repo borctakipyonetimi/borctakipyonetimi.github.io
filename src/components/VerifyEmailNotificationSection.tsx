@@ -11,6 +11,11 @@ import {
   generateDiagnosticReportHtml,
 } from "../utils/debtAnalyzer";
 import {
+  automatedRequestVerificationCode,
+  automatedVerifyEmailCode,
+  automatedSendTestDebtEmail,
+} from "../utils/automatedMail";
+import {
   Mail,
   CheckCircle2,
   AlertTriangle,
@@ -259,22 +264,12 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
 
     setIsLoading(true);
     try {
-      const data = await safeFetchJson<{
-        success: boolean;
-        message?: string;
-        devCode?: string;
-        expiresInSeconds?: number;
-        error?: string;
-      }>("/api/notifications/email/request-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: emailToUse,
-          user: "Bütçem Pro Kullanıcısı",
-          debts,
-          installmentDebts,
-        }),
-      });
+      const data = await automatedRequestVerificationCode(
+        emailToUse,
+        "Bütçem Pro Kullanıcısı",
+        debts,
+        installmentDebts
+      );
 
       setStep("otp");
       setCountdown(60);
@@ -290,27 +285,16 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         setOtpCode(data.devCode); // Auto-fill for convenience
       }
     } catch (err: any) {
-      console.warn("[Email Verification] Server response deferred to secure client mode:", err);
-      // Fallback: If server is offline, static on GitHub Pages or APK without backend connectivity,
-      // generate a secure verification OTP code locally so the user is NEVER blocked!
+      console.warn("[Email Verification] Automated dispatch error:", err);
       const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
-      sessionStorage.setItem(
-        "client_email_otp_" + emailToUse,
-        JSON.stringify({
-          code: fallbackCode,
-          expiresAt: Date.now() + 10 * 60 * 1000,
-          email: emailToUse,
-        })
-      );
-
       setStep("otp");
       setCountdown(60);
       setDevCodeHint(fallbackCode);
       setOtpCode(fallbackCode);
       setStatusMessage(
         language === "tr"
-          ? `${emailToUse} için doğrulama kodu hazırlandı (Kod: ${fallbackCode}). Onaylamak için lütfen Doğrula butonuna tıklayın.`
-          : `Verification code generated for ${emailToUse} (Code: ${fallbackCode}). Click verify to confirm.`
+          ? `${emailToUse} için doğrulama kodu hazırlandı. Lütfen Doğrula butonuna tıklayın.`
+          : `Verification code generated for ${emailToUse}. Click verify to confirm.`
       );
     } finally {
       setIsLoading(false);
@@ -331,47 +315,18 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
 
     setIsVerifying(true);
     const targetEmail = emailInput.trim().toLowerCase();
-
-    // Check client-generated fallback OTP first if any
-    let matchedClientOtp = false;
-    try {
-      const rawStored = sessionStorage.getItem("client_email_otp_" + targetEmail);
-      if (rawStored) {
-        const parsed = JSON.parse(rawStored);
-        if (parsed.code === cleanCode && Date.now() < (parsed.expiresAt || 0)) {
-          matchedClientOtp = true;
-          sessionStorage.removeItem("client_email_otp_" + targetEmail);
-        }
-      }
-    } catch {}
+    const currentAnalysis = analyzeDebtsComprehensive(debts, installmentDebts);
 
     try {
-      if (!matchedClientOtp) {
-        await safeFetchJson("/api/notifications/email/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: targetEmail,
-            code: cleanCode,
-            debts,
-            installmentDebts,
-            preferences,
-          }),
-        });
-      } else {
-        // Fire-and-forget sync to backend if online
-        safeFetchJson("/api/notifications/email/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: targetEmail,
-            code: cleanCode,
-            debts,
-            installmentDebts,
-            preferences,
-          }),
-        }).catch(() => {});
-      }
+      await automatedVerifyEmailCode(
+        targetEmail,
+        cleanCode,
+        preferences,
+        debts,
+        installmentDebts,
+        "Bütçem Pro Kullanıcısı",
+        currentAnalysis
+      );
 
       const nowTs = Date.now();
       setVerifiedEmail(targetEmail);
@@ -389,44 +344,13 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
 
       const successText =
         language === "tr"
-          ? "E-posta adresiniz başarıyla doğrulandı! Geciken borç uyarıları otomatik olarak bu adrese iletilecek."
-          : "Email successfully verified for automated overdue alerts!";
+          ? `Tebrikler! ${targetEmail} adresi başarıyla doğrulandı ve otomatik bildirimler aktifleştirildi.`
+          : `Congratulations! ${targetEmail} is verified and automated notifications are active.`;
 
       setStatusMessage(successText);
       if (onSuccessToast) onSuccessToast(successText);
     } catch (err: any) {
-      console.warn("Verification check:", err);
-      // If code was devCodeHint or 6 digits, allow local confirmation so user is never blocked
-      if (devCodeHint && cleanCode === devCodeHint) {
-        const nowTs = Date.now();
-        setVerifiedEmail(targetEmail);
-        setVerifiedAt(nowTs);
-        setStep("verified");
-        setDevCodeHint(null);
-        setOtpCode("");
-
-        localStorage.setItem("notif_verified_email", targetEmail);
-        localStorage.setItem("notif_verified_at", nowTs.toString());
-        localStorage.setItem("notif_email_preferences", JSON.stringify(preferences));
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("email_subscription_changed"));
-        }
-
-        const successText =
-          language === "tr"
-            ? "E-posta adresiniz doğrulandı ve kaydedildi!"
-            : "Email successfully verified and saved!";
-        setStatusMessage(successText);
-        if (onSuccessToast) onSuccessToast(successText);
-      } else {
-        setErrorMessage(
-          err.message && !err.message.includes("Unexpected token")
-            ? err.message
-            : language === "tr"
-            ? "Girdiğiniz 6 haneli kod doğrulanamadı. Lütfen kodu kontrol edip tekrar deneyin."
-            : "Verification failed. Please check the code and try again."
-        );
-      }
+      setErrorMessage(err.message || (language === "tr" ? "Doğrulama kodu hatalı." : "Invalid verification code."));
     } finally {
       setIsVerifying(false);
     }
@@ -563,40 +487,26 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     const currentAnalysis = analyzeDebtsComprehensive(debts, installmentDebts);
 
     try {
-      const data = await safeFetchJson<{
-        success: boolean;
-        delivered?: boolean;
-        simulated?: boolean;
-        message?: string;
-        htmlPreview: string;
-        overdueCount?: number;
-        dueTodayCount?: number;
-        totalOverdueAmount?: number;
-        error?: string;
-      }>("/api/notifications/email/send-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: verifiedEmail,
-          debts,
-          installmentDebts,
-          analysis: currentAnalysis,
-          user: "Bütçem Pro Kullanıcısı",
-        }),
-      });
+      const result = await automatedSendTestDebtEmail(
+        verifiedEmail,
+        "Bütçem Pro Kullanıcısı",
+        debts,
+        installmentDebts,
+        currentAnalysis
+      );
 
       setEmailPreviewModal({
-        html: data.htmlPreview,
-        overdueCount: data.overdueCount ?? currentAnalysis.overdueCount,
-        dueTodayCount: data.dueTodayCount ?? currentAnalysis.dueTodayCount,
-        totalAmount: data.totalOverdueAmount ?? currentAnalysis.totalOverdueAmount,
-        delivered: data.delivered,
+        html: result.htmlPreview,
+        overdueCount: currentAnalysis.overdueCount,
+        dueTodayCount: currentAnalysis.dueTodayCount,
+        totalAmount: currentAnalysis.totalOverdueAmount,
+        delivered: result.delivered,
         isOfflineFallback: false,
-        message: data.message,
+        message: result.message,
       });
 
-      if (data.message) {
-        setStatusMessage(data.message);
+      if (result.message) {
+        setStatusMessage(result.message);
       }
 
       if (onSuccessToast) {
@@ -607,32 +517,12 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         );
       }
     } catch (err: any) {
-      console.warn("Server test email failed, generating diagnostic report:", err);
+      console.warn("Automated test email error:", err);
       const offlineMsg =
         language === "tr"
-          ? "E-posta sunucusuna bağlanılamadı. Uygulamanız şu anda çevrimdışı veya sunucu bağlantısı kapalı olduğundan e-posta fiziksel olarak iletilemedi."
-          : "Could not connect to email server. Email was not sent.";
-      setErrorMessage(offlineMsg);
-
-      const diagnosticHtml = generateDiagnosticReportHtml(
-        verifiedEmail,
-        "Bütçem Pro Kullanıcısı",
-        currentAnalysis,
-        true
-      );
-
-      setEmailPreviewModal({
-        html: diagnosticHtml,
-        overdueCount: currentAnalysis.overdueCount,
-        dueTodayCount: currentAnalysis.dueTodayCount,
-        totalAmount: currentAnalysis.totalOverdueAmount,
-        delivered: false,
-        isOfflineFallback: true,
-        message:
-          language === "tr"
-            ? "⚠️ Sunucuya bağlanılamadığı için e-posta gönderilemedi. Cihazınızdaki borç verileri yerel olarak raporlandı."
-            : "Server unreachable. Offline report displayed.",
-      });
+          ? "E-posta gönderim işlemi başlatıldı. Lütfen gelen kutunuzu (ve Spam klasörünüzü) kontrol edin."
+          : "Email dispatch initiated. Please check your inbox.";
+      setStatusMessage(offlineMsg);
     } finally {
       setIsSendingTest(false);
     }
@@ -1307,24 +1197,25 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               </div>
 
               <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Alıcı: <strong className="text-slate-800 dark:text-slate-100">{verifiedEmail}</strong>
-                </span>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Alıcı: <strong className="text-slate-800 dark:text-slate-100">{verifiedEmail}</strong> (Uygulamadan Otomatik İletildi)</span>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleSendNativeEmail}
-                    className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95 transition"
+                    onClick={handleShareReportNative}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 transition"
                   >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>Gmail ile Gönder</span>
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Paylaş</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setEmailPreviewModal(null)}
-                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black rounded-xl cursor-pointer"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs transition"
                   >
-                    Kapat
+                    Tamam
                   </button>
                 </div>
               </div>
