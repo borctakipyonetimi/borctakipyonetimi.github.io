@@ -51,6 +51,8 @@ import {
   Twitter,
   Volume2,
   VolumeX,
+  Sliders,
+  Play,
   CheckCircle2,
   User,
   Pencil,
@@ -475,6 +477,7 @@ export default function App() {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
+  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings" | "email">("feed");
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
@@ -5470,419 +5473,590 @@ export default function App() {
 
         {activeTab === "notifications" && (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
+            {/* ORTALANMIŞ BAŞLIK ALANI */}
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-[11px] font-black uppercase tracking-wider shadow-xs">
+                <Bell className="w-3.5 h-3.5 animate-swing" />
+                <span>BİLDİRİM & ALARM MERKEZİ</span>
+              </div>
               <motion.h2
                 animate={{ y: [0, -1.2, 0] }}
                 transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }}
-                className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100 uppercase tracking-wide"
+                className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight"
               >
-                <Bell className="w-5 h-5 text-indigo-500 animate-swing" /> BİLDİRİMLER VE ALARMLAR
+                Bildirimler, Alarmlar ve Ayarlar
               </motion.h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setIsAddingAlarmNew(true);
-                  }}
-                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black transition cursor-pointer"
-                >
-                  🔔 Hatırlatma Ekle
-                </button>
-                <button
-                  onClick={handleClearNotifs}
-                  className="px-3 py-1.5 bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 text-xs font-black rounded-xl transition hover:bg-rose-100 cursor-pointer"
-                >
-                  Temizle
-                </button>
-              </div>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium max-w-lg mx-auto leading-relaxed">
+                Ödeme alarmları, anlık sistem uyarıları, zil sesi melodileri ve e-posta bildirim ayarlarınızı tek ekrandan kolayca yönetin.
+              </p>
             </div>
 
-            {/* Premium Interactive Inline Alarm Ekleme Formu */}
-            {isAddingAlarmNew && (
-              <div className="p-5 bg-white dark:bg-slate-800 border border-indigo-500/20 rounded-3xl shadow-xl space-y-4 animate-fade-in">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                  Yeni Ödeme Hatırlatıcısı / Alarm Kur
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Alarm Başlığı / Konusu</label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-                      placeholder="Ör: Kredi ödemesi yaklaşma uyarısı"
-                      value={newAlarmTitle}
-                      onChange={(e) => setNewAlarmTitle(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hatırlatma Tarihi ve Saati</label>
-                    <input
-                      type="datetime-local"
-                      className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100 font-mono"
-                      value={newAlarmDate}
-                      onChange={(e) => setNewAlarmDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => {
-                      setIsAddingAlarmNew(false);
-                      setNewAlarmTitle("");
-                    }}
-                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black transition cursor-pointer"
-                  >
-                    Vazgeç
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!newAlarmTitle.trim()) {
-                        triggerToast("Lütfen bir alarm başlığı girin.");
-                        return;
-                      }
-                      handleAddAlarm(newAlarmTitle.trim(), newAlarmDate);
-                      setNewAlarmTitle("");
-                      setIsAddingAlarmNew(false);
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-emerald-500 hover:opacity-90 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-indigo-500/10"
-                  >
-                    Alarmı Kaydet ⏰
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* İLGİLİ BÖLÜMLERE GEÇMEK İÇİN GEZİNME BUTONLARI (ALT ALTA DEĞİL, SEKMELİ) */}
+            <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-3xl mx-auto shadow-inner">
+              <button
+                type="button"
+                onClick={() => setNotifSectionTab("feed")}
+                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+                  notifSectionTab === "feed"
+                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                <span>Bildirimler & Alarmlar</span>
+                {(notifications.length + getUpcomingPayments().length) > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                    getUpcomingPayments().length > 0
+                      ? "bg-amber-500 text-slate-950 animate-pulse"
+                      : "bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
+                  }`}>
+                    {notifications.length + getUpcomingPayments().length}
+                  </span>
+                )}
+              </button>
 
-            {/* 1. ÜST BÖLÜM: GELEN BİLDİRİMLER VE AKTİF ALARMLAR */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                    💌 Bildirim Paneli
-                  </h4>
-                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl flex-wrap">
+              <button
+                type="button"
+                onClick={() => setNotifSectionTab("settings")}
+                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+                  notifSectionTab === "settings"
+                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Sliders className="w-4 h-4" />
+                <span>Bildirim & Ses Ayarları</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotifSectionTab("email")}
+                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+                  notifSectionTab === "email"
+                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Mail className="w-4 h-4" />
+                <span>E-Posta Bildirimleri</span>
+              </button>
+            </div>
+
+            {/* SEÇİLEN BÖLÜM 1: BİLDİRİMLER VE ALARMLAR LİSTESİ */}
+            {notifSectionTab === "feed" && (
+              <div className="space-y-5 animate-fade-in">
+                {/* Üst İşlem Çubuğu */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 rounded-2xl shadow-xs">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <span>Gelen Bildirim Akışı & Aktif Alarmlar</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                      Borç vadeleri, sistem mesajları ve kurduğunuz özel hatırlatıcılar.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setNotifFilter("all")}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
-                        notifFilter === "all"
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
-                      }`}
+                      type="button"
+                      onClick={() => setIsAddingAlarmNew(!isAddingAlarmNew)}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-sm shadow-indigo-600/20 active:scale-95 select-none"
                     >
-                      Tümü ({notifications.length + getUpcomingPayments().length})
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>{isAddingAlarmNew ? "Formu Kapat" : "🔔 Yeni Hatırlatma Ekle"}</span>
                     </button>
-                    <button
-                      onClick={() => setNotifFilter("upcoming")}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
-                        notifFilter === "upcoming"
-                          ? "bg-amber-500 text-slate-950 shadow-xs font-black animate-none"
-                          : getUpcomingPayments().length > 0
-                          ? "bg-amber-500/10 text-amber-500 font-extrabold animate-pulse"
-                          : "text-slate-500 hover:text-indigo-600"
-                      }`}
-                    >
-                      ⚠️ Yaklaşan ({getUpcomingPayments().length})
-                    </button>
-                    <button
-                      onClick={() => setNotifFilter("alarm")}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
-                        notifFilter === "alarm"
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
-                      }`}
-                    >
-                      Alarmlar ({notifications.filter(n => !(n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test"))).length})
-                    </button>
-                    <button
-                      onClick={() => setNotifFilter("system")}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
-                        notifFilter === "system"
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
-                      }`}
-                    >
-                      Sistem ({notifications.filter(n => (n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test"))).length})
-                    </button>
+                    {notifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearNotifs}
+                        className="px-3.5 py-2 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 text-xs font-black rounded-xl transition hover:bg-rose-100 dark:hover:bg-rose-900/40 cursor-pointer active:scale-95 select-none"
+                      >
+                        Temizle
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Dynamic Auto-Generated "Yaklaşan Gecikmiş Ödemeler" Highlight Cards */}
-                {(notifFilter === "all" || notifFilter === "upcoming") && getUpcomingPayments().length > 0 && (
-                  <div className="bg-gradient-to-tr from-amber-50 to-orange-50 dark:from-slate-900 dark:to-orange-950/10 border-2 border-amber-400/60 dark:border-amber-800/50 rounded-2xl p-4 space-y-3.5 shadow-md shadow-amber-500/5 antialiased animate-fade-in">
+                {/* Premium Interactive Inline Alarm Ekleme Formu */}
+                {isAddingAlarmNew && (
+                  <div className="p-5 bg-white dark:bg-slate-800 border-2 border-indigo-500/30 rounded-3xl shadow-xl space-y-4 animate-fade-in">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] sm:text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
-                        <span className="flex h-2 w-2 relative">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
-                        </span>
-                        ⏰ YAKLAŞAN VE GECİKMİŞ ÖDEME PANORAMASI (3 GÜN EN FAZLA)
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping" />
+                        Yeni Ödeme Hatırlatıcısı / Alarm Kur
                       </h3>
-                      <span className="text-[10px] bg-amber-200 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wide">
-                        {getUpcomingPayments().length} ACİL VADE
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingAlarmNew(false);
+                          setNewAlarmTitle("");
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                    
-                    <div className="grid gap-2.5">
-                      {getUpcomingPayments().map((item) => {
-                        const isOverdue = item.daysLeft < 0;
-                        const isToday = item.daysLeft === 0;
-                        return (
-                          <div
-                            key={item.id}
-                            className={`p-3.5 rounded-xl border flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 transition duration-150 ${
-                              isOverdue
-                                ? "bg-rose-50/75 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/30 hover:border-rose-400"
-                                : isToday
-                                ? "bg-amber-50/75 dark:bg-amber-950/10 border-amber-300 dark:border-amber-800 hover:border-amber-500 animate-pulse-slow"
-                                : "bg-white dark:bg-slate-900/65 border-slate-150 dark:border-slate-800/60 hover:border-amber-300"
-                            }`}
-                          >
-                            <div className="space-y-1 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {isOverdue ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-500 text-white uppercase tracking-wide leading-none">
-                                    Gecikmiş ⚠️
-                                  </span>
-                                ) : isToday ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500 text-slate-950 uppercase tracking-wide leading-none">
-                                    BUGÜN ACİL 🚨
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 uppercase tracking-wide leading-none">
-                                    {item.daysLeft} GÜN KALDI ⏰
-                                  </span>
-                                )}
-                                <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100">{item.title}</span>
-                              </div>
-                              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold leading-relaxed">{item.desc}</p>
-                              {item.dueDate && (
-                                <div className="text-[9.5px] text-slate-450 dark:text-slate-500 font-bold font-mono">
-                                  VADE TARİHİ: {new Date(item.dueDate).toLocaleDateString("tr-TR")}
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-                              <button
-                                onClick={() => {
-                                  if (item.id.startsWith("upcoming-debt-")) {
-                                    setActiveTab("debts");
-                                    triggerToast("Borç listesine yönlendirildiniz. Ödeme kaydetmek için ilgili borca tıklayabilirsiniz.");
-                                  } else {
-                                    setActiveTab("installments");
-                                    triggerToast("Taksit yönetimine yönlendirildiniz.");
-                                  }
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black transition cursor-pointer select-none ${
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Alarm Başlığı / Konusu</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                          placeholder="Ör: Kira ödemesi hatırlatması"
+                          value={newAlarmTitle}
+                          onChange={(e) => setNewAlarmTitle(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hatırlatma Tarihi ve Saati</label>
+                        <input
+                          type="datetime-local"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100 font-mono"
+                          value={newAlarmDate}
+                          onChange={(e) => setNewAlarmDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingAlarmNew(false);
+                          setNewAlarmTitle("");
+                        }}
+                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black transition cursor-pointer"
+                      >
+                        Vazgeç
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newAlarmTitle.trim()) {
+                            triggerToast("Lütfen bir alarm başlığı girin.");
+                            return;
+                          }
+                          handleAddAlarm(newAlarmTitle.trim(), newAlarmDate);
+                          setNewAlarmTitle("");
+                          setIsAddingAlarmNew(false);
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-indigo-600/20"
+                      >
+                        Alarmı Kaydet ⏰
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Gelen Bildirimler ve Alarmlar Grid */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                        💌 Bildirim Akışı
+                      </h4>
+                      <div className="flex gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter("all")}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                            notifFilter === "all"
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
+                          }`}
+                        >
+                          Tümü ({notifications.length + getUpcomingPayments().length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter("upcoming")}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                            notifFilter === "upcoming"
+                              ? "bg-amber-500 text-slate-950 shadow-xs font-black animate-none"
+                              : getUpcomingPayments().length > 0
+                              ? "bg-amber-500/10 text-amber-500 font-extrabold animate-pulse"
+                              : "text-slate-500 hover:text-indigo-600"
+                          }`}
+                        >
+                          ⚠️ Yaklaşan ({getUpcomingPayments().length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter("alarm")}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                            notifFilter === "alarm"
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
+                          }`}
+                        >
+                          Alarmlar ({notifications.filter(n => !(n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test"))).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter("system")}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                            notifFilter === "system"
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-500 hover:text-indigo-600 dark:text-slate-400"
+                          }`}
+                        >
+                          Sistem ({notifications.filter(n => (n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test"))).length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Auto-Generated "Yaklaşan Gecikmiş Ödemeler" Highlight Cards */}
+                    {(notifFilter === "all" || notifFilter === "upcoming") && getUpcomingPayments().length > 0 && (
+                      <div className="bg-gradient-to-tr from-amber-50 to-orange-50 dark:from-slate-900 dark:to-orange-950/10 border-2 border-amber-400/60 dark:border-amber-800/50 rounded-2xl p-4 space-y-3.5 shadow-md shadow-amber-500/5 antialiased animate-fade-in">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-[10px] sm:text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                            </span>
+                            ⏰ YAKLAŞAN VE GECİKMİŞ ÖDEME PANORAMASI (3 GÜN EN FAZLA)
+                          </h3>
+                          <span className="text-[10px] bg-amber-200 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wide">
+                            {getUpcomingPayments().length} ACİL VADE
+                          </span>
+                        </div>
+                        
+                        <div className="grid gap-2.5">
+                          {getUpcomingPayments().map((item) => {
+                            const isOverdue = item.daysLeft < 0;
+                            const isToday = item.daysLeft === 0;
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 transition duration-150 ${
                                   isOverdue
-                                    ? "bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+                                    ? "bg-rose-50/75 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/30 hover:border-rose-400"
                                     : isToday
-                                    ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
-                                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    ? "bg-amber-50/75 dark:bg-amber-950/10 border-amber-300 dark:border-amber-800 hover:border-amber-500 animate-pulse-slow"
+                                    : "bg-white dark:bg-slate-900/65 border-slate-150 dark:border-slate-800/60 hover:border-amber-300"
                                 }`}
                               >
-                                Git ve Öde 💳
-                              </button>
-                            </div>
+                                <div className="space-y-1 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {isOverdue ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-500 text-white uppercase tracking-wide leading-none">
+                                        Gecikmiş ⚠️
+                                      </span>
+                                    ) : isToday ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500 text-slate-950 uppercase tracking-wide leading-none">
+                                        BUGÜN ACİL 🚨
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 uppercase tracking-wide leading-none">
+                                        {item.daysLeft} GÜN KALDI ⏰
+                                      </span>
+                                    )}
+                                    <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100">{item.title}</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold leading-relaxed">{item.desc}</p>
+                                  {item.dueDate && (
+                                    <div className="text-[9.5px] text-slate-450 dark:text-slate-500 font-bold font-mono">
+                                      VADE TARİHİ: {new Date(item.dueDate).toLocaleDateString("tr-TR")}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                                  <button
+                                    onClick={() => {
+                                      if (item.id.startsWith("upcoming-debt-")) {
+                                        setActiveTab("debts");
+                                        triggerToast("Borç listesine yönlendirildiniz. Ödeme kaydetmek için ilgili borca tıklayabilirsiniz.");
+                                      } else {
+                                        setActiveTab("installments");
+                                        triggerToast("Taksit yönetimine yönlendirildiniz.");
+                                      }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black transition cursor-pointer select-none ${
+                                      isOverdue
+                                        ? "bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+                                        : isToday
+                                        ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    }`}
+                                  >
+                                    Git ve Öde 💳
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Empty states for upcoming tab */}
+                    {notifFilter === "upcoming" && getUpcomingPayments().length === 0 && (
+                      <div className="text-center py-10 p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-150 dark:border-slate-800">
+                        <div className="text-4xl mb-2">🎉</div>
+                        <h5 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">Mükemmel! Yaklaşan Borç Bulunmuyor</h5>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-450 mt-1 max-w-sm mx-auto">Vadesine 3 gün veya daha az kalan ödenmemiş acil borcunuz veya taksit ödemeniz bulunmamaktadır.</p>
+                      </div>
+                    )}
+
+                    {/* Regular active notifications feed */}
+                    {notifFilter !== "upcoming" && (
+                      <>
+                        {notifications.length === 0 ? (
+                          <div className="text-center py-8 text-xs text-slate-400 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                            Henüz yeni bildirim bulunmuyor.
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Empty states and dynamic listing for 'upcoming' tab specifically */}
-                {notifFilter === "upcoming" && getUpcomingPayments().length === 0 && (
-                  <div className="text-center py-10 p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-150 dark:border-slate-800">
-                    <div className="text-4xl mb-2">🎉</div>
-                    <h5 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">Mükemmel! Yaklaşan Borç Bulunmuyor</h5>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-450 mt-1 max-w-sm mx-auto">Vadesine 3 gün veya daha az kalan ödenmemiş acil borcunuz veya taksit ödemeniz bulunmamaktadır.</p>
-                  </div>
-                )}
-
-                {/* Regular active user-added alarms feed and general notifications */}
-                {notifFilter !== "upcoming" && (
-                  <>
-                    {notifications.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-400 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800/50">Yeni bildirim bulunmuyor.</div>
-                    ) : notifications.filter((n) => {
-                      const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
-                      if (notifFilter === "alarm") return !isSys;
-                      if (notifFilter === "system") return isSys;
-                      return true;
-                    }).length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-400 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800/50">Seçilen filtrede bildirim bulunmuyor.</div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        {notifications.filter((n) => {
+                        ) : notifications.filter((n) => {
                           const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
                           if (notifFilter === "alarm") return !isSys;
                           if (notifFilter === "system") return isSys;
                           return true;
-                        }).map((n) => {
-                          const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
-                          return (
-                            <div
-                              key={n.id}
-                              className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs animate-fade-in"
-                            >
-                              <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                                {isSys ? (
-                                  <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 font-mono text-[9px] font-black rounded uppercase">SİSTEM</span>
-                                ) : (
-                                  <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-black rounded uppercase">ALARM</span>
-                                )}
-                                💌 {n.title}
+                        }).length === 0 ? (
+                          <div className="text-center py-8 text-xs text-slate-400 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                            Seçilen filtrede bildirim bulunmuyor.
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {notifications.filter((n) => {
+                              const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
+                              if (notifFilter === "alarm") return !isSys;
+                              if (notifFilter === "system") return isSys;
+                              return true;
+                            }).map((n) => {
+                              const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
+                              return (
+                                <div
+                                  key={n.id}
+                                  className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs animate-fade-in shadow-2xs hover:border-slate-200 dark:hover:border-slate-700 transition"
+                                >
+                                  <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                    {isSys ? (
+                                      <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 font-mono text-[9px] font-black rounded uppercase">SİSTEM</span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-black rounded uppercase">ALARM</span>
+                                    )}
+                                    <span>💌 {n.title}</span>
+                                  </span>
+                                  <button onClick={() => handleDeleteNotif(n.id)} className="text-rose-500 font-black hover:underline px-2 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer">Sil</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                        🔔 Aktif Hatırlatmalar (Alarmlar)
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-md">
+                        {alarms.length} Kayıtlı
+                      </span>
+                    </div>
+
+                    {alarms.length === 0 ? (
+                      <div className="text-center py-10 text-xs text-slate-400 p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+                        <div className="text-3xl mb-1">⏰</div>
+                        <p className="font-bold text-slate-600 dark:text-slate-300">Aktif zamanlı alarm bulunmuyor.</p>
+                        <p className="text-[11px] text-slate-400">Üstteki "Yeni Hatırlatma Ekle" butonuna basarak istediğiniz tarihe alarm kurabilirsiniz.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {alarms.map((a) => (
+                          <div
+                            key={a.id}
+                            className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs shadow-2xs hover:border-indigo-300 transition"
+                          >
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-slate-800 dark:text-slate-100 block">
+                                🔔 {a.title}
                               </span>
-                              <button onClick={() => handleDeleteNotif(n.id)} className="text-rose-500 font-black hover:underline px-2 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition">Sil</button>
+                              {a.date && (
+                                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold block">
+                                  📅 {new Date(a.date).toLocaleString("tr-TR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              )}
                             </div>
-                          );
-                        })}
+                            <button onClick={() => handleDeleteAlarm(a.id)} className="text-rose-500 font-black hover:underline px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer">Sil</button>
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Aktif Hatırlatmalar (Alarmlar)</h4>
-                {alarms.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-400 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">Aktif zamanlı alarm bulunmuyor.</div>
-                ) : (
-                  alarms.map((a) => (
-                    <div
-                      key={a.id}
-                      className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs"
-                    >
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">
-                        🔔 {a.title} {a.date && `(${new Date(a.date).toLocaleString("tr-TR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })})`}
-                      </span>
-                      <button onClick={() => handleDeleteAlarm(a.id)} className="text-rose-500 font-black hover:underline px-2 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition">Sil</button>
+            {/* SEÇİLEN BÖLÜM 2: BİLDİRİM VE ZİL SESİ AYARLARI */}
+            {notifSectionTab === "settings" && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl shadow-sm space-y-6">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Volume2 className="w-5 h-5 text-indigo-500 animate-pulse" />
+                      Bildirim ve Zil Sesi Ayarları
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mt-1">
+                      Ödeme alarmlarında çalacak zil sesi melodisini seçebilir, ses seviyesini ve tarayıcı/cihaz izinlerini yapılandırabilirsiniz.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Zil Sesi Durumu */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Zil Sesi Durumu</span>
+                        <span className="text-[10px] text-slate-400 font-medium leading-none block mt-1">Tüm alarm ve ödeme zil sesleri</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !soundEnabled;
+                          setSoundEnabled(next);
+                          localStorage.setItem("soundEnabled", next ? "1" : "0");
+                          triggerToast(next ? "Zil Sesi Aktif Edildi 🔔" : "Zil Sesi Sessize Alındı 🔕");
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
+                          soundEnabled
+                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        }`}
+                      >
+                        {soundEnabled ? "AÇIK 🔔" : "KAPALI 🔕"}
+                      </button>
                     </div>
-                  ))
-                )}
+
+                    {/* Melodi Türü ve Test Dinleme */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Melodi Türü (5 Alternatif)</span>
+                          <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Zil sesi melodi alternatifi</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const names: Record<string, string> = {
+                              digital: "Dijital Saat Sinyali ⏰",
+                              system: "Yumuşak Sistem Tınısı ⚙️",
+                              crystal: "Kristal Çan Melodisi 💎",
+                              victory: "Başarı & Ödeme Efekti 🏆",
+                              arcade: "Retro Atari Sesi 👾"
+                            };
+                            triggerToast(`${names[alarmSoundType] || alarmSoundType} Çalınıyor... 🔔`);
+                            sendSystemNotification("Zil Sesi Test Edildi! 🔔", `Çalan Melodi: ${names[alarmSoundType] || alarmSoundType}`, false);
+                          }}
+                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition shadow-xs"
+                        >
+                          <Play className="w-3 h-3 fill-white" />
+                          <span>Test Et</span>
+                        </button>
+                      </div>
+                      <select
+                        value={alarmSoundType}
+                        onChange={(e) => {
+                          const selected = e.target.value;
+                          setAlarmSoundType(selected);
+                          localStorage.setItem("alarmSoundType", selected);
+                          localStorage.setItem("useSystemSound", selected === "system" ? "1" : "0");
+                          setUseSystemSound(selected === "system");
+                          
+                          const names: Record<string, string> = {
+                            digital: "Dijital Saat Sinyali ⏰",
+                            system: "Yumuşak Sistem Tınısı ⚙️",
+                            crystal: "Kristal Çan Melodisi 💎",
+                            victory: "Başarı & Ödeme Efekti 🏆",
+                            arcade: "Retro Atari Sesi 👾"
+                          };
+                          triggerToast(`${names[selected] || selected} Seçildi ve Test Ediliyor...`);
+                          
+                          setTimeout(() => {
+                            sendSystemNotification("Zil Sesi Test Edildi! 🔔", `Seçilen Melodi: ${names[selected]}`, false);
+                          }, 200);
+                        }}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold cursor-pointer transition focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="digital">Dijital Saat Bipi ⏰</option>
+                        <option value="system">Yumuşak Sistem Tınısı ⚙️</option>
+                        <option value="crystal">Kristal Çan Melodisi 💎</option>
+                        <option value="victory">Başarı ve Ödeme Zili 🏆</option>
+                        <option value="arcade">Retro Atari Melodisi 👾</option>
+                      </select>
+                    </div>
+
+                    {/* Cihaz Bildirim İzni */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Cihaz Bildirim İzni</span>
+                        <span className="text-[10px] text-slate-400 font-medium leading-none block mt-1">Tarayıcı ve kilit ekranı uyarıları</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={requestNotificationPermission}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-sm"
+                      >
+                        <span>🔔 İzni Yönet</span>
+                      </button>
+                    </div>
+
+                    {/* Akıllı Sesli Asistan Servisi */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block flex items-center gap-1.5">
+                          Akıllı Sesli Asistan Servisi
+                          {!isPremium && <span className="bg-amber-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium leading-none block mt-1">Ekrandaki mikrofon ikonu ile yönetin</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isPremium) {
+                            setIsUpgradeModalOpen(true);
+                          } else {
+                            const next = !voiceAssistantEnabled;
+                            setVoiceAssistantEnabled(next);
+                            localStorage.setItem("voiceAssistantEnabled", next ? "1" : "0");
+                            triggerToast(next ? "Sesli Asistan Servisi Aktifleştirildi 🎙️" : "Sesli Asistan Servisi Devre Dışı Bırakıldı 🔕");
+                          }
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
+                          isPremium && voiceAssistantEnabled
+                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        }`}
+                      >
+                        {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Vade Hatırlatma Kuralları Bilgi Kartı */}
+                  <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 rounded-2xl space-y-1.5 text-xs text-indigo-950 dark:text-indigo-200">
+                    <h4 className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
+                      <span>💡 Otomatik Hatırlatma Sistemi Nasıl Çalışır?</span>
+                    </h4>
+                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                      Bütçem Pro, vadesine <strong>3 gün kalan</strong>, <strong>vadesi bugün dolan</strong> ve <strong>gecikmiş</strong> tüm borç ve taksitleri otomatik olarak algılar. Üst bildirim bandında ve akış panelinde acil durum uyarısı oluşturur.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* 2. ALT BÖLÜM: BİLDİRİM VE ZİL SESİ AYARLARI */}
-            <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />
-                Bildirim ve Zil Sesi Ayarları
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-                Yaklaşan ödemelerin otomatik alarmlarında ve uyarı mesajlarında duyulacak bildirim zil sesini ve cihaz bildirim izinlerini buradan yönetebilirsiniz.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Zil Sesi Durumu</span>
-                    <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Test ve hatırlatma bip sesleri</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const next = !soundEnabled;
-                      setSoundEnabled(next);
-                      localStorage.setItem("soundEnabled", next ? "1" : "0");
-                      triggerToast(next ? "Zil Sesi Aktif Edildi 🔔" : "Zil Sesi Sessize Alındı 🔕");
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition select-none ${
-                      soundEnabled
-                        ? "bg-gradient-to-tr from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-500/10"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                    }`}
-                  >
-                    {soundEnabled ? "AÇIK 🔔" : "KAPALI 🔕"}
-                  </button>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Melodi Türü (5 Alternatif)</span>
-                    <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Zil sesi melodi alternatifi</span>
-                  </div>
-                  <select
-                    value={alarmSoundType}
-                    onChange={(e) => {
-                      const selected = e.target.value;
-                      setAlarmSoundType(selected);
-                      localStorage.setItem("alarmSoundType", selected);
-                      localStorage.setItem("useSystemSound", selected === "system" ? "1" : "0");
-                      setUseSystemSound(selected === "system");
-                      
-                      const names: Record<string, string> = {
-                        digital: "Dijital Saat Sinyali ⏰",
-                        system: "Yumuşak Sistem Tınısı ⚙️",
-                        crystal: "Kristal Çan Melodisi 💎",
-                        victory: "Başarı & Ödeme Efekti 🏆",
-                        arcade: "Retro Atari Sesi 👾"
-                      };
-                      triggerToast(`${names[selected] || selected} Seçildi ve Test Ediliyor...`);
-                      
-                      setTimeout(() => {
-                        sendSystemNotification("Zil Sesi Test Edildi! 🔔", `Seçilen Melodi: ${names[selected]}`, false);
-                      }, 200);
-                    }}
-                    className="px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold cursor-pointer transition focus:outline-none"
-                  >
-                    <option value="digital">Dijital Saat Bipi ⏰</option>
-                    <option value="system">Yumuşak Sistem Tınısı ⚙️</option>
-                    <option value="crystal">Kristal Çan Melodisi 💎</option>
-                    <option value="victory">Başarı ve Ödeme Zili 🏆</option>
-                    <option value="arcade">Retro Atari Melodisi 👾</option>
-                  </select>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Cihaz Bildirim İzni</span>
-                    <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Anlık bildirim alabilmek için tarayıcı izni</span>
-                  </div>
-                  <button
-                    onClick={requestNotificationPermission}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-sm"
-                  >
-                    <span>🔔 İzni Yönet</span>
-                  </button>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block flex items-center gap-1.5">
-                      Akıllı Sesli Asistan Servisi
-                      {!isPremium && <span className="bg-amber-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Ekrandaki mikrofon ikonu ile yönetin</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!isPremium) {
-                        setIsUpgradeModalOpen(true);
-                      } else {
-                        const next = !voiceAssistantEnabled;
-                        setVoiceAssistantEnabled(next);
-                        localStorage.setItem("voiceAssistantEnabled", next ? "1" : "0");
-                        triggerToast(next ? "Sesli Asistan Servisi Aktifleştirildi 🎙️" : "Sesli Asistan Servisi Devre Dışı Bırakıldı 🔕");
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition select-none ${
-                      isPremium && voiceAssistantEnabled
-                        ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/10"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                    }`}
-                  >
-                    {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
-                  </button>
-                </div>
+            {/* SEÇİLEN BÖLÜM 3: E-POSTA BİLDİRİM SERVİSİ */}
+            {notifSectionTab === "email" && (
+              <div className="space-y-4 animate-fade-in">
+                <VerifyEmailNotificationSection
+                  debts={debts}
+                  installmentDebts={installmentDebts}
+                  language={language}
+                  onSuccessToast={(msg) => triggerToast(msg)}
+                />
               </div>
-            </div>
-
-            {/* 3. E-POSTA İLE BORÇ BİLDİRİM DOĞRULAMA (VERIFY EMAIL FOR NOTIFICATIONS) */}
-            <VerifyEmailNotificationSection
-              debts={debts}
-              installmentDebts={installmentDebts}
-              language={language}
-              onSuccessToast={(msg) => triggerToast(msg)}
-            />
+            )}
           </div>
         )}
 

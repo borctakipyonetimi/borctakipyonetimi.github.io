@@ -18,14 +18,8 @@ import {
   Sparkles,
   Mic,
   Play,
-  Pause,
-  Fingerprint,
-  CheckCircle2,
-  Zap,
-  ShieldCheck,
-  Smartphone
+  Pause
 } from "lucide-react";
-import { BiometricFingerprintScanner } from "./BiometricFingerprintScanner";
 
 interface SecuritySettingsPanelProps {
   language?: string;
@@ -120,17 +114,14 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     };
   });
 
-  // UI Flow modes: "idle" | "set_pin" | "test_fingerprint"
-  const [setupMode, setSetupMode] = useState<"idle" | "set_pin" | "test_fingerprint">("idle");
+  // UI Flow modes: "idle" | "set_pin"
+  const [setupMode, setSetupMode] = useState<"idle" | "set_pin">("idle");
   const [pinTemp, setPinTemp] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
   const [recoveryQuestion, setRecoveryQuestion] = useState("İlkokul öğretmeninizin adı nedir?");
   const [recoveryAnswer, setRecoveryAnswer] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: PIN entry, 2: confirmation PIN entry, 3: recovery question
   const [validationError, setValidationError] = useState("");
-  const [enrolledDate, setEnrolledDate] = useState<string | null>(() => {
-    return localStorage.getItem("biometric_enrolled_date");
-  });
 
   const saveSettings = (newSettings: any) => {
     setSettings(newSettings);
@@ -150,20 +141,6 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     } else {
       startSetupFlow();
     }
-  };
-
-  const handleToggleBiometrics = () => {
-    const nextVal = !(settings.biometricsEnabled !== false);
-    const next = {
-      ...settings,
-      biometricsEnabled: nextVal,
-    };
-    saveSettings(next);
-    onSuccessToast(
-      nextVal
-        ? "Biyometrik Parmak İzi (Fingerprint) Kilidi Aktif Edildi! 👆✨"
-        : "Biyometrik Parmak İzi Devre Dışı Bırakıldı (Yalnızca PIN geçerli) 🔢"
-    );
   };
 
   const startSetupFlow = () => {
@@ -216,7 +193,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
       pinCode: pinTemp,
       recoveryQuestion: recoveryQuestion,
       recoveryAnswer: recoveryAnswer.trim().toLowerCase(),
-      biometricsEnabled: settings.biometricsEnabled !== false,
+      biometricsEnabled: settings.biometricsEnabled,
     };
     saveSettings(next);
     setSetupMode("idle");
@@ -237,7 +214,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           }`}
         >
           <Lock className="w-3.5 h-3.5" />
-          <span>{language === "tr" ? "Güvenlik & PIN / Parmak İzi" : "Security & Fingerprint Lock"}</span>
+          <span>{language === "tr" ? "Güvenlik & PIN Kilidi" : "Security & PIN Lock"}</span>
           {settings.isEnabled && (
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           )}
@@ -257,7 +234,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
         </button>
       </div>
 
-      {/* Tab 1: PIN & Fingerprint Security Settings */}
+      {/* Tab 1: PIN & Security Settings */}
       {activeTab === "security" && (
         <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-800 rounded-3xl shadow-xs space-y-4">
           {/* Panel Header */}
@@ -267,10 +244,10 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 <Shield className="w-6 h-6 animate-pulse" />
               </div>
               <h3 className="text-base font-black text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2">
-                Uygulama Giriş Güvenliği & Parmak İzi Kilidi
+                Uygulama Giriş Güvenliği & Kilit Sistemi
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                Finansal verilerinizi, borç/alacak kayıtlarınızı ve hesap özetlerinizi koruma altına alın. Uygulama açılışında Biyometrik Parmak İzi veya 4 Haneli PIN Kodu ile güvenle anında giriş yapabilirsiniz.
+                Kişisel bütçenizi, alacak/borç verilerinizi ve hesap detaylarınızı üçüncü şahıslardan saklayın. Uygulama her açıldığında veya kilit aktifken bir kod sorulmasını sağlayabilirsiniz.
               </p>
             </div>
 
@@ -283,12 +260,12 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   : "bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-700"
               }`}
             >
-              {settings.isEnabled ? "GÜVENLİK KİLİDİNİ KAPAT 🔓" : "GÜVENLİK KİLİDİNİ ETKİNLEŞTİR 🔒"}
+              {settings.isEnabled ? "KİLİDİ KAPAT 🔓" : "KİLİDİ ETKİNLEŞTİR 🔒"}
             </button>
           </div>
 
           {/* Configurations status and credentials select */}
-          <div className="grid gap-4 sm:grid-cols-2 pt-1">
+          <div className="grid gap-4 sm:grid-cols-2 pt-2">
             {/* Status Indicator Card */}
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
               <div>
@@ -297,31 +274,30 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   {settings.isEnabled ? (
                     <>
                       <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                      Kilit Koruması Devrede
+                      Koruma Devrede
                     </>
                   ) : (
                     <>
                       <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                      Şifresiz Giriş
+                      Şifresiz Erişim
                     </>
                   )}
                 </span>
               </div>
               <span className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold block mt-2">
                 {settings.isEnabled
-                  ? "Biyometrik Parmak İzi & 4 Haneli PIN ile tam koruma."
-                  : "Uygulama açılışında kilit ekranı sorulmaz."}
+                  ? "4 Haneli PIN Kodu ve Kurtarma Sorusu korunuyor."
+                  : "Herhangi bir şifre talep edilmiyor."}
               </span>
             </div>
 
             {/* Secure lock Info Card */}
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">KİLİT DOĞRULAMA METOTLARI</span>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block mt-1.5 flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-indigo-500"><Fingerprint className="w-4 h-4" /> Parmak İzi</span>
-                  <span className="text-slate-400">+</span>
-                  <span className="flex items-center gap-1 text-purple-500"><Key className="w-4 h-4" /> PIN (4 Hane)</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">KİLİT KORUMA TÜRÜ</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block mt-2 flex items-center gap-1.5">
+                  <Key className="w-4 h-4 text-indigo-500" />
+                  4 Haneli PIN Kodu
                 </span>
               </div>
               {settings.isEnabled && (
@@ -330,137 +306,13 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   onClick={() => startSetupFlow()}
                   className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-extrabold text-left block mt-1.5 cursor-pointer"
                 >
-                  PIN Kodunu & Kurtarma Sorusunu Değiştir ⚙️
+                  Şifreyi ve Kurtarmayı Değiştir ⚙️
                 </button>
               )}
             </div>
           </div>
 
-          {/* 🌟 BIOMETRIC & FINGERPRINT CONTROL MODULE */}
-          <div className="p-4.5 bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-slate-50 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 rounded-2xl border border-indigo-200/70 dark:border-indigo-800/40 shadow-xs space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Fingerprint className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-1.5">
-                    <span>Biyometrik Parmak İzi Kilidi</span>
-                    <span className="bg-emerald-500 text-[8px] text-white px-1.5 py-0.5 rounded-full font-black">AKTİF</span>
-                  </h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-tight mt-0.5">
-                    Dokunarak veya cihaz sensörünüzle şifresiz, anında hızlı giriş sağlar.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleToggleBiometrics}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 select-none ${
-                    settings.biometricsEnabled !== false
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                  }`}
-                >
-                  <Fingerprint className="w-3.5 h-3.5" />
-                  <span>{settings.biometricsEnabled !== false ? "PARMAK İZİ: AÇIK ✅" : "PARMAK İZİ: KAPALI 🔕"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Biometric features details & Live Test trigger */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-              <div className="p-3 bg-white/70 dark:bg-slate-800/60 rounded-xl border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                <span className="text-[9px] font-black uppercase text-indigo-500 block flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Donanım Koruması
-                </span>
-                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">Kamera Gerektirmez</span>
-                <span className="text-[9px] text-slate-400 block leading-tight">Cihaz biyometrik sensörü ve dokunmatik okuyucu</span>
-              </div>
-
-              <div className="p-3 bg-white/70 dark:bg-slate-800/60 rounded-xl border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                <span className="text-[9px] font-black uppercase text-indigo-500 block flex items-center gap-1">
-                  <Smartphone className="w-3 h-3" /> Mobil & Masaüstü
-                </span>
-                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">Touch ID / Windows Hello</span>
-                <span className="text-[9px] text-slate-400 block leading-tight">Tüm cihazlarda parmak izi okuyucularıyla tam uyumlu</span>
-              </div>
-
-              <div className="p-3 bg-white/70 dark:bg-slate-800/60 rounded-xl border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                <span className="text-[9px] font-black uppercase text-indigo-500 block flex items-center gap-1">
-                  <Zap className="w-3 h-3" /> Hızlı Doğrulama
-                </span>
-                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">Anında Açılış</span>
-                <span className="text-[9px] text-slate-400 block leading-tight">Tek dokunuşla saniyeler içinde kilit açılır</span>
-              </div>
-            </div>
-
-            {/* Action Bar for Testing / Registering Fingerprint */}
-            <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-indigo-200/50 dark:border-indigo-900/40">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                {enrolledDate ? (
-                  <span>Son Parmak İzi Kaydı: <strong className="text-slate-700 dark:text-slate-200">{new Date(enrolledDate).toLocaleDateString("tr-TR")}</strong></span>
-                ) : (
-                  <span>Biyometrik parmak izi profili hazır ve aktif.</span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSetupMode(setupMode === "test_fingerprint" ? "idle" : "test_fingerprint")}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-              >
-                <Fingerprint className="w-3.5 h-3.5" />
-                <span>{setupMode === "test_fingerprint" ? "Testi Kapat ✕" : "Parmak İzi Taramasını Canlı Test Et 👆"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* LIVE FINGERPRINT SCANNER TEST MODAL / EMBED */}
-          <AnimatePresence>
-            {setupMode === "test_fingerprint" && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="p-5 bg-slate-950 rounded-3xl border border-indigo-500/30 text-white shadow-2xl space-y-4"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Fingerprint className="w-5 h-5 text-indigo-400" />
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-white">Parmak İzi Canlı Testi</h4>
-                      <p className="text-[10px] text-slate-400">Parmak izinizi okuyucuya dokundurarak test edin</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSetupMode("idle")}
-                    className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <BiometricFingerprintScanner
-                  mode="enroll"
-                  autoStart={true}
-                  onSuccess={() => {
-                    setEnrolledDate(new Date().toISOString());
-                    onSuccessToast("Parmak İzi Canlı Biyometrik Testi Başarılı! ✅👆");
-                    setTimeout(() => {
-                      setSetupMode("idle");
-                    }, 1000);
-                  }}
-                  onCancel={() => setSetupMode("idle")}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* DETAILED INTERACTIVE SETUP FORMS FOR PIN */}
+          {/* DETAILED INTERACTIVE SETUP FORMS */}
           <AnimatePresence mode="wait">
             {setupMode === "set_pin" && (
               <motion.div
@@ -622,13 +474,31 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
             )}
           </AnimatePresence>
 
+          {/* Coming Soon: Biometric & Face ID */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2">
+              <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded-lg uppercase tracking-widest shadow-sm">YAKINDA</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400">
+                <Key className="w-5 h-5 opacity-50" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">BİOMETRİK & YÜZ TANIMA</h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-tight mt-0.5">
+                  Parmak izi ve Face ID ile şifresiz, tek dokunuşla güvenli giriş özelliği çok yakında tüm PRO kullanıcıları için aktif olacak.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Informative guidelines */}
           <div className="p-4 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-100 dark:border-slate-800 flex gap-2 text-xs text-slate-600 dark:text-slate-300 leading-normal font-medium">
             <HelpCircle className="w-5 h-5 mt-0.5 shrink-0 text-slate-500" />
             <div className="space-y-1">
-              <p className="font-extrabold text-slate-800 dark:text-slate-200">💡 Biyometrik Parmak İzi Kilidi Nasıl Çalışır?</p>
+              <p className="font-extrabold text-slate-800 dark:text-slate-200">💡 Güvenli Kilit Nasıl Çalışır?</p>
               <p>
-                Uygulamayı açtığınızda ekranda parmak izi okuyucusu devreye girer. Cihazınızın donanım sensörü veya ekrandaki okuyucuya dokunarak 1 saniyede güvenli giriş yapabilirsiniz. Dilediğiniz an PIN koduna geçebilir veya şifrenizi unuttuysanız gizli güvenlik sorunuzla kilidi sıfırlayabilirsiniz.
+                Uygulamayı kapatıp tekrar açtığınızda otomatik kalkan devreye girer. Şifreyi 5 kez üst üste yanlış girmeniz durumunda sistem geçici olarak 30 saniye boyunca kendini askıya alır. Şifrenizi unuttuysanız, belirlediğiniz Güvenlik Sorusu ve Gizli Yanıt ile şifrenizi sıfırlayabilirsiniz.
               </p>
             </div>
           </div>
@@ -764,5 +634,4 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     </div>
   );
 };
-
 
