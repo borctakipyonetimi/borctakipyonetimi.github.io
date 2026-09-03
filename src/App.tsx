@@ -4682,7 +4682,7 @@ export default function App() {
 
             <button
               onClick={() => setIsSecurityModalOpen(true)}
-              title="Güvenlik"
+              title="Güvenlik ve Ayarlar"
               className="p-1.5 sm:p-2 lg:p-2.5 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
@@ -5876,96 +5876,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 2.5 VADE UYARILARI BANDI AKIŞ HIZI VE DURAKLATMA AYARLARI */}
-            <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-sm space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
-                    Vade Uyarıları Bandı Akış Hızı Ayarı ⏰
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mt-0.5">
-                    Üst bantta kayan borç ve taksit uyarılarının akış hızını kolay okunacak şekilde ayarlayabilirsiniz.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                  <span>⏱️ {marqueeSpeed} sn / döngü</span>
-                </div>
-              </div>
-
-              {/* Fast Selection Presets */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { label: "🐌 Çok Yavaş", val: 180, desc: "180 sn (Çok Rahat)" },
-                  { label: "🐢 Yavaş", val: 130, desc: "130 sn (Tavsiye Edilen)" },
-                  { label: "⚖️ Normal", val: 90, desc: "90 sn (Varsayılan)" },
-                  { label: "🚀 Hızlı", val: 50, desc: "50 sn (Seri Akış)" }
-                ].map((preset) => (
-                  <button
-                    key={preset.val}
-                    type="button"
-                    onClick={() => {
-                      setMarqueeSpeed(preset.val);
-                      localStorage.setItem("marqueeSpeed", preset.val.toString());
-                      triggerToast(`Vade uyarıları akış hızı: ${preset.label} (${preset.val}s) olarak ayarlandı ⏱️`);
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
-                      marqueeSpeed === preset.val
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md font-bold"
-                        : "bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400"
-                    }`}
-                  >
-                    <span className="text-xs font-black block">{preset.label}</span>
-                    <span className={`text-[10px] font-medium block mt-0.5 ${marqueeSpeed === preset.val ? "text-indigo-100" : "text-slate-400"}`}>
-                      {preset.desc}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Slider & Pause */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <span>Hassas Süre Ayarı: {marqueeSpeed} saniye</span>
-                  <span className="text-[10px] text-slate-400 font-normal">30 sn (Çok Hızlı) - 240 sn (Ultra Yavaş)</span>
-                </div>
-                <input
-                  type="range"
-                  min={30}
-                  max={240}
-                  step={5}
-                  value={marqueeSpeed}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    setMarqueeSpeed(val);
-                    localStorage.setItem("marqueeSpeed", val.toString());
-                  }}
-                  className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                />
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Bant Akışını Duraklat / Oynat</span>
-                    <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Fare veya parmakla üzerine gelindiğinde de otomatik duraklar</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMarqueePaused(!marqueePaused);
-                      triggerToast(marqueePaused ? "Akış Başlatıldı ▶️" : "Akış Duraklatıldı ⏸️");
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
-                      marqueePaused
-                        ? "bg-amber-500 text-slate-950 shadow-sm"
-                        : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
-                    }`}
-                  >
-                    {marqueePaused ? "AKIŞ DURAKLATILDI ⏸️" : "AKAYOR ▶️"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {/* 3. E-POSTA İLE BORÇ BİLDİRİM DOĞRULAMA (VERIFY EMAIL FOR NOTIFICATIONS) */}
             <VerifyEmailNotificationSection
               debts={debts}
@@ -6429,10 +6339,10 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-indigo-500">
-                      GÜVENLİK & BİLDİRİM AYARLARI
+                      GÜVENLİK VE AYARLAR
                     </h3>
                     <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      PIN Kilidi & E-Posta Bildirim Doğrulama
+                      PIN Kilidi, Vade Bandı & Genel Ayarlar
                     </h2>
                   </div>
                 </div>
@@ -6447,8 +6357,15 @@ export default function App() {
 
               <div className="p-6 overflow-y-auto flex-1 scrollbar-none">
                 <SecuritySettingsPanel 
-                  debts={debts}
-                  installmentDebts={installmentDebts}
+                  language={language}
+                  marqueeSpeed={marqueeSpeed}
+                  setMarqueeSpeed={setMarqueeSpeed}
+                  marqueePaused={marqueePaused}
+                  setMarqueePaused={setMarqueePaused}
+                  voiceAssistantEnabled={voiceAssistantEnabled}
+                  setVoiceAssistantEnabled={setVoiceAssistantEnabled}
+                  isPremium={isPremium}
+                  onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
                   onSuccessToast={(msg) => {
                     triggerToast(msg);
                   }} 

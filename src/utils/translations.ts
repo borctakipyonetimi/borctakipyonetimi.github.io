@@ -20,7 +20,7 @@ export const translations = {
     public_landing: "TANITIM & AÇILIŞ",
 
     // Header buttons & titles
-    security: "Güvenlik",
+    security: "Güvenlik ve Ayarlar",
     theme: "Tema",
     lang_selection: "Dil Seçimi",
     currency: "Para Birimi",
@@ -100,7 +100,7 @@ export const translations = {
     public_landing: "PROMO LANDING",
 
     // Header buttons & titles
-    security: "Security",
+    security: "Security & Settings",
     theme: "Theme",
     lang_selection: "Language Selector",
     currency: "Currency Code",

@@ -1,26 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 
-const app = initializeApp(firebaseConfig);
-
-let localDb;
-try {
-  localDb = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
-    }),
-  });
-} catch (e) {
-  console.warn("Firestore persistent local cache not supported, falling back to experimentalForceLongPolling:", e);
-  localDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-  });
-}
-
-export const db = localDb;
-export const auth = getAuth();
+export const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
 
 export enum OperationType {
   CREATE = "create",

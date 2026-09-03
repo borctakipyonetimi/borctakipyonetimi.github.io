@@ -12,25 +12,91 @@ import {
   AlertCircle,
   HelpCircle,
   AlertTriangle,
-  Mail,
-  Lock
+  Lock,
+  Clock,
+  Sliders,
+  Sparkles,
+  Mic,
+  Play,
+  Pause
 } from "lucide-react";
-import { VerifyEmailNotificationSection } from "./VerifyEmailNotificationSection";
 
 interface SecuritySettingsPanelProps {
-  debts?: any[];
-  installmentDebts?: any[];
   language?: string;
   onSuccessToast: (msg: string) => void;
+  marqueeSpeed?: number;
+  setMarqueeSpeed?: (speed: number) => void;
+  marqueePaused?: boolean;
+  setMarqueePaused?: (paused: boolean) => void;
+  voiceAssistantEnabled?: boolean;
+  setVoiceAssistantEnabled?: (enabled: boolean) => void;
+  isPremium?: boolean;
+  onOpenUpgradeModal?: () => void;
 }
 
 export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
-  debts = [],
-  installmentDebts = [],
   language = "tr",
   onSuccessToast,
+  marqueeSpeed: propMarqueeSpeed,
+  setMarqueeSpeed: propSetMarqueeSpeed,
+  marqueePaused: propMarqueePaused,
+  setMarqueePaused: propSetMarqueePaused,
+  voiceAssistantEnabled: propVoiceAssistantEnabled,
+  setVoiceAssistantEnabled: propSetVoiceAssistantEnabled,
+  isPremium = false,
+  onOpenUpgradeModal,
 }) => {
-  const [activeTab, setActiveTab] = useState<"security" | "email">("security");
+  const [activeTab, setActiveTab] = useState<"security" | "settings">("security");
+
+  // Local state fallbacks for banner speed
+  const [localMarqueeSpeed, setLocalMarqueeSpeed] = useState<number>(() => {
+    if (propMarqueeSpeed !== undefined) return propMarqueeSpeed;
+    const saved = localStorage.getItem("marqueeSpeed");
+    return saved ? parseInt(saved, 10) : 90;
+  });
+
+  const [localMarqueePaused, setLocalMarqueePaused] = useState<boolean>(() => {
+    if (propMarqueePaused !== undefined) return propMarqueePaused;
+    return false;
+  });
+
+  const [localVoiceAssistant, setLocalVoiceAssistant] = useState<boolean>(() => {
+    if (propVoiceAssistantEnabled !== undefined) return propVoiceAssistantEnabled;
+    return localStorage.getItem("voiceAssistantEnabled") === "1";
+  });
+
+  const currentMarqueeSpeed = propMarqueeSpeed !== undefined ? propMarqueeSpeed : localMarqueeSpeed;
+  const currentMarqueePaused = propMarqueePaused !== undefined ? propMarqueePaused : localMarqueePaused;
+  const currentVoiceAssistant = propVoiceAssistantEnabled !== undefined ? propVoiceAssistantEnabled : localVoiceAssistant;
+
+  const handleUpdateMarqueeSpeed = (val: number, labelText?: string) => {
+    setLocalMarqueeSpeed(val);
+    if (propSetMarqueeSpeed) propSetMarqueeSpeed(val);
+    localStorage.setItem("marqueeSpeed", val.toString());
+    if (labelText) {
+      onSuccessToast(`Vade uyarıları akış hızı: ${labelText} (${val}s) olarak ayarlandı ⏱️`);
+    }
+  };
+
+  const handleToggleMarqueePaused = () => {
+    const next = !currentMarqueePaused;
+    setLocalMarqueePaused(next);
+    if (propSetMarqueePaused) propSetMarqueePaused(next);
+    onSuccessToast(next ? "Vade bandı akışı duraklatıldı ⏸️" : "Vade bandı akışı başlatıldı ▶️");
+  };
+
+  const handleToggleVoiceAssistant = () => {
+    if (!isPremium) {
+      if (onOpenUpgradeModal) onOpenUpgradeModal();
+      return;
+    }
+    const next = !currentVoiceAssistant;
+    setLocalVoiceAssistant(next);
+    if (propSetVoiceAssistantEnabled) propSetVoiceAssistantEnabled(next);
+    localStorage.setItem("voiceAssistantEnabled", next ? "1" : "0");
+    onSuccessToast(next ? "Sesli Asistan Servisi Aktifleştirildi 🎙️" : "Sesli Asistan Servisi Devre Dışı Bırakıldı 🔕");
+  };
+
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem("security_settings");
@@ -47,22 +113,6 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
       recoveryAnswer: "",
     };
   });
-
-  const [verifiedEmail, setVerifiedEmail] = useState<string>(() => {
-    return localStorage.getItem("notif_verified_email") || "";
-  });
-
-  useEffect(() => {
-    const handleEmailSync = () => {
-      setVerifiedEmail(localStorage.getItem("notif_verified_email") || "");
-    };
-    window.addEventListener("email_subscription_changed", handleEmailSync);
-    window.addEventListener("storage", handleEmailSync);
-    return () => {
-      window.removeEventListener("email_subscription_changed", handleEmailSync);
-      window.removeEventListener("storage", handleEmailSync);
-    };
-  }, []);
 
   // UI Flow modes: "idle" | "set_pin"
   const [setupMode, setSetupMode] = useState<"idle" | "set_pin">("idle");
@@ -164,7 +214,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           }`}
         >
           <Lock className="w-3.5 h-3.5" />
-          <span>{language === "tr" ? "Giriş Kilidi & PIN" : "PIN & Screen Lock"}</span>
+          <span>{language === "tr" ? "Güvenlik & PIN Kilidi" : "Security & PIN Lock"}</span>
           {settings.isEnabled && (
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           )}
@@ -172,20 +222,15 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
         <button
           type="button"
-          onClick={() => setActiveTab("email")}
+          onClick={() => setActiveTab("settings")}
           className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeTab === "email"
+            activeTab === "settings"
               ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
           }`}
         >
-          <Mail className="w-3.5 h-3.5" />
-          <span>{language === "tr" ? "E-Posta Bildirim Doğrulama" : "Verify Email for Alerts"}</span>
-          {verifiedEmail ? (
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          ) : (
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-          )}
+          <Sliders className="w-3.5 h-3.5" />
+          <span>{language === "tr" ? "Vade Bandı & Ayarlar" : "Due Banner & Settings"}</span>
         </button>
       </div>
 
@@ -460,15 +505,133 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Verify Email for Notifications */}
-      {activeTab === "email" && (
-        <VerifyEmailNotificationSection
-          debts={debts}
-          installmentDebts={installmentDebts}
-          language={language}
-          onSuccessToast={onSuccessToast}
-        />
+      {/* Tab 2: Vade Bandı & Genel Ayarlar */}
+      {activeTab === "settings" && (
+        <div className="space-y-4">
+          {/* Vade Uyarıları Bandı Akış Hızı ve Duraklatma Ayarları */}
+          <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-sm space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
+                  Vade Uyarıları Bandı Akış Hızı Ayarı ⏰
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mt-0.5">
+                  Üst bantta kayan borç ve taksit uyarılarının akış hızını kolay okunacak şekilde ayarlayabilirsiniz.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <span>⏱️ {currentMarqueeSpeed} sn / döngü</span>
+              </div>
+            </div>
+
+            {/* Fast Selection Presets */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: "🐌 Çok Yavaş", val: 180, desc: "180 sn (Çok Rahat)" },
+                { label: "🐢 Yavaş", val: 130, desc: "130 sn (Tavsiye Edilen)" },
+                { label: "⚖️ Normal", val: 90, desc: "90 sn (Varsayılan)" },
+                { label: "🚀 Hızlı", val: 50, desc: "50 sn (Seri Akış)" }
+              ].map((preset) => (
+                <button
+                  key={preset.val}
+                  type="button"
+                  onClick={() => handleUpdateMarqueeSpeed(preset.val, preset.label)}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
+                    currentMarqueeSpeed === preset.val
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-md font-bold"
+                      : "bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400"
+                  }`}
+                >
+                  <span className="text-xs font-black block">{preset.label}</span>
+                  <span className={`text-[10px] font-medium block mt-0.5 ${currentMarqueeSpeed === preset.val ? "text-indigo-100" : "text-slate-400"}`}>
+                    {preset.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Slider & Pause */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span>Hassas Süre Ayarı: {currentMarqueeSpeed} saniye</span>
+                <span className="text-[10px] text-slate-400 font-normal">30 sn (Çok Hızlı) - 240 sn (Ultra Yavaş)</span>
+              </div>
+              <input
+                type="range"
+                min={30}
+                max={240}
+                step={5}
+                value={currentMarqueeSpeed}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  handleUpdateMarqueeSpeed(val);
+                }}
+                className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+              />
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                <div>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Bant Akışını Duraklat / Oynat</span>
+                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Fare veya parmakla üzerine gelindiğinde de otomatik duraklar</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleMarqueePaused}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none flex items-center gap-1.5 ${
+                    currentMarqueePaused
+                      ? "bg-amber-500 text-slate-950 shadow-sm"
+                      : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
+                  }`}
+                >
+                  {currentMarqueePaused ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5" />
+                      <span>AKIŞ DURAKLATILDI ⏸️</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" />
+                      <span>AKAYOR ▶️</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Voice Assistant and Smart Services */}
+          <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-sm space-y-3">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              Yardımcı Araçlar & Servisler
+            </h4>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block flex items-center gap-1.5">
+                  <Mic className="w-3.5 h-3.5 text-indigo-500" />
+                  Akıllı Sesli Asistan Servisi
+                  {!isPremium && <span className="bg-amber-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Ekrandaki mikrofon ikonu ile sesli komut verin</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleVoiceAssistant}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition select-none ${
+                  isPremium && currentVoiceAssistant
+                    ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/10"
+                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {!isPremium ? "KİLİTLİ 🔒" : currentVoiceAssistant ? "AÇIK 🎙️" : "KAPALI 🔕"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 };
+

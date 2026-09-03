@@ -3,7 +3,10 @@
   "appId": "1:600336619096:web:2c6da4c049bafe37905c2d",
   "apiKey": "AIzaSyD9kSOXcqYWslz6T0zyg7MadpXOtMtdoYI",
   "authDomain": "borcodemetakip-451f1.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-3876f2ba-6caf-4b23-9153-11bf8a4cfdf1",
   "storageBucket": "borcodemetakip-451f1.firebasestorage.app",
   "messagingSenderId": "600336619096",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "600336619096-ov4svqk7bb9nehkchiuqr309d67vjikc.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
