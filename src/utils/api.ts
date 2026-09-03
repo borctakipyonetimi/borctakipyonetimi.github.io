@@ -157,7 +157,19 @@ export async function safeFetchJson<T = any>(
     }
   }
 
-  const finalMsg = primaryError?.message || lastError?.message || "E-posta sunucusuna bağlanılamadı.";
+  // Check browser environment for static hosts
+  const isStaticHost =
+    typeof window !== "undefined" &&
+    (window.location.hostname.endsWith("github.io") ||
+      window.location.hostname.endsWith("vercel.app") ||
+      window.location.hostname.endsWith("netlify.app"));
+
+  const finalMsg =
+    primaryError?.message ||
+    lastError?.message ||
+    (isStaticHost
+      ? "GitHub Pages statik bir sunucudur. Doğrudan canlı e-posta gönderimi için özel bir Node.js API sunucu URL'si bağlayabilir veya 'Mail Uygulamasında Aç (.EML)' butonunu kullanabilirsiniz."
+      : "E-posta sunucusuna bağlanılamadı. Lütfen sunucu bağlantınızı kontrol ediniz.");
   throw new Error(finalMsg);
 }
 
