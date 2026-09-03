@@ -2731,13 +2731,48 @@ function cleanCredential(val?: string): string {
   return val.trim().replace(/^["']|["']$/g, "");
 }
 
-// Nodemailer transporter helper
-function getMailTransporter() {
-  const rawHost = process.env.SMTP_HOST;
+// In-app custom SMTP storage configuration
+interface CustomSmtpConfig {
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+  secure?: boolean;
+  fromName?: string;
+  fromEmail?: string;
+  updatedAt?: number;
+}
+
+const SMTP_CONFIG_FILE = path.join(process.cwd(), "custom_smtp_config.json");
+let currentCustomSmtp: CustomSmtpConfig = {};
+
+// Load custom SMTP configuration from disk if exists
+if (fs.existsSync(SMTP_CONFIG_FILE)) {
+  try {
+    const raw = fs.readFileSync(SMTP_CONFIG_FILE, "utf-8");
+    currentCustomSmtp = JSON.parse(raw);
+    console.log(`[SMTP Engine] Loaded custom SMTP config for user: ${currentCustomSmtp.user || "none"}`);
+  } catch (err) {
+    console.error("[SMTP Engine] Error loading custom_smtp_config.json:", err);
+  }
+}
+
+function saveCustomSmtpToFile() {
+  try {
+    fs.writeFileSync(SMTP_CONFIG_FILE, JSON.stringify(currentCustomSmtp, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[SMTP Engine] Error saving custom_smtp_config.json:", err);
+  }
+}
+
+// Nodemailer transporter resolver
+function getMailTransporter(customOverride?: CustomSmtpConfig) {
+  const activeConfig = customOverride || currentCustomSmtp;
+  const rawHost = activeConfig?.host || process.env.SMTP_HOST;
   let host = cleanHost(rawHost);
-  const user = cleanCredential(process.env.SMTP_USER || process.env.GMAIL_USER);
-  const pass = cleanCredential(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS).replace(/\s+/g, "");
-  const rawPort = Number(process.env.SMTP_PORT);
+  const user = cleanCredential(activeConfig?.user || process.env.SMTP_USER || process.env.GMAIL_USER);
+  const pass = cleanCredential(activeConfig?.pass || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS).replace(/\s+/g, "");
+  const rawPort = Number(activeConfig?.port || process.env.SMTP_PORT);
 
   if (!user || !pass) {
     return null;
@@ -2750,7 +2785,7 @@ function getMailTransporter() {
 
   if (host) {
     const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
-    const secure = process.env.SMTP_SECURE === "true" || process.env.SMTP_SECURE === "ssl" || port === 465;
+    const secure = activeConfig?.secure ?? (process.env.SMTP_SECURE === "true" || process.env.SMTP_SECURE === "ssl" || port === 465);
 
     return nodemailer.createTransport({
       host,
@@ -2774,19 +2809,79 @@ function getMailTransporter() {
   return null;
 }
 
+// Test SMTP Connection with detailed diagnostic feedback
+async function testSmtpCredentials(config: CustomSmtpConfig): Promise<{ success: boolean; message: string; host?: string; port?: number }> {
+  const host = cleanHost(config.host || (config.user?.includes("@gmail.com") ? "smtp.gmail.com" : ""));
+  const user = cleanCredential(config.user);
+  const pass = cleanCredential(config.pass).replace(/\s+/g, "");
+  const port = Number(config.port) || (host === "smtp.gmail.com" ? 465 : 587);
+  const secure = config.secure ?? (port === 465);
+
+  if (!user || !pass) {
+    return {
+      success: false,
+      message: "Lütfen gönderici e-posta adresinizi ve 16 haneli Uygulama Şifrenizi (veya SMTP şifrenizi) eksiksiz girin."
+    };
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: host || "smtp.gmail.com",
+      port,
+      secure,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
+
+    await transporter.verify();
+    return {
+      success: true,
+      message: `✅ SMTP Bağlantısı Başarılı: ${host || "smtp.gmail.com"}:${port} üzerinden kimlik doğrulandı ve e-posta gönderimine hazır!`,
+      host: host || "smtp.gmail.com",
+      port
+    };
+  } catch (err: any) {
+    console.error("[SMTP Verify Error]:", err);
+    let errorMsg = err.message || "Bilinmeyen SMTP hatası";
+
+    if (err.responseCode === 535 || errorMsg.includes("535") || errorMsg.includes("Username and Password not accepted") || err.code === "EAUTH") {
+      errorMsg = "Kimlik Doğrulama Hatası (535): Gmail veya e-posta sağlayıcınız şifrenizi reddetti. Gmail kullanıyorsanız normal hesap şifreniz yerine Google Hesabınızdan (myaccount.google.com/apppasswords) alacağınız 16 haneli 'Google Uygulama Şifresi'ni girmelisiniz.";
+    } else if (err.code === "ETIMEDOUT" || err.code === "ESOCKET" || errorMsg.includes("timeout")) {
+      errorMsg = `Bağlantı Zaman Aşımı (${port} portu): Sunucu yanıt vermedi. Port olarak 465 (SSL) veya 587 (TLS) deneyiniz.`;
+    } else if (err.code === "ENOTFOUND") {
+      errorMsg = `Sunucu Adresi Bulunamadı (${host}): Lütfen SMTP sunucu adresinin doğruluğunu kontrol ediniz.`;
+    } else if (err.code === "ECONNREFUSED") {
+      errorMsg = `Bağlantı Reddedildi: ${host}:${port} bağlantıyı kapattı. Port veya SSL ayarını kontrol ediniz.`;
+    }
+
+    return {
+      success: false,
+      message: `❌ ${errorMsg}`
+    };
+  }
+}
+
 async function sendMailHelper(options: {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  customConfig?: CustomSmtpConfig;
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
-    const transporter = getMailTransporter();
-    const user = cleanCredential(process.env.SMTP_USER || process.env.GMAIL_USER);
+    const transporter = getMailTransporter(options.customConfig);
+    const activeConfig = options.customConfig || currentCustomSmtp;
+    const user = cleanCredential(activeConfig?.user || process.env.SMTP_USER || process.env.GMAIL_USER);
     
     // When sending through Gmail SMTP, the From address must align with authenticated user for optimal inbox deliverability
     const authEmail = user || (process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : "bildirim@butcempro.app");
-    const fromAddress = `"Bütçem Pro" <${authEmail}>`;
+    const senderName = activeConfig?.fromName || "Bütçem Pro";
+    const fromAddress = `"${senderName}" <${authEmail}>`;
     const replyTo = process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : authEmail;
     
     if (transporter) {
@@ -2805,12 +2900,16 @@ async function sendMailHelper(options: {
       console.log(`[Email Engine] Real email successfully sent to ${options.to} (MessageID: ${info.messageId})`);
       return { success: true, messageId: info.messageId, simulated: false };
     } else {
-      console.log(`[Email Engine] SMTP not configured in environment. Email simulation prepared for ${options.to}: "${options.subject}"`);
+      console.log(`[Email Engine] SMTP not configured in environment or settings. Email simulation prepared for ${options.to}: "${options.subject}"`);
       return { success: true, simulated: true };
     }
   } catch (err: any) {
     console.error(`[Email Engine] Failed to deliver email to ${options.to}:`, err.message || err);
-    return { success: false, error: err.message || "E-posta gönderim hatası", simulated: true };
+    let errMsg = err.message || "E-posta gönderim hatası";
+    if (err.responseCode === 535 || errMsg.includes("535") || errMsg.includes("Username and Password not accepted") || err.code === "EAUTH") {
+      errMsg = "Gmail Kimlik Doğrulama Hatası (535): Normal şifreniz yerine Google Hesabı > Güvenlik > 2 Adımlı Doğrulama > 'Uygulama Şifreleri' bölümünden oluşturduğunuz 16 haneli şifreyi giriniz.";
+    }
+    return { success: false, error: errMsg, simulated: false };
   }
 }
 
@@ -3128,7 +3227,7 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     text
   });
 
-  const hasSmtp = !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
+  const hasSmtp = !!(currentCustomSmtp.user && currentCustomSmtp.pass) || !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
 
   console.log(`[Email Alert Engine] Sent test email to: ${normalizedEmail} (Delivered: ${!sendResult.simulated && sendResult.success}, HasSMTP: ${hasSmtp}, TotalDebt: ₺${reportAnalysis.totalActiveDebt})`);
 
@@ -3139,7 +3238,7 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     smtpConfigured: hasSmtp,
     messageId: sendResult.messageId,
     message: sendResult.simulated 
-      ? `Test e-postası ${normalizedEmail} adresi için başarıyla simüle edildi ve doğrulandı! (Doğrudan gelen kutunuza anlık iletim için Ayarlar veya ortam değişkenlerine SMTP bilgilerinizi tanımlayabilirsiniz).`
+      ? `Test e-postası ${normalizedEmail} adresi için simüle edildi (Arayüzde önizleme olarak görüntülenebilir). Doğrudan gelen kutunuza anlık iletim için 'SMTP & E-Posta Gönderim Ayarları' bölümünden e-posta ve 16 haneli Google Uygulama Şifrenizi kaydedebilirsiniz.`
       : sendResult.success
         ? `Test e-postası ${normalizedEmail} adresine başarıyla gönderildi! Lütfen gelen kutunuzu (ve Spam / Tanıtımlar klasörünüzü) kontrol edin.`
         : `E-posta gönderiminde hata oluştu: ${sendResult.error}`,
@@ -3152,7 +3251,108 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
   });
 });
 
-// 7. Send automated overdue / due today debt alert email
+// 7. Test custom SMTP connection directly
+app.post("/api/notifications/email/test-smtp-connection", async (req, res) => {
+  const { host, port, user, pass, secure } = req.body;
+  const result = await testSmtpCredentials({ host, port, user, pass, secure });
+  res.json(result);
+});
+
+// 8. Save custom SMTP configuration and verify it
+app.post("/api/notifications/email/save-smtp-config", async (req, res) => {
+  const { host, port, user, pass, secure, fromName } = req.body;
+  if (!user || !pass) {
+    return res.status(400).json({ success: false, message: "Kullanıcı adı/e-posta ve şifre zorunludur." });
+  }
+
+  const cleanU = cleanCredential(user);
+  const cleanP = cleanCredential(pass).replace(/\s+/g, "");
+  const cleanH = cleanHost(host || (cleanU.includes("@gmail.com") ? "smtp.gmail.com" : ""));
+  const cleanPort = Number(port) || (cleanH === "smtp.gmail.com" ? 465 : 587);
+  const isSecure = secure ?? (cleanPort === 465);
+
+  const testResult = await testSmtpCredentials({
+    host: cleanH,
+    port: cleanPort,
+    user: cleanU,
+    pass: cleanP,
+    secure: isSecure
+  });
+
+  if (!testResult.success) {
+    return res.status(400).json({
+      success: false,
+      message: testResult.message,
+      smtpConfigured: false
+    });
+  }
+
+  // Save valid config
+  currentCustomSmtp = {
+    host: cleanH,
+    port: cleanPort,
+    user: cleanU,
+    pass: cleanP,
+    secure: isSecure,
+    fromName: fromName || "Bütçem Pro",
+    updatedAt: Date.now()
+  };
+
+  saveCustomSmtpToFile();
+  console.log(`[SMTP Engine] Custom SMTP configuration updated for ${cleanU} on ${cleanH}:${cleanPort}`);
+
+  res.json({
+    success: true,
+    message: `✅ SMTP ayarları başarıyla kaydedildi ve doğrulandı (${cleanH}:${cleanPort})! Artık tüm e-postalar bu adres üzerinden canlı iletilecektir.`,
+    smtpConfigured: true,
+    user: cleanU,
+    host: cleanH,
+    port: cleanPort
+  });
+});
+
+// 9. Reset custom SMTP configuration (return to defaults/env)
+app.post("/api/notifications/email/reset-smtp-config", (req, res) => {
+  currentCustomSmtp = {};
+  if (fs.existsSync(SMTP_CONFIG_FILE)) {
+    try {
+      fs.unlinkSync(SMTP_CONFIG_FILE);
+    } catch (e) {}
+  }
+  console.log("[SMTP Engine] Custom SMTP configuration reset.");
+  res.json({ success: true, message: "Özel SMTP ayarları sıfırlandı." });
+});
+
+// 10. Get current SMTP status
+app.get("/api/notifications/email/smtp-status", (req, res) => {
+  const hasCustom = !!(currentCustomSmtp.user && currentCustomSmtp.pass);
+  const hasEnv = !!(process.env.SMTP_USER || process.env.GMAIL_USER);
+  const activeUser = currentCustomSmtp.user || process.env.SMTP_USER || process.env.GMAIL_USER || "";
+  const activeHost = currentCustomSmtp.host || cleanHost(process.env.SMTP_HOST) || (activeUser.includes("@gmail.com") ? "smtp.gmail.com" : "");
+  const activePort = currentCustomSmtp.port || Number(process.env.SMTP_PORT) || (activeHost === "smtp.gmail.com" ? 465 : 587);
+
+  // Mask user email for safety (e.g. n***2@gmail.com)
+  let maskedUser = "";
+  if (activeUser.includes("@")) {
+    const [name, domain] = activeUser.split("@");
+    const maskedName = name.length > 2 ? `${name[0]}***${name[name.length - 1]}` : `${name[0]}*`;
+    maskedUser = `${maskedName}@${domain}`;
+  } else if (activeUser) {
+    maskedUser = `${activeUser.substring(0, 2)}***`;
+  }
+
+  res.json({
+    configured: hasCustom || hasEnv,
+    source: hasCustom ? "in_app" : hasEnv ? "env" : "none",
+    host: activeHost || null,
+    port: activePort,
+    user: maskedUser || null,
+    rawUser: activeUser || null,
+    fromName: currentCustomSmtp.fromName || "Bütçem Pro"
+  });
+});
+
+// 11. Send automated overdue / due today debt alert email
 app.post("/api/notifications/email/send-alert", async (req, res) => {
   const { email, debts, installmentDebts, user, analysis: clientAnalysis, isWelcome } = req.body;
   const normalizedEmail = email?.trim().toLowerCase();

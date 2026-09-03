@@ -14,6 +14,11 @@ import {
   automatedRequestVerificationCode,
   automatedVerifyEmailCode,
   automatedSendTestDebtEmail,
+  testSmtpConnectionApi,
+  saveSmtpConfigApi,
+  resetSmtpConfigApi,
+  getSmtpStatusApi,
+  SmtpStatusResponse,
 } from "../utils/automatedMail";
 import {
   Mail,
@@ -40,7 +45,12 @@ import {
   Wifi,
   WifiOff,
   Share2,
-  Copy
+  Copy,
+  Key,
+  Lock,
+  KeyRound,
+  Settings2,
+  ShieldAlert,
 } from "lucide-react";
 
 interface VerifyEmailNotificationSectionProps {
@@ -92,6 +102,21 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     return localStorage.getItem("customServerUrl") || "";
   });
 
+  // SMTP Configuration State
+  const [smtpStatus, setSmtpStatus] = useState<SmtpStatusResponse | null>(null);
+  const [showSmtpSettings, setShowSmtpSettings] = useState(false);
+  const [smtpProvider, setSmtpProvider] = useState<"gmail" | "outlook" | "yandex" | "custom">("gmail");
+  const [smtpHost, setSmtpHost] = useState("smtp.gmail.com");
+  const [smtpPort, setSmtpPort] = useState(465);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [smtpFromName, setSmtpFromName] = useState("Bütçem Pro");
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showAppPasswordGuide, setShowAppPasswordGuide] = useState(false);
+
   // Stored state
   const [verifiedEmail, setVerifiedEmail] = useState<string>(() => {
     return localStorage.getItem("notif_verified_email") || "";
@@ -114,6 +139,137 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     const saved = localStorage.getItem("notif_verified_at");
     return saved ? parseInt(saved, 10) : null;
   });
+
+  // Fetch initial SMTP Status
+  useEffect(() => {
+    getSmtpStatusApi().then((status) => {
+      setSmtpStatus(status);
+      if (status.rawUser) {
+        setSmtpUser(status.rawUser);
+      }
+      if (status.host) {
+        setSmtpHost(status.host);
+      }
+      if (status.port) {
+        setSmtpPort(status.port);
+      }
+      if (status.fromName) {
+        setSmtpFromName(status.fromName);
+      }
+    });
+  }, []);
+
+  // Preset switch handler
+  const handleSelectSmtpPreset = (preset: "gmail" | "outlook" | "yandex" | "custom") => {
+    setSmtpProvider(preset);
+    setSmtpTestResult(null);
+    if (preset === "gmail") {
+      setSmtpHost("smtp.gmail.com");
+      setSmtpPort(465);
+    } else if (preset === "outlook") {
+      setSmtpHost("smtp.office365.com");
+      setSmtpPort(587);
+    } else if (preset === "yandex") {
+      setSmtpHost("smtp.yandex.com");
+      setSmtpPort(465);
+    }
+  };
+
+  // Test SMTP Connection
+  const handleTestSmtpConnection = async () => {
+    if (!smtpUser.trim() || !smtpPass.trim()) {
+      setSmtpTestResult({
+        success: false,
+        message: "Lütfen gönderici e-posta ve 16 haneli Uygulama Şifrenizi giriniz.",
+      });
+      return;
+    }
+    setIsTestingSmtp(true);
+    setSmtpTestResult(null);
+    try {
+      const res = await testSmtpConnectionApi({
+        host: smtpHost.trim(),
+        port: Number(smtpPort),
+        user: smtpUser.trim(),
+        pass: smtpPass.trim(),
+        secure: Number(smtpPort) === 465,
+        fromName: smtpFromName.trim(),
+      });
+      setSmtpTestResult(res);
+    } catch (err: any) {
+      setSmtpTestResult({
+        success: false,
+        message: "Bağlantı testi başarısız: " + (err.message || "Bilinmeyen hata"),
+      });
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
+
+  // Save & Apply SMTP Configuration
+  const handleSaveSmtpConfig = async () => {
+    if (!smtpUser.trim() || !smtpPass.trim()) {
+      setSmtpTestResult({
+        success: false,
+        message: "Lütfen e-posta ve 16 haneli Uygulama Şifrenizi giriniz.",
+      });
+      return;
+    }
+    setIsSavingSmtp(true);
+    setSmtpTestResult(null);
+    try {
+      const res = await saveSmtpConfigApi({
+        host: smtpHost.trim(),
+        port: Number(smtpPort),
+        user: smtpUser.trim(),
+        pass: smtpPass.trim(),
+        secure: Number(smtpPort) === 465,
+        fromName: smtpFromName.trim(),
+      });
+      if (res.success) {
+        setSmtpTestResult({
+          success: true,
+          message: res.message,
+        });
+        const updatedStatus = await getSmtpStatusApi();
+        setSmtpStatus(updatedStatus);
+        if (onSuccessToast) {
+          onSuccessToast("SMTP ayarları başarıyla kaydedildi! Canlı e-posta gönderimi aktif. 🚀");
+        }
+      } else {
+        setSmtpTestResult({
+          success: false,
+          message: res.message,
+        });
+      }
+    } catch (err: any) {
+      setSmtpTestResult({
+        success: false,
+        message: "Kayıt hatası: " + (err.message || "Bilinmeyen hata"),
+      });
+    } finally {
+      setIsSavingSmtp(false);
+    }
+  };
+
+  // Reset SMTP Configuration
+  const handleResetSmtpConfig = async () => {
+    try {
+      await resetSmtpConfigApi();
+      const updatedStatus = await getSmtpStatusApi();
+      setSmtpStatus(updatedStatus);
+      setSmtpPass("");
+      setSmtpTestResult({
+        success: true,
+        message: "Özel SMTP ayarları sıfırlandı.",
+      });
+      if (onSuccessToast) {
+        onSuccessToast("SMTP ayarları sıfırlandı.");
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Standardized and comprehensive debt analysis
   const debtAnalysis = React.useMemo(() => {
@@ -916,6 +1072,322 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               </div>
             </div>
 
+            {/* SMTP & Live Sender Configuration Card */}
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-3xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-xs space-y-3.5">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-xl ${
+                    smtpStatus?.configured
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  }`}>
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                        {language === "tr" ? "SMTP Gönderici Ayarları (Canlı İletim)" : "SMTP Sender Settings"}
+                      </span>
+                      {smtpStatus?.configured ? (
+                        <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] rounded-full flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          {language === "tr" ? "Canlı Gönderim Aktif" : "Live Delivery Active"}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-[10px] rounded-full flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          {language === "tr" ? "Önizleme Modu" : "Preview Mode"}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                      {smtpStatus?.configured
+                        ? `${smtpStatus.host || "smtp.gmail.com"}:${smtpStatus.port} üzerinden ${smtpStatus.user || "gönderici"} ile gerçek e-posta gönderilir.`
+                        : "E-postaların simülasyon yerine doğrudan gelen kutunuza iletilmesi için SMTP tanımlayınız."}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSmtpSettings(!showSmtpSettings)}
+                  className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  <span>{showSmtpSettings ? (language === "tr" ? "Ayarları Kapat" : "Close") : (language === "tr" ? "SMTP Ayarlarını Düzenle" : "Configure SMTP")}</span>
+                </button>
+              </div>
+
+              {/* SMTP Settings Form Drawer */}
+              {showSmtpSettings && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 pt-1"
+                >
+                  {/* Provider Quick Presets */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                      {language === "tr" ? "E-Posta Sağlayıcısı Seçin:" : "Email Provider:"}
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSmtpPreset("gmail")}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                          smtpProvider === "gmail"
+                            ? "bg-rose-50 dark:bg-rose-950/40 border-rose-400 text-rose-600 dark:text-rose-400 ring-2 ring-rose-400/20"
+                            : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span className="text-base">🔴</span>
+                        <span>Gmail (Google)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSmtpPreset("outlook")}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                          smtpProvider === "outlook"
+                            ? "bg-sky-50 dark:bg-sky-950/40 border-sky-400 text-sky-600 dark:text-sky-400 ring-2 ring-sky-400/20"
+                            : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span className="text-base">🔵</span>
+                        <span>Outlook / Hotmail</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSmtpPreset("yandex")}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                          smtpProvider === "yandex"
+                            ? "bg-amber-50 dark:bg-amber-950/40 border-amber-400 text-amber-600 dark:text-amber-400 ring-2 ring-amber-400/20"
+                            : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span className="text-base">🟡</span>
+                        <span>Yandex Mail</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSmtpPreset("custom")}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                          smtpProvider === "custom"
+                            ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-400 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-400/20"
+                            : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span className="text-base">⚙️</span>
+                        <span>Özel SMTP</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Form Inputs Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* User / Sender Email */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                        <Mail className="w-3 h-3 text-indigo-500" />
+                        <span>{language === "tr" ? "Gönderici E-Posta / Kullanıcı Adı" : "Sender Email / User"}</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={smtpUser}
+                        onChange={(e) => setSmtpUser(e.target.value)}
+                        placeholder="ornek@gmail.com"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    {/* App Password / SMTP Password */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                          <Key className="w-3 h-3 text-amber-500" />
+                          <span>{language === "tr" ? "16 Haneli Uygulama Şifresi" : "App Password"}</span>
+                        </label>
+                        {smtpProvider === "gmail" && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAppPasswordGuide(!showAppPasswordGuide)}
+                            className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer"
+                          >
+                            {showAppPasswordGuide ? "Rehberi Gizle" : "Nasıl Alınır?"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showSmtpPass ? "text" : "password"}
+                          value={smtpPass}
+                          onChange={(e) => setSmtpPass(e.target.value)}
+                          placeholder="abcd efgh ijkl mnop"
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSmtpPass(!showSmtpPass)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Host */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        {language === "tr" ? "SMTP Sunucu (Host)" : "SMTP Host"}
+                      </label>
+                      <input
+                        type="text"
+                        value={smtpHost}
+                        onChange={(e) => setSmtpHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    {/* Port & Sender Name */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                          {language === "tr" ? "Port" : "Port"}
+                        </label>
+                        <select
+                          value={smtpPort}
+                          onChange={(e) => setSmtpPort(Number(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value={465}>465 (SSL)</option>
+                          <option value={587}>587 (TLS/STARTTLS)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                          {language === "tr" ? "Gönderen Başlığı" : "From Name"}
+                        </label>
+                        <input
+                          type="text"
+                          value={smtpFromName}
+                          onChange={(e) => setSmtpFromName(e.target.value)}
+                          placeholder="Bütçem Pro"
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Gmail App Password Guide Collapsible */}
+                  {showAppPasswordGuide && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3.5 bg-gradient-to-br from-indigo-500/10 via-rose-500/10 to-transparent border border-indigo-200 dark:border-indigo-800 rounded-2xl space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between font-black text-slate-800 dark:text-slate-100">
+                        <span className="flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-indigo-500" />
+                          Gmail 16 Haneli Uygulama Şifresi Nasıl Alınır?
+                        </span>
+                        <a
+                          href="https://myaccount.google.com/apppasswords"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 dark:text-indigo-400 underline font-bold inline-flex items-center gap-1"
+                        >
+                          <span>Google Şifre Sayfasını Aç</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Google güvenlik kuralları gereği normal Gmail hesap şifresiyle SMTP üzerinden e-posta gönderilemez. 16 haneli özel şifre üretmeniz gerekir:
+                      </p>
+                      <ol className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1 pl-4 list-decimal">
+                        <li>
+                          <strong>myaccount.google.com</strong> adresine gidin &gt; <strong>Güvenlik</strong> sekmesini açın.
+                        </li>
+                        <li>
+                          <strong>2 Adımlı Doğrulama</strong>'nın açık olduğundan emin olun.
+                        </li>
+                        <li>
+                          Sayfadaki arama çubuğuna <strong>"Uygulama Şifreleri"</strong> (veya App Passwords) yazın.
+                        </li>
+                        <li>
+                          Uygulama adı olarak <code>Bütçem Pro</code> yazıp <strong>Oluştur</strong>'a basın.
+                        </li>
+                        <li>
+                          Oluşan 16 haneli kodu kopyalayıp yukarıdaki <strong>"16 Haneli Uygulama Şifresi"</strong> alanına yapıştırın!
+                        </li>
+                      </ol>
+                    </motion.div>
+                  )}
+
+                  {/* Test Result Message Alert */}
+                  {smtpTestResult && (
+                    <div
+                      className={`p-3 rounded-2xl text-xs font-bold flex items-start gap-2 ${
+                        smtpTestResult.success
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+                          : "bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300"
+                      }`}
+                    >
+                      {smtpTestResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 space-y-1">
+                        <span className="block">{smtpTestResult.message}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleResetSmtpConfig}
+                      className="px-3 py-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-bold cursor-pointer"
+                    >
+                      {language === "tr" ? "Sıfırla" : "Reset"}
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestSmtpConnection}
+                        disabled={isTestingSmtp || !smtpUser.trim() || !smtpPass.trim()}
+                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isTestingSmtp ? "animate-spin" : ""}`} />
+                        <span>{isTestingSmtp ? "Test Ediliyor..." : "Bağlantıyı Test Et"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveSmtpConfig}
+                        disabled={isSavingSmtp || !smtpUser.trim() || !smtpPass.trim()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition shadow-md shadow-indigo-600/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingSmtp ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        <span>{language === "tr" ? "Kaydet & Aktifleştir" : "Save & Activate"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
             {/* Server Connectivity & Diagnostic Ping Card */}
             <div className="p-3.5 bg-slate-50 dark:bg-slate-900/90 rounded-2xl border border-slate-200/60 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -935,7 +1407,7 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                     </span>
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                       {serverStatus === "online"
-                        ? `🟢 Bağlantı Aktif (${serverLatency} ms) - Gmail SMTP Hazır`
+                        ? `🟢 Bağlantı Aktif (${serverLatency} ms) - SMTP Hazır`
                         : serverStatus === "testing"
                         ? "🟡 Sunucu test ediliyor..."
                         : serverStatus === "offline"

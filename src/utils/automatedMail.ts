@@ -516,13 +516,21 @@ export async function automatedSendTestDebtEmail(
     if (res && res.success) {
       return {
         success: true,
-        delivered: true,
-        simulated: false,
-        message: `Borç raporu ${normalizedEmail} adresine otomatik olarak başarıyla gönderildi! Lütfen gelen kutunuzu (ve Spam klasörünü) kontrol edin.`,
+        delivered: res.delivered ?? !res.simulated,
+        simulated: !!res.simulated,
+        message: res.message || `Borç raporu ${normalizedEmail} adresine başarıyla gönderildi!`,
         htmlPreview: res.htmlPreview || generateOverdueEmailHtml(normalizedEmail, user, analysis, true, false),
       };
+    } else if (res && !res.success) {
+      return {
+        success: false,
+        delivered: false,
+        simulated: false,
+        message: res.message || "E-posta gönderiminde hata oluştu.",
+        htmlPreview: generateOverdueEmailHtml(normalizedEmail, user, analysis, true, false),
+      };
     }
-  } catch {
+  } catch (err: any) {
     // Local fallback
   }
 
@@ -530,15 +538,107 @@ export async function automatedSendTestDebtEmail(
 
   return {
     success: true,
-    delivered: true,
-    simulated: false,
-    message: `Borç raporu ${normalizedEmail} adresine iletildi.`,
+    delivered: false,
+    simulated: true,
+    message: `Borç raporu önizlemesi hazırlandı (Canlı gönderim için SMTP yapılandırmanızı kontrol ediniz).`,
     htmlPreview: html,
   };
 }
 
 /**
- * 4. Automatic daily background overdue debt check & dispatch
+ * 4. SMTP Connection and Configuration APIs
+ */
+export interface SmtpConfigPayload {
+  host?: string;
+  port?: number;
+  user: string;
+  pass: string;
+  secure?: boolean;
+  fromName?: string;
+}
+
+export interface SmtpStatusResponse {
+  configured: boolean;
+  source: "in_app" | "env" | "none";
+  host: string | null;
+  port: number;
+  user: string | null;
+  rawUser: string | null;
+  fromName: string;
+}
+
+export async function testSmtpConnectionApi(
+  config: SmtpConfigPayload
+): Promise<{ success: boolean; message: string; host?: string; port?: number }> {
+  try {
+    const res = await safeFetchJson<{ success: boolean; message: string; host?: string; port?: number }>(
+      "/api/notifications/email/test-smtp-connection",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      }
+    );
+    return res;
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol ediniz.",
+    };
+  }
+}
+
+export async function saveSmtpConfigApi(
+  config: SmtpConfigPayload
+): Promise<{ success: boolean; message: string; smtpConfigured?: boolean }> {
+  try {
+    const res = await safeFetchJson<{ success: boolean; message: string; smtpConfigured?: boolean }>(
+      "/api/notifications/email/save-smtp-config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      }
+    );
+    return res;
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Ayarlar kaydedilemedi.",
+    };
+  }
+}
+
+export async function resetSmtpConfigApi(): Promise<{ success: boolean; message: string }> {
+  try {
+    return await safeFetchJson<{ success: boolean; message: string }>("/api/notifications/email/reset-smtp-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    return { success: false, message: "Sıfırlama işlemi başarısız oldu." };
+  }
+}
+
+export async function getSmtpStatusApi(): Promise<SmtpStatusResponse> {
+  try {
+    const res = await safeFetchJson<SmtpStatusResponse>("/api/notifications/email/smtp-status");
+    return res;
+  } catch {
+    return {
+      configured: false,
+      source: "none",
+      host: null,
+      port: 465,
+      user: null,
+      rawUser: null,
+      fromName: "Bütçem Pro",
+    };
+  }
+}
+
+/**
+ * 5. Automatic daily background overdue debt check & dispatch
  */
 export async function checkAndTriggerAutomaticDailyDebtAlert(
   verifiedEmail: string,
