@@ -7,6 +7,10 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { safeFetchJson, getApiUrl } from "../utils/api";
 import {
+  analyzeDebtsComprehensive,
+  generateDiagnosticReportHtml,
+} from "../utils/debtAnalyzer";
+import {
   Mail,
   CheckCircle2,
   AlertTriangle,
@@ -26,7 +30,10 @@ import {
   ExternalLink,
   Inbox,
   HelpCircle,
-  ShieldCheck
+  ShieldCheck,
+  Server,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 
 interface VerifyEmailNotificationSectionProps {
@@ -66,8 +73,17 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     dueTodayCount: number;
     totalAmount: number;
     delivered?: boolean;
+    isOfflineFallback?: boolean;
     message?: string;
   } | null>(null);
+
+  // Server ping & connection states
+  const [serverStatus, setServerStatus] = useState<"idle" | "testing" | "online" | "offline">("idle");
+  const [serverLatency, setServerLatency] = useState<number | null>(null);
+  const [showServerSettings, setShowServerSettings] = useState(false);
+  const [customServerUrlInput, setCustomServerUrlInput] = useState(() => {
+    return localStorage.getItem("customServerUrl") || "";
+  });
 
   // Stored state
   const [verifiedEmail, setVerifiedEmail] = useState<string>(() => {
@@ -92,52 +108,20 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     return saved ? parseInt(saved, 10) : null;
   });
 
-  // Calculate current user's overdue debts for informative preview
-  const overdueInfo = React.useMemo(() => {
-    let overdueCount = 0;
-    let overdueTotal = 0;
-    const now = new Date();
-    const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-    // Standard debts
-    debts.forEach((d) => {
-      if (!d) return;
-      const remaining = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
-      if (remaining > 0 && d.dueDate) {
-        const dDate = new Date(d.dueDate);
-        if (!isNaN(dDate.getTime())) {
-          const dueTime = new Date(dDate.getFullYear(), dDate.getMonth(), dDate.getDate()).getTime();
-          if (dueTime < todayTime) {
-            overdueCount++;
-            overdueTotal += remaining;
-          }
-        }
-      }
-    });
-
-    // Installments
-    installmentDebts.forEach((inst) => {
-      if (!inst) return;
-      const count = Number(inst.installmentCount) || 1;
-      const paid = Number(inst.paidInstallmentCount) || 0;
-      const total = Number(inst.totalAmount) || 0;
-      const perInst = count > 0 ? total / count : 0;
-
-      if (paid < count && inst.firstDueDate) {
-        const bDate = new Date(inst.firstDueDate);
-        if (!isNaN(bDate.getTime())) {
-          bDate.setMonth(bDate.getMonth() + paid);
-          const dueTime = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate()).getTime();
-          if (dueTime < todayTime) {
-            overdueCount++;
-            overdueTotal += perInst;
-          }
-        }
-      }
-    });
-
-    return { overdueCount, overdueTotal };
+  // Standardized and comprehensive debt analysis
+  const debtAnalysis = React.useMemo(() => {
+    return analyzeDebtsComprehensive(debts, installmentDebts);
   }, [debts, installmentDebts]);
+
+  const overdueInfo = React.useMemo(() => {
+    return {
+      overdueCount: debtAnalysis.overdueCount,
+      overdueTotal: debtAnalysis.totalOverdueAmount,
+      totalActiveCount: debtAnalysis.totalActiveCount,
+      totalActiveDebt: debtAnalysis.totalActiveDebt,
+      dueTodayCount: debtAnalysis.dueTodayCount,
+    };
+  }, [debtAnalysis]);
 
   // Sync initial state from server if email is saved
   useEffect(() => {
@@ -439,11 +423,51 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     }
   };
 
+  // Test connection to backend server
+  const handlePingServer = async () => {
+    setServerStatus("testing");
+    setServerLatency(null);
+    const start = performance.now();
+    try {
+      await safeFetchJson("/api/health");
+      const elapsed = Math.round(performance.now() - start);
+      setServerLatency(elapsed);
+      setServerStatus("online");
+      setStatusMessage(
+        language === "tr"
+          ? `🟢 E-posta sunucusuna başarıyla bağlanıldı (${elapsed} ms). Servis aktif ve e-posta göndermeye hazır!`
+          : `🟢 Connected to email server (${elapsed} ms). Service online!`
+      );
+    } catch (err: any) {
+      setServerStatus("offline");
+      setErrorMessage(
+        language === "tr"
+          ? "🔴 E-posta sunucusuna erişilemedi. Uygulamanız çevrimdışı veya sunucu adresi yanıt vermiyor."
+          : "🔴 Cannot reach email server. Offline or unreachable."
+      );
+    }
+  };
+
+  const handleSaveCustomServer = () => {
+    const trimmed = customServerUrlInput.trim();
+    if (trimmed) {
+      localStorage.setItem("customServerUrl", trimmed);
+      setStatusMessage(language === "tr" ? "Özel sunucu adresi kaydedildi." : "Server URL saved.");
+    } else {
+      localStorage.removeItem("customServerUrl");
+      setStatusMessage(language === "tr" ? "Varsayılan bulut sunucu adresine dönüldü." : "Reset to default server.");
+    }
+    handlePingServer();
+  };
+
   // Trigger Instant Test Overdue Alert Email
   const handleSendTestEmail = async () => {
     if (!verifiedEmail) return;
     setIsSendingTest(true);
     setErrorMessage(null);
+    setStatusMessage(null);
+
+    const currentAnalysis = analyzeDebtsComprehensive(debts, installmentDebts);
 
     try {
       const data = await safeFetchJson<{
@@ -463,16 +487,18 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
           email: verifiedEmail,
           debts,
           installmentDebts,
+          analysis: currentAnalysis,
           user: "Bütçem Pro Kullanıcısı",
         }),
       });
 
       setEmailPreviewModal({
         html: data.htmlPreview,
-        overdueCount: data.overdueCount || 0,
-        dueTodayCount: data.dueTodayCount || 0,
-        totalAmount: data.totalOverdueAmount || 0,
+        overdueCount: data.overdueCount ?? currentAnalysis.overdueCount,
+        dueTodayCount: data.dueTodayCount ?? currentAnalysis.dueTodayCount,
+        totalAmount: data.totalOverdueAmount ?? currentAnalysis.totalOverdueAmount,
         delivered: data.delivered,
+        isOfflineFallback: false,
         message: data.message,
       });
 
@@ -481,33 +507,39 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
       }
 
       if (onSuccessToast) {
-        onSuccessToast(language === "tr" ? "Test borç uyarısı e-postası başarıyla iletildi! 📩" : "Test alert email sent! 📩");
+        onSuccessToast(
+          language === "tr"
+            ? "Test borç uyarısı e-postası başarıyla iletildi! 📩"
+            : "Test alert email sent! 📩"
+        );
       }
     } catch (err: any) {
-      console.warn("Server test email failed, generating local report preview:", err);
-      // Local preview fallback
-      const overdueList = (debts || []).filter((d: any) => (d.remaining || 0) > 0);
-      const totalAmt = overdueList.reduce((sum: number, d: any) => sum + (d.remaining || 0), 0);
-      const mockHtml = `
-        <div style="font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #1e293b; background: #ffffff; border-radius: 12px;">
-          <h2 style="color: #4f46e5; margin-top: 0;">⚠️ Bütçem Pro Borç Durum Raporu</h2>
-          <p>Sayın Bütçem Pro Kullanıcısı, <strong>${verifiedEmail}</strong> adresiniz için oluşturulan güncel borç uyarısı:</p>
-          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin: 16px 0;">
-            <p style="margin: 0; color: #991b1b; font-weight: bold;">🔴 Gecikmiş / Bekleyen Borç Sayısı: ${overdueList.length}</p>
-            <p style="margin: 6px 0 0 0; color: #991b1b; font-size: 16px; font-weight: 800;">Toplam Tutar: ₺${totalAmt.toLocaleString("tr-TR")}</p>
-          </div>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Bu rapor cihazınız tarafından anlık olarak oluşturulmuştur.</p>
-        </div>
-      `;
+      console.warn("Server test email failed, generating diagnostic report:", err);
+      const offlineMsg =
+        language === "tr"
+          ? "E-posta sunucusuna bağlanılamadı. Uygulamanız şu anda çevrimdışı veya sunucu bağlantısı kapalı olduğundan e-posta fiziksel olarak iletilemedi."
+          : "Could not connect to email server. Email was not sent.";
+      setErrorMessage(offlineMsg);
+
+      const diagnosticHtml = generateDiagnosticReportHtml(
+        verifiedEmail,
+        "Bütçem Pro Kullanıcısı",
+        currentAnalysis,
+        true
+      );
+
       setEmailPreviewModal({
-        html: mockHtml,
-        overdueCount: overdueList.length,
-        dueTodayCount: 0,
-        totalAmount: totalAmt,
+        html: diagnosticHtml,
+        overdueCount: currentAnalysis.overdueCount,
+        dueTodayCount: currentAnalysis.dueTodayCount,
+        totalAmount: currentAnalysis.totalOverdueAmount,
+        delivered: false,
+        isOfflineFallback: true,
+        message:
+          language === "tr"
+            ? "⚠️ Sunucuya bağlanılamadığı için e-posta gönderilemedi. Cihazınızdaki borç verileri yerel olarak raporlandı."
+            : "Server unreachable. Offline report displayed.",
       });
-      if (onSuccessToast) {
-        onSuccessToast(language === "tr" ? "Test borç uyarısı raporu başarıyla hazırlandı! 📩" : "Test alert generated! 📩");
-      }
     } finally {
       setIsSendingTest(false);
     }
@@ -540,27 +572,39 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
         {/* Live Overdue Alert Summary Banner */}
         <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 dark:from-amber-950/30 dark:via-rose-950/30 dark:to-indigo-950/30 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-500/20 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">
-              <AlertTriangle className="w-4 h-4" />
+            <div className={`p-2 rounded-xl shrink-0 ${debtAnalysis.overdueCount > 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-400" : "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"}`}>
+              {debtAnalysis.overdueCount > 0 ? <AlertTriangle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
             </div>
             <div>
               <span className="font-black text-slate-800 dark:text-slate-100 block">
-                {language === "tr" ? "Canlı Borç Taraması:" : "Live Overdue Debt Status:"}
+                {language === "tr" ? "Canlı Borç Taraması & Durumu:" : "Live Debt Scan & Status:"}
               </span>
               <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                {overdueInfo.overdueCount > 0
+                {debtAnalysis.overdueCount > 0
                   ? language === "tr"
-                    ? `Sistemde geciken ${overdueInfo.overdueCount} borç var (Toplam ₺${overdueInfo.overdueTotal.toLocaleString("tr-TR")}).`
-                    : `You have ${overdueInfo.overdueCount} overdue debts (Total ₺${overdueInfo.overdueTotal.toLocaleString("tr-TR")}).`
+                    ? `Sistemde geciken ${debtAnalysis.overdueCount} borç var (Toplam ₺${debtAnalysis.totalOverdueAmount.toLocaleString("tr-TR")}).`
+                    : `You have ${debtAnalysis.overdueCount} overdue debts (Total ₺${debtAnalysis.totalOverdueAmount.toLocaleString("tr-TR")}).`
+                  : debtAnalysis.totalActiveCount > 0
+                  ? language === "tr"
+                    ? `Kayıtlı ${debtAnalysis.totalActiveCount} aktif borcunuz var (Toplam ₺${debtAnalysis.totalActiveDebt.toLocaleString("tr-TR")}). Vadesi geçen borç yok ✅.`
+                    : `${debtAnalysis.totalActiveCount} active debts recorded (₺${debtAnalysis.totalActiveDebt.toLocaleString("tr-TR")}). No overdue debts ✅.`
                   : language === "tr"
-                  ? "Şu anda vadesi geçmiş borcunuz bulunmuyor (Durum temiz ✅)."
-                  : "No overdue debts currently recorded (Status clean ✅)."}
+                  ? "Şu anda sistemde borcunuz bulunmuyor (Durum temiz ✅)."
+                  : "No active debts recorded (Status clean ✅)."}
               </span>
             </div>
           </div>
-          {overdueInfo.overdueCount > 0 && (
+          {debtAnalysis.overdueCount > 0 ? (
             <span className="px-2.5 py-1 bg-rose-500 text-white font-black text-[10px] rounded-lg shrink-0">
-              {overdueInfo.overdueCount} Gecikme
+              {debtAnalysis.overdueCount} Gecikme
+            </span>
+          ) : debtAnalysis.dueTodayCount > 0 ? (
+            <span className="px-2.5 py-1 bg-amber-500 text-white font-black text-[10px] rounded-lg shrink-0">
+              {debtAnalysis.dueTodayCount} Bugün Son Gün
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black text-[10px] rounded-lg shrink-0">
+              Temiz
             </span>
           )}
         </div>
@@ -878,6 +922,82 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               </div>
             </div>
 
+            {/* Server Connectivity & Diagnostic Ping Card */}
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-900/90 rounded-2xl border border-slate-200/60 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg ${
+                    serverStatus === "online"
+                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                      : serverStatus === "offline"
+                      ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                      : "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                  }`}>
+                    {serverStatus === "online" ? <Wifi className="w-4 h-4" /> : serverStatus === "offline" ? <WifiOff className="w-4 h-4" /> : <Server className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 block">
+                      {language === "tr" ? "E-Posta Servis Sunucusu" : "Mail Server Status"}
+                    </span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                      {serverStatus === "online"
+                        ? `🟢 Bağlantı Aktif (${serverLatency} ms) - Gmail SMTP Hazır`
+                        : serverStatus === "testing"
+                        ? "🟡 Sunucu test ediliyor..."
+                        : serverStatus === "offline"
+                        ? "🔴 Sunucuya Erişilemedi (Cihaz Çevrimdışı)"
+                        : "Bulut Sunucu (Otomatik Yönlendirme)"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePingServer}
+                    disabled={serverStatus === "testing"}
+                    className="px-2.5 py-1.5 bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-black rounded-lg transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${serverStatus === "testing" ? "animate-spin" : ""}`} />
+                    <span>{language === "tr" ? "Bağlantıyı Test Et" : "Ping Server"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowServerSettings(!showServerSettings)}
+                    className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    {showServerSettings ? (language === "tr" ? "Gizle" : "Hide") : (language === "tr" ? "Sunucu URL" : "Server URL")}
+                  </button>
+                </div>
+              </div>
+
+              {showServerSettings && (
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-2 text-xs">
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={customServerUrlInput}
+                      onChange={(e) => setCustomServerUrlInput(e.target.value)}
+                      placeholder="https://... (Örn: https://ais-dev-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app)"
+                      className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveCustomServer}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer"
+                    >
+                      {language === "tr" ? "Kaydet" : "Save"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {language === "tr"
+                      ? "APK veya harici derlemede e-posta göndermek için merkezi bulut sunucu adresinizi kaydedebilirsiniz. Boş bırakırsanız otomatik bulut adresi kullanılır."
+                      : "Optional custom backend server URL for external APKs or standalone builds."}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Gmail Deliverability & Spam Tips Card */}
             <div className="p-4 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 rounded-2xl space-y-2.5">
               <div className="flex items-center justify-between">
@@ -899,7 +1019,7 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
                 {language === "tr"
-                  ? "Sistemimiz e-postaları başarıyla göndermektedir; ancak Gmail gelen otomatik bildirimleri ilk aşamada Birincil Gelen Kutusu yerine 'Spam (Gereksiz E-posta)' veya 'Tanıtımlar / Güncellemeler' sekmesine taşıyabilir:"
+                  ? "Sistemimiz e-postaları Gmail SMTP üzerinden başarıyla göndermektedir; ancak Gmail gelen otomatik bildirimleri ilk aşamada Birincil Gelen Kutusu yerine 'Spam (Gereksiz E-posta)' veya 'Tanıtımlar / Güncellemeler' sekmesine taşıyabilir:"
                   : "Emails are dispatched directly from our mail server, but Gmail may route them to Spam or Promotions initially:"}
               </p>
               <ul className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1 pl-4 list-disc">
@@ -943,19 +1063,23 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
             >
-              <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-rose-500 to-amber-500" />
+              <div className={`h-1.5 w-full ${emailPreviewModal.isOfflineFallback ? "bg-rose-500" : "bg-gradient-to-r from-indigo-500 via-rose-500 to-amber-500"}`} />
 
               <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-500">
-                    <Eye className="w-5 h-5" />
+                  <div className={`p-2 rounded-xl ${emailPreviewModal.isOfflineFallback ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-indigo-500/10 text-indigo-500"}`}>
+                    {emailPreviewModal.isOfflineFallback ? <AlertOctagon className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </div>
                   <div>
-                    <h3 className="text-xs font-black uppercase tracking-wider text-indigo-500">
-                      GELEN KUTUSU ÖNİZLEMESİ
+                    <h3 className={`text-xs font-black uppercase tracking-wider ${emailPreviewModal.isOfflineFallback ? "text-rose-600 dark:text-rose-400" : "text-indigo-500"}`}>
+                      {emailPreviewModal.isOfflineFallback
+                        ? "ÇEVRİMDIŞI ÖNİZLEME (E-POSTA İLETİLEMEDİ)"
+                        : "GELEN KUTUSU ÖNİZLEMESİ"}
                     </h3>
                     <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      Gönderilen E-Posta Raporu
+                      {emailPreviewModal.isOfflineFallback
+                        ? "Cihaz Tarafından Oluşturulan Yerel Borç Raporu"
+                        : "Gönderilen E-Posta Raporu"}
                     </h2>
                   </div>
                 </div>
@@ -969,30 +1093,44 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                 </button>
               </div>
 
-              {/* Delivery notice & Gmail link */}
+              {/* Delivery status or offline notice */}
               <div className="px-4 pt-3 pb-1">
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                  <div className="flex items-start gap-2">
-                    <Inbox className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                {emailPreviewModal.isOfflineFallback ? (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-2xl flex items-start gap-2.5 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
                     <div className="space-y-0.5">
-                      <span className="font-bold text-amber-900 dark:text-amber-200">
-                        E-posta Gelmedi mi? Lütfen Spam / Tanıtımlar Klasörünü Kontrol Edin
+                      <span className="font-bold text-rose-900 dark:text-rose-200">
+                        E-posta Sunucusuna Ulaşılamadı (Fiziksel E-Posta Gönderilmedi)
                       </span>
-                      <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
-                        Sunucumuz e-postayı Gmail SMTP üzerinden başarıyla iletmiştir. Gmail otomatik iletileri 'Spam' veya 'Tanıtımlar' sekmesine taşıyabilir.
+                      <p className="text-[11px] text-rose-800 dark:text-rose-300 font-medium">
+                        Uygulamanız şu anda çevrimdışı modda çalıştığı için e-posta sunucuya aktarılamadı. Ancak cihazınızdaki borç kayıtları eksiksiz taranmış olup aşağıda tam doğrulukla raporlanmıştır.
                       </p>
                     </div>
                   </div>
-                  <a
-                    href="https://mail.google.com/mail/u/0/#search/B%C3%BCt%C3%A7em+Pro"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl whitespace-nowrap self-start sm:self-center cursor-pointer shadow-xs transition"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Gmail'de Ara
-                  </a>
-                </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                    <div className="flex items-start gap-2">
+                      <Inbox className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-amber-900 dark:text-amber-200">
+                          E-posta Gelmedi mi? Lütfen Spam / Tanıtımlar Klasörünü Kontrol Edin
+                        </span>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                          Sunucumuz e-postayı Gmail SMTP üzerinden başarıyla iletmiştir. Gmail otomatik iletileri 'Spam' veya 'Tanıtımlar' sekmesine taşıyabilir.
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href="https://mail.google.com/mail/u/0/#search/B%C3%BCt%C3%A7em+Pro"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl whitespace-nowrap self-start sm:self-center cursor-pointer shadow-xs transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Gmail'de Ara
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Email Content Iframe/Render */}

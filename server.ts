@@ -3057,7 +3057,7 @@ app.post("/api/notifications/email/remove", (req, res) => {
 
 // 6. Send a simulated / live test overdue alert email
 app.post("/api/notifications/email/send-test", async (req, res) => {
-  const { email, debts, installmentDebts, user } = req.body;
+  const { email, debts, installmentDebts, user, analysis: clientAnalysis } = req.body;
   const normalizedEmail = email?.trim().toLowerCase();
   if (!normalizedEmail) {
     return res.status(400).json({ error: "E-posta adresi belirtilmedi." });
@@ -3072,7 +3072,10 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
   if (installmentDebts && Array.isArray(installmentDebts) && sub) sub.installmentDebts = installmentDebts;
   if (sub) saveEmailSubscribersToFile();
 
-  const analysis = analyzeUserDebts(userDebts, userInstDebts);
+  const computedAnalysis = analyzeUserDebts(userDebts, userInstDebts);
+  const analysis = (clientAnalysis && (clientAnalysis.totalActiveCount > 0 || clientAnalysis.overdueCount > 0))
+    ? clientAnalysis
+    : computedAnalysis;
 
   // If user has zero registered debts at all in system, provide test mock items so they can see how late alerts render
   let reportAnalysis = analysis;
