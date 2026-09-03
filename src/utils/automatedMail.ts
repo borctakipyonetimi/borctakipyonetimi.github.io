@@ -23,7 +23,609 @@ export interface EmailSubscriberPreferences {
 }
 
 // Generate HTML email template for debt report
+export type EmailThemeKey = "indigo" | "emerald" | "darkGold" | "minimalWhite" | "bordeaux";
+
+export interface RichEmailReportData {
+  user?: string;
+  email?: string;
+  theme?: EmailThemeKey;
+  incomes?: any[];
+  expenses?: any[];
+  debts?: any[];
+  installmentDebts?: any[];
+}
+
+export const EMAIL_THEME_CONFIGS: Record<EmailThemeKey, {
+  name: string;
+  description: string;
+  bodyBg: string;
+  containerBg: string;
+  headerBg: string;
+  headerTextColor: string;
+  subTextColor: string;
+  accentColor: string;
+  tableHeaderBg: string;
+  tableHeaderTextColor: string;
+  tableBorderColor: string;
+  cardBg: string;
+  cardBorder: string;
+  textColorPrimary: string;
+  textColorSecondary: string;
+}> = {
+  indigo: {
+    name: "Lacivert Kurumsal",
+    description: "Modern, güven veren lacivert ve indigo renk paleti",
+    bodyBg: "#f1f5f9",
+    containerBg: "#ffffff",
+    headerBg: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)",
+    headerTextColor: "#ffffff",
+    subTextColor: "rgba(255, 255, 255, 0.85)",
+    accentColor: "#4f46e5",
+    tableHeaderBg: "#eef2ff",
+    tableHeaderTextColor: "#312e81",
+    tableBorderColor: "#e0e7ff",
+    cardBg: "#f8fafc",
+    cardBorder: "#c7d2fe",
+    textColorPrimary: "#0f172a",
+    textColorSecondary: "#475569",
+  },
+  emerald: {
+    name: "Zümrüt Bütçe",
+    description: "Ferah ve pozitif zümrüt yeşili finansal tema",
+    bodyBg: "#f0fdf4",
+    containerBg: "#ffffff",
+    headerBg: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)",
+    headerTextColor: "#ffffff",
+    subTextColor: "rgba(255, 255, 255, 0.85)",
+    accentColor: "#059669",
+    tableHeaderBg: "#ecfdf5",
+    tableHeaderTextColor: "#064e3b",
+    tableBorderColor: "#d1fae5",
+    cardBg: "#f6fbf8",
+    cardBorder: "#a7f3d0",
+    textColorPrimary: "#064e3b",
+    textColorSecondary: "#374151",
+  },
+  darkGold: {
+    name: "Gece Siyahı & Gold",
+    description: "Şık, prestijli koyu arka plan ve altın detaylar",
+    bodyBg: "#09090b",
+    containerBg: "#18181b",
+    headerBg: "linear-gradient(135deg, #18181b 0%, #27272a 100%)",
+    headerTextColor: "#f59e0b",
+    subTextColor: "#d4d4d8",
+    accentColor: "#f59e0b",
+    tableHeaderBg: "#27272a",
+    tableHeaderTextColor: "#fef08a",
+    tableBorderColor: "#3f3f46",
+    cardBg: "#27272a",
+    cardBorder: "#52525b",
+    textColorPrimary: "#f4f4f5",
+    textColorSecondary: "#a1a1aa",
+  },
+  minimalWhite: {
+    name: "Minimalist Saf Beyaz",
+    description: "Sade, yüksek kontratlı ve okuması çok kolay açık tema",
+    bodyBg: "#f8fafc",
+    containerBg: "#ffffff",
+    headerBg: "#f1f5f9",
+    headerTextColor: "#0f172a",
+    subTextColor: "#64748b",
+    accentColor: "#0284c7",
+    tableHeaderBg: "#f1f5f9",
+    tableHeaderTextColor: "#334155",
+    tableBorderColor: "#e2e8f0",
+    cardBg: "#f8fafc",
+    cardBorder: "#cbd5e1",
+    textColorPrimary: "#0f172a",
+    textColorSecondary: "#64748b",
+  },
+  bordeaux: {
+    name: "Prestij Bordo",
+    description: "Derin bordo ve sıcak kırmızı detaylı şık e-posta teması",
+    bodyBg: "#fff1f2",
+    containerBg: "#ffffff",
+    headerBg: "linear-gradient(135deg, #4c0519 0%, #881337 50%, #be123c 100%)",
+    headerTextColor: "#ffffff",
+    subTextColor: "rgba(255, 255, 255, 0.85)",
+    accentColor: "#be123c",
+    tableHeaderBg: "#fff1f2",
+    tableHeaderTextColor: "#881337",
+    tableBorderColor: "#fecdd3",
+    cardBg: "#fff5f5",
+    cardBorder: "#fda4af",
+    textColorPrimary: "#881337",
+    textColorSecondary: "#4c0519",
+  },
+};
+
+// Generate ASCII Box Table for plain text mailto body
+export function generateFormattedAsciiFinancialTableText(data: RichEmailReportData): string {
+  const userName = data.user || "Bütçem Pro Kullanıcısı";
+  const incomes = data.incomes || [];
+  const expenses = data.expenses || [];
+  const debts = data.debts || [];
+  const installmentDebts = data.installmentDebts || [];
+
+  const totalIncome = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+  const totalExpense = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+  const netBalance = totalIncome - totalExpense;
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  let activeSingleDebtsAmount = 0;
+  let overdueSingleDebtsAmount = 0;
+  debts.forEach((d) => {
+    if (!d.isPaid) {
+      const rem = Number(d.remaining ?? d.amount ?? 0);
+      activeSingleDebtsAmount += rem;
+      if (d.dueDate && d.dueDate < todayStr) {
+        overdueSingleDebtsAmount += rem;
+      }
+    }
+  });
+
+  let activeInstallmentAmount = 0;
+  let overdueInstallmentAmount = 0;
+  installmentDebts.forEach((inst) => {
+    if (!inst.isCompleted) {
+      const rem = Number(inst.remainingAmount ?? inst.totalAmount ?? 0);
+      activeInstallmentAmount += rem;
+      if (inst.installments && Array.isArray(inst.installments)) {
+        inst.installments.forEach((part: any) => {
+          if (!part.isPaid && part.dueDate && part.dueDate < todayStr) {
+            overdueInstallmentAmount += Number(part.amount || 0);
+          }
+        });
+      }
+    }
+  });
+
+  const totalActiveDebt = activeSingleDebtsAmount + activeInstallmentAmount;
+  const totalOverdueDebt = overdueSingleDebtsAmount + overdueInstallmentAmount;
+
+  const fmt = (val: number) =>
+    `₺${Number(val || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const dateFormatted = new Date().toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  let lines: string[] = [];
+  lines.push(`============================================================`);
+  lines.push(`💼 BÜTÇEM PRO - FİNANSAL DURUM VE BÜTÇE RAPORU`);
+  lines.push(`============================================================`);
+  lines.push(`Sayın ${userName}, ${dateFormatted} tarihi itibarıyla finansal özetiniz:\n`);
+
+  lines.push(`┌──────────────────────────────────────────────────────────┐`);
+  lines.push(`│ 📊 1. FİNANSAL ÖZET TABLOSU                              │`);
+  lines.push(`├───────────────────────────────┬──────────────────────────┤`);
+  lines.push(`│ Toplam Gelir                  │ ${fmt(totalIncome).padEnd(24)} │`);
+  lines.push(`│ Toplam Gider                  │ ${fmt(totalExpense).padEnd(24)} │`);
+  lines.push(`│ Net Bakiye                    │ ${fmt(netBalance).padEnd(24)} │`);
+  lines.push(`│ Toplam Kalan Borç             │ ${fmt(totalActiveDebt).padEnd(24)} │`);
+  lines.push(`│ Geciken Borç                  │ ${fmt(totalOverdueDebt).padEnd(24)} │`);
+  lines.push(`└───────────────────────────────┴──────────────────────────┘\n`);
+
+  lines.push(`┌──────────────────────────────────────────────────────────┐`);
+  lines.push(`│ 💵 2. GELİR VE GİDER DETAY LİSTESİ                       │`);
+  lines.push(`├──────────────────────────────────────────────────────────┤`);
+  if (incomes.length === 0 && expenses.length === 0) {
+    lines.push(`│ Kayıtlı gelir veya gider bulunmamaktadır.                │`);
+  } else {
+    incomes.forEach((i) => {
+      const desc = (i.description || i.name || "Gelir").substring(0, 22).padEnd(22);
+      lines.push(`│ [+] ${desc} : +${fmt(i.amount || 0).padEnd(20)} │`);
+    });
+    expenses.forEach((e) => {
+      const desc = (e.description || e.name || "Gider").substring(0, 22).padEnd(22);
+      lines.push(`│ [-] ${desc} : -${fmt(e.amount || 0).padEnd(20)} │`);
+    });
+  }
+  lines.push(`└──────────────────────────────────────────────────────────┘\n`);
+
+  lines.push(`┌──────────────────────────────────────────────────────────┐`);
+  lines.push(`│ 💳 3. BORÇLAR VE TAKSİTLER LİSTESİ                       │`);
+  lines.push(`├──────────────────────────────────────────────────────────┤`);
+  if (debts.length === 0 && installmentDebts.length === 0) {
+    lines.push(`│ Kayıtlı aktif borç veya taksit bulunmamaktadır.          │`);
+  } else {
+    debts.forEach((d) => {
+      const name = (d.name || "Borç").substring(0, 20).padEnd(20);
+      const rem = Number(d.remaining ?? d.amount ?? 0);
+      const status = d.isPaid ? "Ödendi" : d.dueDate ? `Vade: ${d.dueDate}` : "Aktif";
+      lines.push(`│ • ${name} : ${fmt(rem).padEnd(14)} (${status}) │`);
+    });
+    installmentDebts.forEach((inst) => {
+      const name = (inst.name || inst.title || "Taksit").substring(0, 18).padEnd(18);
+      const rem = Number(inst.remainingAmount ?? inst.totalAmount ?? 0);
+      const paidCnt = inst.paidInstallments || 0;
+      const totCnt = inst.totalInstallments || 1;
+      lines.push(`│ • ${name} : ${fmt(rem).padEnd(14)} (Taksit: ${paidCnt}/${totCnt}) │`);
+    });
+  }
+  lines.push(`└──────────────────────────────────────────────────────────┘\n`);
+
+  lines.push(`Bu rapor Bütçem Pro Finansal Asistanı tarafından güvenle üretilmiştir.`);
+  return lines.join("\n");
+}
+
+// Generate RFC 822 .EML File String for opening in Outlook / Apple Mail / Windows Mail
+export function generateEmlContent(data: RichEmailReportData): string {
+  const recipient = data.email || "";
+  const subject = `Bütçem Pro: Finansal Rapor ve Bütçe Özeti (${new Date().toLocaleDateString("tr-TR")})`;
+  const htmlBody = generateRichFinancialEmailThemeHtml(data);
+
+  return [
+    `To: ${recipient}`,
+    `Subject: ${subject}`,
+    `X-Unsent: 1`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset="utf-8"`,
+    ``,
+    htmlBody,
+  ].join("\r\n");
+}
+
+export function generateRichFinancialEmailThemeHtml(data: RichEmailReportData): string {
+  const themeKey = data.theme || "indigo";
+  const theme = EMAIL_THEME_CONFIGS[themeKey] || EMAIL_THEME_CONFIGS.indigo;
+  const userName = data.user || "Bütçem Pro Kullanıcısı";
+
+  const incomes = data.incomes || [];
+  const expenses = data.expenses || [];
+  const debts = data.debts || [];
+  const installmentDebts = data.installmentDebts || [];
+
+  const totalIncome = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+  const totalExpense = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+  const netBalance = totalIncome - totalExpense;
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Single debts logic
+  let activeSingleDebtsAmount = 0;
+  let overdueSingleDebtsAmount = 0;
+  debts.forEach((d) => {
+    if (!d.isPaid) {
+      const rem = Number(d.remaining ?? d.amount ?? 0);
+      activeSingleDebtsAmount += rem;
+      if (d.dueDate && d.dueDate < todayStr) {
+        overdueSingleDebtsAmount += rem;
+      }
+    }
+  });
+
+  // Installment debts logic
+  let activeInstallmentAmount = 0;
+  let overdueInstallmentAmount = 0;
+  installmentDebts.forEach((inst) => {
+    if (!inst.isCompleted) {
+      const rem = Number(inst.remainingAmount ?? inst.totalAmount ?? 0);
+      activeInstallmentAmount += rem;
+      if (inst.installments && Array.isArray(inst.installments)) {
+        inst.installments.forEach((part: any) => {
+          if (!part.isPaid && part.dueDate && part.dueDate < todayStr) {
+            overdueInstallmentAmount += Number(part.amount || 0);
+          }
+        });
+      }
+    }
+  });
+
+  const totalActiveDebt = activeSingleDebtsAmount + activeInstallmentAmount;
+  const totalOverdueDebt = overdueSingleDebtsAmount + overdueInstallmentAmount;
+
+  const dateFormatted = new Date().toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const fmtCurrency = (val: number) =>
+    `₺${Number(val || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // 1. Build Income & Expenses Rows
+  const incExpItems: Array<{ desc: string; cat: string; type: "gelir" | "gider"; amount: number; date: string }> = [];
+  incomes.forEach((i) => {
+    incExpItems.push({
+      desc: i.description || i.name || "Gelir Kaydı",
+      cat: i.category || "Genel Gelir",
+      type: "gelir",
+      amount: Number(i.amount || 0),
+      date: i.date || "-",
+    });
+  });
+  expenses.forEach((e) => {
+    incExpItems.push({
+      desc: e.description || e.name || "Gider Kaydı",
+      cat: e.category || "Genel Gider",
+      type: "gider",
+      amount: Number(e.amount || 0),
+      date: e.date || "-",
+    });
+  });
+
+  let incExpRowsHtml = "";
+  if (incExpItems.length === 0) {
+    incExpRowsHtml = `
+      <tr>
+        <td colspan="4" style="padding: 14px; text-align: center; color: ${theme.textColorSecondary}; font-size: 12px; font-style: italic;">
+          Kayıtlı gelir veya gider bulunmamaktadır.
+        </td>
+      </tr>
+    `;
+  } else {
+    incExpRowsHtml = incExpItems
+      .map((item) => {
+        const isInc = item.type === "gelir";
+        const badgeBg = isInc ? "#dcfce7" : "#ffe4e6";
+        const badgeColor = isInc ? "#15803d" : "#be123c";
+        const amountColor = isInc ? "#16a34a" : "#dc2626";
+        const prefix = isInc ? "+" : "-";
+
+        return `
+        <tr style="border-bottom: 1px solid ${theme.tableBorderColor};">
+          <td style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: ${theme.textColorPrimary};">
+            ${item.desc}
+          </td>
+          <td style="padding: 10px 12px; font-size: 11px; color: ${theme.textColorSecondary}; text-align: center;">
+            ${item.cat}
+          </td>
+          <td style="padding: 10px 12px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; background-color: ${badgeBg}; color: ${badgeColor}; text-transform: uppercase;">
+              ${isInc ? "GELİR" : "GİDER"}
+            </span>
+          </td>
+          <td style="padding: 10px 12px; text-align: right; font-size: 12px; font-weight: 800; color: ${amountColor};">
+            ${prefix}${fmtCurrency(item.amount)}
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+  }
+
+  // 2. Build Debts & Installments Rows
+  const debtItems: Array<{ name: string; typeStr: string; dueDateStr: string; amount: number; isOverdue: boolean; isPaid: boolean }> = [];
+  debts.forEach((d) => {
+    const isPaid = !!d.isPaid;
+    const rem = Number(d.remaining ?? d.amount ?? 0);
+    const isOverdue = !isPaid && !!d.dueDate && d.dueDate < todayStr;
+    debtItems.push({
+      name: d.name || "Tekil Borç",
+      typeStr: "Tekil Borç",
+      dueDateStr: d.dueDate || "-",
+      amount: rem,
+      isOverdue,
+      isPaid,
+    });
+  });
+
+  installmentDebts.forEach((inst) => {
+    const isCompleted = !!inst.isCompleted;
+    const rem = Number(inst.remainingAmount ?? inst.totalAmount ?? 0);
+    let isOverdue = false;
+    if (inst.installments && Array.isArray(inst.installments)) {
+      inst.installments.forEach((part: any) => {
+        if (!part.isPaid && part.dueDate && part.dueDate < todayStr) {
+          isOverdue = true;
+        }
+      });
+    }
+
+    const paidCnt = inst.paidInstallments || 0;
+    const totCnt = inst.totalInstallments || 1;
+
+    debtItems.push({
+      name: inst.name || inst.title || "Taksitli Borç",
+      typeStr: `Taksit (${paidCnt}/${totCnt})`,
+      dueDateStr: isCompleted ? "Tamamlandı" : "Aylık Taksit",
+      amount: rem,
+      isOverdue,
+      isPaid: isCompleted,
+    });
+  });
+
+  let debtRowsHtml = "";
+  if (debtItems.length === 0) {
+    debtRowsHtml = `
+      <tr>
+        <td colspan="4" style="padding: 14px; text-align: center; color: ${theme.textColorSecondary}; font-size: 12px; font-style: italic;">
+          Kayıtlı aktif borç veya taksit bulunmamaktadır.
+        </td>
+      </tr>
+    `;
+  } else {
+    debtRowsHtml = debtItems
+      .map((item) => {
+        let statusText = "Vadesinde";
+        let statusBg = "#e0f2fe";
+        let statusColor = "#0369a1";
+
+        if (item.isPaid) {
+          statusText = "Ödendi / Kapalı";
+          statusBg = "#dcfce7";
+          statusColor = "#15803d";
+        } else if (item.isOverdue) {
+          statusText = "Gecikmede";
+          statusBg = "#ffe4e6";
+          statusColor = "#be123c";
+        }
+
+        return `
+        <tr style="border-bottom: 1px solid ${theme.tableBorderColor};">
+          <td style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: ${theme.textColorPrimary};">
+            ${item.name}
+          </td>
+          <td style="padding: 10px 12px; font-size: 11px; color: ${theme.textColorSecondary}; text-align: center;">
+            ${item.typeStr}
+          </td>
+          <td style="padding: 10px 12px; font-size: 11px; color: ${theme.textColorSecondary}; text-align: center;">
+            ${item.dueDateStr}
+          </td>
+          <td style="padding: 10px 12px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; background-color: ${statusBg}; color: ${statusColor};">
+              ${statusText}
+            </span>
+          </td>
+          <td style="padding: 10px 12px; text-align: right; font-size: 12px; font-weight: 800; color: ${item.isOverdue ? "#e11d48" : theme.textColorPrimary};">
+            ${fmtCurrency(item.amount)}
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+  }
+
+  // Complete Email Template (STRICTLY NO LINKS OR <a href="..."> TAGS AT ALL)
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bütçem Pro - Finansal Rapor</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${theme.bodyBg}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: ${theme.bodyBg}; padding: 24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 650px; background-color: ${theme.containerBg}; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); border: 1px solid ${theme.tableBorderColor};">
+          
+          <!-- HEADER BANNER -->
+          <tr>
+            <td style="background: ${theme.headerBg}; padding: 32px 24px; text-align: center;">
+              <div style="font-size: 38px; margin-bottom: 6px;">💼</div>
+              <h1 style="margin: 0; color: ${theme.headerTextColor}; font-size: 22px; font-weight: 900; letter-spacing: -0.02em;">
+                Bütçem Pro - Finansal Durum Raporu
+              </h1>
+              <p style="margin: 8px 0 0 0; color: ${theme.subTextColor}; font-size: 13px; font-weight: 500;">
+                Sayın ${userName}, ${dateFormatted} tarihi itibarıyla güncel finansal özetiniz
+              </p>
+            </td>
+          </tr>
+
+          <!-- 1. TABLO: GENEL FİNANSAL ÖZET -->
+          <tr>
+            <td style="padding: 24px 24px 12px 24px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 900; color: ${theme.accentColor}; text-transform: uppercase; letter-spacing: 0.05em;">
+                📊 1. GENEL FİNANSAL ÖZET TABLOSU
+              </h3>
+              <table width="100%" cellspacing="0" cellpadding="0" style="background: ${theme.cardBg}; border: 1px solid ${theme.cardBorder}; border-radius: 14px; overflow: hidden; border-collapse: collapse;">
+                <thead>
+                  <tr style="background-color: ${theme.tableHeaderBg};">
+                    <th style="padding: 10px 8px; font-size: 10px; font-weight: 800; color: ${theme.tableHeaderTextColor}; text-transform: uppercase; text-align: center; border-right: 1px solid ${theme.tableBorderColor};">
+                      Toplam Gelir
+                    </th>
+                    <th style="padding: 10px 8px; font-size: 10px; font-weight: 800; color: ${theme.tableHeaderTextColor}; text-transform: uppercase; text-align: center; border-right: 1px solid ${theme.tableBorderColor};">
+                      Toplam Gider
+                    </th>
+                    <th style="padding: 10px 8px; font-size: 10px; font-weight: 800; color: ${theme.tableHeaderTextColor}; text-transform: uppercase; text-align: center; border-right: 1px solid ${theme.tableBorderColor};">
+                      Net Bakiye
+                    </th>
+                    <th style="padding: 10px 8px; font-size: 10px; font-weight: 800; color: ${theme.tableHeaderTextColor}; text-transform: uppercase; text-align: center; border-right: 1px solid ${theme.tableBorderColor};">
+                      Toplam Kalan Borç
+                    </th>
+                    <th style="padding: 10px 8px; font-size: 10px; font-weight: 800; color: ${theme.tableHeaderTextColor}; text-transform: uppercase; text-align: center;">
+                      Geciken Borç
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px 6px; text-align: center; font-size: 13px; font-weight: 900; color: #16a34a; border-right: 1px solid ${theme.tableBorderColor};">
+                      ${fmtCurrency(totalIncome)}
+                    </td>
+                    <td style="padding: 12px 6px; text-align: center; font-size: 13px; font-weight: 900; color: #dc2626; border-right: 1px solid ${theme.tableBorderColor};">
+                      ${fmtCurrency(totalExpense)}
+                    </td>
+                    <td style="padding: 12px 6px; text-align: center; font-size: 13px; font-weight: 900; color: ${netBalance >= 0 ? "#16a34a" : "#dc2626"}; border-right: 1px solid ${theme.tableBorderColor};">
+                      ${fmtCurrency(netBalance)}
+                    </td>
+                    <td style="padding: 12px 6px; text-align: center; font-size: 13px; font-weight: 900; color: ${theme.accentColor}; border-right: 1px solid ${theme.tableBorderColor};">
+                      ${fmtCurrency(totalActiveDebt)}
+                    </td>
+                    <td style="padding: 12px 6px; text-align: center; font-size: 13px; font-weight: 900; color: ${totalOverdueDebt > 0 ? "#e11d48" : "#16a34a"};">
+                      ${totalOverdueDebt > 0 ? fmtCurrency(totalOverdueDebt) : "₺0,00"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 2. TABLO: GELİR VE GİDER DETAY LİSTESİ -->
+          <tr>
+            <td style="padding: 12px 24px 12px 24px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 900; color: ${theme.accentColor}; text-transform: uppercase; letter-spacing: 0.05em;">
+                💵 2. GELİR VE GİDER DETAY TABLOSU
+              </h3>
+              <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: ${theme.cardBg}; border: 1px solid ${theme.tableBorderColor}; border-radius: 12px; overflow: hidden;">
+                <thead>
+                  <tr style="background: ${theme.tableHeaderBg};">
+                    <th style="padding: 8px 12px; text-align: left; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Açıklama</th>
+                    <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Kategori</th>
+                    <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Tür</th>
+                    <th style="padding: 8px 12px; text-align: right; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Tutar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${incExpRowsHtml}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 3. TABLO: TÜM BORÇLAR VE TAKSİTLER TABLOSU -->
+          <tr>
+            <td style="padding: 12px 24px 20px 24px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 900; color: ${theme.accentColor}; text-transform: uppercase; letter-spacing: 0.05em;">
+                💳 3. TÜM BORÇLAR VE TAKSİTLER TABLOSU
+              </h3>
+              <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: ${theme.cardBg}; border: 1px solid ${theme.tableBorderColor}; border-radius: 12px; overflow: hidden;">
+                <thead>
+                  <tr style="background: ${theme.tableHeaderBg};">
+                    <th style="padding: 8px 12px; text-align: left; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Borç / Taksit Adı</th>
+                    <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Tür</th>
+                    <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Vade / Taksit</th>
+                    <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Durum</th>
+                    <th style="padding: 8px 12px; text-align: right; font-size: 11px; color: ${theme.tableHeaderTextColor}; font-weight: 800;">Kalan Tutar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${debtRowsHtml}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER (STRICTLY NO LINKS) -->
+          <tr>
+            <td style="background: ${theme.cardBg}; padding: 18px 24px; border-top: 1px solid ${theme.tableBorderColor}; text-align: center;">
+              <p style="margin: 0; font-size: 11px; color: ${theme.textColorSecondary}; line-height: 1.5;">
+                Bu finansal rapor <strong>Bütçem Pro</strong> e-posta raporlama servisi tarafından güvenli bir şekilde hazırlanmıştır.
+              </p>
+              <p style="margin: 4px 0 0 0; font-size: 10px; color: ${theme.textColorSecondary}; font-weight: 600;">
+                Bütçem Pro &copy; ${new Date().getFullYear()} - Kişisel Finans ve Bütçe Takip Asistanı
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// Generate HTML email template for debt report
 export function generateOverdueEmailHtml(
+
   email: string,
   user: string,
   analysis: DebtAnalysisSummary,

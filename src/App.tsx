@@ -5539,7 +5539,7 @@ export default function App() {
                 }`}
               >
                 <Mail className="w-4 h-4" />
-                <span>E-Posta Bildirimleri</span>
+                <span>E-Posta Raporu Gönder</span>
               </button>
             </div>
 
@@ -6046,12 +6046,14 @@ export default function App() {
               </div>
             )}
 
-            {/* SEÇİLEN BÖLÜM 3: E-POSTA BİLDİRİM SERVİSİ */}
+            {/* SEÇİLEN BÖLÜM 3: E-POSTA RAPOR SERVİSİ */}
             {notifSectionTab === "email" && (
               <div className="space-y-4 animate-fade-in">
                 <VerifyEmailNotificationSection
                   debts={debts}
                   installmentDebts={installmentDebts}
+                  incomes={incomes}
+                  expenses={expenses}
                   language={language}
                   onSuccessToast={(msg) => triggerToast(msg)}
                 />

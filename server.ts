@@ -1806,16 +1806,19 @@ let vapidKeys = { publicKey: "", privateKey: "" };
 
 if (fs.existsSync(VAPID_KEYS_FILE)) {
   try {
-    vapidKeys = JSON.parse(fs.readFileSync(VAPID_KEYS_FILE, 'utf8'));
+    const raw = fs.readFileSync(VAPID_KEYS_FILE, 'utf8').trim();
+    if (raw) {
+      vapidKeys = JSON.parse(raw);
+    }
   } catch (e) {
-    console.error("Vapid keys parse error, regenerating...", e);
+    console.warn("[Push Server] Vapid keys parse error, generating new persistent keys...");
   }
 }
 
 if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
   vapidKeys = webpush.generateVAPIDKeys();
   try {
-    fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(vapidKeys), 'utf8');
+    fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(vapidKeys, null, 2), 'utf8');
     console.log("[Push Server] Dynamically generated new persistent VAPID keys.");
   } catch (e) {
     console.error("[Push Server] Could not write VAPID keys file:", e);
@@ -1848,9 +1851,12 @@ let subscriptionsMap: Record<string, PushSubscriptionRecord> = {};
 
 if (fs.existsSync(PUSH_SUBS_FILE)) {
   try {
-    subscriptionsMap = JSON.parse(fs.readFileSync(PUSH_SUBS_FILE, 'utf8'));
+    const raw = fs.readFileSync(PUSH_SUBS_FILE, 'utf8').trim();
+    if (raw) {
+      subscriptionsMap = JSON.parse(raw);
+    }
   } catch (e) {
-    console.error("[Push Server] Failed to parse push subscriptions:", e);
+    console.warn("[Push Server] Failed to parse push subscriptions:", e);
   }
 }
 
@@ -2319,11 +2325,13 @@ let emailSubscribersMap: Record<string, EmailNotificationSubscriber> = {};
 // Load email subscribers from disk
 if (fs.existsSync(EMAIL_SUBSCRIBERS_FILE)) {
   try {
-    const raw = fs.readFileSync(EMAIL_SUBSCRIBERS_FILE, "utf-8");
-    emailSubscribersMap = JSON.parse(raw);
-    console.log(`[Email Alert Engine] Loaded ${Object.keys(emailSubscribersMap).length} email subscribers.`);
+    const raw = fs.readFileSync(EMAIL_SUBSCRIBERS_FILE, "utf-8").trim();
+    if (raw) {
+      emailSubscribersMap = JSON.parse(raw);
+      console.log(`[Email Alert Engine] Loaded ${Object.keys(emailSubscribersMap).length} email subscribers.`);
+    }
   } catch (e) {
-    console.error("[Email Alert Engine] Error loading email_subscribers.json:", e);
+    console.warn("[Email Alert Engine] Error loading email_subscribers.json:", e);
     emailSubscribersMap = {};
   }
 }
@@ -2749,11 +2757,13 @@ let currentCustomSmtp: CustomSmtpConfig = {};
 // Load custom SMTP configuration from disk if exists
 if (fs.existsSync(SMTP_CONFIG_FILE)) {
   try {
-    const raw = fs.readFileSync(SMTP_CONFIG_FILE, "utf-8");
-    currentCustomSmtp = JSON.parse(raw);
-    console.log(`[SMTP Engine] Loaded custom SMTP config for user: ${currentCustomSmtp.user || "none"}`);
+    const raw = fs.readFileSync(SMTP_CONFIG_FILE, "utf-8").trim();
+    if (raw) {
+      currentCustomSmtp = JSON.parse(raw);
+      console.log(`[SMTP Engine] Loaded custom SMTP config for user: ${currentCustomSmtp.user || "none"}`);
+    }
   } catch (err) {
-    console.error("[SMTP Engine] Error loading custom_smtp_config.json:", err);
+    console.warn("[SMTP Engine] Error loading custom_smtp_config.json:", err);
   }
 }
 
@@ -3079,6 +3089,36 @@ app.post("/api/notifications/email/verify", async (req, res) => {
       totalActiveCount: debtAnalysis.totalActiveCount
     }
   });
+});
+
+// Direct Rich HTML Email Send endpoint
+app.post("/api/notifications/email/send-direct", async (req, res) => {
+  const { recipientEmail, subject, htmlContent } = req.body;
+  if (!recipientEmail || typeof recipientEmail !== "string" || !recipientEmail.includes("@")) {
+    return res.status(400).json({ success: false, error: "Geçerli bir alıcı e-posta adresi giriniz." });
+  }
+
+  try {
+    const mailResult = await sendMailHelper({
+      to: recipientEmail.trim(),
+      subject: subject || `Bütçem Pro: Finansal Rapor ve Bütçe Özeti (${new Date().toLocaleDateString("tr-TR")})`,
+      html: htmlContent,
+    });
+
+    if (mailResult.success) {
+      return res.json({
+        success: true,
+        simulated: mailResult.simulated,
+        message: mailResult.simulated
+          ? "E-posta simüle edildi."
+          : "Finansal rapor e-postası başarıyla alıcıya gönderildi! 🚀",
+      });
+    } else {
+      return res.status(500).json({ success: false, error: mailResult.error || "E-posta gönderilemedi." });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "E-posta sunucusu hatası." });
+  }
 });
 
 // 3. Get subscriber status by email
