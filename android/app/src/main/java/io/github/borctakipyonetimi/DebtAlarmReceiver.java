@@ -1,6 +1,7 @@
 package io.github.borctakipyonetimi;
 
 import android.Manifest;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -14,6 +15,8 @@ import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -26,36 +29,56 @@ import androidx.core.app.NotificationManagerCompat;
 
 /**
  * DebtAlarmReceiver:
- * Web sitesinden veya yerel veri tabanından gelen borç hatırlatma alarmlarını
- * uygulama tamamen kapalıyken veya telefon uykudayken (Doze Mode) bile yakalar,
- * sistem alarm sesini çaldırır, güçlü titreşim üretir ve üst bildirim çekmecesinde
- * kalıcı (Heads-Up) bildirim oluşturur.
+ * Web sitesinden veya yerel veritabanından gelen borç hatırlatma alarmlarını
+ * telefon tamamen kapalıyken (ekran kilitli/uykuda) bile donanım seviyesinde yakalar.
+ * 
+ * - Ekranı fiziksel olarak aydınlatır (SCREEN_BRIGHT_WAKE_LOCK & ACQUIRE_CAUSES_WAKEUP).
+ * - Bildirim çekmecesinden aşağı doğru açılan (Heads-Up Banner) uyarı üretir.
+ * - Kapalı kilit ekranında tam mesajı gizlemeden (VISIBILITY_PUBLIC) gösterir.
+ * - Sistem alarm sesini (TYPE_ALARM) ve titreşim motorunu tetikler.
  */
 public class DebtAlarmReceiver extends BroadcastReceiver {
 
     private static final String TAG = "DebtAlarmReceiver";
-    public static final String CHANNEL_ID = "borc_takip_alarm_channel";
-    public static final String CHANNEL_NAME = "Borç & Vade Alarmları";
-    public static final String CHANNEL_DESC = "Vadesi gelen borç ve taksitler için sesli/titreşimli acil uyarılar";
+    public static final String CHANNEL_ID = "borc_takip_alarm_channel_v3";
+    public static final String CHANNEL_NAME = "Borç & Vade Acil Alarmları";
+    public static final String CHANNEL_DESC = "Vadesi gelen borç ve taksitler için sesli, titreşimli ve açılır kilit ekranı uyarıları";
 
     public static final String EXTRA_ALARM_ID = "extra_alarm_id";
     public static final String EXTRA_TITLE = "extra_title";
     public static final String EXTRA_MESSAGE = "extra_message";
     public static final String EXTRA_TIMESTAMP = "extra_timestamp";
 
+    private static Ringtone activeRingtone = null;
+    private static final Handler soundTimeoutHandler = new Handler(Looper.getMainLooper());
+    private static final Runnable stopSoundRunnable = DebtAlarmReceiver::stopAlarmSound;
+
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "DebtAlarmReceiver tetiklendi! Intent action: " + intent.getAction());
+        Log.d(TAG, "DebtAlarmReceiver tetiklendi! Intent: " + intent.getAction());
 
-        // 1. CPU'yu uyanık tutmak için güvenli bir WakeLock al (telefon uykudayken alarmın çalması için şarttır)
+        // 1. Ekranı Aydınlatma ve CPU WakeLock (Telefon ekran kapalıyken ekranı açmak için şarttır)
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wakeLock = null;
+        PowerManager.WakeLock screenLock = null;
+
         if (powerManager != null) {
-            wakeLock = powerManager.newWakeLock(
-                    PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                    "BorcTakip:AlarmWakeLock"
-            );
-            wakeLock.acquire(10 * 1000L /* 10 saniye otomatik emniyet süresi */);
+            try {
+                // CPU'yu uyanık tutan WakeLock
+                wakeLock = powerManager.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "BorcTakip:CpuWakeLock"
+                );
+                wakeLock.acquire(15 * 1000L);
+
+                // Fiziksel ekranı açan / aydınlatan WakeLock (Ekran kapalıyken uyarının görünmesini sağlar)
+                @SuppressWarnings("deprecation")
+                int screenFlags = PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE;
+                screenLock = powerManager.newWakeLock(screenFlags, "BorcTakip:ScreenBrightWakeLock");
+                screenLock.acquire(15 * 1000L);
+            } catch (Exception e) {
+                Log.w(TAG, "WakeLock başlatma uyarısı:", e);
+            }
         }
 
         try {
@@ -70,10 +93,11 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                 message = "Planlanan borç veya taksitinizin son ödeme günü geldi. Lütfen kontrol edin.";
             }
 
-            // 2. Android 8.0 (API 26+) Bildirim Kanalını yapılandır (Yüksek öncelik, alarm sesi ve titreşim)
+            // 2. Android 8.0+ Bildirim Kanalını oluştur (Yüksek öncelik, Heads-Up açılır pencere ve kilit ekranı görünürlüğü)
             createNotificationChannel(context);
 
-            // 3. Bildirime tıklandığında MainActivity'yi açacak PendingIntent
+            // 3. PendingIntentler:
+            // a) Uygulamayı Aç (MainActivity)
             Intent openIntent = new Intent(context, MainActivity.class);
             openIntent.putExtra("NAVIGATE_TO", "debts");
             openIntent.putExtra("ALARM_ID", alarmId);
@@ -91,7 +115,32 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                     pendingFlags
             );
 
-            // 4. Sistem Alarm Zil Sesini Al (Varsayılan Alarm Sesi, yoksa Bildirim Sesi)
+            // b) Tam Ekran ve Kilit Ekranı Heads-Up Intent (AlarmAlertActivity)
+            Intent alertIntent = new Intent(context, AlarmAlertActivity.class);
+            alertIntent.putExtra(AlarmAlertActivity.EXTRA_ALARM_ID, alarmId);
+            alertIntent.putExtra(AlarmAlertActivity.EXTRA_TITLE, title);
+            alertIntent.putExtra(AlarmAlertActivity.EXTRA_MESSAGE, message);
+            alertIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
+                    context,
+                    alarmId + 100000,
+                    alertIntent,
+                    pendingFlags
+            );
+
+            // c) Bildirimi Kapat Butonu Intent (DebtAlarmDismissReceiver)
+            Intent dismissIntent = new Intent(context, DebtAlarmDismissReceiver.class);
+            dismissIntent.setAction(DebtAlarmDismissReceiver.ACTION_DISMISS);
+            dismissIntent.putExtra(EXTRA_ALARM_ID, alarmId);
+            PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    alarmId + 200000,
+                    dismissIntent,
+                    pendingFlags
+            );
+
+            // 4. Sistem Alarm Zil Sesini Belirle
             Uri alarmSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (alarmSoundUri == null) {
                 alarmSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
@@ -100,96 +149,116 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                 alarmSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
 
-            // 5. Titreşim Deseni (0ms bekle, 600ms titret, 250ms dur, 600ms titret, 250ms dur, 800ms titret)
+            // 5. Titreşim Deseni
             long[] vibrationPattern = new long[]{0, 600, 250, 600, 250, 800};
 
-            // 6. Heads-Up Kalıcı Bildirim İnşası
+            // 6. Güvenli Küçük İkon Tespiti (Uygulama kaynaklarından geçerli drawable seçimi)
+            int smallIconId = context.getResources().getIdentifier("ic_stat_alarm", "drawable", context.getPackageName());
+            if (smallIconId == 0) {
+                smallIconId = context.getApplicationInfo().icon;
+            }
+            if (smallIconId == 0) {
+                smallIconId = android.R.drawable.stat_notify_more;
+            }
+
+            // 7. Heads-Up Bildirim İnşası
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                    .setSmallIcon(smallIconId)
                     .setContentTitle(title)
                     .setContentText(message)
-                    .setStyle(new NotificationCompat.BigTextStyle().bigText(message + "\n\n💡 Vade gecikme faizlerinden korunmak için ödemenizi zamanında tamamlayın."))
+                    .setStyle(new NotificationCompat.BigTextStyle()
+                            .setBigContentTitle("⏰ " + title)
+                            .bigText(message + "\n\n💡 Vade gecikme faizlerinden korunmak için ödemenizi zamanında tamamlayın.")
+                            .setSummaryText("Vade Hatırlatıcısı"))
                     .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
-                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Kilit ekranında tam içerik gösterimi
                     .setContentIntent(contentPendingIntent)
+                    .setFullScreenIntent(fullScreenPendingIntent, true) // Bildirim çekmecesinden aşağı inen Heads-Up ve kilit ekranı uyarısı
                     .setAutoCancel(true)
                     .setOngoing(false)
                     .setSound(alarmSoundUri)
                     .setVibrate(vibrationPattern)
                     .setLights(Color.RED, 1000, 500)
-                    .setFullScreenIntent(contentPendingIntent, true); // Kilit ekranında tam ekran alarm uyarısı
+                    .addAction(android.R.drawable.ic_menu_view, "Ödemeyi Gör", contentPendingIntent)
+                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Kapat", dismissPendingIntent);
 
-            // 7. Titreşim Servisini manuel olarak da tetikle (Bazı üreticilerin sessiz mod filtrelerini aşmak için)
+            // 8. Donanımsal Titreşimi Tetikle
             triggerHardwareVibration(context, vibrationPattern);
 
-            // 8. Ses Çalmayı Bağımsız Olarak da Başlat (Sistem kanal sesine ek olarak garanti altına alma)
+            // 9. Alarm Sesini Oynat (Sistem kanalına ek olarak garantili ses)
             playAlarmSound(context, alarmSoundUri);
 
-            // 9. Android 13+ (API 33+) İzin Kontrolü yaparak bildirimi yayınla
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                    NotificationManagerCompat.from(context).notify(alarmId, builder.build());
-                } else {
-                    Log.w(TAG, "POST_NOTIFICATIONS izni henüz verilmemiş. Bildirim gösterilemedi ancak ses/titreşim çalındı.");
-                }
-            } else {
-                NotificationManagerCompat.from(context).notify(alarmId, builder.build());
+            // 10. Bildirimi Hem NotificationManager Hem de NotificationManagerCompat ile Yayınla
+            Notification notification = builder.build();
+            NotificationManager systemNotificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+            if (systemNotificationManager != null) {
+                systemNotificationManager.notify(alarmId, notification);
             }
 
-            Log.i(TAG, "Borç alarm bildirimi başarıyla üst çekmeceye gönderildi. ID: " + alarmId);
+            try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                    NotificationManagerCompat.from(context).notify(alarmId, notification);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "NotificationManagerCompat notify uyarısı:", e);
+            }
+
+            Log.i(TAG, "Borç alarm bildirimi üst çekmeceye ve kilit ekranına başarıyla gönderildi. ID: " + alarmId);
 
         } catch (Exception e) {
-            Log.e(TAG, "DebtAlarmReceiver alarm işleme hatası:", e);
+            Log.e(TAG, "DebtAlarmReceiver işlem hatası:", e);
         } finally {
             if (wakeLock != null && wakeLock.isHeld()) {
-                wakeLock.release();
+                try { wakeLock.release(); } catch (Exception ignored) {}
+            }
+            if (screenLock != null && screenLock.isHeld()) {
+                try { screenLock.release(); } catch (Exception ignored) {}
             }
         }
     }
 
     /**
-     * Android 8.0+ için yüksek öncelikli, alarm sesli bildirim kanalı oluşturur.
+     * Android 8.0+ için Heads-Up ve Kilit Ekranı destekli bildirim kanalı oluşturur.
      */
     private void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
             if (notificationManager != null) {
-                // Kanal zaten varsa tekrar oluşturulmaz
-                NotificationChannel existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID);
-                if (existingChannel == null) {
-                    NotificationChannel channel = new NotificationChannel(
-                            CHANNEL_ID,
-                            CHANNEL_NAME,
-                            NotificationManager.IMPORTANCE_HIGH
-                    );
-                    channel.setDescription(CHANNEL_DESC);
-                    channel.enableLights(true);
-                    channel.setLightColor(Color.RED);
-                    channel.enableVibration(true);
-                    channel.setVibrationPattern(new long[]{0, 600, 250, 600, 250, 800});
-                    channel.setLockscreenVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+                NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        CHANNEL_NAME,
+                        NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription(CHANNEL_DESC);
+                channel.enableLights(true);
+                channel.setLightColor(Color.RED);
+                channel.enableVibration(true);
+                channel.setVibrationPattern(new long[]{0, 600, 250, 600, 250, 800});
+                channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                channel.setShowBadge(true);
+                channel.setBypassDnd(true);
 
-                    Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                    if (alarmSound == null) {
-                        alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-                    }
-
-                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build();
-
-                    channel.setSound(alarmSound, audioAttributes);
-                    channel.setBypassDnd(true); // Rahatsız etmeyin modunu aşma yetkisi
-                    notificationManager.createNotificationChannel(channel);
+                Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (alarmSound == null) {
+                    alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
                 }
+
+                AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build();
+
+                channel.setSound(alarmSound, audioAttributes);
+                notificationManager.createNotificationChannel(channel);
             }
         }
     }
 
     /**
-     * Donanım titreşimini bağımsız olarak çalıştırır.
+     * Cihazın titreşim motorunu çalıştırır.
      */
     private void triggerHardwareVibration(Context context, long[] pattern) {
         try {
@@ -210,15 +279,16 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                 }
             }
         } catch (Exception e) {
-            Log.w(TAG, "Titreşim motoru çalıştırılamadı:", e);
+            Log.w(TAG, "Titreşim motoru uyarısı:", e);
         }
     }
 
     /**
-     * Sistem alarm sesini RingtoneManager ile anında çalar.
+     * Sistem alarm sesini RingtoneManager ile çalar ve 45 saniye sonra otomatik durdurur.
      */
     private void playAlarmSound(Context context, Uri soundUri) {
         try {
+            stopAlarmSound();
             Ringtone ringtone = RingtoneManager.getRingtone(context.getApplicationContext(), soundUri);
             if (ringtone != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -228,9 +298,29 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                             .build());
                 }
                 ringtone.play();
+                activeRingtone = ringtone;
+
+                // 45 saniye sonra çalmayı otomatik durdur
+                soundTimeoutHandler.removeCallbacks(stopSoundRunnable);
+                soundTimeoutHandler.postDelayed(stopSoundRunnable, 45 * 1000L);
             }
         } catch (Exception e) {
-            Log.w(TAG, "Alarm zil sesi bağımsız oynatıcıda çalınamadı:", e);
+            Log.w(TAG, "Alarm sesi oynatma uyarısı:", e);
+        }
+    }
+
+    /**
+     * Çalmakta olan alarm sesini susturur.
+     */
+    public static synchronized void stopAlarmSound() {
+        try {
+            soundTimeoutHandler.removeCallbacks(stopSoundRunnable);
+            if (activeRingtone != null && activeRingtone.isPlaying()) {
+                activeRingtone.stop();
+            }
+            activeRingtone = null;
+        } catch (Exception e) {
+            Log.w(TAG, "Alarm sesini durdurma uyarısı:", e);
         }
     }
 }

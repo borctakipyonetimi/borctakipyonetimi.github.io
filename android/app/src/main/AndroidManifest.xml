@@ -10,12 +10,19 @@
     <!-- Android 13+ (API 33+) Sistem Çekmecesi Bildirim Gösterme İzni -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Android 10+ / 14+ Kilit Ekranından Aşağı İnen Heads-Up Bildirim ve Tam Ekran Alarm İzni -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Telefon Ekranını Fiziksel Olarak Açma ve Kilit Ekranını Uyandırma İzinleri -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+
     <!-- Android 12+ (API 31+) ve Android 14+ Tam Zamanlı Arka Plan Alarm İzinleri -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
-    <!-- Telefon Kapalıyken / Ekran Kilitliyken CPU Uyanma ve Titreşim İzinleri -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Donanımsal Titreşim İzni -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Telefon Yeniden Başlatıldığında (Reboot) Alarmları Otomatik Geri Yükleme İzni -->
@@ -23,9 +30,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_stat_alarm"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@drawable/ic_stat_alarm"
         android:supportsRtl="true"
         android:theme="@style/Theme.BorcTakip"
         android:usesCleartextTraffic="true"
@@ -35,6 +42,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -43,6 +52,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Kilit Ekranında ve Ekran Kapalıyken Üstten Açılan Acil Alarm Penceresi -->
+        <activity
+            android:name=".AlarmAlertActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.BorcTakip" />
+
         <!-- Arka Planda Borç Hatırlatıcılarını Yakalayıp Sesli/Titreşimli Alarm Üreten Receiver -->
         <receiver
             android:name=".DebtAlarmReceiver"
@@ -50,6 +69,16 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="io.github.borctakipyonetimi.ACTION_DEBT_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Üst Çekmecedeki 'Kapat' Butonu Eylemini Yakalayan Receiver -->
+        <receiver
+            android:name=".DebtAlarmDismissReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.github.borctakipyonetimi.ACTION_DISMISS_ALARM" />
             </intent-filter>
         </receiver>
 

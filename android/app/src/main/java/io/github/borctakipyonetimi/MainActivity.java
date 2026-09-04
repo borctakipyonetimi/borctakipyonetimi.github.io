@@ -3,6 +3,8 @@ package io.github.borctakipyonetimi;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlarmManager;
+import android.app.KeyguardManager;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -15,6 +17,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -58,8 +61,11 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setupWindowFlags();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        handleIncomingAlarmIntent(getIntent());
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
@@ -193,6 +199,46 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "⚠️ Bildirim izni verilmediğinde telefon kapalıyken uyarı alamazsınız.", Toast.LENGTH_LONG).show();
             }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingAlarmIntent(intent);
+    }
+
+    private void handleIncomingAlarmIntent(Intent intent) {
+        if (intent != null) {
+            DebtAlarmReceiver.stopAlarmSound();
+            int alarmId = intent.getIntExtra("ALARM_ID", 0);
+            if (alarmId != 0) {
+                try {
+                    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (nm != null) {
+                        nm.cancel(alarmId);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private void setupWindowFlags() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            if (km != null) {
+                km.requestDismissKeyguard(this, null);
+            }
+        } else {
+            getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            );
         }
     }
 
