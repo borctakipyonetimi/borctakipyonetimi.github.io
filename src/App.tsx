@@ -434,9 +434,16 @@ export default function App() {
   });
   const [marqueeSpeed, setMarqueeSpeed] = useState<number>(() => {
     const saved = localStorage.getItem("marqueeSpeed");
-    return saved ? parseInt(saved, 10) : 120;
+    return saved ? parseInt(saved, 10) : 55;
   });
-  const [marqueePaused, setMarqueePaused] = useState<boolean>(false);
+  const [marqueePaused, setMarqueePaused] = useState<boolean>(() => {
+    return localStorage.getItem("marqueePaused") === "true";
+  });
+
+  const handleSetMarqueePaused = (val: boolean) => {
+    setMarqueePaused(val);
+    localStorage.setItem("marqueePaused", String(val));
+  };
 
   // CSV Report Filter modal states
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -4752,83 +4759,94 @@ export default function App() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const getNextInstallmentDueDate = (firstDueDateStr: string, paidCount: number, totalCount: number): string | null => {
+        const calculateDiffDays = (dateStr: string | null | undefined): number | null => {
+          if (!dateStr) return null;
+          const parts = parseDateParts(dateStr);
+          if (!parts) return null;
+          const due = new Date(parts.year, parts.month, parts.day, 0, 0, 0, 0);
+          const diffTime = due.getTime() - today.getTime();
+          return Math.round(diffTime / (1000 * 60 * 60 * 24));
+        };
+
+        const getNextInstallmentDateInfo = (firstDueDateStr: string, paidCount: number, totalCount: number) => {
           if (paidCount >= totalCount) return null;
-          try {
-            const baseDate = new Date(firstDueDateStr);
-            if (isNaN(baseDate.getTime())) return null;
-            baseDate.setMonth(baseDate.getMonth() + paidCount);
-            return baseDate.toISOString().slice(0, 10);
-          } catch {
-            return null;
-          }
+          const parts = parseDateParts(firstDueDateStr);
+          if (!parts) return null;
+          const nextDate = new Date(parts.year, parts.month + paidCount, parts.day, 0, 0, 0, 0);
+          const diffTime = nextDate.getTime() - today.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          const y = nextDate.getFullYear();
+          const m = String(nextDate.getMonth() + 1).padStart(2, "0");
+          const d = String(nextDate.getDate()).padStart(2, "0");
+          return {
+            dueDateStr: `${y}-${m}-${d}`,
+            formattedDate: `${d}.${m}.${y}`,
+            diffDays,
+          };
         };
 
         const singleAlerts = debts
           .filter((d) => d.paid < d.amount && d.dueDate)
           .map((d) => {
-            try {
-              const due = new Date(d.dueDate);
-              due.setHours(0, 0, 0, 0);
-              const diffTime = due.getTime() - today.getTime();
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              const remainingAmount = d.amount - d.paid;
-              return {
-                id: `single-${d.id}`,
-                originalId: d.id,
-                type: "single" as const,
-                name: d.name,
-                category: d.category,
-                providerId: d.providerId,
-                dueDate: d.dueDate,
-                remainingAmount,
-                isOverdue: diffDays < 0,
-                days: Math.abs(diffDays),
-                actualDiffDays: diffDays,
-              };
-            } catch {
-              return null;
-            }
+            const diffDays = calculateDiffDays(d.dueDate);
+            if (diffDays === null) return null;
+            const remainingAmount = d.amount - d.paid;
+            const parts = parseDateParts(d.dueDate);
+            const formattedDate = parts ? `${String(parts.day).padStart(2, "0")}.${String(parts.month + 1).padStart(2, "0")}.${parts.year}` : d.dueDate;
+            return {
+              id: `single-${d.id}`,
+              originalId: d.id,
+              type: "single" as const,
+              name: d.name,
+              category: d.category,
+              providerId: d.providerId,
+              dueDate: d.dueDate,
+              formattedDate,
+              remainingAmount,
+              isOverdue: diffDays < 0,
+              days: Math.abs(diffDays),
+              actualDiffDays: diffDays,
+            };
           });
 
         const installmentAlerts = installmentDebts
-          .filter((inst) => inst.paidInstallmentCount < inst.installmentCount)
+          .filter((inst) => inst.paidInstallmentCount < inst.installmentCount && inst.firstDueDate)
           .map((inst) => {
-            try {
-              const nextDueDate = getNextInstallmentDueDate(inst.firstDueDate, inst.paidInstallmentCount, inst.installmentCount);
-              if (!nextDueDate) return null;
-              const due = new Date(nextDueDate);
-              due.setHours(0, 0, 0, 0);
-              const diffTime = due.getTime() - today.getTime();
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              const installmentAmount = inst.totalAmount / inst.installmentCount;
-              return {
-                id: `installment-${inst.id}`,
-                originalId: inst.id,
-                type: "installment" as const,
-                name: inst.name,
-                installmentLabel: `${inst.paidInstallmentCount + 1}. Taksit`,
-                dueDate: nextDueDate,
-                remainingAmount: installmentAmount,
-                isOverdue: diffDays < 0,
-                days: Math.abs(diffDays),
-                actualDiffDays: diffDays,
-                providerId: inst.providerId,
-              };
-            } catch {
-              return null;
-            }
+            const nextInfo = getNextInstallmentDateInfo(inst.firstDueDate, inst.paidInstallmentCount, inst.installmentCount);
+            if (!nextInfo) return null;
+            const installmentAmount = inst.totalAmount / inst.installmentCount;
+            return {
+              id: `installment-${inst.id}`,
+              originalId: inst.id,
+              type: "installment" as const,
+              name: inst.name,
+              installmentLabel: `${inst.paidInstallmentCount + 1}. Taksit`,
+              dueDate: nextInfo.dueDateStr,
+              formattedDate: nextInfo.formattedDate,
+              remainingAmount: installmentAmount,
+              isOverdue: nextInfo.diffDays < 0,
+              days: Math.abs(nextInfo.diffDays),
+              actualDiffDays: nextInfo.diffDays,
+              providerId: inst.providerId,
+            };
           });
 
-        const allAlerts = [...singleAlerts, ...installmentAlerts]
-          .filter((item): item is NonNullable<typeof item> => item !== null && item.actualDiffDays <= 2)
+        const validAlerts = [...singleAlerts, ...installmentAlerts].filter(
+          (item): item is NonNullable<typeof item> => item !== null
+        );
+
+        // Filter alerts: Prioritize overdue, due today, and debts due in the next 30 days
+        // If there are few alerts (e.g. <= 5), include all active debts with due dates so users always have visibility
+        const allAlerts = validAlerts
+          .filter((item) => item.actualDiffDays <= 30 || validAlerts.length <= 5)
           .sort((a, b) => {
             if (a.isOverdue && !b.isOverdue) return -1;
             if (!a.isOverdue && b.isOverdue) return 1;
-            return a.days - b.days;
+            if (a.isOverdue && b.isOverdue) return b.days - a.days; // Most overdue first
+            return a.actualDiffDays - b.actualDiffDays; // Soonest due first
           });
 
-        if (allAlerts.length === 0) return null;
+        const unpaidDebtsWithoutDueDate = debts.filter((d) => d.paid < d.amount && !d.dueDate);
 
         const getAlertThemeStyles = () => {
           switch (colorTheme) {
@@ -4877,103 +4895,157 @@ export default function App() {
 
         const themeStyles = getAlertThemeStyles();
 
+        // When alerts exist, repeat them so the CSS translateX(0%) to translateX(-50%) loop is smooth and continuous
+        const itemsToLoop = allAlerts.length > 0
+          ? (allAlerts.length < 3 ? [...allAlerts, ...allAlerts, ...allAlerts, ...allAlerts] : [...allAlerts, ...allAlerts])
+          : [];
+
         return (
           <div className={`relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-md ${themeStyles.barBg}`}>
-            <div className={`absolute left-0 top-0 bottom-0 px-3 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 ${themeStyles.badgeBg}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-              <span className="animate-pulse tracking-tight">VADE UYARILARI ⏰</span>
+            {/* Left Status Badge with Compact Responsive Label and Play/Pause Controller */}
+            <div className={`absolute left-0 top-0 bottom-0 px-2 sm:px-3 text-white font-black text-[8.5px] sm:text-[9.5px] uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 shrink-0 select-none ${themeStyles.badgeBg}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+              <span className="animate-pulse tracking-tight hidden sm:inline whitespace-nowrap">VADE UYARILARI ⏰</span>
+              <span className="animate-pulse tracking-tight sm:hidden text-[8.5px] whitespace-nowrap">VADE ⏰</span>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setMarqueePaused(!marqueePaused);
-                  triggerToast(marqueePaused ? "Bant Akışı Başlatıldı ▶️" : "Bant Akışı Duraklatıldı ⏸️");
+                  const next = !marqueePaused;
+                  handleSetMarqueePaused(next);
+                  triggerToast(next ? "Bant Akışı Duraklatıldı ⏸️" : "Bant Akışı Başlatıldı ▶️");
                 }}
-                title={marqueePaused ? "Akışı Başlat" : "Akışı Duraklat"}
-                className="ml-1 px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[9px] text-white font-mono font-bold transition active:scale-90 cursor-pointer flex items-center gap-0.5"
+                title={marqueePaused ? "Akışı Başlat (Oynat)" : "Akışı Duraklat"}
+                className="ml-0.5 sm:ml-1 px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[9px] text-white font-mono font-bold transition active:scale-90 cursor-pointer flex items-center gap-0.5"
               >
                 <span>{marqueePaused ? "▶️" : "⏸️"}</span>
               </button>
             </div>
-            <div className="w-full pl-44 sm:pl-48 overflow-hidden">
-              <div
-                className={`animate-marquee whitespace-nowrap flex items-center gap-4 sm:gap-5 text-xs font-bold py-0.5 ${marqueePaused ? "[animation-play-state:paused!important]" : ""}`}
-                style={{ animationDuration: `${marqueeSpeed}s` }}
-              >
-                {allAlerts.map((d) => {
-                  const rawName = d.type === "installment" ? d.name : d.name;
-                  const categoryName = d.type === "single" ? d.category : undefined;
-                  const provider = getProviderById(d.providerId) || detectProviderFromName(rawName, categoryName);
-                  const displayName = d.type === "installment" ? `${d.name} (${d.installmentLabel})` : d.name;
 
-                  return (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => {
-                        if (d.type === "single") {
-                          setFocusedDebtId(d.originalId);
-                          setActiveTab("debts");
-                        } else {
-                          setFocusedInstallmentId(d.originalId);
-                          setActiveTab("installments");
-                        }
-                        triggerToast(`📍 ${d.name} borcuna yönlendiriliyorsunuz...`);
-                      }}
-                      className={`inline-flex items-center gap-2.5 shrink-0 px-3.5 py-1.5 rounded-xl border text-left transition-all duration-200 select-none shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-xs ${
-                        d.isOverdue
-                          ? "bg-rose-50/95 dark:bg-rose-950/80 border-rose-300 dark:border-rose-800/80 hover:bg-rose-100/90 dark:hover:bg-rose-900/60"
-                          : "bg-white/95 dark:bg-slate-900/90 border-slate-300/80 dark:border-slate-700/90 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
-                    >
-                      {/* Provider Logo Badge */}
-                      {provider && (
-                        <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
-                      )}
+            {/* Content Ticker */}
+            <div className="w-full pl-24 sm:pl-48 overflow-hidden">
+              {allAlerts.length > 0 ? (
+                <div
+                  className={`animate-marquee whitespace-nowrap flex items-center gap-3 sm:gap-5 text-xs font-bold py-0.5 ${marqueePaused ? "[animation-play-state:paused!important]" : ""}`}
+                  style={{ animationDuration: `${Math.max(25, marqueeSpeed)}s` }}
+                >
+                  {itemsToLoop.map((d, index) => {
+                    const rawName = d.name;
+                    const categoryName = d.type === "single" ? d.category : undefined;
+                    const provider = getProviderById(d.providerId) || detectProviderFromName(rawName, categoryName);
+                    const displayName = d.type === "installment" ? `${d.name} (${d.installmentLabel})` : d.name;
 
-                      {d.isOverdue ? (
-                        <>
-                          <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 animate-pulse">
-                            GECİKTİ • {d.days} GÜN
-                          </span>
-                          <span className="font-black text-rose-950 dark:text-rose-100 tracking-tight flex items-center gap-1.5">
-                            <span>{displayName}</span>
-                            {provider && (
-                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
-                                ({provider.badgeLabel || provider.name})
-                              </span>
-                            )}
-                            <span>vadesi geçti!</span>
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0">
-                            {d.actualDiffDays === 0 ? "BUGÜN" : `${d.days} GÜN`}
-                          </span>
-                          <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-1.5">
-                            <span>{displayName}</span>
-                            {provider && (
-                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
-                                ({provider.badgeLabel || provider.name})
-                              </span>
-                            )}
-                            <span>{d.actualDiffDays === 0 ? "vadesi bugün!" : "vadesi yaklaşıyor"}</span>
-                          </span>
-                        </>
-                      )}
-                      
-                      <span className={`font-mono px-2 py-0.5 rounded-lg border font-black text-xs shrink-0 shadow-2xs ${
-                        d.isOverdue
-                          ? "bg-rose-200/90 dark:bg-rose-900/80 border-rose-300 dark:border-rose-700 text-rose-950 dark:text-rose-100"
-                          : "bg-slate-900 dark:bg-slate-800 text-white dark:text-amber-300 border-slate-800 dark:border-slate-700"
-                      }`}>
-                        {format(d.remainingAmount)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={`${d.id}-${index}`}
+                        type="button"
+                        onClick={() => {
+                          if (d.type === "single") {
+                            setFocusedDebtId(d.originalId);
+                            setActiveTab("debts");
+                          } else {
+                            setFocusedInstallmentId(d.originalId);
+                            setActiveTab("installments");
+                          }
+                          triggerToast(`📍 ${d.name} borcuna yönlendiriliyorsunuz...`);
+                        }}
+                        className={`inline-flex items-center gap-2 sm:gap-2.5 shrink-0 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border text-left transition-all duration-200 select-none shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-xs ${
+                          d.isOverdue
+                            ? "bg-rose-50/95 dark:bg-rose-950/80 border-rose-300 dark:border-rose-800/80 hover:bg-rose-100/90 dark:hover:bg-rose-900/60"
+                            : d.actualDiffDays === 0
+                            ? "bg-amber-50/95 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/90"
+                            : "bg-white/95 dark:bg-slate-900/90 border-slate-300/80 dark:border-slate-700/90 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {/* Provider Logo Badge */}
+                        {provider && (
+                          <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
+                        )}
+
+                        {d.isOverdue ? (
+                          <>
+                            <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[8.5px] sm:text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 animate-pulse">
+                              🚨 GECİKTİ • {d.days} GÜN
+                            </span>
+                            <span className="font-black text-rose-950 dark:text-rose-100 tracking-tight flex items-center gap-1.5">
+                              <span>{displayName}</span>
+                              {provider && (
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
+                                  ({provider.badgeLabel || provider.name})
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300">({d.formattedDate})</span>
+                            </span>
+                          </>
+                        ) : d.actualDiffDays === 0 ? (
+                          <>
+                            <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[8.5px] sm:text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 animate-pulse">
+                              ⚠️ BUGÜN SON GÜN
+                            </span>
+                            <span className="font-extrabold text-amber-950 dark:text-amber-200 tracking-tight flex items-center gap-1.5">
+                              <span>{displayName}</span>
+                              {provider && (
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
+                                  ({provider.badgeLabel || provider.name})
+                                </span>
+                              )}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className={`px-2 py-0.5 font-black text-[8.5px] sm:text-[9px] rounded-lg uppercase tracking-wide shadow-xs shrink-0 ${
+                              d.actualDiffDays <= 3
+                                ? "bg-amber-500/20 border border-amber-500/40 text-amber-600 dark:text-amber-400"
+                                : "bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
+                            }`}>
+                              {d.actualDiffDays <= 3 ? `⏰ ${d.days} GÜN KALDI` : `⏳ ${d.days} GÜN`}
+                            </span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-1.5">
+                              <span>{displayName}</span>
+                              {provider && (
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded shrink-0">
+                                  ({provider.badgeLabel || provider.name})
+                                </span>
+                              )}
+                              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">({d.formattedDate})</span>
+                            </span>
+                          </>
+                        )}
+                        
+                        <span className={`font-mono px-2 py-0.5 rounded-lg border font-black text-xs shrink-0 shadow-2xs ${
+                          d.isOverdue
+                            ? "bg-rose-200/90 dark:bg-rose-900/80 border-rose-300 dark:border-rose-700 text-rose-950 dark:text-rose-100"
+                            : "bg-slate-900 dark:bg-slate-800 text-white dark:text-amber-300 border-slate-800 dark:border-slate-700"
+                        }`}>
+                          {format(d.remainingAmount)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Informative Status Ticker when no urgent debt dates are present */
+                <div className="flex items-center justify-between gap-3 text-xs py-0.5 px-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                    <span className="font-bold text-slate-700 dark:text-slate-300 truncate">
+                      {unpaidDebtsWithoutDueDate.length > 0
+                        ? `💡 Vade Takibi: ${unpaidDebtsWithoutDueDate.length} adet borcunuza son ödeme tarihi belirleyerek canlı geri sayımı buradan izleyebilirsiniz.`
+                        : "✨ Harika! Vadesi yaklaşan veya gecikmiş borcunuz bulunmuyor • Tüm vadeleriniz kontrol altında."}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("debts");
+                      triggerToast("Borçlar ve vadeler ekranına yönlendiriliyorsunuz...");
+                    }}
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-wide cursor-pointer transition shadow-xs active:scale-95"
+                  >
+                    {unpaidDebtsWithoutDueDate.length > 0 ? "Vade Belirle 📅" : "+ Borç Ekle 💳"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -6480,7 +6552,7 @@ export default function App() {
                   marqueeSpeed={marqueeSpeed}
                   setMarqueeSpeed={setMarqueeSpeed}
                   marqueePaused={marqueePaused}
-                  setMarqueePaused={setMarqueePaused}
+                  setMarqueePaused={handleSetMarqueePaused}
                   voiceAssistantEnabled={voiceAssistantEnabled}
                   setVoiceAssistantEnabled={setVoiceAssistantEnabled}
                   isPremium={isPremium}

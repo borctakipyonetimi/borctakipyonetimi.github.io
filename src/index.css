@@ -140,16 +140,18 @@ body.dark {
   transform-origin: bottom center;
 }
 
-/* Right-to-left sliding marquee animation */
+/* Right-to-left sliding marquee animation with 0s instant load and seamless looping */
 @keyframes marquee-horizontal {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }
 
 .animate-marquee {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
-  animation: marquee-horizontal 90s linear infinite;
+  animation: marquee-horizontal 50s linear infinite;
+  will-change: transform;
 }
 
 .animate-marquee:hover {
