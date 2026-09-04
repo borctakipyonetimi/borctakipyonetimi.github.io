@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Bütçem Pro</string>
+    <string name="notification_channel_name">Borç &amp; Vade Alarmları</string>
+    <string name="notification_channel_desc">Vadesi gelen borç ve taksitler için sesli/titreşimli uyarılar</string>
+</resources>

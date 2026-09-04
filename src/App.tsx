@@ -108,6 +108,12 @@ import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
 import { analyzeDebtsComprehensive } from "./utils/debtAnalyzer";
+import {
+  scheduleAndroidDebtAlarm,
+  cancelAndroidDebtAlarm,
+  syncAllAlarmsToAndroid,
+  isAndroidAlarmBridgeAvailable
+} from "./utils/androidAlarmBridge";
 import confetti from "canvas-confetti";
 
 export default function App() {
@@ -1259,6 +1265,15 @@ export default function App() {
         syncAlarmsWithPushServer();
       } catch (err) {
         console.warn("Push sync call deferred:", err);
+      }
+
+      // Synchronize alarms to native Android AlarmManager if running inside Android WebView wrapper
+      try {
+        if (isAndroidAlarmBridgeAvailable()) {
+          syncAllAlarmsToAndroid(alarmsRef.current);
+        }
+      } catch (err) {
+        console.warn("[AndroidAlarmBridge] Native alarm synchronization error:", err);
       }
     };
 
@@ -3139,6 +3154,16 @@ export default function App() {
     setAlarms(updated);
     setNotifications(updatedNotifs);
     saveAllToUser(debts, incomes, updated, updatedNotifs, installmentDebts, payments, expenses, expenseCategories);
+
+    // Schedule alarm into native Android AlarmManager (exact background alarm with sound and vibration)
+    if (alarmDateObj.getTime() > Date.now()) {
+      scheduleAndroidDebtAlarm(
+        newA.id,
+        titleString,
+        alarmDateObj.getTime(),
+        `Borç / Ödeme Hatırlatması: ${titleString}`
+      );
+    }
     
     // Trigger OS alert sounds/visuals (persist is false here because we saved it already in the line above)
     sendSystemNotification(
@@ -3196,6 +3221,7 @@ export default function App() {
   };
 
   const handleDeleteAlarm = (id: number) => {
+    cancelAndroidDebtAlarm(id);
     const updated = alarms.filter((a) => a.id !== id);
     setAlarms(updated);
     saveAllToUser(debts, incomes, updated, notifications, installmentDebts, payments, expenses, expenseCategories);
@@ -6058,6 +6084,55 @@ export default function App() {
                         }`}
                       >
                         {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
+                      </button>
+                    </div>
+
+                    {/* Android AlarmManager Donanım Köprüsü Durumu */}
+                    <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:col-span-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                          <span className="text-xs font-black text-emerald-950 dark:text-emerald-200">
+                            {isAndroidAlarmBridgeAvailable()
+                              ? "⚡ Android AlarmManager Donanım Köprüsü: AKTİF"
+                              : "📱 Android WebView & Exact AlarmManager Desteği: HAZIR"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-900/80 dark:text-emerald-300/80 leading-relaxed font-medium">
+                          {isAndroidAlarmBridgeAvailable()
+                            ? "Uygulama tamamen kapalıyken veya telefon uykudayken dahi sistem alarm sesi, güçlü titreşim ve üst çekmece bildirimi üretilir."
+                            : "borctakipyonetimi.github.io Android APK sarmalayıcısı içinde çalışırken alarmlar donanımsal AlarmManager ile senkronize edilir."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const testTime = Date.now() + 10000;
+                          const testId = 999999;
+                          if (isAndroidAlarmBridgeAvailable()) {
+                            scheduleAndroidDebtAlarm(
+                              testId,
+                              "TEST: Borç Ödeme Alarmı ⏰",
+                              testTime,
+                              "Bu bir Android AlarmManager donanım testi alarmıdır. Telefon kilitli olsa dahi başarıyla tetiklenir!"
+                            );
+                            triggerToast("⏰ Android Test Alarmı Kuruldu! (10 saniye sonra çalacak)");
+                          } else {
+                            // Tarayıcı simülasyonu
+                            setTimeout(() => {
+                              sendSystemNotification(
+                                "TEST: Borç Ödeme Alarmı ⏰",
+                                "AlarmManager köprüsü testi başarıyla tamamlandı!",
+                                false
+                              );
+                              triggerToast("⏰ Test Alarmı Tetiklendi!");
+                            }, 10000);
+                            triggerToast("⏰ Test Hatırlatıcısı Kuruldu (10 sn sonra tetiklenecek)");
+                          }
+                        }}
+                        className="shrink-0 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition cursor-pointer active:scale-95 shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <span>⏰ 10sn Test Alarmı Kur</span>
                       </button>
                     </div>
                   </div>
