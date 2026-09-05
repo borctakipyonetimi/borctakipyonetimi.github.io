@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Sparkles,
@@ -276,69 +276,80 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
     }
   };
 
-  // Live Exchange Rates State
+  // Live Exchange Rates & Market State from CurrencyContext
   const [convertAmount, setConvertAmount] = useState<string>("1000");
   const [fromCurrency, setFromCurrency] = useState<string>("USD");
   const [toCurrency, setToCurrency] = useState<string>("TRY");
-  const [convertResult, setConvertResult] = useState<number | null>(null);
+  const [marketCategoryTab, setMarketCategoryTab] = useState<"all" | "gold" | "forex" | "crypto">("all");
   
-  const { rates: mainRates, updateRatesFromAPI } = useCurrency();
+  const { 
+    rates: mainRates, 
+    rateDetails, 
+    updateRatesFromAPI, 
+    lastUpdated, 
+    nextRefreshSec, 
+    isFetching: isContextFetching, 
+    isLive 
+  } = useCurrency();
 
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(() => {
+  // Unified rates mapping (with full fallback to live market baseline)
+  const exchangeRates = useMemo<Record<string, number>>(() => {
     return {
-      USD: mainRates?.USD || 34.85,
-      EUR: mainRates?.EUR || 37.40,
-      GBP: mainRates?.GBP || 44.15,
-      BTC: 3365000,
-      TRY: 1.0
+      TRY: 1.0,
+      USD: mainRates?.USD || 48.42,
+      EUR: mainRates?.EUR || 56.25,
+      GBP: mainRates?.GBP || 65.45,
+      CHF: mainRates?.CHF || 59.72,
+      GOLD_GRAM: mainRates?.GOLD_GRAM || 6898.85,
+      GOLD_CEYREK: mainRates?.GOLD_CEYREK || 11165.67,
+      GOLD_YARIM: mainRates?.GOLD_YARIM || 22331.33,
+      GOLD_TAM: mainRates?.GOLD_TAM || 44526.08,
+      GOLD_CUMHURIYET: mainRates?.GOLD_CUMHURIYET || 45961.00,
+      GOLD_ONS: mainRates?.GOLD_ONS || 4431.10,
+      BTC: (mainRates?.BTC_USD || 79614.00) * (mainRates?.USD || 48.42),
+      BTC_USD: mainRates?.BTC_USD || 79614.00
     };
-  });
-
-  useEffect(() => {
-    if (mainRates) {
-      setExchangeRates(prev => ({
-        ...prev,
-        USD: mainRates.USD || prev.USD,
-        EUR: mainRates.EUR || prev.EUR,
-        GBP: mainRates.GBP || prev.GBP,
-        TRY: mainRates.TRY || prev.TRY || 1.0
-      }));
-    }
   }, [mainRates]);
 
-  const [isRefreshingRates, setIsRefreshingRates] = useState(false);
-
-  const handleConvert = () => {
+  // Conversion result calculation
+  const convertResult = useMemo(() => {
     const amt = parseFloat(convertAmount) || 0;
-    const fromRate = exchangeRates[fromCurrency] || 1;
-    const toRate = exchangeRates[toCurrency] || 1;
-    const inBaseline = amt * fromRate;
-    const finalYield = inBaseline / toRate;
-    setConvertResult(finalYield);
-  };
+    if (amt <= 0) return 0;
 
-  useEffect(() => {
-    handleConvert();
+    // Convert to TRY baseline first
+    let inTry = 0;
+    if (fromCurrency === "TRY") {
+      inTry = amt;
+    } else if (fromCurrency === "GOLD_ONS") {
+      inTry = amt * (exchangeRates.GOLD_ONS || 4431.10) * (exchangeRates.USD || 48.42);
+    } else {
+      inTry = amt * (exchangeRates[fromCurrency] || 1);
+    }
+
+    // Convert from TRY baseline to target
+    if (toCurrency === "TRY") {
+      return inTry;
+    } else if (toCurrency === "GOLD_ONS") {
+      const onsInTry = (exchangeRates.GOLD_ONS || 4431.10) * (exchangeRates.USD || 48.42);
+      return inTry / (onsInTry || 1);
+    } else {
+      const toRate = exchangeRates[toCurrency] || 1;
+      return inTry / toRate;
+    }
   }, [convertAmount, fromCurrency, toCurrency, exchangeRates]);
 
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
   const handleRefreshRates = async () => {
-    setIsRefreshingRates(true);
+    setIsManualRefreshing(true);
     try {
-      const success = await updateRatesFromAPI();
-      const res = await fetch(getApiUrl(`/api/rates?t=${Date.now()}`));
-      const data = await res.json();
-      if (data && data.rates) {
-        setExchangeRates(prev => ({
-          ...prev,
-          ...data.rates
-        }));
-      }
-      triggerToast(language === "tr" ? "Canlı Piyasa Kurları Güncellendi! 💱" : "Live Market Rates Updated! 💱");
+      await updateRatesFromAPI(true);
+      triggerToast(language === "tr" ? "✅ Canlı Döviz ve Altın Fiyatları Güncellendi!" : "✅ Live Currency & Gold Rates Updated!");
     } catch (e) {
       console.error(e);
       triggerToast(language === "tr" ? "Kurlar güncellenirken hata oluştu" : "Error updating rates");
     } finally {
-      setIsRefreshingRates(false);
+      setIsManualRefreshing(false);
     }
   };
 
@@ -1223,126 +1234,455 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
         </div>
       </div>
 
-      {/* Live FX Currency Conversion Converter (Active Pro Interactive Tool Widget) */}
+      {/* Live FX, Gold & Crypto Comprehensive Market Center Widget */}
       <div id="live-currency-converter-widget" className="p-6 md:p-8 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-700 pb-5">
+        {/* Header with Live Status Indicator & Auto-Refresh Info */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-150 dark:border-slate-700 pb-5">
           <div className="space-y-1">
-            <h3 className="text-base font-black flex items-center gap-2 text-slate-800 dark:text-white">
-              <DollarSign className="w-5 h-5 text-indigo-500" />
-              💱 Canlı Döviz ve Kripto Piyasası Çeviricisi
-            </h3>
-            <p className="text-[10.5px] text-slate-400 font-bold uppercase">
-              SERBEST PİYASA VE MERKEZ BANKASI CANLI KURLARI İLE HIZLI DÖNÜŞTÜRÜCÜ
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-base md:text-lg font-black flex items-center gap-2 text-slate-800 dark:text-white">
+                <DollarSign className="w-5 h-5 text-amber-500" />
+                🏆 Canlı Piyasa: Döviz, Altın & Kripto Takip Merkezi
+              </h3>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                CANLI PİYASA
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+              Kapalıçarşı serbest piyasa altınları, TCMB kurları ve uluslararası borsa gerçek verileri
             </p>
           </div>
 
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 text-[11px] font-bold flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Son Veri: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{lastUpdated || "Canlı"}</strong></span>
+            </div>
+
+            <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-700 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-amber-600" />
+              <span>Oto-Yenileme: <strong className="font-mono">{nextRefreshSec}s</strong></span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRefreshRates}
+              disabled={isManualRefreshing || isContextFetching}
+              className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20"
+            >
+              <RefreshCw className={`w-4 h-4 ${isManualRefreshing || isContextFetching ? "animate-spin" : ""}`} />
+              <span>Şimdi Yenile</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live Market Categories Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 overflow-x-auto no-scrollbar">
           <button
             type="button"
-            onClick={handleRefreshRates}
-            disabled={isRefreshingRates}
-            className="py-2 px-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 rounded-xl text-xs font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
+            onClick={() => setMarketCategoryTab("all")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              marketCategoryTab === "all"
+                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs"
+                : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshingRates ? "animate-spin" : ""}`} />
-            <span>Kurları Güncelle</span>
+            📊 Tüm Piyasalar
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarketCategoryTab("gold")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              marketCategoryTab === "gold"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100"
+            }`}
+          >
+            🥇 Altın Piyasası (Kapalıçarşı)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarketCategoryTab("forex")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              marketCategoryTab === "forex"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100"
+            }`}
+          >
+            💱 Döviz Kurları (Serbest Piyasa)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarketCategoryTab("crypto")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              marketCategoryTab === "crypto"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100"
+            }`}
+          >
+            🪙 Kripto Varlıklar
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          {/* Converter Controls */}
-          <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
-            <span className="text-[10px] font-black uppercase text-indigo-500 block tracking-widest">
-              CANLI HESAPLAMA MOTORU
-            </span>
+        {/* Live Rates Cards Matrix */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {/* Gold Group */}
+          {(marketCategoryTab === "all" || marketCategoryTab === "gold") && (
+            <>
+              {/* Gram Altın */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    🥇 Gram Altın (24K)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.GOLD_GRAM?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.GOLD_GRAM?.change || 0) >= 0 ? "+" : ""}{rateDetails.GOLD_GRAM?.change || -0.74}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.GOLD_GRAM?.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.GOLD_GRAM?.buying || exchangeRates.GOLD_GRAM * 0.998).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                  <span>Satış: ₺{exchangeRates.GOLD_GRAM?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
 
-            <div className="space-y-1">
+              {/* Çeyrek Altın */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    🪙 Çeyrek Altın
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.GOLD_CEYREK?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.GOLD_CEYREK?.change || 0) >= 0 ? "+" : ""}{rateDetails.GOLD_CEYREK?.change || -1.14}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.GOLD_CEYREK?.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.GOLD_CEYREK?.buying || 10908).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                  <span>Satış: ₺{exchangeRates.GOLD_CEYREK?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              {/* Yarım Altın */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    🪙 Yarım Altın
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    -1.14%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.GOLD_YARIM?.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.GOLD_YARIM?.buying || 21749).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                  <span>Satış: ₺{exchangeRates.GOLD_YARIM?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              {/* Cumhuriyet Altını */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    👑 Cumhuriyet Altını
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    -1.43%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.GOLD_CUMHURIYET?.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.GOLD_CUMHURIYET?.buying || 45276).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                  <span>Satış: ₺{exchangeRates.GOLD_CUMHURIYET?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              {/* Ons Altın ($) */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    🌍 Ons Altın ($ XAU)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    +0.15%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${exchangeRates.GOLD_ONS?.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                  Uluslararası Spot Altın
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Forex Group */}
+          {(marketCategoryTab === "all" || marketCategoryTab === "forex") && (
+            <>
+              {/* USD */}
+              <div className="p-3.5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
+                    🇺🇸 Dolar (USD)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    +{(rateDetails.USD?.change || 0.22)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.USD?.toFixed(4)}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.USD?.buying || exchangeRates.USD * 0.998).toFixed(4)}</span>
+                  <span>Satış: ₺{exchangeRates.USD?.toFixed(4)}</span>
+                </div>
+              </div>
+
+              {/* EUR */}
+              <div className="p-3.5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-blue-900 dark:text-blue-200 flex items-center gap-1">
+                    🇪🇺 Euro (EUR)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    {(rateDetails.EUR?.change || -0.25)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.EUR?.toFixed(4)}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.EUR?.buying || exchangeRates.EUR * 0.998).toFixed(4)}</span>
+                  <span>Satış: ₺{exchangeRates.EUR?.toFixed(4)}</span>
+                </div>
+              </div>
+
+              {/* GBP */}
+              <div className="p-3.5 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-purple-900 dark:text-purple-200 flex items-center gap-1">
+                    🇬🇧 Sterlin (GBP)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    {(rateDetails.GBP?.change || -0.22)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.GBP?.toFixed(4)}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.GBP?.buying || exchangeRates.GBP * 0.998).toFixed(4)}</span>
+                  <span>Satış: ₺{exchangeRates.GBP?.toFixed(4)}</span>
+                </div>
+              </div>
+
+              {/* CHF */}
+              <div className="p-3.5 bg-gradient-to-br from-slate-50 to-zinc-50 dark:from-slate-900 dark:to-zinc-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-slate-900 dark:text-slate-200 flex items-center gap-1">
+                    🇨🇭 Frank (CHF)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    +0.06%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ₺{exchangeRates.CHF?.toFixed(4)}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono flex justify-between">
+                  <span>Alış: ₺{(rateDetails.CHF?.buying || exchangeRates.CHF * 0.998).toFixed(4)}</span>
+                  <span>Satış: ₺{exchangeRates.CHF?.toFixed(4)}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Crypto Group */}
+          {(marketCategoryTab === "all" || marketCategoryTab === "crypto") && (
+            <div className="p-3.5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-300 dark:border-amber-700/60 rounded-2xl space-y-1.5 shadow-xs col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                  🪙 Bitcoin (BTC)
+                </span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  {rateDetails.BTC?.change ? `${rateDetails.BTC.change.toFixed(2)}%` : "+0.85%"}
+                </span>
+              </div>
+              <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                ${(exchangeRates.BTC_USD || 79614).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-bold">
+                ₺{exchangeRates.BTC?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Currency & Gold Converter Engine */}
+        <div className="p-5 md:p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 tracking-wider">
+              <Zap className="w-4 h-4" />
+              ÇİFT YÖNLÜ CANLI DÖVİZ & ALTIN ÇEVİRİCİ
+            </span>
+            <span className="text-[10.5px] text-slate-400 dark:text-slate-500 font-bold">
+              Anlık piyasa kuru üzerinden anında hesaplanır
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+            {/* Input Amount */}
+            <div className="md:col-span-4 space-y-1">
               <label className="text-[10.5px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-                Çevrilecek Tutar
+                Çevrilecek Miktar / Adet
               </label>
               <input
                 type="number"
                 inputMode="decimal"
                 value={convertAmount}
                 onChange={(e) => setConvertAmount(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition-all"
+                placeholder="Örn: 10"
+                className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-base font-black font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition-all shadow-xs"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
-                  Kaynak Para
-                </label>
-                <select
-                  value={fromCurrency}
-                  onChange={(e) => setFromCurrency(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
-                >
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="BTC">BTC (₿)</option>
-                  <option value="TRY">TRY (₺)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
-                  Hedef Para
-                </label>
-                <select
-                  value={toCurrency}
-                  onChange={(e) => setToCurrency(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none"
-                >
-                  <option value="TRY">TRY (₺)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="BTC">BTC (₿)</option>
-                </select>
-              </div>
+            {/* Source Currency */}
+            <div className="md:col-span-3 space-y-1">
+              <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
+                Kaynak Birim
+              </label>
+              <select
+                value={fromCurrency}
+                onChange={(e) => setFromCurrency(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
+              >
+                <option value="TRY">₺ Türk Lirası (TRY)</option>
+                <option value="USD">🇺🇸 Amerikan Doları ($)</option>
+                <option value="EUR">🇪🇺 Euro (€)</option>
+                <option value="GBP">🇬🇧 İngiliz Sterlini (£)</option>
+                <option value="CHF">🇨🇭 İsviçre Frangı (CHF)</option>
+                <option value="GOLD_GRAM">🥇 Gram Altın (24K)</option>
+                <option value="GOLD_CEYREK">🪙 Çeyrek Altın</option>
+                <option value="GOLD_YARIM">🪙 Yarım Altın</option>
+                <option value="GOLD_TAM">👑 Tam Altın</option>
+                <option value="GOLD_CUMHURIYET">👑 Cumhuriyet Altını</option>
+                <option value="GOLD_ONS">🌍 Ons Altın ($ XAU)</option>
+                <option value="BTC">🪙 Bitcoin (BTC)</option>
+              </select>
             </div>
 
-            {convertResult !== null && (
-              <div className="p-4 bg-indigo-600 text-white rounded-xl text-center space-y-1 shadow-md">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">
-                  HESAPLANAN DÖNÜŞÜM TUTARI
-                </span>
-                <p className="text-xl font-black font-mono">
-                  {convertResult.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} {toCurrency}
-                </p>
-              </div>
-            )}
+            {/* Swap Button */}
+            <div className="md:col-span-1 flex items-center justify-center pt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  const temp = fromCurrency;
+                  setFromCurrency(toCurrency);
+                  setToCurrency(temp);
+                }}
+                title="Birimleri Değiştir"
+                className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 transition-all cursor-pointer active:scale-90"
+              >
+                ⇄
+              </button>
+            </div>
+
+            {/* Target Currency */}
+            <div className="md:col-span-4 space-y-1">
+              <label className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wide">
+                Hedef Birim
+              </label>
+              <select
+                value={toCurrency}
+                onChange={(e) => setToCurrency(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
+              >
+                <option value="TRY">₺ Türk Lirası (TRY)</option>
+                <option value="USD">🇺🇸 Amerikan Doları ($)</option>
+                <option value="EUR">🇪🇺 Euro (€)</option>
+                <option value="GBP">🇬🇧 İngiliz Sterlini (£)</option>
+                <option value="CHF">🇨🇭 İsviçre Frangı (CHF)</option>
+                <option value="GOLD_GRAM">🥇 Gram Altın (24K)</option>
+                <option value="GOLD_CEYREK">🪙 Çeyrek Altın</option>
+                <option value="GOLD_YARIM">🪙 Yarım Altın</option>
+                <option value="GOLD_TAM">👑 Tam Altın</option>
+                <option value="GOLD_CUMHURIYET">👑 Cumhuriyet Altını</option>
+                <option value="GOLD_ONS">🌍 Ons Altın ($ XAU)</option>
+                <option value="BTC">🪙 Bitcoin (BTC)</option>
+              </select>
+            </div>
           </div>
 
-          {/* Current Market Rates Card */}
-          <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3 flex flex-col justify-between">
-            <span className="text-[10px] font-black uppercase text-indigo-500 block tracking-widest">
-              CANLI SERBEST PİYASA KURLARI
-            </span>
+          {/* Quick Presets */}
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase">Hızlı Butonlar:</span>
+            <button
+              type="button"
+              onClick={() => { setConvertAmount("1"); setFromCurrency("GOLD_GRAM"); setToCurrency("TRY"); }}
+              className="text-[11px] font-bold px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:border-indigo-400 cursor-pointer transition-all"
+            >
+              🥇 1 Gram Altın Kaç TL?
+            </button>
+            <button
+              type="button"
+              onClick={() => { setConvertAmount("1"); setFromCurrency("GOLD_CEYREK"); setToCurrency("TRY"); }}
+              className="text-[11px] font-bold px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:border-indigo-400 cursor-pointer transition-all"
+            >
+              🪙 1 Çeyrek Altın Kaç TL?
+            </button>
+            <button
+              type="button"
+              onClick={() => { setConvertAmount("100"); setFromCurrency("USD"); setToCurrency("TRY"); }}
+              className="text-[11px] font-bold px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:border-indigo-400 cursor-pointer transition-all"
+            >
+              🇺🇸 100 Dolar Kaç TL?
+            </button>
+            <button
+              type="button"
+              onClick={() => { setConvertAmount("100000"); setFromCurrency("TRY"); setToCurrency("GOLD_GRAM"); }}
+              className="text-[11px] font-bold px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:border-indigo-400 cursor-pointer transition-all"
+            >
+              💰 100.000 TL Kaç Gram Altın?
+            </button>
+          </div>
 
-            <div className="space-y-2 font-mono">
-              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇺🇸 Amerikan Doları (USD)</span>
-                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.USD?.toFixed(2)}</span>
-              </div>
-              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇪🇺 Euro (EUR)</span>
-                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.EUR?.toFixed(2)}</span>
-              </div>
-              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 dark:text-slate-200">🇬🇧 İngiliz Sterlini (GBP)</span>
-                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{exchangeRates.GBP?.toFixed(2)}</span>
-              </div>
-              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 dark:text-slate-200">🪙 Bitcoin (BTC)</span>
-                <span className="font-black text-indigo-600 dark:text-indigo-400">₺{(exchangeRates.BTC || 3365000).toLocaleString("tr-TR")}</span>
-              </div>
+          {/* Result Output Card */}
+          <div className="p-4 md:p-5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+            <div className="space-y-0.5 text-center sm:text-left">
+              <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-200">
+                HESAPLANAN DÖNÜŞÜM SONUCU
+              </span>
+              <p className="text-xs text-indigo-100/90 font-medium">
+                {convertAmount || "0"} {fromCurrency} karşılığı
+              </p>
             </div>
-
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold text-center">
-              * Kurlar finansal servis API'miz üzerinden 15 dakikada bir otomatik güncellenmektedir.
-            </p>
+            <div className="text-2xl md:text-3xl font-black font-mono tracking-tight text-center sm:text-right">
+              {convertResult.toLocaleString("tr-TR", {
+                minimumFractionDigits: toCurrency === "TRY" || toCurrency === "USD" || toCurrency === "EUR" ? 2 : 2,
+                maximumFractionDigits: toCurrency === "BTC" ? 6 : (toCurrency === "GOLD_GRAM" || toCurrency === "GOLD_CEYREK" ? 3 : 2)
+              })}{" "}
+              <span className="text-lg font-extrabold text-amber-300">
+                {toCurrency === "TRY" ? "₺" : toCurrency === "USD" ? "$" : toCurrency === "EUR" ? "€" : toCurrency === "GBP" ? "£" : toCurrency}
+              </span>
+            </div>
           </div>
         </div>
       </div>

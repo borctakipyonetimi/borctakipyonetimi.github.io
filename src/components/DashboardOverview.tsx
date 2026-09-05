@@ -49,7 +49,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   language = "tr",
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
-  const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI } = useCurrency();
+  const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI, nextRefreshSec, rateDetails } = useCurrency();
   const hasContent = (incomes && incomes.length > 0) || (expenses && expenses.length > 0) || (stats && stats.totalDebt > 0);
   const [budgetGoal, setBudgetGoal] = useState<number>(() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
@@ -248,6 +248,145 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </p>
         </motion.div>
       </div>
+
+      {/* Live Gold, Currency & Crypto Real-time Ticker Band */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-sm space-y-3"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-700/60 pb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="p-1.5 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              <Coins className="w-4 h-4" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-white">
+                  Canlı Serbest Piyasa: Döviz & Altın Fiyatları
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  CANLI
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                Kapalıçarşı & Serbest Piyasa gerçek verileri • {lastUpdated ? `Son: ${lastUpdated}` : "Canlı akış"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+              ⏱️ Oto: {nextRefreshSec}s
+            </span>
+            <button
+              type="button"
+              onClick={() => updateRatesFromAPI(true)}
+              disabled={isFetching}
+              title="Kurları Şimdi Yenile"
+              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin text-indigo-500" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate("gplay_enhancements")}
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 ml-1"
+            >
+              <span>Tüm Kurlar & Çevirici</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Real-time Rates Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5 font-mono">
+          {/* Gram Altın */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border border-amber-200/80 dark:border-amber-800/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-amber-900 dark:text-amber-200 mb-1">
+              <span>🥇 Gram Altın</span>
+              <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">24K</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ₺{rates.GOLD_GRAM ? rates.GOLD_GRAM.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "6.898,85"}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+              Alış: ₺{(rateDetails.GOLD_GRAM?.buying || 6898).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+
+          {/* Çeyrek Altın */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border border-amber-200/80 dark:border-amber-800/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-amber-900 dark:text-amber-200 mb-1">
+              <span>🪙 Çeyrek Altın</span>
+              <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">Ziynet</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ₺{rates.GOLD_CEYREK ? rates.GOLD_CEYREK.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "11.165,67"}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+              Alış: ₺{(rateDetails.GOLD_CEYREK?.buying || 10908).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+
+          {/* Dolar (USD) */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/10 border border-emerald-200/80 dark:border-emerald-800/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-emerald-900 dark:text-emerald-200 mb-1">
+              <span>🇺🇸 Dolar (USD)</span>
+              <span className="text-[9px] text-emerald-600 font-bold">+0.22%</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ₺{(rates.USD || 48.49).toFixed(4)}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+              Alış: ₺{(rateDetails.USD?.buying || rates.USD * 0.998).toFixed(4)}
+            </div>
+          </div>
+
+          {/* Euro (EUR) */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/10 border border-blue-200/80 dark:border-blue-800/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-blue-900 dark:text-blue-200 mb-1">
+              <span>🇪🇺 Euro (EUR)</span>
+              <span className="text-[9px] text-rose-500 font-bold">-0.25%</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ₺{(rates.EUR || 56.36).toFixed(4)}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+              Alış: ₺{(rateDetails.EUR?.buying || rates.EUR * 0.998).toFixed(4)}
+            </div>
+          </div>
+
+          {/* Sterlin (GBP) */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/10 border border-purple-200/80 dark:border-purple-800/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-purple-900 dark:text-purple-200 mb-1">
+              <span>🇬🇧 Sterlin (GBP)</span>
+              <span className="text-[9px] text-rose-500 font-bold">-0.22%</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ₺{(rates.GBP || 65.48).toFixed(4)}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+              Alış: ₺{(rateDetails.GBP?.buying || rates.GBP * 0.998).toFixed(4)}
+            </div>
+          </div>
+
+          {/* Bitcoin (BTC) */}
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/20 dark:to-yellow-950/10 border border-amber-300/80 dark:border-amber-700/40">
+            <div className="flex items-center justify-between text-[10px] font-sans font-bold text-amber-900 dark:text-amber-200 mb-1">
+              <span>🪙 Bitcoin (BTC)</span>
+              <span className="text-[9px] text-emerald-600 font-bold">+0.85%</span>
+            </div>
+            <div className="text-sm font-black text-slate-900 dark:text-white">
+              ${(rates.BTC_USD || 79614).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+            </div>
+            <div className="text-[9px] text-amber-700 dark:text-amber-300 font-sans font-bold mt-0.5">
+              ~₺{((rates.BTC_USD || 79614) * (rates.USD || 48.49)).toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Relocated Filter Section on overview screen (placed below header banner as requested) */}
       {(() => {

@@ -25,6 +25,7 @@ import {
 import { Debt, Income, Expense, InstallmentDebt } from "../types";
 import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
+import { useCurrency } from "../utils/CurrencyContext";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -99,10 +100,11 @@ export function FinancialTools({
   const [newGoalCat, setNewGoalCat] = useState("emergency");
   const [goalAddAmounts, setGoalAddAmounts] = useState<Record<string, string>>({});
 
-  // Exchange calculation states
-  const usdRate = 32.48;
-  const eurRate = 35.12;
-  const goldRate = 2465.00; // Gram Gold
+  // Live exchange rates from context
+  const { rates } = useCurrency();
+  const usdRate = rates.USD || 48.49;
+  const eurRate = rates.EUR || 56.36;
+  const goldRate = rates.GOLD_GRAM || 6898.85; // Gram Gold
   const [pegCalculatorInput, setPegCalculatorInput] = useState<string>("10000");
   const [pegCalculatorResult, setPegCalculatorResult] = useState({ usd: 0, eur: 0, gold: 0 });
 
@@ -113,7 +115,7 @@ export function FinancialTools({
       eur: val / eurRate,
       gold: val / goldRate
     });
-  }, [pegCalculatorInput]);
+  }, [pegCalculatorInput, usdRate, eurRate, goldRate]);
 
   // Financial metrics calculations
   const totalIncomesSum = incomes.reduce((sum, inc) => sum + inc.amount, 0);
