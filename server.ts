@@ -78,8 +78,13 @@ app.post("/api/temp-backup", (req, res) => {
   }
   
   let cleanName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "butcem_pro_yedek";
-  cleanName = cleanName.replace(/\.json$/i, "");
-  const finalFilename = `${cleanName}.json`;
+  cleanName = cleanName.replace(/[\/\\?%*:|"<>]/g, "_");
+  
+  // Preserve extension if provided, otherwise default to .json
+  let finalFilename = cleanName;
+  if (!/\.[a-zA-Z0-9]+$/.test(finalFilename)) {
+    finalFilename = `${cleanName}.json`;
+  }
 
   const key = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
   const expires = Date.now() + 30 * 60 * 1000; // 30 minutes
@@ -97,12 +102,21 @@ app.get("/api/download-temp", (req, res) => {
     return res.status(404).send("Yedek linkinin süresi dolmuş veya bulunamadı");
   }
   
-  // Set headers to force download with clean filename
+  // Determine appropriate content type
+  let contentType = "application/json; charset=utf-8";
+  if (item.filename.toLowerCase().endsWith(".csv")) {
+    contentType = "text/csv; charset=utf-8";
+  } else if (item.filename.toLowerCase().endsWith(".html")) {
+    contentType = "text/html; charset=utf-8";
+  } else if (item.filename.toLowerCase().endsWith(".txt")) {
+    contentType = "text/plain; charset=utf-8";
+  }
+
   const safeFilename = item.filename.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
   const encodedFilename = encodeURIComponent(item.filename);
   
   res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Type", contentType);
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -1562,15 +1576,30 @@ app.get("/api/rates", async (req, res) => {
   // 1. Primary: Fetch real Turkish market rates from Truncgil Finance API (Free, Real-Time Kapalıçarşı & Serbest Piyasa)
   try {
     const truncCtrl = new AbortController();
-    const truncTimeout = setTimeout(() => truncCtrl.abort(), 4000);
-    const truncRes = await fetch("https://finans.truncgil.com/v4/today.json?t=" + now, {
+    const truncTimeout = setTimeout(() => truncCtrl.abort(), 5000);
+    // Try clean JSON endpoint without query params that could trigger Cloudflare/CDN rate-limiting
+    let truncRes = await fetch("https://finans.truncgil.com/v4/today.json", {
       signal: truncCtrl.signal,
-      headers: { "Cache-Control": "no-cache", "User-Agent": "Mozilla/5.0" }
-    });
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    }).catch(() => null);
     clearTimeout(truncTimeout);
 
-    if (truncRes.ok) {
-      const tData: any = await truncRes.json();
+    // Secondary backup endpoint on Truncgil if v4 fails
+    if (!truncRes || !truncRes.ok) {
+      const fallbackCtrl = new AbortController();
+      const fallbackTimeout = setTimeout(() => fallbackCtrl.abort(), 3000);
+      truncRes = await fetch("https://finans.truncgil.com/today.json", {
+        signal: fallbackCtrl.signal,
+        headers: { "Accept": "application/json" }
+      }).catch(() => null);
+      clearTimeout(fallbackTimeout);
+    }
+
+    if (truncRes && truncRes.ok) {
+      const tData: any = await truncRes.json().catch(() => null);
       if (tData) {
         if (tData.USD && tData.USD.Selling) {
           usdRate = Number(tData.USD.Selling) || usdRate;
@@ -1647,8 +1676,8 @@ app.get("/api/rates", async (req, res) => {
         loadedSource = "Truncgil Financial Markets API (TR)";
       }
     }
-  } catch (e: any) {
-    console.warn("[Rates] Truncgil finance fetch error:", e.message);
+  } catch (_e) {
+    // Primary market provider temporarily unavailable; seamlessly fallback to secondary global forex providers
   }
 
   // 2. Fetch live Ons Altın ($ XAU)

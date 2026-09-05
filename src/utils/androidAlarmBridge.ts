@@ -17,6 +17,10 @@ declare global {
       syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
       testDelayedNotification?: (delaySeconds: number) => void;
       showToast?: (message: string) => void;
+      saveBackupFile?: (fileName: string, jsonContent: string) => void;
+      shareBackupFile?: (fileName: string, jsonContent: string, title?: string) => void;
+      openGoogleDrive?: () => void;
+      openExternalUrl?: (url: string) => void;
     };
   }
 }
@@ -177,3 +181,58 @@ export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
     return false;
   }
 }
+
+/**
+ * Android cihazın İndirilenler (Downloads) klasörüne belirlenen dosya adıyla kaydeder.
+ */
+export function saveAndroidNativeBackupFile(fileName: string, jsonContent: string): boolean {
+  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+    return false;
+  }
+  try {
+    if (typeof window.AndroidAlarm.saveBackupFile === "function") {
+      window.AndroidAlarm.saveBackupFile(fileName, jsonContent);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[AndroidAlarmBridge] saveBackupFile hatası:", e);
+  }
+  return false;
+}
+
+/**
+ * Android Yerel Paylaşım Menüsünü (WhatsApp, Drive'a Kaydet, Telegram vb.) açar.
+ */
+export function shareAndroidNativeBackupFile(fileName: string, jsonContent: string, title?: string): boolean {
+  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+    return false;
+  }
+  try {
+    if (typeof window.AndroidAlarm.shareBackupFile === "function") {
+      window.AndroidAlarm.shareBackupFile(fileName, jsonContent, title || "Bütçem Veri Yedeği");
+      return true;
+    }
+  } catch (e) {
+    console.warn("[AndroidAlarmBridge] shareBackupFile hatası:", e);
+  }
+  return false;
+}
+
+/**
+ * Google Drive uygulamasını veya web sayfasını güvenle açar.
+ */
+export function openAndroidGoogleDrive(): boolean {
+  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+    return false;
+  }
+  try {
+    if (typeof window.AndroidAlarm.openGoogleDrive === "function") {
+      window.AndroidAlarm.openGoogleDrive();
+      return true;
+    }
+  } catch (e) {
+    console.warn("[AndroidAlarmBridge] openGoogleDrive hatası:", e);
+  }
+  return false;
+}
+

@@ -31,6 +31,14 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 import android.app.Notification;
 import android.media.RingtoneManager;
+import android.app.DownloadManager;
+import android.os.Environment;
+import android.webkit.DownloadListener;
+import android.webkit.URLUtil;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -133,6 +141,19 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (request != null && request.getUrl() != null) {
+                    return handleExternalUrls(request.getUrl().toString());
+                }
+                return false;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleExternalUrls(url);
+            }
+
+            @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
                 super.onPageStarted(view, url, favicon);
@@ -149,6 +170,30 @@ public class MainActivity extends AppCompatActivity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 Log.w(TAG, "WebView kaynak hatası: " + error.toString());
+            }
+        });
+
+        // Dosya İndirme Yöneticisi (DownloadListener): Web üzerinden doğrudan inen dosyaları yakalar
+        webView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                try {
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    request.setMimeType(mimetype);
+                    String filename = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    request.setDescription("Bütçem Pro Dosyası İndiriliyor...");
+                    request.setTitle(filename);
+                    request.allowScanningByMediaScanner();
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(request);
+                        Toast.makeText(MainActivity.this, "📥 İndiriliyor: " + filename, Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "DownloadListener hatası:", e);
+                }
             }
         });
 
@@ -174,6 +219,98 @@ public class MainActivity extends AppCompatActivity {
                 return super.onConsoleMessage(consoleMessage);
             }
         });
+    }
+
+    /**
+     * Google Drive, WhatsApp, Telegram, telefon, e-posta veya sistem tarayıcısı
+     * gerektiren harici URL'leri güvenle yakalar. WebView'ın çökmesini veya kapanmasını engeller.
+     */
+    private boolean handleExternalUrls(String url) {
+        if (url == null || url.trim().isEmpty()) return false;
+
+        // 1. Google Drive Linkleri: Uygulama varsa doğrudan Google Drive uygulamasında aç, yoksa güvenli tarayıcıda aç
+        if (url.contains("drive.google.com") || url.contains("docs.google.com")) {
+            try {
+                Intent driveIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                driveIntent.setPackage("com.google.android.apps.docs");
+                driveIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(driveIntent);
+                return true;
+            } catch (Exception e) {
+                try {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(browserIntent);
+                    return true;
+                } catch (Exception ex) {
+                    Log.e(TAG, "Google Drive açılamadı:", ex);
+                    Toast.makeText(this, "Google Drive açılamadı", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+            }
+        }
+
+        // 2. Özel Intent Şemaları (intent://)
+        if (url.startsWith("intent://")) {
+            try {
+                Intent intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (intent.resolveActivity(getPackageManager()) != null) {
+                        startActivity(intent);
+                        return true;
+                    }
+                    String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+                    if (fallbackUrl != null) {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)));
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "intent:// ayrıştırılamadı:", e);
+            }
+            return true;
+        }
+
+        // 3. WhatsApp Doğrudan Linkleri
+        if (url.startsWith("whatsapp://") || url.startsWith("https://wa.me/") || url.startsWith("https://api.whatsapp.com/")) {
+            try {
+                Intent waIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(waIntent);
+                return true;
+            } catch (Exception e) {
+                Toast.makeText(this, "WhatsApp uygulaması bulunamadı", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+        }
+
+        // 4. Sistem Şemaları (tel, mailto, market, geo)
+        if (url.startsWith("mailto:") || url.startsWith("tel:") || url.startsWith("market://") || url.startsWith("geo:")) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "Harici eylem açılamadı:", e);
+                return true;
+            }
+        }
+
+        // 5. Harici Web Siteleri (Borç Takip sitesi harici)
+        if (!url.contains("borctakipyonetimi.github.io") && !url.contains("localhost") && !url.contains("127.0.0.1") && (url.startsWith("http://") || url.startsWith("https://"))) {
+            if (!url.contains("/api/download-temp")) {
+                try {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(browserIntent);
+                    return true;
+                } catch (Exception ignored) {}
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -676,6 +813,153 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "removeAlarmFromPreferences hatası:", e);
             }
+        }
+
+        /**
+         * Web uygulamasında kullanıcının belirlediği isimle dosyayı Android İndirilenler (Downloads)
+         * klasörüne doğrudan kaydeder. Dosya adı asla generic 'json' veya 'download.json' olmaz!
+         */
+        @JavascriptInterface
+        public void saveBackupFile(final String fileName, final String jsonContent) {
+            try {
+                if (jsonContent == null) {
+                    runOnUiThread(() -> Toast.makeText(mContext, "Yedek verisi boş!", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                String cleanName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : "butcem_pro_yedek";
+                if (!cleanName.toLowerCase().endsWith(".json")) {
+                    cleanName += ".json";
+                }
+                final String finalFileName = cleanName;
+
+                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs();
+                }
+
+                File targetFile = new File(downloadsDir, finalFileName);
+                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                    fos.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                    fos.flush();
+                }
+
+                // Sistem medya tarayıcısına bildir ki Dosyalarım/İndirilenler klasöründe anında listelensin
+                try {
+                    android.media.MediaScannerConnection.scanFile(
+                            mContext,
+                            new String[]{targetFile.getAbsolutePath()},
+                            new String[]{"application/json"},
+                            null
+                    );
+                } catch (Exception ignored) {}
+
+                showNotification("📁 Yedek Dosyası İndirildi", finalFileName + " İndirilenler klasörüne kaydedildi.");
+                runOnUiThread(() -> Toast.makeText(mContext, "✅ '" + finalFileName + "' İndirilenler klasörüne başarıyla kaydedildi!", Toast.LENGTH_LONG).show());
+                Log.i(TAG, "Yedek dosyası kaydedildi: " + targetFile.getAbsolutePath());
+
+            } catch (Exception e) {
+                Log.e(TAG, "saveBackupFile hatası:", e);
+                runOnUiThread(() -> Toast.makeText(mContext, "❌ Dosya kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }
+
+        /**
+         * Cihaz Paylaşım Menüsünü (Android Native Intent.ACTION_SEND Chooser) açar.
+         * WhatsApp, Google Drive ('Drive'a Kaydet'), Telegram, Gmail, Bluetooth, Quick Share vb.
+         * tüm uygulamaların paylaşım menüsünü anında ekrana getirir.
+         */
+        @JavascriptInterface
+        public void shareBackupFile(final String fileName, final String jsonContent, final String title) {
+            runOnUiThread(() -> {
+                try {
+                    if (jsonContent == null) {
+                        Toast.makeText(mContext, "Paylaşılacak yedek içeriği boş!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    String cleanName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : "butcem_pro_yedek";
+                    if (!cleanName.toLowerCase().endsWith(".json")) {
+                        cleanName += ".json";
+                    }
+
+                    File shareFolder = new File(mContext.getCacheDir(), "shared_backups");
+                    if (!shareFolder.exists()) {
+                        shareFolder.mkdirs();
+                    }
+
+                    File shareFile = new File(shareFolder, cleanName);
+                    try (FileOutputStream fos = new FileOutputStream(shareFile)) {
+                        fos.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                        fos.flush();
+                    }
+
+                    Uri contentUri = FileProvider.getUriForFile(
+                            mContext,
+                            mContext.getPackageName() + ".fileprovider",
+                            shareFile
+                    );
+
+                    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                    shareIntent.setType("application/json");
+                    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                    String safeTitle = (title != null && !title.trim().isEmpty()) ? title : "Bütçem Veri Yedeği";
+                    shareIntent.putExtra(Intent.EXTRA_SUBJECT, safeTitle);
+                    shareIntent.putExtra(Intent.EXTRA_TEXT, "Bütçem Pro Veri Yedeği: " + cleanName);
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                    Intent chooser = Intent.createChooser(shareIntent, "Bütçem Yedeğini Paylaş");
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    mContext.startActivity(chooser);
+
+                } catch (Exception e) {
+                    Log.e(TAG, "shareBackupFile hatası:", e);
+                    Toast.makeText(mContext, "Paylaşım menüsü açılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        /**
+         * Google Drive'ı güvenle açar. Uygulama yüklüyse Google Drive uygulamasını,
+         * değilse harici sistem tarayıcısını açar. Asla çökme veya kapanma yaşanmaz.
+         */
+        @JavascriptInterface
+        public void openGoogleDrive() {
+            runOnUiThread(() -> {
+                try {
+                    Intent driveIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://drive.google.com/drive/my-drive"));
+                    driveIntent.setPackage("com.google.android.apps.docs");
+                    driveIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    mContext.startActivity(driveIntent);
+                } catch (Exception e) {
+                    try {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://drive.google.com/drive/my-drive"));
+                        browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mContext.startActivity(browserIntent);
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Google Drive açılamadı:", ex);
+                        Toast.makeText(mContext, "Google Drive açılamadı", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+        }
+
+        /**
+         * Harici bir web bağlantısını sistemin varsayılan tarayıcısında güvenle açar.
+         */
+        @JavascriptInterface
+        public void openExternalUrl(final String url) {
+            runOnUiThread(() -> {
+                try {
+                    if (url == null || url.trim().isEmpty()) return;
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    mContext.startActivity(browserIntent);
+                } catch (Exception e) {
+                    Log.e(TAG, "openExternalUrl hatası:", e);
+                }
+            });
         }
     }
 }

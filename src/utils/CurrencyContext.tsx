@@ -179,12 +179,13 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // --- PHASE 2: Direct Client-Side Fallback (Works on GitHub Pages & Standalone Web) ---
     try {
       // 1. Direct Truncgil Finance Turkish Market
-      const truncRes = await fetch(`https://finans.truncgil.com/v4/today.json?t=${now}`, {
+      const truncRes = await fetch("https://finans.truncgil.com/v4/today.json", {
         cache: "no-store",
-        headers: { "Cache-Control": "no-cache" }
-      });
-      if (truncRes.ok) {
-        const tData: any = await truncRes.json();
+        headers: { "Accept": "application/json" }
+      }).catch(() => null);
+
+      if (truncRes && truncRes.ok) {
+        const tData: any = await truncRes.json().catch(() => null);
         if (tData) {
           const usd = Number(tData.USD?.Selling) || 48.42;
           const eur = Number(tData.EUR?.Selling) || 56.25;
@@ -264,8 +265,8 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           success = true;
         }
       }
-    } catch (directErr) {
-      console.warn("Direct Truncgil fetch failed, trying Phase 3 fallback:", directErr);
+    } catch (_directErr) {
+      // Direct client fetch fallback to open.er-api
     }
 
     // --- PHASE 3: Open.er-api.com Fallback ---

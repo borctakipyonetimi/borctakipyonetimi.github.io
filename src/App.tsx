@@ -114,7 +114,10 @@ import {
   syncAllAlarmsToAndroid,
   syncAllDebtsAndAlarmsToAndroid,
   testAndroidBackgroundAlarm,
-  isAndroidAlarmBridgeAvailable
+  isAndroidAlarmBridgeAvailable,
+  saveAndroidNativeBackupFile,
+  shareAndroidNativeBackupFile,
+  openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
 import confetti from "canvas-confetti";
 
@@ -3615,6 +3618,15 @@ export default function App() {
 
     // Helper: Trigger pure download (Blob + Server fallback)
     const triggerFileDownload = async () => {
+      // 1. If running inside Android native App, save directly to Android Downloads directory with exact name
+      if (isAndroidAlarmBridgeAvailable()) {
+        const nativeSaved = saveAndroidNativeBackupFile(fileName, jsonString);
+        if (nativeSaved) {
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+      }
+
       let success = false;
       try {
         const localUrl = URL.createObjectURL(blob);
@@ -3667,6 +3679,15 @@ export default function App() {
 
     // 1. WhatsApp Action
     if (mode === "whatsapp") {
+      // Android Native Share Check
+      if (isAndroidAlarmBridgeAvailable()) {
+        const shared = shareAndroidNativeBackupFile(fileName, jsonString, "Bütçem Veri Yedeği");
+        if (shared) {
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+      }
+
       let sharedWithNative = false;
       try {
         const testFile = new File([blob], fileName, { type: "application/json" });
@@ -3710,6 +3731,17 @@ export default function App() {
 
     // 2. Google Drive Action
     if (mode === "drive") {
+      // On Android native app, save the file to downloads and trigger native Drive or open Google Drive safely
+      if (isAndroidAlarmBridgeAvailable()) {
+        saveAndroidNativeBackupFile(fileName, jsonString);
+        const shared = shareAndroidNativeBackupFile(fileName, jsonString, "Drive'a Kaydet");
+        if (!shared) {
+          openAndroidGoogleDrive();
+        }
+        localStorage.setItem("last_backup_export_date", new Date().toISOString());
+        return;
+      }
+
       await triggerFileDownload();
       try {
         const testFile = new File([blob], fileName, { type: "application/json" });
@@ -3736,6 +3768,14 @@ export default function App() {
 
     // 3. System Share Action (Android & iOS Web Share API)
     if (mode === "share") {
+      if (isAndroidAlarmBridgeAvailable()) {
+        const shared = shareAndroidNativeBackupFile(fileName, jsonString, "Bütçem Veri Yedeği");
+        if (shared) {
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+      }
+
       try {
         const testFile = new File([blob], fileName, { type: "application/json" });
         if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
@@ -3753,9 +3793,8 @@ export default function App() {
         console.warn("navigator.share failed:", shareErr);
       }
 
-      // If navigator.share was unavailable or rejected, open the comprehensive Export Modal so user can choose Drive / WhatsApp / Download
-      setExportFileNameInput(baseName);
-      setIsExportModalOpen(true);
+      // If navigator.share was unavailable or rejected, fallback to direct download with the custom name
+      await triggerFileDownload();
       return;
     }
 
