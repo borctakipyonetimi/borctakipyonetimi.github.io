@@ -14,6 +14,7 @@ import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
@@ -165,22 +166,20 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       }
     }
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      if (document.body.contains(link)) {
-        document.body.removeChild(link);
+    // Direct clean download (Android APK & Browser Safe)
+    downloadFileWithCustomName({
+      fileName,
+      content: jsonString,
+      mimeType: "application/json",
+      onSuccess: () => {
+        alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
+        setIsExportModalOpen(false);
+      },
+      onError: () => {
+        alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla kaydedildi!`);
+        setIsExportModalOpen(false);
       }
-      URL.revokeObjectURL(url);
-    }, 800);
-
-    alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
-    setIsExportModalOpen(false);
+    });
   };
 
   const handleOpenImportModal = () => {

@@ -184,11 +184,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Dosya İndirme Yöneticisi (DownloadListener): Web üzerinden inen dosyaların adını asla 'json' veya bozuk yapmaz
+        // Dosya İndirme Yöneticisi (DownloadListener): Web üzerinden inen dosyaların adını asla 'download.json' veya bozuk yapmaz
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                 try {
+                    // Blob veya Data URL yakalanırsa (JavaScript link.click sonucu)
+                    if (url != null && (url.startsWith("blob:") || url.startsWith("data:"))) {
+                        Log.d(TAG, "Blob/Data URL indirmesi yakalandı: " + url.substring(0, Math.min(30, url.length())));
+                        // WebAppInterface zaten JavaScript katmanından doğrudan çağrıldığı için
+                        // yine de indirme uyarısı verip kullanıcıyı bilgilendiriyoruz.
+                        return;
+                    }
+
                     String extractedName = null;
 
                     // 1. Content-Disposition başlığından dosya adını regex ile çıkar (UTF-8 ve standart formatlar)
@@ -202,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     // 2. URL Query veya Path parametresinden dosya adını çıkar (?filename=xxx veya /api/download-temp/xxx)
-                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin")) {
+                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin") || extractedName.startsWith("download")) {
                         try {
                             Uri parsedUri = Uri.parse(url);
                             String qName = parsedUri.getQueryParameter("filename");
@@ -218,15 +226,16 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     // 3. Fallback: URLUtil.guessFileName
-                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin")) {
+                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin") || extractedName.startsWith("download")) {
                         extractedName = URLUtil.guessFileName(url, contentDisposition, mimetype);
                     }
 
-                    // 4. Hâlâ generic 'json' veya 'downloadfile.bin' ise düzgün zaman damgalı isim üret
+                    // 4. Hâlâ generic 'json' veya 'download' ise düzgün zaman damgalı isim üret
                     if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("json.json") ||
-                        extractedName.equalsIgnoreCase("downloadfile.bin") || extractedName.startsWith("download-temp")) {
+                        extractedName.equalsIgnoreCase("downloadfile.bin") || extractedName.startsWith("download-temp") || extractedName.startsWith("download.")) {
                         String dateStr = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
-                        extractedName = "butcem_pro_yedek_" + dateStr + ".json";
+                        String ext = (mimetype != null && mimetype.contains("csv")) ? ".csv" : ".json";
+                        extractedName = "butcem_pro_rapor_" + dateStr + ext;
                     }
 
                     final String finalName = extractedName;
@@ -234,7 +243,7 @@ public class MainActivity extends AppCompatActivity {
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     String safeMime = (mimetype != null && !mimetype.isEmpty()) ? mimetype : "application/json";
                     request.setMimeType(safeMime);
-                    request.setDescription("Bütçem Pro Dosyası: " + finalName);
+                    request.setDescription("Bütçem Pro: " + finalName);
                     request.setTitle(finalName);
                     request.allowScanningByMediaScanner();
                     request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
@@ -873,17 +882,25 @@ public class MainActivity extends AppCompatActivity {
          * klasörüne doğrudan kaydeder. Dosya adı asla generic 'json' veya 'download.json' olmaz!
          */
         @JavascriptInterface
-        public void saveBackupFile(final String fileName, final String jsonContent) {
+        public boolean saveFile(final String fileName, final String content, final String mimeType) {
             try {
-                if (jsonContent == null) {
-                    runOnUiThread(() -> Toast.makeText(mContext, "Yedek verisi boş!", Toast.LENGTH_SHORT).show());
-                    return;
+                if (content == null) {
+                    runOnUiThread(() -> Toast.makeText(mContext, "Kaydedilecek dosya içeriği boş!", Toast.LENGTH_SHORT).show());
+                    return false;
                 }
 
-                String cleanName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : "butcem_pro_yedek";
-                if (!cleanName.toLowerCase().endsWith(".json")) {
-                    cleanName += ".json";
+                String cleanName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : "butcem_pro_dosya";
+                String safeMime = (mimeType != null && !mimeType.trim().isEmpty()) ? mimeType.trim() : "application/json";
+
+                // Eğer uzantı yoksa mime türüne göre uzantı ekle
+                if (!cleanName.contains(".")) {
+                    if (safeMime.contains("csv")) cleanName += ".csv";
+                    else if (safeMime.contains("html")) cleanName += ".html";
+                    else if (safeMime.contains("eml")) cleanName += ".eml";
+                    else if (safeMime.contains("text")) cleanName += ".txt";
+                    else cleanName += ".json";
                 }
+
                 final String finalFileName = cleanName;
                 boolean savedSuccessfully = false;
 
@@ -892,7 +909,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         ContentValues values = new ContentValues();
                         values.put(MediaStore.Downloads.DISPLAY_NAME, finalFileName);
-                        values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                        values.put(MediaStore.Downloads.MIME_TYPE, safeMime);
                         values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
                         values.put(MediaStore.Downloads.IS_PENDING, 1);
 
@@ -902,7 +919,7 @@ public class MainActivity extends AppCompatActivity {
                         if (uri != null) {
                             try (OutputStream out = resolver.openOutputStream(uri)) {
                                 if (out != null) {
-                                    out.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                                    out.write(content.getBytes(StandardCharsets.UTF_8));
                                     out.flush();
                                 }
                             }
@@ -925,7 +942,7 @@ public class MainActivity extends AppCompatActivity {
 
                     File targetFile = new File(downloadsDir, finalFileName);
                     try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                        fos.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                        fos.write(content.getBytes(StandardCharsets.UTF_8));
                         fos.flush();
                     }
 
@@ -934,20 +951,114 @@ public class MainActivity extends AppCompatActivity {
                         android.media.MediaScannerConnection.scanFile(
                                 mContext,
                                 new String[]{targetFile.getAbsolutePath()},
-                                new String[]{"application/json"},
+                                new String[]{safeMime},
                                 null
                         );
                     } catch (Exception ignored) {}
                     savedSuccessfully = true;
                 }
 
-                showNotification("📁 Yedek Dosyası İndirildi", finalFileName + " İndirilenler klasörüne kaydedildi.");
+                showNotification("📁 Dosya İndirildi", finalFileName + " İndirilenler klasörüne kaydedildi.");
                 runOnUiThread(() -> Toast.makeText(mContext, "✅ '" + finalFileName + "' İndirilenler klasörüne başarıyla kaydedildi!", Toast.LENGTH_LONG).show());
-                Log.i(TAG, "Yedek dosyası kaydedildi: " + finalFileName);
+                Log.i(TAG, "Dosya başarıyla kaydedildi: " + finalFileName);
+                return true;
 
             } catch (Exception e) {
-                Log.e(TAG, "saveBackupFile hatası:", e);
+                Log.e(TAG, "saveFile hatası:", e);
                 runOnUiThread(() -> Toast.makeText(mContext, "❌ Dosya kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                return false;
+            }
+        }
+
+        /**
+         * Geriye dönük uyumluluk için saveBackupFile
+         */
+        @JavascriptInterface
+        public boolean saveBackupFile(final String fileName, final String jsonContent) {
+            return saveFile(fileName, jsonContent, "application/json");
+        }
+
+        /**
+         * Resim, Dekont ve Fotoğrafları doğrudan Galeri / Pictures klasörüne kaydeder
+         */
+        @JavascriptInterface
+        public boolean saveImageToGallery(final String fileName, final String base64Data, final String mimeType) {
+            try {
+                if (base64Data == null || base64Data.trim().isEmpty()) {
+                    runOnUiThread(() -> Toast.makeText(mContext, "Kaydedilecek resim verisi boş!", Toast.LENGTH_SHORT).show());
+                    return false;
+                }
+
+                String cleanBase64 = base64Data;
+                if (cleanBase64.contains(",")) {
+                    cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+                }
+                byte[] imageBytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT);
+
+                String cleanName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : ("butcem_resim_" + System.currentTimeMillis() + ".jpg");
+                if (!cleanName.contains(".")) {
+                    cleanName += ".jpg";
+                }
+                final String finalFileName = cleanName;
+                String safeMime = (mimeType != null && !mimeType.isEmpty()) ? mimeType : "image/jpeg";
+                boolean saved = false;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        ContentValues values = new ContentValues();
+                        values.put(MediaStore.Images.Media.DISPLAY_NAME, finalFileName);
+                        values.put(MediaStore.Images.Media.MIME_TYPE, safeMime);
+                        values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ButcemPro");
+                        values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+                        ContentResolver resolver = mContext.getContentResolver();
+                        Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                        if (uri != null) {
+                            try (OutputStream out = resolver.openOutputStream(uri)) {
+                                if (out != null) {
+                                    out.write(imageBytes);
+                                    out.flush();
+                                }
+                            }
+                            values.clear();
+                            values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                            resolver.update(uri, values, null, null);
+                            saved = true;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "MediaStore image save error:", e);
+                    }
+                }
+
+                if (!saved) {
+                    File picturesDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "ButcemPro");
+                    if (!picturesDir.exists()) {
+                        picturesDir.mkdirs();
+                    }
+                    File targetFile = new File(picturesDir, finalFileName);
+                    try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                        fos.write(imageBytes);
+                        fos.flush();
+                    }
+                    try {
+                        android.media.MediaScannerConnection.scanFile(
+                                mContext,
+                                new String[]{targetFile.getAbsolutePath()},
+                                new String[]{safeMime},
+                                null
+                        );
+                    } catch (Exception ignored) {}
+                    saved = true;
+                }
+
+                showNotification("🖼️ Resim Galeriye Kaydedildi", finalFileName + " Galeriye eklendi.");
+                runOnUiThread(() -> Toast.makeText(mContext, "🖼️ '" + finalFileName + "' Galeriye başarıyla kaydedildi!", Toast.LENGTH_LONG).show());
+                return true;
+
+            } catch (Exception e) {
+                Log.e(TAG, "saveImageToGallery hatası:", e);
+                runOnUiThread(() -> Toast.makeText(mContext, "❌ Resim kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                return false;
             }
         }
 

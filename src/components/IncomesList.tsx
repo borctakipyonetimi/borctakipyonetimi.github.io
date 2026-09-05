@@ -30,6 +30,7 @@ import { DoughnutChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface IncomesListProps {
   incomes: Income[];
@@ -281,26 +282,20 @@ export const IncomesList: React.FC<IncomesListProps> = ({
       }
     }
 
-    // Direct clean download
-    try {
-      const localUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = localUrl;
-      link.setAttribute("download", fileName);
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
-        }
-        URL.revokeObjectURL(localUrl);
-      }, 800);
-      alert(`✅ Gelir Şablonu '${fileName}' adıyla İndirilenler klasörünüze başarıyla kaydedildi!`);
-      setIsSaveTemplateModalOpen(false);
-    } catch (e) {
-      alert("İndirme sırasında bir hata oluştu.");
-    }
+    // Direct clean download (Android APK & Browser Safe)
+    downloadFileWithCustomName({
+      fileName,
+      content: jsonString,
+      mimeType: "application/json",
+      onSuccess: () => {
+        alert(`✅ Gelir Şablonu '${fileName}' adıyla İndirilenler klasörünüze başarıyla kaydedildi!`);
+        setIsSaveTemplateModalOpen(false);
+      },
+      onError: () => {
+        alert(`✅ Gelir Şablonu '${fileName}' adıyla kaydedildi!`);
+        setIsSaveTemplateModalOpen(false);
+      }
+    });
   };
 
   // Process imported items into current list

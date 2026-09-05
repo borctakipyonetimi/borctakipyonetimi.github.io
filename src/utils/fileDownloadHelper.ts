@@ -1,8 +1,21 @@
-import { isAndroidAlarmBridgeAvailable, saveAndroidNativeBackupFile } from "./androidAlarmBridge";
+import { 
+  isAndroidAlarmBridgeAvailable, 
+  saveAndroidNativeFile, 
+  saveAndroidNativeBackupFile,
+  saveAndroidNativeImageToGallery 
+} from "./androidAlarmBridge";
 
 export interface DownloadFileOptions {
   fileName: string;
   content: string;
+  mimeType?: string;
+  onSuccess?: () => void;
+  onError?: (err: any) => void;
+}
+
+export interface SaveImageOptions {
+  fileName: string;
+  base64Data: string;
   mimeType?: string;
   onSuccess?: () => void;
   onError?: (err: any) => void;
@@ -16,10 +29,12 @@ export interface DownloadFileOptions {
 export async function downloadFileWithCustomName(options: DownloadFileOptions): Promise<boolean> {
   const { fileName, content, mimeType = "application/json;charset=utf-8", onSuccess, onError } = options;
 
-  // 1. Check if running inside Android APK with Native Alarm/File Bridge
+  // 1. Android APK / Native Bridge Kontrolü:
+  // Eğer Android ortamındaysak, doğrudan Android MediaStore / Downloads APIsini çağırır.
+  // Bu sayede Android sistemi asla generic 'download.json' veya 'download (1).json' üretmez!
   if (isAndroidAlarmBridgeAvailable()) {
     try {
-      const saved = saveAndroidNativeBackupFile(fileName, content);
+      const saved = saveAndroidNativeFile(fileName, content, mimeType);
       if (saved) {
         if (onSuccess) onSuccess();
         return true;
@@ -29,40 +44,29 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
     }
   }
 
-  // 2. Detect if inside mobile WebView where client-side blob <a download> might be ignored by OS
-  const isWebView = typeof window !== "undefined" && (
-    /wv/i.test(navigator.userAgent) || 
-    /Android.*Version\/[0-9.]+/i.test(navigator.userAgent) ||
-    (window as any).Android ||
-    (window as any).AndroidAlarm ||
-    !(window.Notification)
-  );
-
-  // 3. For standard desktop/mobile browsers that fully respect HTML5 a[download]
-  if (!isWebView) {
-    try {
-      const blob = new Blob([content], { type: mimeType });
-      const localUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = localUrl;
-      link.setAttribute("download", fileName);
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
-        }
-        URL.revokeObjectURL(localUrl);
-      }, 800);
-      if (onSuccess) onSuccess();
-      return true;
-    } catch (e) {
-      console.warn("[downloadFileWithCustomName] Blob download error, trying server bridge:", e);
-    }
+  // 2. Doğrudan Tarayıcı İndirmesi (Blob + HTML5 <a> download)
+  try {
+    const blob = new Blob([content], { type: mimeType });
+    const localUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = localUrl;
+    link.setAttribute("download", fileName);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(localUrl);
+    }, 800);
+    if (onSuccess) onSuccess();
+    return true;
+  } catch (e) {
+    console.warn("[downloadFileWithCustomName] Blob download error, trying server fallback:", e);
   }
 
-  // 4. Mobile WebView fallback: Route via server endpoint with explicit filename in URL path & query
+  // 3. Fallback: Sunucu üzerinden açık dosya adı ile indirme
   try {
     const res = await fetch("/api/temp-backup", {
       method: "POST",
@@ -93,4 +97,43 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
   }
 
   return false;
+}
+
+/**
+ * Resim, dekont ve fotoğrafları Galeri / Pictures klasörüne kaydetme yardımcısı
+ */
+export function saveImageToGalleryWithCustomName(options: SaveImageOptions): boolean {
+  const { fileName, base64Data, mimeType = "image/jpeg", onSuccess, onError } = options;
+
+  if (isAndroidAlarmBridgeAvailable()) {
+    try {
+      const saved = saveAndroidNativeImageToGallery(fileName, base64Data, mimeType);
+      if (saved) {
+        if (onSuccess) onSuccess();
+        return true;
+      }
+    } catch (e) {
+      console.warn("[saveImageToGalleryWithCustomName] Android native save error:", e);
+    }
+  }
+
+  // Tarayıcı indirme fallback'i
+  try {
+    const link = document.createElement("a");
+    link.href = base64Data;
+    link.setAttribute("download", fileName);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+    }, 800);
+    if (onSuccess) onSuccess();
+    return true;
+  } catch (err) {
+    if (onError) onError(err);
+    return false;
+  }
 }

@@ -115,10 +115,13 @@ import {
   syncAllDebtsAndAlarmsToAndroid,
   testAndroidBackgroundAlarm,
   isAndroidAlarmBridgeAvailable,
+  saveAndroidNativeFile,
   saveAndroidNativeBackupFile,
+  saveAndroidNativeImageToGallery,
   shareAndroidNativeBackupFile,
   openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
+import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
 
 export default function App() {
@@ -3616,65 +3619,21 @@ export default function App() {
       return null;
     };
 
-    // Helper: Trigger pure download (Blob + Server fallback)
+    // Helper: Trigger pure download (Android APK Native Bridge + Blob + Server fallback)
     const triggerFileDownload = async () => {
-      // 1. If running inside Android native App, save directly to Android Downloads directory with exact name
-      if (isAndroidAlarmBridgeAvailable()) {
-        const nativeSaved = saveAndroidNativeBackupFile(fileName, jsonString);
-        if (nativeSaved) {
+      await downloadFileWithCustomName({
+        fileName,
+        content: jsonString,
+        mimeType: "application/json",
+        onSuccess: () => {
+          triggerToast(`✅ '${fileName}' dosyası İndirilenler klasörünüze kaydedildi!`);
           localStorage.setItem("last_backup_export_date", new Date().toISOString());
-          return;
+        },
+        onError: () => {
+          triggerToast(`✅ '${fileName}' dosyası kaydedildi!`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
         }
-      }
-
-      let success = false;
-      try {
-        const localUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = localUrl;
-        link.setAttribute("download", fileName);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          if (document.body.contains(link)) {
-            document.body.removeChild(link);
-          }
-          URL.revokeObjectURL(localUrl);
-        }, 800);
-        success = true;
-      } catch (e) {
-        console.warn("Client blob download bypassed:", e);
-      }
-
-      if (!success) {
-        try {
-          const res = await fetch("/api/temp-backup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: jsonString, filename: fileName })
-          });
-          const data = await res.json();
-          if (data.success && data.key) {
-            const downloadUrl = `/api/download-temp/${encodeURIComponent(fileName)}?key=${data.key}&filename=${encodeURIComponent(fileName)}`;
-            const downloadLink = document.createElement("a");
-            downloadLink.href = downloadUrl;
-            downloadLink.setAttribute("download", fileName);
-            downloadLink.download = fileName;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            setTimeout(() => {
-              if (document.body.contains(downloadLink)) {
-                document.body.removeChild(downloadLink);
-              }
-            }, 800);
-          }
-        } catch (err) {
-          console.error("Backup download fallback error:", err);
-        }
-      }
-      triggerToast(`✅ '${fileName}' dosyası İndirilenler klasörünüze kaydedildi!`);
-      localStorage.setItem("last_backup_export_date", new Date().toISOString());
+      });
     };
 
     // 1. WhatsApp Action
@@ -3945,62 +3904,20 @@ export default function App() {
 
     triggerToast("CSV Finansal Rapor indiriliyor... ⏳");
 
-    // Detect if we are running inside an Android WebView/App context
-    const isWebView = typeof window !== "undefined" && (
-      /wv/i.test(navigator.userAgent) || 
-      /Android.*Version\/[0-9.]+/i.test(navigator.userAgent) ||
-      (window as any).Android ||
-      !(window.Notification)
-    );
-
-    if (!isWebView) {
-      // 1. Standard Web Browser: Download using client-side blob (fast, completely local, avoids extra requests or double downloads)
-      try {
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    downloadFileWithCustomName({
+      fileName,
+      content: csvContent,
+      mimeType: "text/csv;charset=utf-8",
+      onSuccess: () => {
         triggerToast("Filtrelenmiş Finansal Rapor başarıyla indirildi! 📊");
-        return;
-      } catch (e) {
-        console.warn("Local CSV blob download bypassed, falling back:", e);
-      }
-    }
-
-    // 2. Mobile App WebView Fallback: Route through server-side helper
-    fetch("/api/temp-backup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: csvContent, filename: fileName })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success && data.key) {
-        const downloadUrl = `/api/download-temp/${encodeURIComponent(fileName)}?key=${data.key}&filename=${encodeURIComponent(fileName)}`;
-        const downloadLink = document.createElement("a");
-        downloadLink.href = downloadUrl;
-        downloadLink.download = fileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-        triggerToast("Filtrelenmiş Finansal Rapor başarıyla indirildi! 📊");
-      } else {
-        throw new Error("Temporary download keys missing");
-      }
-    })
-    .catch(err => {
-      console.warn("Direct CSV download fallback failed:", err);
-      // In restricted WebViews where file downloads are disabled completely, auto-copy to clipboard as the ultimate safeguard
-      try {
-        navigator.clipboard.writeText(csvContent);
-        triggerToast("📋 Cihaz kısıtlaması nedeniyle rapor panoya kopyalandı! Google Sheets veya Excel'e doğrudan yapıştırabilirsiniz.");
-      } catch (clipErr) {
-        triggerToast("❌ Rapor indirilemedi. Lütfen tarayıcı ayarlarından izin verin.");
+      },
+      onError: () => {
+        try {
+          navigator.clipboard.writeText(csvContent);
+          triggerToast("📋 Rapor panoya kopyalandı! Excel veya E-Tablolar'a yapıştırabilirsiniz.");
+        } catch {
+          triggerToast("Rapor indirilemedi.");
+        }
       }
     });
   };

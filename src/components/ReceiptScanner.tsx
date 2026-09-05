@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, Upload, AlertCircle, Loader2, RefreshCw, Sparkles, Check, CheckCircle } from "lucide-react";
+import { Camera, Upload, AlertCircle, Loader2, RefreshCw, Sparkles, Check, CheckCircle, Image as ImageIcon, Download } from "lucide-react";
 import { getApiUrl } from "../utils/api";
+import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
 
 export interface ScannedReceiptResult {
   title: string;
@@ -328,7 +329,27 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {selectedImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanTitle = (successResult?.title || "makbuz").replace(/[^a-zA-Z0-9_-]/g, "_");
+                      const dateStr = successResult?.date || new Date().toISOString().slice(0, 10);
+                      const imgName = `butcem_fis_${cleanTitle}_${dateStr}.jpg`;
+                      saveImageToGalleryWithCustomName({
+                        fileName: imgName,
+                        base64Data: selectedImage,
+                        mimeType: "image/jpeg",
+                        onSuccess: () => alert(`🖼️ Fiş görseli '${imgName}' adıyla Galeriye kaydedildi!`)
+                      });
+                    }}
+                    className="py-2 px-3 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50 rounded-xl transition duration-200 flex items-center justify-center gap-1.5 cursor-pointer border border-amber-200/50 dark:border-amber-800/40"
+                    title="Fiş fotoğrafını telefonunuzun Galerisine kaydedin"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Galeriye Kaydet
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {

@@ -19,6 +19,7 @@ import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface DebtListProps {
   debts: Debt[];
@@ -477,23 +478,20 @@ export const DebtList: React.FC<DebtListProps> = ({
       }
     }
 
-    // Direct download
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      if (document.body.contains(link)) {
-        document.body.removeChild(link);
+    // Direct download with custom name (Android APK & Browser Safe)
+    downloadFileWithCustomName({
+      fileName,
+      content: jsonString,
+      mimeType: "application/json",
+      onSuccess: () => {
+        alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
+        setIsSaveTemplateModalOpen(false);
+      },
+      onError: () => {
+        alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla kaydedildi!`);
+        setIsSaveTemplateModalOpen(false);
       }
-      URL.revokeObjectURL(url);
-    }, 800);
-
-    alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
-    setIsSaveTemplateModalOpen(false);
+    });
   };
 
   const handleDeleteNamedTemplate = (id: string, name: string) => {

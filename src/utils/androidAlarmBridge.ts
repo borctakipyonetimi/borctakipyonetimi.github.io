@@ -15,7 +15,9 @@ export interface AndroidBridgeInterface {
   syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
   testDelayedNotification?: (delaySeconds: number) => void;
   showToast?: (message: string) => void;
-  saveBackupFile?: (fileName: string, jsonContent: string) => void;
+  saveBackupFile?: (fileName: string, jsonContent: string) => boolean | void;
+  saveFile?: (fileName: string, content: string, mimeType?: string) => boolean | void;
+  saveImageToGallery?: (fileName: string, base64Data: string, mimeType?: string) => boolean | void;
   shareBackupFile?: (fileName: string, jsonContent: string, title?: string) => void;
   openGoogleDrive?: () => void;
   openExternalUrl?: (url: string) => void;
@@ -25,6 +27,7 @@ declare global {
   interface Window {
     AndroidAlarm?: AndroidBridgeInterface;
     Android?: AndroidBridgeInterface;
+    AndroidBridge?: AndroidBridgeInterface;
   }
 }
 
@@ -35,6 +38,7 @@ function getActiveBridge(): AndroidBridgeInterface | null {
   if (typeof window === "undefined") return null;
   if (window.AndroidAlarm) return window.AndroidAlarm;
   if (window.Android) return window.Android;
+  if (window.AndroidBridge) return window.AndroidBridge;
   return null;
 }
 
@@ -48,8 +52,10 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
     return Boolean(
       bridge && (
         typeof bridge.setDebtAlarm === "function" ||
+        typeof bridge.saveFile === "function" ||
         typeof bridge.saveBackupFile === "function" ||
         typeof bridge.shareBackupFile === "function" ||
+        typeof bridge.saveImageToGallery === "function" ||
         bridge.isAvailable?.()
       )
     );
@@ -208,16 +214,44 @@ export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
 /**
  * Android cihazın İndirilenler (Downloads) klasörüne belirlenen dosya adıyla kaydeder.
  */
-export function saveAndroidNativeBackupFile(fileName: string, jsonContent: string): boolean {
+export function saveAndroidNativeFile(fileName: string, content: string, mimeType: string = "application/json"): boolean {
   const bridge = getActiveBridge();
-  if (!bridge || typeof bridge.saveBackupFile !== "function") {
+  if (!bridge) return false;
+
+  try {
+    if (typeof bridge.saveFile === "function") {
+      bridge.saveFile(fileName, content, mimeType);
+      return true;
+    } else if (typeof bridge.saveBackupFile === "function") {
+      bridge.saveBackupFile(fileName, content);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[AndroidAlarmBridge] saveAndroidNativeFile hatası:", e);
+  }
+  return false;
+}
+
+/**
+ * Android cihazın İndirilenler (Downloads) klasörüne belirlenen dosya adıyla JSON kaydeder.
+ */
+export function saveAndroidNativeBackupFile(fileName: string, jsonContent: string): boolean {
+  return saveAndroidNativeFile(fileName, jsonContent, "application/json");
+}
+
+/**
+ * Android cihazın Galeri / Fotoğraflar (Pictures) klasörüne resim/dekont kaydeder.
+ */
+export function saveAndroidNativeImageToGallery(fileName: string, base64Data: string, mimeType: string = "image/jpeg"): boolean {
+  const bridge = getActiveBridge();
+  if (!bridge || typeof bridge.saveImageToGallery !== "function") {
     return false;
   }
   try {
-    bridge.saveBackupFile(fileName, jsonContent);
+    bridge.saveImageToGallery(fileName, base64Data, mimeType);
     return true;
   } catch (e) {
-    console.warn("[AndroidAlarmBridge] saveBackupFile hatası:", e);
+    console.warn("[AndroidAlarmBridge] saveAndroidNativeImageToGallery hatası:", e);
   }
   return false;
 }

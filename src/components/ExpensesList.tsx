@@ -29,6 +29,7 @@ import { useCurrency } from "../utils/CurrencyContext";
 import ReceiptScanner from "./ReceiptScanner";
 import { Camera } from "lucide-react";
 import { t } from "../utils/translations";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface ExpensesListProps {
   expenses: Expense[];
@@ -1282,17 +1283,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       const config = expenseCategories.map(
                         ({ name, color }) => ({ name, color }),
                       );
-                      const blob = new Blob([JSON.stringify(config, null, 2)], {
-                        type: "application/json",
+                      downloadFileWithCustomName({
+                        fileName: "kategori_ayarlari.json",
+                        content: JSON.stringify(config, null, 2),
+                        mimeType: "application/json"
                       });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "kategori_ayarlari.json";
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
                     }}
                     className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black tracking-wider uppercase transition-all duration-300 flex items-center gap-1 cursor-pointer active:scale-95"
                     title="Kategori konfigürasyonunu (isimler ve renkler) JSON dosyası olarak dışa aktar"

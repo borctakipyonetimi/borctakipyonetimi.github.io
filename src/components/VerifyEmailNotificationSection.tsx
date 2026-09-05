@@ -13,6 +13,7 @@ import {
   EMAIL_THEME_CONFIGS,
   EmailThemeKey,
 } from "../utils/automatedMail";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import {
   Mail,
   CheckCircle2,
@@ -153,18 +154,19 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
       installmentDebts,
     });
 
-    // Create .EML file blob
-    const emlBlob = new Blob([emlContent], { type: "message/rfc822;charset=utf-8" });
-    const emlUrl = URL.createObjectURL(emlBlob);
-    
-    // Download/Open .EML file
-    const a = document.createElement("a");
-    a.href = emlUrl;
-    a.download = `ButcemPro_Finansal_Rapor_${new Date().toISOString().split("T")[0]}.eml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(emlUrl), 2000);
+    const emlFileName = `ButcemPro_Finansal_Rapor_${new Date().toISOString().split("T")[0]}.eml`;
+
+    // Download/Open .EML file (Android & Browser Safe)
+    downloadFileWithCustomName({
+      fileName: emlFileName,
+      content: emlContent,
+      mimeType: "message/rfc822;charset=utf-8",
+      onSuccess: () => {
+        if (onSuccessToast) {
+          onSuccessToast(`'${emlFileName}' başarıyla hazırlandı! Mail uygulamanız açılıyor.`);
+        }
+      }
+    });
 
     // Also trigger mailto: with formatted ASCII box table
     const subject = encodeURIComponent(`Bütçem Pro: Finansal Rapor ve Bütçe Özeti (${new Date().toLocaleDateString("tr-TR")})`);
@@ -281,20 +283,19 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     }
   };
 
-  // Download HTML File
+  // Download HTML File (Android & Browser Safe)
   const handleDownloadHtmlFile = () => {
-    const blob = new Blob([currentEmailHtml], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Butcem_Pro_Finansal_Rapor_${new Date().toISOString().split("T")[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    if (onSuccessToast) {
-      onSuccessToast("E-posta raporu HTML dosyası olarak indirildi.");
-    }
+    const htmlFileName = `Butcem_Pro_Finansal_Rapor_${new Date().toISOString().split("T")[0]}.html`;
+    downloadFileWithCustomName({
+      fileName: htmlFileName,
+      content: currentEmailHtml,
+      mimeType: "text/html;charset=utf-8",
+      onSuccess: () => {
+        if (onSuccessToast) {
+          onSuccessToast(`'${htmlFileName}' başarıyla indirildi.`);
+        }
+      }
+    });
   };
 
   const handleSaveCustomServerUrl = () => {
