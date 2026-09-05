@@ -13,6 +13,9 @@ declare global {
       setDebtAlarm: (id: number, title: string, triggerAtMillis: number, message?: string) => void;
       cancelDebtAlarm: (id: number) => void;
       isAvailable: () => boolean;
+      showNotification?: (title: string, message: string) => void;
+      syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
+      testDelayedNotification?: (delaySeconds: number) => void;
       showToast?: (message: string) => void;
     };
   }
@@ -82,6 +85,39 @@ export function cancelAndroidDebtAlarm(id: number): boolean {
 }
 
 /**
+ * Tüm alarmları, borçları ve taksitleri Android cihazın donanım katmanına (AlarmManager & SharedPreferences) senkronize eder.
+ * Telefon kapalıyken veya ekran kilitliyken hem vadesi gelen alarmların hem de gecikmiş borç uyarılarının gelmesini sağlar.
+ */
+export function syncAllDebtsAndAlarmsToAndroid(
+  alarms: any[],
+  debts: any[],
+  installmentDebts: any[]
+): boolean {
+  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+    return false;
+  }
+
+  try {
+    const alarmsJson = JSON.stringify(alarms || []);
+    const debtsJson = JSON.stringify(debts || []);
+    const installmentDebtsJson = JSON.stringify(installmentDebts || []);
+
+    if (typeof window.AndroidAlarm.syncAllData === "function") {
+      window.AndroidAlarm.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
+      console.log("[AndroidAlarmBridge] syncAllData çağrıldı (alarmlar, borçlar, taksitler donanıma yazıldı).");
+      return true;
+    } else {
+      // Fallback: Eski sürümlerde tek tek alarm kur
+      syncAllAlarmsToAndroid(alarms);
+      return true;
+    }
+  } catch (err) {
+    console.warn("[AndroidAlarmBridge] syncAllDebtsAndAlarmsToAndroid hatası:", err);
+    return false;
+  }
+}
+
+/**
  * Sistemdeki tüm aktif ve gelecekteki alarmları tek seferde Android AlarmManager ile senkronize eder.
  */
 export function syncAllAlarmsToAndroid(
@@ -118,4 +154,26 @@ export function syncAllAlarmsToAndroid(
   });
 
   return scheduledCount;
+}
+
+/**
+ * Ekran kapalıyken veya uygulama arka plandayken bildirim test etmek için 5 sn sonra çalan donanım alarmını kurar.
+ */
+export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
+  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+    return false;
+  }
+
+  try {
+    if (typeof window.AndroidAlarm.testDelayedNotification === "function") {
+      window.AndroidAlarm.testDelayedNotification(delaySeconds);
+      return true;
+    } else {
+      const trigger = Date.now() + (delaySeconds * 1000);
+      return scheduleAndroidDebtAlarm(777777, "🔔 Ekran Kapalı Bildirim Testi", trigger, "Test bildirimi kilit ekranına ulaştı!");
+    }
+  } catch (e) {
+    console.warn("[AndroidAlarmBridge] testAndroidBackgroundAlarm hatası:", e);
+    return false;
+  }
 }

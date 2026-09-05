@@ -27,6 +27,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import android.content.SharedPreferences;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -52,6 +56,7 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
     public static final String EXTRA_TITLE = "extra_title";
     public static final String EXTRA_MESSAGE = "extra_message";
     public static final String EXTRA_TIMESTAMP = "extra_timestamp";
+    public static final String ACTION_CHECK_OVERDUE_DEBTS = "io.github.borctakipyonetimi.ACTION_CHECK_OVERDUE_DEBTS";
 
     private static Ringtone activeRingtone = null;
     private static final Handler soundTimeoutHandler = new Handler(Looper.getMainLooper());
@@ -59,7 +64,14 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "DebtAlarmReceiver tetiklendi! Intent: " + intent.getAction());
+        String action = intent != null ? intent.getAction() : null;
+        Log.d(TAG, "DebtAlarmReceiver tetiklendi! Intent: " + action);
+
+        if (ACTION_CHECK_OVERDUE_DEBTS.equals(action)) {
+            Log.i(TAG, "Gecikmiş borçları periyodik tarama başlatılıyor...");
+            handleOverdueDebtsScan(context);
+            return;
+        }
 
         // 1. Ekranı Aydınlatma ve CPU WakeLock (Telefon ekran kapalıyken ekranı açmak için şarttır)
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -242,6 +254,185 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
                 try { screenLock.release(); } catch (Exception ignored) {}
             }
         }
+    }
+
+    /**
+     * SharedPreferences içinde kayıtlı borç ve taksitleri tarar.
+     * Vadesi geçmiş veya bugün olan ödemeler için kilit ekranı ve bildirim çekmecesi
+     * üzerinden sesli ve titreşimli heads-up bildirim yayınlar.
+     */
+    public static void handleOverdueDebtsScan(Context context) {
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wakeLock = null;
+        PowerManager.WakeLock screenLock = null;
+
+        try {
+            if (powerManager != null) {
+                wakeLock = powerManager.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "BorcTakip:ScanWakeLock"
+                );
+                wakeLock.acquire(15 * 1000L);
+
+                @SuppressWarnings("deprecation")
+                int screenFlags = PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE;
+                screenLock = powerManager.newWakeLock(screenFlags, "BorcTakip:ScanScreenLock");
+                screenLock.acquire(15 * 1000L);
+            }
+
+            SharedPreferences prefs = context.getSharedPreferences("borc_takip_alarms_store", Context.MODE_PRIVATE);
+            String debtsJson = prefs.getString("saved_debts_json", "[]");
+
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+            cal.set(java.util.Calendar.MINUTE, 0);
+            cal.set(java.util.Calendar.SECOND, 0);
+            cal.set(java.util.Calendar.MILLISECOND, 0);
+            long todayStart = cal.getTimeInMillis();
+
+            JSONArray overdueList = new JSONArray();
+            double totalOverdueAmount = 0;
+            String topOverdueName = "";
+            int maxDaysLate = 0;
+
+            JSONArray debtsArray = new JSONArray(debtsJson);
+            for (int i = 0; i < debtsArray.length(); i++) {
+                JSONObject d = debtsArray.getJSONObject(i);
+                boolean isPaid = d.optBoolean("isPaid", false);
+                double amount = d.optDouble("amount", 0);
+                double paid = d.optDouble("paid", 0);
+                double remaining = amount - paid;
+                String dueDateStr = d.optString("dueDate", "");
+
+                if (!isPaid && remaining > 0 && !dueDateStr.isEmpty()) {
+                    long dueTime = parseDateTimeFlexible(dueDateStr);
+                    if (dueTime > 0 && dueTime < todayStart) {
+                        int daysLate = (int) Math.max(1, (todayStart - dueTime) / (1000 * 60 * 60 * 24));
+                        JSONObject item = new JSONObject();
+                        item.put("name", d.optString("name", "Borç"));
+                        item.put("remaining", remaining);
+                        item.put("daysLate", daysLate);
+                        overdueList.put(item);
+                        totalOverdueAmount += remaining;
+                        if (daysLate > maxDaysLate) {
+                            maxDaysLate = daysLate;
+                            topOverdueName = d.optString("name", "Borç");
+                        }
+                    }
+                }
+            }
+
+            if (overdueList.length() > 0) {
+                createNotificationChannel(context);
+                int notifId = 888100;
+
+                Intent openIntent = new Intent(context, MainActivity.class);
+                openIntent.putExtra("NAVIGATE_TO", "debts");
+                openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+                PendingIntent contentPendingIntent = PendingIntent.getActivity(context, notifId, openIntent, pendingFlags);
+
+                SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
+                String todayStr = sdf.format(new Date());
+
+                String title = "⚠️ Gecikmiş Borç Uyarısı (" + overdueList.length() + " Adet)";
+                String body = "SN. DEĞERLİ KULLANICIMIZ\n" +
+                        todayStr + " İTİBARIYLA GECİKMİŞ BORCUNUZ BULUNMAKTADIR:\n" +
+                        "- " + topOverdueName + " (" + maxDaysLate + " gün gecikti)\n" +
+                        "- Toplam Geciken Borç Tutarı: ₺" + String.format(Locale.getDefault(), "%,.0f", totalOverdueAmount) + "\n" +
+                        "- Gecikme faizlerinden korunmak için ödemenizi yapmanızı rica ederiz.\n" +
+                        "BÜTÇEM PRO İYİ GÜNLER DİLERİZ B001";
+
+                int smallIconId = R.drawable.ic_stat_alarm;
+                if (smallIconId == 0) smallIconId = context.getApplicationInfo().icon;
+                if (smallIconId == 0) smallIconId = android.R.drawable.ic_dialog_info;
+
+                Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                        .setSmallIcon(smallIconId)
+                        .setContentTitle(title)
+                        .setContentText("Sn. Kullanıcımız: " + topOverdueName + " için ödeme gecikti (" + maxDaysLate + " gün)")
+                        .setStyle(new NotificationCompat.BigTextStyle().setBigContentTitle(title).bigText(body))
+                        .setPriority(NotificationCompat.PRIORITY_MAX)
+                        .setCategory(NotificationCompat.CATEGORY_ALARM)
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .setContentIntent(contentPendingIntent)
+                        .setAutoCancel(true)
+                        .setDefaults(NotificationCompat.DEFAULT_ALL)
+                        .setSound(soundUri)
+                        .setVibrate(new long[]{0, 500, 200, 500})
+                        .addAction(0, "Ödemeleri İncele", contentPendingIntent);
+
+                Notification notification = builder.build();
+                NotificationManagerCompat.from(context).notify(notifId, notification);
+                Log.i(TAG, "Gecikmiş borç bildirimi yayınlandı. Toplam: " + overdueList.length());
+            }
+
+            // Bir sonraki periyodik kontrolü planla
+            MainActivity.schedulePeriodicOverdueDebtCheck(context);
+
+        } catch (Exception e) {
+            Log.e(TAG, "handleOverdueDebtsScan hatası:", e);
+        } finally {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                try { wakeLock.release(); } catch (Exception ignored) {}
+            }
+            if (screenLock != null && screenLock.isHeld()) {
+                try { screenLock.release(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    public static long parseDateTimeFlexible(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty()) return 0;
+        dateStr = dateStr.trim();
+        try {
+            if (dateStr.matches("^\\d+$")) {
+                return Long.parseLong(dateStr);
+            }
+            if (dateStr.contains("T")) {
+                String[] parts = dateStr.split("T");
+                String[] dParts = parts[0].split("-");
+                String[] tParts = parts[1].split(":");
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.set(Integer.parseInt(dParts[0]), Integer.parseInt(dParts[1]) - 1, Integer.parseInt(dParts[2]),
+                        Integer.parseInt(tParts[0]), Integer.parseInt(tParts[1]), 0);
+                return cal.getTimeInMillis();
+            } else if (dateStr.contains("-")) {
+                String[] parts = dateStr.split(" ");
+                String[] dParts = parts[0].split("-");
+                int hr = 9, min = 0;
+                if (parts.length > 1 && parts[1].contains(":")) {
+                    String[] tParts = parts[1].split(":");
+                    hr = Integer.parseInt(tParts[0]);
+                    min = Integer.parseInt(tParts[1]);
+                }
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.set(Integer.parseInt(dParts[0]), Integer.parseInt(dParts[1]) - 1, Integer.parseInt(dParts[2]), hr, min, 0);
+                return cal.getTimeInMillis();
+            } else if (dateStr.contains(".")) {
+                String[] parts = dateStr.split(" ");
+                String[] dParts = parts[0].split("\\.");
+                int hr = 9, min = 0;
+                if (parts.length > 1 && parts[1].contains(":")) {
+                    String[] tParts = parts[1].split(":");
+                    hr = Integer.parseInt(tParts[0]);
+                    min = Integer.parseInt(tParts[1]);
+                }
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.set(Integer.parseInt(dParts[2]), Integer.parseInt(dParts[1]) - 1, Integer.parseInt(dParts[0]), hr, min, 0);
+                return cal.getTimeInMillis();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "parseDateTimeFlexible başarısız: " + dateStr, e);
+        }
+        return 0;
     }
 
     /**

@@ -107,6 +107,9 @@ public class BootReceiver extends BroadcastReceiver {
             prefs.edit().putString(KEY_SAVED_ALARMS, updatedArray.toString()).apply();
             Log.i(TAG, rescheduledCount + " adet borç alarmı telefon açılışında başarıyla yeniden kuruldu.");
 
+            // Periyodik gecikmiş borç kontrolünü de yeniden planla
+            MainActivity.schedulePeriodicOverdueDebtCheck(context);
+
         } catch (Exception e) {
             Log.e(TAG, "Alarmları yeniden kurarken hata oluştu:", e);
         }

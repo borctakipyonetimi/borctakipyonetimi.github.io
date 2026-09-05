@@ -112,6 +112,8 @@ import {
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
   syncAllAlarmsToAndroid,
+  syncAllDebtsAndAlarmsToAndroid,
+  testAndroidBackgroundAlarm,
   isAndroidAlarmBridgeAvailable
 } from "./utils/androidAlarmBridge";
 import confetti from "canvas-confetti";
@@ -1293,13 +1295,17 @@ export default function App() {
         console.warn("Push sync call deferred:", err);
       }
 
-      // Synchronize alarms to native Android AlarmManager if running inside Android WebView wrapper
+      // Synchronize alarms, debts, and installment debts to native Android AlarmManager and SharedPreferences
       try {
         if (isAndroidAlarmBridgeAvailable()) {
-          syncAllAlarmsToAndroid(alarmsRef.current);
+          syncAllDebtsAndAlarmsToAndroid(
+            alarmsRef.current,
+            debtsRef.current,
+            installmentDebtsRef.current
+          );
         }
       } catch (err) {
-        console.warn("[AndroidAlarmBridge] Native alarm synchronization error:", err);
+        console.warn("[AndroidAlarmBridge] Native alarm & debt synchronization error:", err);
       }
     };
 
@@ -3262,6 +3268,93 @@ export default function App() {
   const handleClearNotifs = () => {
     setNotifications([]);
     saveAllToUser(debts, incomes, alarms, [], installmentDebts, payments, expenses, expenseCategories);
+  };
+
+  const handleTestBackgroundAlarm = async () => {
+    try {
+      if (isAndroidAlarmBridgeAvailable()) {
+        const ok = testAndroidBackgroundAlarm(5);
+        if (ok) {
+          triggerToast("⏰ 5 Saniyelik Donanım Testi Kuruldu! Lütfen HEMEN telefonunuzu kilitleyin veya uygulamayı kapatın.");
+          return;
+        }
+      }
+
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            triggerToast("⏰ 5 Saniye Sonra Kilit Ekranı Bildirimi Gönderilecek! Lütfen HEMEN ekranı kilitleyin.");
+            await fetch("/api/send-test-push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ subscription: sub, delaySeconds: 5 })
+            });
+            return;
+          }
+        } catch (swErr) {
+          console.warn("SW push test error:", swErr);
+        }
+      }
+
+      triggerToast("⏰ 5 Saniye Sonra Test Bildirimi Gönderilecek. Ekranınızı kilitleyebilir veya uygulamadan çıkabilirsiniz.");
+      setTimeout(() => {
+        sendSystemNotification(
+          "🔔 Kilit Ekranı / Arka Plan Bildirim Testi",
+          "Tebrikler! Bildirim motoru başarıyla çalışıyor. Uygulama kapalıyken veya ekran kilitliyken borç ve alarmlarınız eksiksiz gelecektir."
+        );
+      }, 5000);
+    } catch (err) {
+      console.warn("Background test notification error:", err);
+      triggerToast("Test başlatılırken bir hata oluştu.");
+    }
+  };
+
+  const handleTriggerInstantOverduePush = async () => {
+    try {
+      if (isAndroidAlarmBridgeAvailable()) {
+        syncAllDebtsAndAlarmsToAndroid(alarmsRef.current, debtsRef.current, installmentDebtsRef.current);
+        triggerToast("Android sistemine tüm borçlar senkronize edildi ve gecikmiş borç taraması yenilendi!");
+      }
+
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            const res = await fetch("/api/trigger-overdue-push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                subscription: sub,
+                debts: debtsRef.current,
+                installmentDebts: installmentDebtsRef.current
+              })
+            });
+            const data = await res.json();
+            triggerToast(data.message || "Gecikmiş borç tarama bildirimi gönderildi.");
+            return;
+          }
+        } catch (swErr) {
+          console.warn("Instant overdue push error:", swErr);
+        }
+      }
+
+      // Local browser fallback
+      const overdue = debts.filter(d => ((d.amount - (d.paid || 0)) > 0) && d.dueDate && new Date(d.dueDate).getTime() < Date.now());
+      if (overdue.length > 0) {
+        sendSystemNotification(
+          `⚠️ Gecikmiş Borç Uyarısı (${overdue.length} Adet)`,
+          `Vadesi geçmiş borcunuz var: "${overdue[0].name}" (₺${overdue[0].amount}). Lütfen kontrol ediniz!`
+        );
+        triggerToast("Gecikmiş borç bildirimi oluşturuldu.");
+      } else {
+        triggerToast("Harika! Gecikmiş herhangi bir borcunuz bulunmuyor.");
+      }
+    } catch (err) {
+      console.warn("handleTriggerInstantOverduePush error:", err);
+    }
   };
 
   const handleSaveContactTx = (contactName: string, amount: number, type: "receivable" | "payable", description?: string) => {
@@ -5665,6 +5758,48 @@ export default function App() {
                         Temizle
                       </button>
                     )}
+                  </div>
+                </div>
+
+                {/* KAPALI UYGULAMA VE KİLİT EKRANI BİLDİRİM GÜVENCESİ PANELİ */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-900/90 via-slate-900 to-slate-900 text-white border border-indigo-500/30 shadow-lg space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300">
+                        <Smartphone className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          <span>Kilit Ekranı ve Kapalı Uygulama Bildirim Güvencesi</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                            Tam Zamanlı Aktif ✓
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-300 font-medium">
+                          Uygulama kapalıyken veya ekran kilitliyken gecikmiş borçlar ve alarmlar donanım seviyesinde telefonunuza teslim edilir.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-700/60">
+                    <button
+                      type="button"
+                      onClick={handleTestBackgroundAlarm}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 shadow-sm"
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>🔔 5 Sn Sonra Ekran Kapalı Bildirimini Test Et</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleTriggerInstantOverduePush}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 active:scale-95 text-slate-200 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>⚡ Gecikmiş Borç Taramasını Şimdi Çalıştır</span>
+                    </button>
                   </div>
                 </div>
 

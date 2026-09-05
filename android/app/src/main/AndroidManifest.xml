@@ -69,6 +69,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="io.github.borctakipyonetimi.ACTION_DEBT_ALARM" />
+                <action android:name="io.github.borctakipyonetimi.ACTION_CHECK_OVERDUE_DEBTS" />
             </intent-filter>
         </receiver>
 
