@@ -36,9 +36,18 @@ import android.os.Environment;
 import android.webkit.DownloadListener;
 import android.webkit.URLUtil;
 import androidx.core.content.FileProvider;
+import android.content.ClipData;
+import android.content.ContentValues;
+import android.content.ContentResolver;
+import android.content.pm.ResolveInfo;
+import android.provider.MediaStore;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -101,8 +110,10 @@ public class MainActivity extends AppCompatActivity {
         // 4. WebView ve JavaScript Yapılandırması
         configureWebView();
 
-        // 5. JavaScript Köprüsünü (AndroidAlarm) Enjekte Et
-        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidAlarm");
+        // 5. JavaScript Köprüsünü (AndroidAlarm & Android) Enjekte Et
+        WebAppInterface webAppInterface = new WebAppInterface(this);
+        webView.addJavascriptInterface(webAppInterface, "AndroidAlarm");
+        webView.addJavascriptInterface(webAppInterface, "Android");
 
         // 5. Hedef URL'yi yükle
         if (savedInstanceState == null) {
@@ -173,23 +184,65 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Dosya İndirme Yöneticisi (DownloadListener): Web üzerinden doğrudan inen dosyaları yakalar
+        // Dosya İndirme Yöneticisi (DownloadListener): Web üzerinden inen dosyaların adını asla 'json' veya bozuk yapmaz
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                 try {
+                    String extractedName = null;
+
+                    // 1. Content-Disposition başlığından dosya adını regex ile çıkar (UTF-8 ve standart formatlar)
+                    if (contentDisposition != null && !contentDisposition.trim().isEmpty()) {
+                        try {
+                            Matcher m = Pattern.compile("filename\\*?=['\"]?(?:UTF-8'')?([^;'\"]+)", Pattern.CASE_INSENSITIVE).matcher(contentDisposition);
+                            if (m.find()) {
+                                extractedName = java.net.URLDecoder.decode(m.group(1).trim(), "UTF-8");
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    // 2. URL Query veya Path parametresinden dosya adını çıkar (?filename=xxx veya /api/download-temp/xxx)
+                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin")) {
+                        try {
+                            Uri parsedUri = Uri.parse(url);
+                            String qName = parsedUri.getQueryParameter("filename");
+                            if (qName != null && !qName.trim().isEmpty()) {
+                                extractedName = qName.trim();
+                            } else {
+                                String lastSegment = parsedUri.getLastPathSegment();
+                                if (lastSegment != null && lastSegment.contains(".") && !lastSegment.equalsIgnoreCase("download-temp")) {
+                                    extractedName = lastSegment;
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    // 3. Fallback: URLUtil.guessFileName
+                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("downloadfile.bin")) {
+                        extractedName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    }
+
+                    // 4. Hâlâ generic 'json' veya 'downloadfile.bin' ise düzgün zaman damgalı isim üret
+                    if (extractedName == null || extractedName.equalsIgnoreCase("json") || extractedName.equalsIgnoreCase("json.json") ||
+                        extractedName.equalsIgnoreCase("downloadfile.bin") || extractedName.startsWith("download-temp")) {
+                        String dateStr = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
+                        extractedName = "butcem_pro_yedek_" + dateStr + ".json";
+                    }
+
+                    final String finalName = extractedName;
+
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                    request.setMimeType(mimetype);
-                    String filename = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                    request.setDescription("Bütçem Pro Dosyası İndiriliyor...");
-                    request.setTitle(filename);
+                    String safeMime = (mimetype != null && !mimetype.isEmpty()) ? mimetype : "application/json";
+                    request.setMimeType(safeMime);
+                    request.setDescription("Bütçem Pro Dosyası: " + finalName);
+                    request.setTitle(finalName);
                     request.allowScanningByMediaScanner();
                     request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, finalName);
                     DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                     if (dm != null) {
                         dm.enqueue(request);
-                        Toast.makeText(MainActivity.this, "📥 İndiriliyor: " + filename, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "📥 İndiriliyor: " + finalName, Toast.LENGTH_SHORT).show();
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "DownloadListener hatası:", e);
@@ -832,31 +885,65 @@ public class MainActivity extends AppCompatActivity {
                     cleanName += ".json";
                 }
                 final String finalFileName = cleanName;
+                boolean savedSuccessfully = false;
 
-                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                if (!downloadsDir.exists()) {
-                    downloadsDir.mkdirs();
+                // 1. Android 10+ (API 29+) MediaStore API ile İndirilenler klasörüne kaydetme
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        ContentValues values = new ContentValues();
+                        values.put(MediaStore.Downloads.DISPLAY_NAME, finalFileName);
+                        values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                        values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                        values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                        ContentResolver resolver = mContext.getContentResolver();
+                        Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+
+                        if (uri != null) {
+                            try (OutputStream out = resolver.openOutputStream(uri)) {
+                                if (out != null) {
+                                    out.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                                    out.flush();
+                                }
+                            }
+                            values.clear();
+                            values.put(MediaStore.Downloads.IS_PENDING, 0);
+                            resolver.update(uri, values, null, null);
+                            savedSuccessfully = true;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "MediaStore ile indirme başarısız, doğrudan File fallback deneniyor:", e);
+                    }
                 }
 
-                File targetFile = new File(downloadsDir, finalFileName);
-                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                    fos.write(jsonContent.getBytes(StandardCharsets.UTF_8));
-                    fos.flush();
-                }
+                // 2. Klasik Dosya Sistemi Fallback (API <= 28 veya MediaStore hatasında)
+                if (!savedSuccessfully) {
+                    File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadsDir.exists()) {
+                        downloadsDir.mkdirs();
+                    }
 
-                // Sistem medya tarayıcısına bildir ki Dosyalarım/İndirilenler klasöründe anında listelensin
-                try {
-                    android.media.MediaScannerConnection.scanFile(
-                            mContext,
-                            new String[]{targetFile.getAbsolutePath()},
-                            new String[]{"application/json"},
-                            null
-                    );
-                } catch (Exception ignored) {}
+                    File targetFile = new File(downloadsDir, finalFileName);
+                    try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                        fos.write(jsonContent.getBytes(StandardCharsets.UTF_8));
+                        fos.flush();
+                    }
+
+                    // Sistem medya tarayıcısına bildir ki Dosyalarım/İndirilenler klasöründe anında listelensin
+                    try {
+                        android.media.MediaScannerConnection.scanFile(
+                                mContext,
+                                new String[]{targetFile.getAbsolutePath()},
+                                new String[]{"application/json"},
+                                null
+                        );
+                    } catch (Exception ignored) {}
+                    savedSuccessfully = true;
+                }
 
                 showNotification("📁 Yedek Dosyası İndirildi", finalFileName + " İndirilenler klasörüne kaydedildi.");
                 runOnUiThread(() -> Toast.makeText(mContext, "✅ '" + finalFileName + "' İndirilenler klasörüne başarıyla kaydedildi!", Toast.LENGTH_LONG).show());
-                Log.i(TAG, "Yedek dosyası kaydedildi: " + targetFile.getAbsolutePath());
+                Log.i(TAG, "Yedek dosyası kaydedildi: " + finalFileName);
 
             } catch (Exception e) {
                 Log.e(TAG, "saveBackupFile hatası:", e);
@@ -866,8 +953,8 @@ public class MainActivity extends AppCompatActivity {
 
         /**
          * Cihaz Paylaşım Menüsünü (Android Native Intent.ACTION_SEND Chooser) açar.
-         * WhatsApp, Google Drive ('Drive'a Kaydet'), Telegram, Gmail, Bluetooth, Quick Share vb.
-         * tüm uygulamaların paylaşım menüsünü anında ekrana getirir.
+         * Bluetooth, Quick Share (Nearby Share / Wi-Fi Direct), WhatsApp, Google Drive ('Drive'a Kaydet'),
+         * Telegram, Gmail, Xiaomi/Samsung Share ve Dosyalarım gibi TÜM paylaşım hedeflerini anında listeler.
          */
         @JavascriptInterface
         public void shareBackupFile(final String fileName, final String jsonContent, final String title) {
@@ -901,14 +988,25 @@ public class MainActivity extends AppCompatActivity {
                     );
 
                     Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                    shareIntent.setType("application/json");
+                    // '*/*' MIME türü Bluetooth, Wi-Fi Paylaşımı, Quick Share ve tüm sistem servislerini tetikler
+                    shareIntent.setType("*/*");
                     shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
                     String safeTitle = (title != null && !title.trim().isEmpty()) ? title : "Bütçem Veri Yedeği";
                     shareIntent.putExtra(Intent.EXTRA_SUBJECT, safeTitle);
                     shareIntent.putExtra(Intent.EXTRA_TEXT, "Bütçem Pro Veri Yedeği: " + cleanName);
-                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    shareIntent.setClipData(ClipData.newRawUri(cleanName, contentUri));
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-                    Intent chooser = Intent.createChooser(shareIntent, "Bütçem Yedeğini Paylaş");
+                    // Hedef uygulamalara (Bluetooth servisi, Quick Share vb.) URI okuma yetkisini açıkça ver
+                    try {
+                        List<ResolveInfo> resInfoList = mContext.getPackageManager().queryIntentActivities(shareIntent, PackageManager.MATCH_DEFAULT_ONLY);
+                        for (ResolveInfo resolveInfo : resInfoList) {
+                            String packageName = resolveInfo.activityInfo.packageName;
+                            mContext.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        }
+                    } catch (Exception ignored) {}
+
+                    Intent chooser = Intent.createChooser(shareIntent, "Bütçem Yedeğini Paylaş (WhatsApp, Drive, Bluetooth, Wi-Fi...)");
                     chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     mContext.startActivity(chooser);

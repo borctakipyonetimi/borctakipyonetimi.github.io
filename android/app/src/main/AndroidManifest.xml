@@ -32,13 +32,21 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-    <!-- Google Drive, WhatsApp ve Sistem Paylaşımı için Paket Görünürlüğü (Android 11+) -->
+    <!-- Google Drive, WhatsApp, Bluetooth ve Sistem Paylaşımı için Paket Görünürlüğü (Android 11+) -->
     <queries>
         <package android:name="com.google.android.apps.docs" />
         <package android:name="com.whatsapp" />
         <package android:name="org.telegram.messenger" />
+        <package android:name="com.android.bluetooth" />
+        <package android:name="com.google.android.gms" />
+        <package android:name="com.google.android.apps.nbu.files" />
+        <package android:name="com.sec.android.app.myfiles" />
         <intent>
             <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND_MULTIPLE" />
             <data android:mimeType="*/*" />
         </intent>
         <intent>

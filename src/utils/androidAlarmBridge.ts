@@ -2,27 +2,40 @@
  * Android WebView AlarmManager JavaScript Interface Bridge
  * 
  * Bu yardımcı modül, borctakipyonetimi.github.io web uygulaması içinden
- * Android WebView'de tanımlı `window.AndroidAlarm` arayüzüne güvenli erişim sağlar.
+ * Android WebView'de tanımlı `window.AndroidAlarm` ve `window.Android` arayüzüne güvenli erişim sağlar.
  * Telefon kapalıyken veya ekran kilitliyken tam zamanlı sesli/titreşimli alarmların
- * donanım seviyesinde kurulmasını ve iptal edilmesini yönetir.
+ * donanım seviyesinde kurulmasını, yedekleme ve sistem paylaşım menüsünü yönetir.
  */
+
+export interface AndroidBridgeInterface {
+  setDebtAlarm?: (id: number, title: string, triggerAtMillis: number, message?: string) => void;
+  cancelDebtAlarm?: (id: number) => void;
+  isAvailable?: () => boolean;
+  showNotification?: (title: string, message: string) => void;
+  syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
+  testDelayedNotification?: (delaySeconds: number) => void;
+  showToast?: (message: string) => void;
+  saveBackupFile?: (fileName: string, jsonContent: string) => void;
+  shareBackupFile?: (fileName: string, jsonContent: string, title?: string) => void;
+  openGoogleDrive?: () => void;
+  openExternalUrl?: (url: string) => void;
+}
 
 declare global {
   interface Window {
-    AndroidAlarm?: {
-      setDebtAlarm: (id: number, title: string, triggerAtMillis: number, message?: string) => void;
-      cancelDebtAlarm: (id: number) => void;
-      isAvailable: () => boolean;
-      showNotification?: (title: string, message: string) => void;
-      syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
-      testDelayedNotification?: (delaySeconds: number) => void;
-      showToast?: (message: string) => void;
-      saveBackupFile?: (fileName: string, jsonContent: string) => void;
-      shareBackupFile?: (fileName: string, jsonContent: string, title?: string) => void;
-      openGoogleDrive?: () => void;
-      openExternalUrl?: (url: string) => void;
-    };
+    AndroidAlarm?: AndroidBridgeInterface;
+    Android?: AndroidBridgeInterface;
   }
+}
+
+/**
+ * Android köprüsünün aktif referansını döndürür
+ */
+function getActiveBridge(): AndroidBridgeInterface | null {
+  if (typeof window === "undefined") return null;
+  if (window.AndroidAlarm) return window.AndroidAlarm;
+  if (window.Android) return window.Android;
+  return null;
 }
 
 /**
@@ -31,7 +44,15 @@ declare global {
 export function isAndroidAlarmBridgeAvailable(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return Boolean(window.AndroidAlarm && (typeof window.AndroidAlarm.setDebtAlarm === "function" || window.AndroidAlarm.isAvailable?.()));
+    const bridge = getActiveBridge();
+    return Boolean(
+      bridge && (
+        typeof bridge.setDebtAlarm === "function" ||
+        typeof bridge.saveBackupFile === "function" ||
+        typeof bridge.shareBackupFile === "function" ||
+        bridge.isAvailable?.()
+      )
+    );
   } catch {
     return false;
   }
@@ -46,7 +67,8 @@ export function scheduleAndroidDebtAlarm(
   triggerAtMillis: number,
   message?: string
 ): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge || typeof bridge.setDebtAlarm !== "function") {
     return false;
   }
 
@@ -59,7 +81,7 @@ export function scheduleAndroidDebtAlarm(
       return false;
     }
 
-    window.AndroidAlarm.setDebtAlarm(id, safeTitle, triggerAtMillis, safeMessage);
+    bridge.setDebtAlarm(id, safeTitle, triggerAtMillis, safeMessage);
     console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'a başarıyla kaydedildi (${new Date(triggerAtMillis).toLocaleString()})`);
     return true;
   } catch (err) {
@@ -72,16 +94,15 @@ export function scheduleAndroidDebtAlarm(
  * Belirli bir alarmı Android AlarmManager ve SharedPreferences deposundan siler.
  */
 export function cancelAndroidDebtAlarm(id: number): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge || typeof bridge.cancelDebtAlarm !== "function") {
     return false;
   }
 
   try {
-    if (typeof window.AndroidAlarm.cancelDebtAlarm === "function") {
-      window.AndroidAlarm.cancelDebtAlarm(id);
-      console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'dan kaldırıldı.`);
-      return true;
-    }
+    bridge.cancelDebtAlarm(id);
+    console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'dan kaldırıldı.`);
+    return true;
   } catch (err) {
     console.warn("[AndroidAlarmBridge] cancelDebtAlarm çağrılırken hata:", err);
   }
@@ -97,7 +118,8 @@ export function syncAllDebtsAndAlarmsToAndroid(
   debts: any[],
   installmentDebts: any[]
 ): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge) {
     return false;
   }
 
@@ -106,8 +128,8 @@ export function syncAllDebtsAndAlarmsToAndroid(
     const debtsJson = JSON.stringify(debts || []);
     const installmentDebtsJson = JSON.stringify(installmentDebts || []);
 
-    if (typeof window.AndroidAlarm.syncAllData === "function") {
-      window.AndroidAlarm.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
+    if (typeof bridge.syncAllData === "function") {
+      bridge.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
       console.log("[AndroidAlarmBridge] syncAllData çağrıldı (alarmlar, borçlar, taksitler donanıma yazıldı).");
       return true;
     } else {
@@ -164,13 +186,14 @@ export function syncAllAlarmsToAndroid(
  * Ekran kapalıyken veya uygulama arka plandayken bildirim test etmek için 5 sn sonra çalan donanım alarmını kurar.
  */
 export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge) {
     return false;
   }
 
   try {
-    if (typeof window.AndroidAlarm.testDelayedNotification === "function") {
-      window.AndroidAlarm.testDelayedNotification(delaySeconds);
+    if (typeof bridge.testDelayedNotification === "function") {
+      bridge.testDelayedNotification(delaySeconds);
       return true;
     } else {
       const trigger = Date.now() + (delaySeconds * 1000);
@@ -186,14 +209,13 @@ export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
  * Android cihazın İndirilenler (Downloads) klasörüne belirlenen dosya adıyla kaydeder.
  */
 export function saveAndroidNativeBackupFile(fileName: string, jsonContent: string): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge || typeof bridge.saveBackupFile !== "function") {
     return false;
   }
   try {
-    if (typeof window.AndroidAlarm.saveBackupFile === "function") {
-      window.AndroidAlarm.saveBackupFile(fileName, jsonContent);
-      return true;
-    }
+    bridge.saveBackupFile(fileName, jsonContent);
+    return true;
   } catch (e) {
     console.warn("[AndroidAlarmBridge] saveBackupFile hatası:", e);
   }
@@ -201,17 +223,16 @@ export function saveAndroidNativeBackupFile(fileName: string, jsonContent: strin
 }
 
 /**
- * Android Yerel Paylaşım Menüsünü (WhatsApp, Drive'a Kaydet, Telegram vb.) açar.
+ * Android Yerel Paylaşım Menüsünü (Bluetooth, Quick Share, Wi-Fi, WhatsApp, Drive, Telegram vb.) açar.
  */
 export function shareAndroidNativeBackupFile(fileName: string, jsonContent: string, title?: string): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge || typeof bridge.shareBackupFile !== "function") {
     return false;
   }
   try {
-    if (typeof window.AndroidAlarm.shareBackupFile === "function") {
-      window.AndroidAlarm.shareBackupFile(fileName, jsonContent, title || "Bütçem Veri Yedeği");
-      return true;
-    }
+    bridge.shareBackupFile(fileName, jsonContent, title || "Bütçem Veri Yedeği");
+    return true;
   } catch (e) {
     console.warn("[AndroidAlarmBridge] shareBackupFile hatası:", e);
   }
@@ -222,12 +243,13 @@ export function shareAndroidNativeBackupFile(fileName: string, jsonContent: stri
  * Google Drive uygulamasını veya web sayfasını güvenle açar.
  */
 export function openAndroidGoogleDrive(): boolean {
-  if (!isAndroidAlarmBridgeAvailable() || !window.AndroidAlarm) {
+  const bridge = getActiveBridge();
+  if (!bridge) {
     return false;
   }
   try {
-    if (typeof window.AndroidAlarm.openGoogleDrive === "function") {
-      window.AndroidAlarm.openGoogleDrive();
+    if (typeof bridge.openGoogleDrive === "function") {
+      bridge.openGoogleDrive();
       return true;
     }
   } catch (e) {

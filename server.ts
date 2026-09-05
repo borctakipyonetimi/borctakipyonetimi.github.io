@@ -21,6 +21,42 @@ process.on("unhandledRejection", (reason, promise) => {
 const app = express();
 const PORT = 3000;
 
+// In-app custom SMTP storage configuration
+interface CustomSmtpConfig {
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+  secure?: boolean;
+  fromName?: string;
+  fromEmail?: string;
+  updatedAt?: number;
+}
+
+const SMTP_CONFIG_FILE = path.join(process.cwd(), "custom_smtp_config.json");
+let currentCustomSmtp: CustomSmtpConfig = {};
+
+// Load custom SMTP configuration from disk if exists
+if (fs.existsSync(SMTP_CONFIG_FILE)) {
+  try {
+    const raw = fs.readFileSync(SMTP_CONFIG_FILE, "utf-8").trim();
+    if (raw) {
+      currentCustomSmtp = JSON.parse(raw);
+      console.log(`[SMTP Engine] Loaded custom SMTP config for user: ${currentCustomSmtp.user || "none"}`);
+    }
+  } catch (err) {
+    console.warn("[SMTP Engine] Error loading custom_smtp_config.json:", err);
+  }
+}
+
+function saveCustomSmtpToFile() {
+  try {
+    fs.writeFileSync(SMTP_CONFIG_FILE, JSON.stringify(currentCustomSmtp, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[SMTP Engine] Error saving custom_smtp_config.json:", err);
+  }
+}
+
 // Custom CORS middleware to handle requests from any origin (Crucial for hybrid mobile APKs using file:// or capacitor origins to talk to this API backend)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -92,8 +128,8 @@ app.post("/api/temp-backup", (req, res) => {
   res.json({ success: true, key, filename: finalFilename });
 });
 
-app.get("/api/download-temp", (req, res) => {
-  const { key } = req.query;
+app.get(["/api/download-temp", "/api/download-temp/:filename"], (req, res) => {
+  const { key, filename: queryFilename } = req.query;
   if (!key || typeof key !== "string") {
     return res.status(400).send("Geçersiz anahtar");
   }
@@ -102,18 +138,20 @@ app.get("/api/download-temp", (req, res) => {
     return res.status(404).send("Yedek linkinin süresi dolmuş veya bulunamadı");
   }
   
+  const effectiveFilename = (typeof queryFilename === "string" && queryFilename.trim()) || req.params.filename || item.filename;
+
   // Determine appropriate content type
   let contentType = "application/json; charset=utf-8";
-  if (item.filename.toLowerCase().endsWith(".csv")) {
+  if (effectiveFilename.toLowerCase().endsWith(".csv")) {
     contentType = "text/csv; charset=utf-8";
-  } else if (item.filename.toLowerCase().endsWith(".html")) {
+  } else if (effectiveFilename.toLowerCase().endsWith(".html")) {
     contentType = "text/html; charset=utf-8";
-  } else if (item.filename.toLowerCase().endsWith(".txt")) {
+  } else if (effectiveFilename.toLowerCase().endsWith(".txt")) {
     contentType = "text/plain; charset=utf-8";
   }
 
-  const safeFilename = item.filename.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
-  const encodedFilename = encodeURIComponent(item.filename);
+  const safeFilename = effectiveFilename.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+  const encodedFilename = encodeURIComponent(effectiveFilename);
   
   res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
   res.setHeader("Content-Type", contentType);
@@ -2981,42 +3019,6 @@ function cleanHost(rawHost?: string): string {
 function cleanCredential(val?: string): string {
   if (!val) return "";
   return val.trim().replace(/^["']|["']$/g, "");
-}
-
-// In-app custom SMTP storage configuration
-interface CustomSmtpConfig {
-  host?: string;
-  port?: number;
-  user?: string;
-  pass?: string;
-  secure?: boolean;
-  fromName?: string;
-  fromEmail?: string;
-  updatedAt?: number;
-}
-
-const SMTP_CONFIG_FILE = path.join(process.cwd(), "custom_smtp_config.json");
-let currentCustomSmtp: CustomSmtpConfig = {};
-
-// Load custom SMTP configuration from disk if exists
-if (fs.existsSync(SMTP_CONFIG_FILE)) {
-  try {
-    const raw = fs.readFileSync(SMTP_CONFIG_FILE, "utf-8").trim();
-    if (raw) {
-      currentCustomSmtp = JSON.parse(raw);
-      console.log(`[SMTP Engine] Loaded custom SMTP config for user: ${currentCustomSmtp.user || "none"}`);
-    }
-  } catch (err) {
-    console.warn("[SMTP Engine] Error loading custom_smtp_config.json:", err);
-  }
-}
-
-function saveCustomSmtpToFile() {
-  try {
-    fs.writeFileSync(SMTP_CONFIG_FILE, JSON.stringify(currentCustomSmtp, null, 2), "utf-8");
-  } catch (err) {
-    console.error("[SMTP Engine] Error saving custom_smtp_config.json:", err);
-  }
 }
 
 // Nodemailer transporter resolver

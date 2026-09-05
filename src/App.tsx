@@ -3656,7 +3656,7 @@ export default function App() {
           });
           const data = await res.json();
           if (data.success && data.key) {
-            const downloadUrl = `/api/download-temp?key=${data.key}`;
+            const downloadUrl = `/api/download-temp/${encodeURIComponent(fileName)}?key=${data.key}&filename=${encodeURIComponent(fileName)}`;
             const downloadLink = document.createElement("a");
             downloadLink.href = downloadUrl;
             downloadLink.setAttribute("download", fileName);
@@ -3981,7 +3981,7 @@ export default function App() {
     .then(r => r.json())
     .then(data => {
       if (data.success && data.key) {
-        const downloadUrl = `${window.location.protocol}//${window.location.host}/api/download-temp?key=${data.key}`;
+        const downloadUrl = `/api/download-temp/${encodeURIComponent(fileName)}?key=${data.key}&filename=${encodeURIComponent(fileName)}`;
         const downloadLink = document.createElement("a");
         downloadLink.href = downloadUrl;
         downloadLink.download = fileName;
