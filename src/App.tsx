@@ -1001,7 +1001,21 @@ export default function App() {
       console.log("Notification sound muted by user configuration settings.");
     }
 
-    // 3. Trigger robust Standard phone OS Notification or Service Worker background push
+    // 3. Official SMS-formatted Notification message
+    const todayStr = new Date().toLocaleDateString("tr-TR");
+    const safeUser = (currentUser && currentUser !== "Varsayılan Kullanıcı") ? currentUser.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
+    const officialSmsMessage = `SN. ${safeUser}\n${todayStr} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n- ${title}${body ? `\n- ${body}` : ""}\n- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+
+    // 3a. Native Android WebView Bridge - Direct Drawer & Heads-Up Banner
+    if (typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
+      try {
+        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage);
+      } catch (bridgeErr) {
+        console.warn("AndroidAlarm.showNotification hatası:", bridgeErr);
+      }
+    }
+
+    // 3b. Trigger robust Standard phone OS Notification or Service Worker background push for Web
     if (typeof window !== "undefined") {
       const hasNotification = "Notification" in window;
       const isGranted = hasNotification && (Notification.permission === "granted" || (Notification as any).permission === "granted");
@@ -1010,8 +1024,8 @@ export default function App() {
         const appIcon = window.location.origin + "/logo.png";
         let sentWithSW = false;
 
-        const systemNotifTitle = "Butcem Pro";
-        const systemNotifBody = body ? `${title} — ${body}` : title;
+        const systemNotifTitle = "Bütçem Pro ⏰";
+        const systemNotifBody = officialSmsMessage;
         const uniqueTag = "butcempro-alert-" + Date.now();
 
         const triggerDirectNotificationFallback = () => {
@@ -1019,17 +1033,21 @@ export default function App() {
           try {
             const isNative = (Notification as any).toString().indexOf("FallbackNotification") === -1;
             if (isNative) {
-              new Notification(systemNotifTitle, {
+              const directNotif = new Notification(systemNotifTitle, {
                 body: systemNotifBody,
                 icon: appIcon,
                 badge: appIcon,
-                vibrate: [200, 100, 200, 100, 300],
+                vibrate: [300, 100, 300, 100, 400],
                 tag: uniqueTag,
                 renotify: true,
                 requireInteraction: true,
                 silent: false,
                 timestamp: Date.now()
               } as any);
+              directNotif.onclick = () => {
+                window.focus();
+                setActiveTab("debts");
+              };
             }
           } catch (e) {
             console.log("Direct Native Notification failed fallback:", e);
@@ -1038,18 +1056,19 @@ export default function App() {
 
         // ALWAYS prefer Service Worker showNotification for Android drawer & system tray delivery
         if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.ready.then((reg) => {
+          const deliverViaSw = (reg: ServiceWorkerRegistration) => {
             reg.showNotification(systemNotifTitle, {
               body: systemNotifBody,
               icon: appIcon,
               badge: appIcon,
-              vibrate: [200, 100, 200, 100, 300],
+              vibrate: [300, 100, 300, 100, 400],
               tag: uniqueTag,
               renotify: true,
               requireInteraction: true,
               silent: false,
               timestamp: Date.now(),
-              actions: [{ action: "open_app", title: "Uygulamayı Aç" }]
+              actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
+              data: { url: "/?tab=debts" }
             } as any).then(() => {
               sentWithSW = true;
               console.log("Notification sent successfully through active Service Worker registration.");
@@ -1060,9 +1079,16 @@ export default function App() {
               console.warn("ServiceWorker showNotification failed, trying fallback...", swError);
               triggerDirectNotificationFallback();
             });
-          }).catch(err => {
-            console.warn("ServiceWorker ready promise rejected, trying fallback...", err);
-            triggerDirectNotificationFallback();
+          };
+
+          navigator.serviceWorker.getRegistration().then((reg) => {
+            if (reg) {
+              deliverViaSw(reg);
+            } else {
+              navigator.serviceWorker.ready.then(deliverViaSw).catch(triggerDirectNotificationFallback);
+            }
+          }).catch(() => {
+            navigator.serviceWorker.ready.then(deliverViaSw).catch(triggerDirectNotificationFallback);
           });
         } else {
           triggerDirectNotificationFallback();
@@ -4935,25 +4961,35 @@ export default function App() {
               <span className="animate-pulse tracking-tight sm:hidden text-[8.5px] whitespace-nowrap">VADE ⏰</span>
               <button
                 type="button"
+                id="btnMarqueeToggle"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   const next = !marqueePaused;
                   handleSetMarqueePaused(next);
                   triggerToast(next ? "Bant Akışı Duraklatıldı ⏸️" : "Bant Akışı Başlatıldı ▶️");
                 }}
                 title={marqueePaused ? "Akışı Başlat (Oynat)" : "Akışı Duraklat"}
-                className="ml-0.5 sm:ml-1 px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[9px] text-white font-mono font-bold transition active:scale-90 cursor-pointer flex items-center gap-0.5"
+                className={`ml-1 px-2 py-0.5 rounded-lg text-[9.5px] sm:text-[10.5px] font-bold transition-all duration-200 cursor-pointer flex items-center gap-1 shadow-xs active:scale-95 z-40 ${
+                  marqueePaused
+                    ? "bg-emerald-500 hover:bg-emerald-600 text-white ring-1 ring-white/60 animate-pulse"
+                    : "bg-white/25 hover:bg-white/35 text-white"
+                }`}
               >
                 <span>{marqueePaused ? "▶️" : "⏸️"}</span>
+                <span className="hidden sm:inline font-bold">{marqueePaused ? "Başlat" : "Durdur"}</span>
               </button>
             </div>
 
             {/* Content Ticker */}
-            <div className="w-full pl-24 sm:pl-48 overflow-hidden">
+            <div className="w-full pl-28 sm:pl-56 overflow-hidden">
               {allAlerts.length > 0 ? (
                 <div
-                  className={`animate-marquee whitespace-nowrap flex items-center gap-3 sm:gap-5 text-xs font-bold py-0.5 ${marqueePaused ? "[animation-play-state:paused!important]" : ""}`}
-                  style={{ animationDuration: `${Math.max(25, marqueeSpeed)}s` }}
+                  className={`animate-marquee whitespace-nowrap flex items-center gap-3 sm:gap-5 text-xs font-bold py-0.5 ${marqueePaused ? "is-paused" : "is-running"}`}
+                  style={{
+                    animationDuration: `${Math.max(25, marqueeSpeed)}s`,
+                    animationPlayState: marqueePaused ? "paused" : "running"
+                  }}
                 >
                   {itemsToLoop.map((d, index) => {
                     const rawName = d.name;

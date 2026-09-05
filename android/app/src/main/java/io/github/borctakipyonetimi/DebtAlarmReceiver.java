@@ -27,6 +27,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 /**
  * DebtAlarmReceiver:
  * Web sitesinden veya yerel veritabanından gelen borç hatırlatma alarmlarını
@@ -152,59 +156,79 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
             // 5. Titreşim Deseni
             long[] vibrationPattern = new long[]{0, 600, 250, 600, 250, 800};
 
-            // 6. Güvenli Küçük İkon Tespiti (Uygulama kaynaklarından geçerli drawable seçimi)
-            int smallIconId = context.getResources().getIdentifier("ic_stat_alarm", "drawable", context.getPackageName());
+            // 6. Küçük İkon Tespiti
+            int smallIconId = R.drawable.ic_stat_alarm;
             if (smallIconId == 0) {
                 smallIconId = context.getApplicationInfo().icon;
             }
             if (smallIconId == 0) {
-                smallIconId = android.R.drawable.stat_notify_more;
+                smallIconId = android.R.drawable.ic_dialog_info;
             }
 
-            // 7. Heads-Up Bildirim İnşası
+            // 7. Resmi SMS Formatında Bildirim Metni Oluşturma
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
+            String dateStr = sdf.format(new Date());
+
+            String officialTitle = "BÜTÇEM PRO - VADE BİLGİLENDİRMESİ";
+            String officialBody = "SN. DEĞERLİ KULLANICIMIZ\n" +
+                    dateStr + " TARİHLİ BORÇ / VADE HATIRLATMANIZ:\n" +
+                    "- " + title + "\n" +
+                    (message != null && !message.trim().isEmpty() ? "- " + message + "\n" : "") +
+                    "- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\n" +
+                    "- BÜTÇEM PRO İYİ GÜNLER DİLERİZ B001";
+
+            // 8. Bildirim Çekmecesinden Aşağı Açılan (Heads-Up) ve Kilit Ekranında Görünen Bildirim İnşası
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(smallIconId)
-                    .setContentTitle(title)
-                    .setContentText(message)
+                    .setContentTitle(officialTitle)
+                    .setContentText("SN. KULLANICIMIZ: " + title)
                     .setStyle(new NotificationCompat.BigTextStyle()
-                            .setBigContentTitle("⏰ " + title)
-                            .bigText(message + "\n\n💡 Vade gecikme faizlerinden korunmak için ödemenizi zamanında tamamlayın.")
-                            .setSummaryText("Vade Hatırlatıcısı"))
+                            .setBigContentTitle("⏰ " + officialTitle)
+                            .bigText(officialBody)
+                            .setSummaryText("Vade & Borç Bildirimi"))
                     .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
-                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Kilit ekranında tam içerik gösterimi
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Kilit ekranında tam mesaj gösterimi
                     .setContentIntent(contentPendingIntent)
-                    .setFullScreenIntent(fullScreenPendingIntent, true) // Bildirim çekmecesinden aşağı inen Heads-Up ve kilit ekranı uyarısı
                     .setAutoCancel(true)
                     .setOngoing(false)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
                     .setSound(alarmSoundUri)
                     .setVibrate(vibrationPattern)
                     .setLights(Color.RED, 1000, 500)
-                    .addAction(android.R.drawable.ic_menu_view, "Ödemeyi Gör", contentPendingIntent)
-                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Kapat", dismissPendingIntent);
+                    .addAction(0, "Ödemeyi Gör", contentPendingIntent)
+                    .addAction(0, "Kapat", dismissPendingIntent);
 
-            // 8. Donanımsal Titreşimi Tetikle
+            // 9. Bildirimi Bildirim Çekmecesine Garantili Yayınla
+            Notification notification = builder.build();
+            boolean notificationSent = false;
+            try {
+                NotificationManagerCompat.from(context).notify(alarmId, notification);
+                notificationSent = true;
+                Log.i(TAG, "NotificationManagerCompat ile bildirim çekmecesine başarıyla yayınlandı. ID: " + alarmId);
+            } catch (SecurityException se) {
+                Log.e(TAG, "POST_NOTIFICATIONS izni bulunamadı:", se);
+            } catch (Exception e) {
+                Log.w(TAG, "NotificationManagerCompat notify uyarısı, standart servis deneniyor:", e);
+            }
+
+            if (!notificationSent) {
+                try {
+                    NotificationManager systemNotificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (systemNotificationManager != null) {
+                        systemNotificationManager.notify(alarmId, notification);
+                        Log.i(TAG, "NotificationManager ile bildirim çekmecesine yayınlandı. ID: " + alarmId);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Sistem NotificationManager notify hatası:", e);
+                }
+            }
+
+            // 10. Donanımsal Titreşimi Tetikle
             triggerHardwareVibration(context, vibrationPattern);
 
-            // 9. Alarm Sesini Oynat (Sistem kanalına ek olarak garantili ses)
+            // 11. Alarm Sesini Oynat (Sistem kanalına ek olarak garantili ses)
             playAlarmSound(context, alarmSoundUri);
-
-            // 10. Bildirimi Hem NotificationManager Hem de NotificationManagerCompat ile Yayınla
-            Notification notification = builder.build();
-            NotificationManager systemNotificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-
-            if (systemNotificationManager != null) {
-                systemNotificationManager.notify(alarmId, notification);
-            }
-
-            try {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                        ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                    NotificationManagerCompat.from(context).notify(alarmId, notification);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "NotificationManagerCompat notify uyarısı:", e);
-            }
 
             Log.i(TAG, "Borç alarm bildirimi üst çekmeceye ve kilit ekranına başarıyla gönderildi. ID: " + alarmId);
 
@@ -223,7 +247,7 @@ public class DebtAlarmReceiver extends BroadcastReceiver {
     /**
      * Android 8.0+ için Heads-Up ve Kilit Ekranı destekli bildirim kanalı oluşturur.
      */
-    private void createNotificationChannel(Context context) {
+    public static void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
             if (notificationManager != null) {

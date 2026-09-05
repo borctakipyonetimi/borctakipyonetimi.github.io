@@ -306,11 +306,14 @@ async function handleBackgroundSync(tag) {
   }
 
   // 5. Trigger notifications for overdue / due-today debts
+  const dateFormatted = today.toLocaleDateString("tr-TR");
   if (overdueList.length > 0) {
     const top = overdueList[0];
     const totalOverdue = overdueList.reduce((s, d) => s + d.amount, 0);
-    self.registration.showNotification(`⚠️ Gecikmiş Borç Uyarısı (${overdueList.length} Adet)`, {
-      body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarında ödeme ${top.daysLate} gün gecikti! Toplam geciken: ₺${totalOverdue.toLocaleString("tr-TR")}.`,
+    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ GECİKMİŞ BORÇ UYARISI:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${top.daysLate} gün gecikti)\n- Toplam geciken borç tutarı: ₺${totalOverdue.toLocaleString("tr-TR")}\n- Gecikme faizlerinden korunmak için ödemenizi yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+
+    self.registration.showNotification(`Bütçem Pro - Gecikmiş Borç Uyarısı ⚠️`, {
+      body: smsBody,
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
@@ -318,14 +321,16 @@ async function handleBackgroundSync(tag) {
       renotify: true,
       requireInteraction: true,
       silent: false,
-      actions: [{ action: "open_app", title: "Borçları Görüntüle" }],
+      actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
       data: { url: "/?tab=debts" }
     });
   } else if (dueTodayList.length > 0) {
     const top = dueTodayList[0];
     const totalDueToday = dueTodayList.reduce((s, d) => s + d.amount, 0);
-    self.registration.showNotification("🚨 Bugün Vadesi Gelen Ödemeniz Var!", {
-      body: `"${top.name}" için ₺${top.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün! (Toplam ₺${totalDueToday.toLocaleString("tr-TR")})`,
+    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ VADE HATIRLATMASI:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (Vadesi Bugün)\n- Toplam ödenecek tutar: ₺${totalDueToday.toLocaleString("tr-TR")}\n- Ödemenizi zamanında tamamlamanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+
+    self.registration.showNotification("Bütçem Pro - Vade Hatırlatması ⏰", {
+      body: smsBody,
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
@@ -333,7 +338,7 @@ async function handleBackgroundSync(tag) {
       renotify: true,
       requireInteraction: true,
       silent: false,
-      actions: [{ action: "open_app", title: "Ödemeyi Yap" }],
+      actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
       data: { url: "/?tab=debts" }
     });
   }

@@ -73,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
         // 1. Android 13+ Bildirim İzni İsteme (POST_NOTIFICATIONS)
         requestNotificationPermissionIfNeeded();
 
+        // Bildirim kanalını başlat
+        DebtAlarmReceiver.createNotificationChannel(this);
+
         // 2. Android 12+ Tam Zamanlı Alarm İzni Kontrolü
         checkExactAlarmPermission();
 
@@ -339,6 +342,67 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean isAvailable() {
             return true;
+        }
+
+        /**
+         * Web uygulamasından doğrudan üst bildirim çekmecesine anlık bildirim gönderme köprüsü.
+         * window.AndroidAlarm.showNotification(title, message)
+         */
+        @JavascriptInterface
+        public void showNotification(final String title, final String message) {
+            runOnUiThread(() -> {
+                try {
+                    DebtAlarmReceiver.createNotificationChannel(mContext);
+
+                    Intent openIntent = new Intent(mContext, MainActivity.class);
+                    openIntent.putExtra("NAVIGATE_TO", "debts");
+                    openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                    int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+                    }
+
+                    int notifId = (int) (System.currentTimeMillis() % 1000000);
+                    PendingIntent contentPendingIntent = PendingIntent.getActivity(
+                            mContext,
+                            notifId,
+                            openIntent,
+                            pendingFlags
+                    );
+
+                    int smallIconId = R.drawable.ic_stat_alarm;
+                    if (smallIconId == 0) {
+                        smallIconId = mContext.getApplicationInfo().icon;
+                    }
+                    if (smallIconId == 0) {
+                        smallIconId = android.R.drawable.ic_dialog_info;
+                    }
+
+                    Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+
+                    NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext, DebtAlarmReceiver.CHANNEL_ID)
+                            .setSmallIcon(smallIconId)
+                            .setContentTitle(title)
+                            .setContentText(message)
+                            .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
+                            .setPriority(NotificationCompat.PRIORITY_MAX)
+                            .setCategory(NotificationCompat.CATEGORY_ALARM)
+                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                            .setContentIntent(contentPendingIntent)
+                            .setAutoCancel(true)
+                            .setOngoing(false)
+                            .setDefaults(NotificationCompat.DEFAULT_ALL)
+                            .setSound(soundUri)
+                            .addAction(0, "Ödemeyi Gör", contentPendingIntent);
+
+                    Notification notification = builder.build();
+                    NotificationManagerCompat.from(mContext).notify(notifId, notification);
+                    Log.i(TAG, "WebAppInterface.showNotification üst bildirim çekmecesine verildi: " + title);
+                } catch (Exception e) {
+                    Log.e(TAG, "WebAppInterface.showNotification hatası:", e);
+                }
+            });
         }
 
         /**

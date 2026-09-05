@@ -154,6 +154,14 @@ body.dark {
   will-change: transform;
 }
 
+.animate-marquee.is-paused {
+  animation-play-state: paused !important;
+}
+
+.animate-marquee.is-running {
+  animation-play-state: running !important;
+}
+
 .animate-marquee:hover {
   animation-play-state: paused;
 }
