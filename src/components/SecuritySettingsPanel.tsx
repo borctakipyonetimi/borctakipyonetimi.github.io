@@ -32,6 +32,7 @@ interface SecuritySettingsPanelProps {
   setVoiceAssistantEnabled?: (enabled: boolean) => void;
   isPremium?: boolean;
   onOpenUpgradeModal?: () => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
@@ -45,6 +46,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   setVoiceAssistantEnabled: propSetVoiceAssistantEnabled,
   isPremium = false,
   onOpenUpgradeModal,
+  onOpenOnboarding,
 }) => {
   const [activeTab, setActiveTab] = useState<"security" | "settings">("security");
 
@@ -628,6 +630,28 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 {!isPremium ? "KİLİTLİ 🔒" : currentVoiceAssistant ? "AÇIK 🎙️" : "KAPALI 🔕"}
               </button>
             </div>
+
+            {/* 5-Page App Walkthrough Replay Button */}
+            {onOpenOnboarding && (
+              <div className="p-4 bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-indigo-50/50 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                    Uygulama Tanıtım Turu (5 Sayfa)
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                    Tüm özellikleri ve modülleri tanıtan görsel rehberi yeniden başlatın
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenOnboarding}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 cursor-pointer transition select-none active:scale-95"
+                >
+                  Turu Başlat 🚀
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

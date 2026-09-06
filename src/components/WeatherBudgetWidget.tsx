@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
+import { getApiUrl } from "../utils/api";
 
 interface WeatherData {
   city: string;
@@ -194,7 +195,7 @@ export const WeatherBudgetWidget: React.FC<WeatherBudgetWidgetProps> = ({
 
     try {
       // Try server search proxy first
-      const res = await fetch(`/api/weather/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(getApiUrl(`/api/weather/search?q=${encodeURIComponent(query)}`));
       if (res.ok) {
         const data = await res.json();
         if (data.results && data.results.length > 0) {

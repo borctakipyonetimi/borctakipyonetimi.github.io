@@ -98,6 +98,7 @@ import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
+import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
@@ -108,6 +109,7 @@ import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
 import { analyzeDebtsComprehensive } from "./utils/debtAnalyzer";
+import { getApiUrl, safeFetchJson } from "./utils/api";
 import {
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
@@ -274,67 +276,116 @@ export default function App() {
   } | null>(null);
 
   const checkTrialStatus = async () => {
+    let deviceId = localStorage.getItem("butcem_device_id");
+    if (!deviceId) {
+      deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
+      localStorage.setItem("butcem_device_id", deviceId);
+    }
+
     try {
-      let deviceId = localStorage.getItem("butcem_device_id");
-      if (!deviceId) {
-        deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
-        localStorage.setItem("butcem_device_id", deviceId);
-      }
-      const res = await fetch(`/api/trial/status?userId=${encodeURIComponent(currentUser || "")}&deviceId=${encodeURIComponent(deviceId)}`);
-      const data = await res.json();
-      setTrialStatus(data);
-      
-      const pSource = localStorage.getItem("premium_source");
-      
-      if (data.hasTrial) {
-        if (data.isActive) {
-          if (pSource !== "purchase") {
-            setIsPremium(true);
-            localStorage.setItem("is_premium", "true");
-            localStorage.setItem("premium_source", "trial");
-          }
-        } else if (data.isExpired) {
-          if (pSource === "trial" || (!pSource && isPremium)) {
-            setIsPremium(false);
-            localStorage.setItem("is_premium", "false");
-            localStorage.removeItem("premium_source");
-            
-            const expMsg = "⏳ 15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
-            triggerToast(expMsg);
-            
-            setNotifications(prev => {
-              const alreadyExists = prev.some(n => n.title?.includes("deneme") || (n as any).message?.includes("deneme"));
-              if (alreadyExists) return prev;
-              return [
-                {
-                  id: Date.now(),
-                  title: "⏳ Deneme Süresi Sona Erdi",
-                  time: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
-                  date: new Date().toLocaleDateString("tr-TR"),
-                  isRead: false,
-                  type: "warning"
-                },
-                ...prev
-              ];
-            });
-            
-            setIsUpgradeModalOpen(true);
+      const data = await safeFetchJson<{
+        hasTrial: boolean;
+        isActive: boolean;
+        isExpired: boolean;
+        daysRemaining: number;
+        startDate: string | null;
+        endDate: string | null;
+      }>(`/api/trial/status?userId=${encodeURIComponent(currentUser || "")}&deviceId=${encodeURIComponent(deviceId)}`);
+
+      if (data && typeof data.hasTrial === "boolean") {
+        setTrialStatus(data);
+        
+        const pSource = localStorage.getItem("premium_source");
+        
+        if (data.hasTrial) {
+          if (data.isActive) {
+            if (pSource !== "purchase") {
+              setIsPremium(true);
+              localStorage.setItem("is_premium", "true");
+              localStorage.setItem("premium_source", "trial");
+              if (data.endDate) {
+                localStorage.setItem("trial_end_date", data.endDate);
+              }
+            }
+          } else if (data.isExpired) {
+            if (pSource === "trial" || (!pSource && isPremium)) {
+              setIsPremium(false);
+              localStorage.setItem("is_premium", "false");
+              localStorage.removeItem("premium_source");
+              
+              const expMsg = "⏳ 15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
+              triggerToast(expMsg);
+              
+              setNotifications(prev => {
+                const alreadyExists = prev.some(n => n.title?.includes("deneme") || (n as any).message?.includes("deneme"));
+                if (alreadyExists) return prev;
+                return [
+                  {
+                    id: Date.now(),
+                    title: "⏳ Deneme Süresi Sona Erdi",
+                    time: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+                    date: new Date().toLocaleDateString("tr-TR"),
+                    isRead: false,
+                    type: "warning"
+                  },
+                  ...prev
+                ];
+              });
+              
+              setIsUpgradeModalOpen(true);
+            }
           }
         }
+        return;
       }
     } catch (e) {
-      console.error("Trial check failed:", e);
+      console.warn("Server trial check unavailable, evaluating local state:", e);
+    }
+
+    // Fallback: Check local trial cache if network request failed (offline / network error)
+    const localEndDate = localStorage.getItem("trial_end_date");
+    const pSource = localStorage.getItem("premium_source");
+    if (localEndDate && pSource === "trial") {
+      const endMs = new Date(localEndDate).getTime();
+      const nowMs = Date.now();
+      const daysLeft = Math.max(0, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));
+      const isExpired = nowMs >= endMs;
+      
+      setTrialStatus({
+        hasTrial: true,
+        isActive: !isExpired,
+        isExpired: isExpired,
+        daysRemaining: daysLeft,
+        startDate: null,
+        endDate: localEndDate
+      });
+
+      if (isExpired) {
+        setIsPremium(false);
+        localStorage.setItem("is_premium", "false");
+        localStorage.removeItem("premium_source");
+      } else {
+        setIsPremium(true);
+      }
     }
   };
 
   const handleActivateTrial = async () => {
+    let deviceId = localStorage.getItem("butcem_device_id");
+    if (!deviceId) {
+      deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
+      localStorage.setItem("butcem_device_id", deviceId);
+    }
+
     try {
-      let deviceId = localStorage.getItem("butcem_device_id");
-      if (!deviceId) {
-        deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
-        localStorage.setItem("butcem_device_id", deviceId);
-      }
-      const res = await fetch("/api/trial/activate", {
+      const data = await safeFetchJson<{
+        hasTrial: boolean;
+        isActive: boolean;
+        isExpired: boolean;
+        daysRemaining: number;
+        startDate: string | null;
+        endDate: string | null;
+      }>("/api/trial/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -343,32 +394,36 @@ export default function App() {
           forceReset: true
         })
       });
-      const data = await res.json();
-      setTrialStatus(data);
-      if (data.isActive) {
+
+      if (data && data.isActive) {
+        setTrialStatus(data);
         setIsPremium(true);
         localStorage.setItem("is_premium", "true");
         localStorage.setItem("premium_source", "trial");
         const trialEndDate = data.endDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("trial_end_date", trialEndDate);
         triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+        return;
       }
     } catch (e) {
-      const trialEndDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
-      localStorage.setItem("is_premium", "true");
-      localStorage.setItem("premium_source", "trial");
-      localStorage.setItem("trial_end_date", trialEndDate);
-      setIsPremium(true);
-      setTrialStatus({
-        hasTrial: true,
-        isActive: true,
-        isExpired: false,
-        daysRemaining: 15,
-        startDate: new Date().toISOString(),
-        endDate: trialEndDate
-      });
-      triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
+      console.warn("Trial activation server request failed, activating locally:", e);
     }
+
+    // Local activation fallback
+    const trialEndDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+    localStorage.setItem("is_premium", "true");
+    localStorage.setItem("premium_source", "trial");
+    localStorage.setItem("trial_end_date", trialEndDate);
+    setIsPremium(true);
+    setTrialStatus({
+      hasTrial: true,
+      isActive: true,
+      isExpired: false,
+      daysRemaining: 15,
+      startDate: new Date().toISOString(),
+      endDate: trialEndDate
+    });
+    triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
   };
 
   useEffect(() => {
@@ -700,7 +755,7 @@ export default function App() {
       let subscription = await reg.pushManager.getSubscription();
       
       if (!subscription) {
-        const res = await fetch("/api/push-vapid-public-key");
+        const res = await fetch(getApiUrl("/api/push-vapid-public-key"));
         if (!res.ok) throw new Error("VAPID public key fetch failed");
         const { publicKey } = await res.json();
         
@@ -731,7 +786,7 @@ export default function App() {
       }
 
       // Sync user subscription details
-      await fetch("/api/push-register", {
+      await fetch(getApiUrl("/api/push-register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -741,7 +796,7 @@ export default function App() {
         })
       });
 
-      const response = await fetch("/api/send-test-push", {
+      const response = await fetch(getApiUrl("/api/send-test-push"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1145,7 +1200,7 @@ export default function App() {
   // Robust client-side Web Push subscription manager
   const registerPushSubscription = async (reg: ServiceWorkerRegistration) => {
     try {
-      const res = await fetch("/api/push-vapid-public-key");
+      const res = await fetch(getApiUrl("/api/push-vapid-public-key"));
       if (!res.ok) throw new Error("VAPID public key fetch failed");
       const { publicKey } = await res.json();
       
@@ -1171,7 +1226,7 @@ export default function App() {
       console.log("[Push Client] Registered subscription payload successfully:", subscription);
       
       // Dispatch subscription details, active alarms and debt records to the server-side cron scheduler
-      await fetch("/api/push-register", {
+      await fetch(getApiUrl("/api/push-register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1207,7 +1262,7 @@ export default function App() {
       }
       
       if (subscription) {
-        await fetch("/api/push-register", {
+        await fetch(getApiUrl("/api/push-register"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1578,21 +1633,37 @@ export default function App() {
     }
   };
 
-  // Application Intro Loading Screen states and handlers
-  const [splashVisible, setSplashVisible] = useState(true);
+  // Application Intro Loading Screen & 5-Page Visual Walkthrough states and handlers
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    try {
+      const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
+      return !completed;
+    } catch {
+      return false;
+    }
+  });
+  const [splashVisible, setSplashVisible] = useState<boolean>(false);
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
   const [providerLoginOpen, setProviderLoginOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<"google" | null>(null);
+  const splashTimerRef = useRef<any>(null);
 
-  useEffect(() => {
+  const startSplashAnimation = () => {
+    if (splashTimerRef.current) {
+      clearInterval(splashTimerRef.current);
+    }
+    setSplashProgress(0);
+    setSplashStatus("Sistemler Başlatılıyor...");
+    setSplashVisible(true);
+
     const totalDuration = 2200; // Smoother 2.2 second professional tech loading flow
     const intervalTime = 25;
     const steps = totalDuration / intervalTime;
     let currentStep = 0;
 
-    const interval = setInterval(() => {
+    splashTimerRef.current = setInterval(() => {
       currentStep++;
       const progress = Math.min((currentStep / steps) * 100, 100);
       setSplashProgress(Math.round(progress));
@@ -1608,15 +1679,38 @@ export default function App() {
       }
 
       if (progress >= 100) {
-        clearInterval(interval);
+        clearInterval(splashTimerRef.current);
+        splashTimerRef.current = null;
         setTimeout(() => {
           setSplashVisible(false);
         }, 80);
       }
     }, intervalTime);
+  };
 
-    return () => clearInterval(interval);
+  useEffect(() => {
+    const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
+    if (completed && !showOnboarding) {
+      startSplashAnimation();
+    }
+    return () => {
+      if (splashTimerRef.current) {
+        clearInterval(splashTimerRef.current);
+      }
+    };
   }, []);
+
+  const handleCompleteOnboarding = () => {
+    try {
+      localStorage.setItem("butcem_onboarding_welcome_v6", "true");
+      localStorage.setItem("butcem_onboarding_completed", "true");
+    } catch (e) {
+      console.warn("Could not write onboarding status to localStorage:", e);
+    }
+    setShowOnboarding(false);
+    // Directly launch the animated splash intro screen as requested
+    startSplashAnimation();
+  };
 
   const handleQuickLogin = (provider: "google") => {
     setSelectedProvider(provider);
@@ -3292,7 +3386,7 @@ export default function App() {
           const sub = await reg.pushManager.getSubscription();
           if (sub) {
             triggerToast("⏰ 5 Saniye Sonra Kilit Ekranı Bildirimi Gönderilecek! Lütfen HEMEN ekranı kilitleyin.");
-            await fetch("/api/send-test-push", {
+            await fetch(getApiUrl("/api/send-test-push"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ subscription: sub, delaySeconds: 5 })
@@ -3329,7 +3423,7 @@ export default function App() {
           const reg = await navigator.serviceWorker.ready;
           const sub = await reg.pushManager.getSubscription();
           if (sub) {
-            const res = await fetch("/api/trigger-overdue-push", {
+            const res = await fetch(getApiUrl("/api/trigger-overdue-push"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -3604,7 +3698,7 @@ export default function App() {
     // Helper: Register backup on server to obtain a temporary secure link (for WhatsApp / Web share)
     const getShareableLink = async (): Promise<string | null> => {
       try {
-        const res = await fetch("/api/temp-backup", {
+        const res = await fetch(getApiUrl("/api/temp-backup"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: jsonString, filename: fileName })
@@ -4125,6 +4219,13 @@ export default function App() {
   return (
     <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
       <AnimatePresence mode="wait">
+        {showOnboarding && (
+          <OnboardingWalkthrough
+            key="onboarding-walkthrough-modal"
+            onComplete={handleCompleteOnboarding}
+            language={language}
+          />
+        )}
         {splashVisible && (
           <motion.div
             key="premium-splash-loader"
@@ -4759,6 +4860,18 @@ export default function App() {
               <span className="text-[8px] sm:text-[9px] font-black tracking-wide uppercase">
                 {isPremium ? "PREMIUM" : "PRO'YA GEÇ"}
               </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowOnboarding(true);
+                triggerToast("Bütçem Pro Tanıtım & Hoş Geldiniz Ekranı Açılıyor... ✨");
+              }}
+              title="Bütçem Pro Tanıtım & Hoş Geldiniz Turu"
+              className="px-2 sm:px-2.5 py-1.5 sm:py-2 bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-amber-500/30 hover:to-emerald-500/30 border border-amber-500/40 text-amber-300 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 text-[9px] sm:text-[10px] font-black tracking-wide duration-300 cursor-pointer shrink-0 shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span className="hidden xs:inline">TANITIM TURU</span>
             </button>
 
             <button
@@ -6299,6 +6412,7 @@ export default function App() {
             debts={debts}
             incomes={incomes}
             expenses={expenses}
+            payments={payments}
             installmentDebts={installmentDebts}
             currentUser={currentUser}
             format={format}
@@ -6352,7 +6466,11 @@ export default function App() {
         )}
 
         {["help", "blog", "feedback", "about", "privacy"].includes(activeTab) && (
-          <HelpAndGuides activeTab={activeTab} onNavigate={handleNavClick} />
+          <HelpAndGuides
+            activeTab={activeTab}
+            onNavigate={handleNavClick}
+            onOpenOnboarding={() => setShowOnboarding(true)}
+          />
         )}
 
         {/* Enerjik ve Optimize Edilmiş Web Sayfası Footer Kartı (SEO & Sosyal Paylaşım & Kanallar) */}
@@ -6759,6 +6877,10 @@ export default function App() {
                   setVoiceAssistantEnabled={setVoiceAssistantEnabled}
                   isPremium={isPremium}
                   onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+                  onOpenOnboarding={() => {
+                    setIsSecurityModalOpen(false);
+                    setShowOnboarding(true);
+                  }}
                   onSuccessToast={(msg) => {
                     triggerToast(msg);
                   }} 

@@ -17,6 +17,7 @@ import {
 interface HelpAndGuidesProps {
   activeTab: string;
   onNavigate: (tab: string) => void;
+  onOpenOnboarding?: () => void;
 }
 
 interface GuideItem {
@@ -48,7 +49,7 @@ interface BlogPost {
   conclusion: string;
 }
 
-export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavigate }) => {
+export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavigate, onOpenOnboarding }) => {
   // Search & Filter state for Guide section
   const [guideSearchQuery, setGuideSearchQuery] = useState("");
   const [selectedGuideCategory, setSelectedGuideCategory] = useState<string>("all");
@@ -663,6 +664,14 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
             </div>
 
             <div className="flex flex-wrap gap-2 justify-center shrink-0">
+              {onOpenOnboarding && (
+                <button
+                  onClick={onOpenOnboarding}
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-200 animate-pulse" /> 5 Sayfalık Tanıtım Turu 🚀
+                </button>
+              )}
               <button
                 onClick={() => onNavigate("aiStrategy")}
                 className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"

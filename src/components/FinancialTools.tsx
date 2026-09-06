@@ -22,15 +22,17 @@ import {
   ArrowRight,
   BadgePercent
 } from "lucide-react";
-import { Debt, Income, Expense, InstallmentDebt } from "../types";
+import { Debt, Income, Expense, InstallmentDebt, PaymentLog } from "../types";
 import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
 import { useCurrency } from "../utils/CurrencyContext";
+import { generateAnnualPdfReport } from "../utils/annualPdfReport";
 
 interface FinancialToolsProps {
   debts: Debt[];
   incomes: Income[];
   expenses: Expense[];
+  payments?: PaymentLog[];
   installmentDebts: InstallmentDebt[];
   currentUser: string | null;
   format: (val: number) => string;
@@ -49,6 +51,7 @@ export function FinancialTools({
   debts,
   incomes,
   expenses,
+  payments = [],
   installmentDebts,
   currentUser,
   format,
@@ -1123,6 +1126,25 @@ export function FinancialTools({
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/20"
                 >
                   <FileText className="w-3.5 h-3.5" /> PDF Olarak İndir 📥
+                </button>
+
+                <button
+                  onClick={() => {
+                    const curYear = new Date().getFullYear();
+                    generateAnnualPdfReport({
+                      year: curYear,
+                      incomes,
+                      expenses,
+                      payments,
+                      debts,
+                      installmentDebts,
+                      currencySymbol: "₺",
+                      language
+                    });
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
+                >
+                  <FileText className="w-3.5 h-3.5 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
                 </button>
 
                 <button

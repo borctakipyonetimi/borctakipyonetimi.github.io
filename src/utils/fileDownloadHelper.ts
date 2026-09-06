@@ -4,6 +4,7 @@ import {
   saveAndroidNativeBackupFile,
   saveAndroidNativeImageToGallery 
 } from "./androidAlarmBridge";
+import { getApiUrl } from "./api";
 
 export interface DownloadFileOptions {
   fileName: string;
@@ -68,7 +69,7 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
 
   // 3. Fallback: Sunucu üzerinden açık dosya adı ile indirme
   try {
-    const res = await fetch("/api/temp-backup", {
+    const res = await fetch(getApiUrl("/api/temp-backup"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, filename: fileName })
@@ -76,7 +77,7 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
     const data = await res.json();
     if (data.success && data.key) {
       const encodedName = encodeURIComponent(fileName);
-      const downloadUrl = `/api/download-temp/${encodedName}?key=${data.key}&filename=${encodedName}`;
+      const downloadUrl = getApiUrl(`/api/download-temp/${encodedName}?key=${data.key}&filename=${encodedName}`);
       const downloadLink = document.createElement("a");
       downloadLink.href = downloadUrl;
       downloadLink.setAttribute("download", fileName);
