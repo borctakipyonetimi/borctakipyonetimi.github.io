@@ -1,12 +1,12 @@
 {
-  "projectId": "borcodemetakip-451f1",
-  "appId": "1:600336619096:web:2c6da4c049bafe37905c2d",
-  "apiKey": "AIzaSyD9kSOXcqYWslz6T0zyg7MadpXOtMtdoYI",
-  "authDomain": "borcodemetakip-451f1.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-3876f2ba-6caf-4b23-9153-11bf8a4cfdf1",
-  "storageBucket": "borcodemetakip-451f1.firebasestorage.app",
-  "messagingSenderId": "600336619096",
-  "measurementId": "",
-  "oAuthClientId": "600336619096-ov4svqk7bb9nehkchiuqr309d67vjikc.apps.googleusercontent.com",
+  "projectId": "borc-takip-pro-f6936",
+  "appId": "1:845600628526:web:f3321e061df344971624bf",
+  "apiKey": "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
+  "authDomain": "borc-takip-pro-f6936.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "borc-takip-pro-f6936.firebasestorage.app",
+  "messagingSenderId": "845600628526",
+  "measurementId": "G-47WH5XGE3T",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

@@ -1628,8 +1628,15 @@ export default function App() {
       await signInWithPopup(auth, gProvider);
       triggerToast("Google Hesabı Başarıyla Doğrulandı! ✅");
     } catch (err: any) {
-      console.error("Popup Google auth failure for sync:", err);
-      triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
+      if (err.code === "auth/unauthorized-domain") {
+        console.warn("Popup Google auth unauthorized-domain:", err.message);
+        triggerToast("Firebase Uyarısı: Bu alan adını Firebase Console > Authorized Domains'e ekleyiniz.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        console.warn("Popup closed by user");
+      } else {
+        console.warn("Popup Google auth failure for sync:", err);
+        triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
+      }
     }
   };
 

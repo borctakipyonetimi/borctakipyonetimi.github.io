@@ -47,7 +47,10 @@ import {
   LogIn,
   UserPlus,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Copy,
+  ExternalLink
 } from "lucide-react";
 import {
   signInWithPopup,
@@ -96,10 +99,12 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authSuccess, setAuthSuccess] = useState("");
+  const [domainError, setDomainError] = useState<{ domain: string; copied: boolean } | null>(null);
 
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     setAuthError("");
+    setDomainError(null);
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
@@ -111,10 +116,22 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
         }, 900);
       }
     } catch (err: any) {
-      console.error("Walkthrough Google sign-in error:", err);
-      if (err.code === "auth/popup-closed-by-user") {
-        setAuthError("Giriş penceresi kapatıldı. Dilerseniz giriş yapmadan da devam edebilirsiniz.");
+      if (err.code === "auth/unauthorized-domain") {
+        console.warn("Firebase Google Auth unauthorized domain warning:", err.message);
+        const host = typeof window !== "undefined" ? window.location.hostname : "";
+        setDomainError({ domain: host, copied: false });
+        setAuthError("Bu web adresi henüz Firebase projenizde yetkilendirilmedi.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        console.warn("Google auth popup closed by user");
+        setAuthError("Giriş penceresi kapatıldı. Dilerseniz 'Doğrudan Uygulamaya Başla' diyerek devam edebilirsiniz.");
+      } else if (err.code === "auth/operation-not-allowed") {
+        console.warn("Google auth operation not allowed in Firebase");
+        setAuthError("Google Girişi Etkin Değil: Firebase Console > Authentication > Sign-in method üzerinden Google sağlayıcısını etkinleştiriniz.");
+      } else if (err.code === "auth/popup-blocked") {
+        console.warn("Google auth popup blocked by browser");
+        setAuthError("Tarayıcınız açılır pencereyi engelledi. Lütfen açılır pencerelere izin verip tekrar deneyin.");
       } else {
+        console.warn("Walkthrough Google sign-in general error:", err);
         setAuthError(err.message || "Google ile giriş yapılırken bir hata oluştu.");
       }
     } finally {
@@ -1233,6 +1250,77 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                           )}
                           <span>Google ile Hızlı Giriş Yap</span>
                         </button>
+
+                        {/* Domain Authorization Helper Card if auth/unauthorized-domain occurs */}
+                        {domainError && (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2.5 text-left">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                              <div>
+                                <h4 className="text-xs font-bold text-amber-300">Firebase Yetkili Alan Adı (Authorized Domain)</h4>
+                                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                                  Firebase projenizde Google ile oturum açabilmek için bu adresin Firebase Konsolu'na eklenmesi gerekir.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Domain copy box */}
+                            <div className="flex items-center justify-between gap-2 p-2 bg-slate-950/90 border border-amber-500/20 rounded-lg">
+                              <span className="text-[11px] font-mono text-amber-200 truncate select-all">
+                                {domainError.domain || (typeof window !== "undefined" ? window.location.hostname : "")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const text = domainError.domain || (typeof window !== "undefined" ? window.location.hostname : "");
+                                  navigator.clipboard.writeText(text);
+                                  setDomainError((prev) => (prev ? { ...prev, copied: true } : null));
+                                  setTimeout(() => {
+                                    setDomainError((prev) => (prev ? { ...prev, copied: false } : null));
+                                  }, 2000);
+                                }}
+                                className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 shrink-0 transition flex items-center gap-1 cursor-pointer"
+                              >
+                                {domainError.copied ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                    <span>Kopyalandı!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Kopyala</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="text-[10.5px] text-slate-400 space-y-1 bg-slate-950/50 p-2 rounded-lg border border-white/5">
+                              <div className="text-slate-300 font-semibold text-[11px]">Nasıl Eklenir? (1 Dakika):</div>
+                              <div>1. Firebase Console &gt; <strong>Authentication</strong> &gt; <strong>Settings</strong> &gt; <strong>Authorized domains</strong> sekmesini açın.</div>
+                              <div>2. <em>"Add Domain"</em> butonuna basıp yukarıdaki adresi yapıştırın.</div>
+                            </div>
+
+                            <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                              <a
+                                href="https://console.firebase.google.com/project/borc-takip-pro-f6936/authentication/settings"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 underline"
+                              >
+                                <span>Konsolu Aç</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={handleContinueWithoutLogin}
+                                className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
+                              >
+                                Şimdilik Giriş Yapmadan Devam Et →
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Divider */}
                         <div className="relative flex items-center justify-center my-1.5">
