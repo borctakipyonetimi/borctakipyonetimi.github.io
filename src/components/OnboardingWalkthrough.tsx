@@ -127,6 +127,9 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
       } else if (err.code === "auth/popup-blocked") {
         console.warn("Google auth popup blocked by browser");
         setAuthError("Tarayıcınız açılır pencereyi engelledi. Lütfen açılır pencerelere izin verip tekrar deneyin.");
+      } else if (err.code === "auth/missing-start-state") {
+        console.warn("Google auth missing start state");
+        setAuthError("Oturum durumu yenilendi. Lütfen 'Google ile Giriş Yap' butonuna tekrar tıklayın.");
       } else {
         console.warn("Walkthrough Google sign-in general error:", err);
         setAuthError(err.message || "Google ile giriş yapılırken bir hata oluştu.");

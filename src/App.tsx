@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, getRedirectResult, signInWithPopup, GoogleAuthProvider, OAuthProvider, updatePassword } from "firebase/auth";
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updatePassword } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
@@ -1743,6 +1743,10 @@ export default function App() {
         triggerToast("Firebase Uyarısı: Bu alan adı Firebase Console > Authorized Domains'e eklenmelidir.");
       } else if (err.code === "auth/popup-closed-by-user") {
         // user cancelled popup
+      } else if (err.code === "auth/popup-blocked") {
+        triggerToast("Tarayıcınız açılır pencereyi engelledi. Lütfen açılır pencerelere izin veriniz.");
+      } else if (err.code === "auth/missing-start-state") {
+        triggerToast("Oturum durumu yenilendi, lütfen Google ile Giriş butonuna tekrar tıklayın.");
       } else {
         triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));
       }
@@ -1787,21 +1791,6 @@ export default function App() {
 
   // Listen to genuine Firebase Authentication state changes
   useEffect(() => {
-    // Process redirect results (Crucial for APK WebViews running signInWithRedirect)
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result && result.user) {
-          const emailOrUid = result.user.email || result.user.uid;
-          setCurrentUser(emailOrUid);
-          localStorage.setItem("currentUser", emailOrUid);
-          triggerToast("Bulut Girişi Başarılı! ☁️🎉");
-        }
-      })
-      .catch((error) => {
-        console.error("Redirect auth retrieval failed:", error);
-        triggerToast("Google yetkilendirmesi başarısız oldu: " + (error.message || "Bilinmeyen Hata"));
-      });
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const emailOrUid = user.email || user.uid;
