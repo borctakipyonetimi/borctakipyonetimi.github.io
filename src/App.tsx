@@ -845,54 +845,36 @@ export default function App() {
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined") return;
 
-    // Check if we populated our polyfill or if it stands natively
     const hasNotification = "Notification" in window;
     const hasServiceWorker = "serviceWorker" in navigator;
 
     if (!hasNotification && !hasServiceWorker) {
-      triggerToast("Akıllı Bildirim Sistemi Başarıyla Devreye Alındı! 🔔");
       setHasNotificationPermission("granted");
       return;
     }
 
     try {
-      // Access the requestPermission function safely
       const requestPermissionFn = window.Notification?.requestPermission || (window as any).Notification?.requestPermission;
       if (requestPermissionFn) {
         const permission = await requestPermissionFn();
+        setHasNotificationPermission(permission);
         
-        // If the wrapper or user rejects/blocks native OS dialog, we gracefully treat it as granted 
-        // in our app to allow inside-app double-beep and in-app slide-down notifications to function correctly.
         if (permission === "granted") {
-          setHasNotificationPermission("granted");
-          triggerToast("Sistem Bildirimleri Etkinleştirildi! 🔔");
+          triggerToast("Telefon Bildirim İzni Verildi 🔔");
           sendSystemNotification(
             "Anlık Bildirimler Aktif!", 
-            "Bütçem artık ödeme hatırlatıcı ve alarmları telefonunuza anında iletecek."
+            "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
+            false
           );
-        } else {
-          // Graceful fallback for WebView/APK limitations instead of warning
-          setHasNotificationPermission("granted");
-          triggerToast("Gelişmiş Mobil Hatırlatıcılar Aktif Edildi! 🔔");
-          sendSystemNotification(
-            "Bütçem Bildirim Paneli Aktif!", 
-            "Alarmlarınız ve ödeme günündeki tüm borçlarınız için size bildirim ulaştıracağız."
-          );
+        } else if (permission === "denied") {
+          triggerToast("⚠️ Bildirim izni reddedildi. Cihaz/tarayıcı ayarlarından izin verebilirsiniz.");
         }
       } else {
-        // Safe fallback for wrappers
         setHasNotificationPermission("granted");
-        triggerToast("Gelişmiş Mobil Hatırlatıcılar Aktif Edildi! 🔔");
-        sendSystemNotification(
-          "Anlık Bildirimler Aktif!", 
-          "Bütçem artık alarm ve ödemelerinizi telefonunuza anında iletecek."
-        );
       }
     } catch (e) {
       console.error("Permission request error:", e);
-      // fallback
       setHasNotificationPermission("granted");
-      triggerToast("Bildirim Sistemi Başarıyla Devreye Alındı! 🔔");
     }
 
     try {
@@ -6029,47 +6011,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* KAPALI UYGULAMA VE KİLİT EKRANI BİLDİRİM GÜVENCESİ PANELİ */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-900/90 via-slate-900 to-slate-900 text-white border border-indigo-500/30 shadow-lg space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300">
-                        <Smartphone className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          <span>Kilit Ekranı ve Kapalı Uygulama Bildirim Güvencesi</span>
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                            Tam Zamanlı Aktif ✓
-                          </span>
-                        </h4>
-                        <p className="text-[11px] text-slate-300 font-medium">
-                          Uygulama kapalıyken veya ekran kilitliyken gecikmiş borçlar ve alarmlar donanım seviyesinde telefonunuza teslim edilir.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-700/60">
-                    <button
-                      type="button"
-                      onClick={handleTestBackgroundAlarm}
-                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 shadow-sm"
-                    >
-                      <Bell className="w-3.5 h-3.5" />
-                      <span>🔔 5 Sn Sonra Ekran Kapalı Bildirimini Test Et</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleTriggerInstantOverduePush}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 active:scale-95 text-slate-200 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2"
-                    >
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                      <span>⚡ Gecikmiş Borç Taramasını Şimdi Çalıştır</span>
-                    </button>
-                  </div>
-                </div>
 
                 {/* Premium Interactive Inline Alarm Ekleme Formu */}
                 {isAddingAlarmNew && (
