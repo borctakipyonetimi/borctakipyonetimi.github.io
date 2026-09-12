@@ -492,10 +492,79 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
         </div>
       </div>
 
-      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-950 dark:text-indigo-300 rounded-2xl grid gap-3 sm:grid-cols-2 font-bold text-xs">
-        <div>💰 Toplam Kalan Taksit Borç Yükü: <span className="text-base text-rose-500 block font-mono">{format(totalRemaining)}</span></div>
-        <div>🗓️ Bu Ay Ödenmesi Gereken Toplam Taksit: <span className="text-base text-indigo-600 dark:text-indigo-400 block font-mono">{format(currentMonthDue)}</span></div>
-      </div>
+      {/* Installment Summary Cards matching Dashboard Style */}
+      {(() => {
+        const totalPaid = installmentDebts.reduce((s, i) => s + ((Number(i.paidInstallmentCount) || 0) * (Number(i.totalAmount) / (Number(i.installmentCount) || 1))), 0);
+        const activeCount = installmentDebts.filter(i => (i.paidInstallmentCount || 0) < (i.installmentCount || 1)).length;
+
+        return (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {/* 1. TOPLAM KALAN TAKSİT BORCU */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+                <Wallet className="w-3 h-3 text-indigo-300" />
+                <span>KALAN TAKSİT YÜKÜ</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalRemaining)}</p>
+              <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+                Tüm Planların Kalanı
+              </span>
+            </motion.div>
+
+            {/* 2. BU AY ÖDENECEK TAKSİT */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-violet-600 via-violet-700 to-purple-900 dark:from-violet-950 dark:to-slate-900 border border-violet-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-violet-100 uppercase tracking-wide">
+                <CalendarDays className="w-3 h-3 text-violet-300" />
+                <span>BU AY TAKSİT</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(currentMonthDue)}</p>
+              <span className="text-[8.5px] font-medium text-violet-200/80 block">
+                Bu Ayki Taksit Tutarı
+              </span>
+            </motion.div>
+
+            {/* 3. ÖDENEN TAKSİT TOPLAMI */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+                <CheckCircle2 className="w-3 h-3 text-teal-300" />
+                <span>ÖDENEN KISIM</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalPaid)}</p>
+              <span className="text-[8.5px] font-medium text-teal-200/80 block">
+                Şimdiye Kadar Kapatılan
+              </span>
+            </motion.div>
+
+            {/* 4. AKTİF TAKSİT PLANLARI */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+                <Calendar className="w-3 h-3 text-amber-300" />
+                <span>AKTİF PLANLAR</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{activeCount} / {installmentDebts.length} Plan</p>
+              <span className="text-[8.5px] font-medium text-amber-200/80 block">
+                Devam Eden Taksitler
+              </span>
+            </motion.div>
+          </div>
+        );
+      })()}
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {installmentDebts.length === 0 ? (
@@ -509,42 +578,55 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             const percentage = (inst.paidInstallmentCount / inst.installmentCount) * 100;
             const isCompleted = inst.paidInstallmentCount === inst.installmentCount;
 
-            // Pick a beautiful color theme dynamically based on installment name/id
+            // Pick a vibrant color theme matching the Dashboard gradient cards
             const CARD_THEMES = [
               {
-                gradient: "from-slate-900 via-indigo-950 to-purple-950 dark:from-slate-950 dark:via-indigo-980 dark:to-purple-980",
-                glow: "shadow-indigo-500/10",
-                chip: "bg-amber-400/80 border-amber-300",
+                gradient: "from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900",
+                glow: "shadow-indigo-500/25",
+                border: "border-indigo-400/30",
+                chip: "bg-amber-300 border-amber-200",
                 brand: "PREMIUM PLATINUM",
-                badge: "bg-indigo-500/30 text-indigo-200 border-indigo-400/20"
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-cyan-950 via-blue-950 to-indigo-950",
-                glow: "shadow-cyan-500/10",
-                chip: "bg-yellow-500/80 border-yellow-300",
+                gradient: "from-blue-600 via-blue-700 to-indigo-950 dark:from-blue-950 dark:via-cyan-950 dark:to-slate-900",
+                glow: "shadow-blue-500/25",
+                border: "border-blue-400/30",
+                chip: "bg-amber-300 border-amber-200",
                 brand: "WORLD SIGNATURE",
-                badge: "bg-cyan-500/30 text-cyan-200 border-cyan-400/20"
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-rose-950 via-purple-950 to-pink-950",
-                glow: "shadow-rose-500/10",
-                chip: "bg-amber-350/80 border-amber-200",
+                gradient: "from-rose-600 via-rose-700 to-pink-950 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900",
+                glow: "shadow-rose-500/25",
+                border: "border-rose-400/30",
+                chip: "bg-amber-300 border-amber-200",
                 brand: "AMEX ULTIMATE",
-                badge: "bg-rose-500/30 text-rose-200 border-rose-400/20"
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-emerald-950 via-teal-950 to-emerald-900",
-                glow: "shadow-emerald-500/10",
-                chip: "bg-yellow-400/80 border-yellow-300",
+                gradient: "from-emerald-600 via-emerald-700 to-teal-950 dark:from-emerald-950 dark:via-teal-900 dark:to-slate-900",
+                glow: "shadow-emerald-500/25",
+                border: "border-emerald-400/30",
+                chip: "bg-amber-300 border-amber-200",
                 brand: "ECO CAPITAL",
-                badge: "bg-emerald-500/30 text-emerald-200 border-emerald-400/20"
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-amber-950 via-orange-950 to-slate-950",
-                glow: "shadow-amber-550/10",
-                chip: "bg-amber-200/80 border-amber-100",
+                gradient: "from-amber-600 via-amber-700 to-orange-950 dark:from-amber-950 dark:via-orange-900 dark:to-slate-900",
+                glow: "shadow-amber-500/25",
+                border: "border-amber-400/30",
+                chip: "bg-amber-200 border-amber-100",
                 brand: "GOLD METALLIC",
-                badge: "bg-amber-550/30 text-amber-200 border-amber-400/20"
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+              },
+              {
+                gradient: "from-violet-600 via-violet-700 to-purple-950 dark:from-violet-950 dark:via-purple-900 dark:to-slate-900",
+                glow: "shadow-violet-500/25",
+                border: "border-violet-400/30",
+                chip: "bg-amber-300 border-amber-200",
+                brand: "TITANIUM BLACK",
+                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
               }
             ];
 
@@ -570,13 +652,13 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
               <motion.div
                 key={inst.id}
                 id={`installment-card-${inst.id}`}
-                whileHover={{ scale: 1.025, y: -4 }}
+                whileHover={{ scale: 1.02, y: -3 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className={`relative overflow-hidden rounded-3xl p-5 border border-white/10 text-white bg-gradient-to-br ${cardTheme.gradient} shadow-xl ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none`}
+                className={`relative overflow-hidden rounded-3xl p-5 border ${cardTheme.border} text-white bg-gradient-to-br ${cardTheme.gradient} shadow-lg ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none`}
               >
                 {/* Decorative intersecting circles context layout */}
-                <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5 blur-xl pointer-events-none" />
-                <div className="absolute -left-10 -bottom-10 w-32 h-32 rounded-full bg-white/3 blur-xl pointer-events-none" />
+                <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
+                <div className="absolute -left-10 -bottom-10 w-36 h-36 rounded-full bg-white/5 blur-xl pointer-events-none" />
 
                 {/* Upper Deck: Chip, Name, and Brand */}
                 <div className="relative z-10 flex items-start justify-between gap-3">

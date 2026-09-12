@@ -164,14 +164,15 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         </div>
 
         {/* Dynamic monthly summaries card */}
-        <div className="p-4 bg-gradient-to-tr from-slate-900 to-indigo-950 text-white rounded-3xl grid gap-4 sm:grid-cols-2 font-semibold text-xs shadow-md">
-          <div className="space-y-1">
-            <span className="text-slate-400 block font-semibold text-[10px] uppercase">GELİR KAPILARI</span>
-            <p className="text-sm font-black flex items-center gap-1"><Wallet className="w-4 h-4 text-emerald-400 shrink-0" /> {format(monthlyIncome)}</p>
+        <div className="p-5 sm:p-6 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl grid gap-4 sm:grid-cols-2 font-semibold text-xs shadow-xl border border-indigo-500/30 relative overflow-hidden">
+          <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-indigo-500/10 blur-xl pointer-events-none" />
+          <div className="space-y-1.5 relative z-10">
+            <span className="text-emerald-300 block font-bold text-[10px] uppercase tracking-wider">GELİR KAPILARI</span>
+            <p className="text-base sm:text-lg font-black flex items-center gap-2 font-mono"><Wallet className="w-5 h-5 text-emerald-400 shrink-0" /> {format(monthlyIncome)}</p>
           </div>
-          <div className="space-y-1">
-            <span className="text-slate-400 block font-semibold text-[10px] uppercase">TOPLAM MASRAF/GİDER</span>
-            <p className="text-sm font-black flex items-center gap-1"><ShoppingBag className="w-4 h-4 text-rose-400 shrink-0" /> {format(monthlyExpense)}</p>
+          <div className="space-y-1.5 relative z-10">
+            <span className="text-rose-300 block font-bold text-[10px] uppercase tracking-wider">TOPLAM MASRAF / GİDER</span>
+            <p className="text-base sm:text-lg font-black flex items-center gap-2 font-mono"><ShoppingBag className="w-5 h-5 text-rose-400 shrink-0" /> {format(monthlyExpense)}</p>
           </div>
         </div>
 
@@ -372,70 +373,94 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
       {/* 4 Executive Annual KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Annual Income */}
-        <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-3xl shadow-sm space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Yıllık Toplam Gelir</span>
-            <div className="w-7 h-7 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 flex items-center justify-center">
+        <motion.div 
+          whileHover={{ y: -3, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-4 sm:p-5 bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 dark:from-emerald-950/90 dark:via-teal-950 dark:to-slate-900 border border-emerald-500/40 text-white rounded-3xl shadow-lg shadow-emerald-500/10 space-y-1 relative overflow-hidden"
+        >
+          <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-white/10 blur-lg pointer-events-none" />
+          <div className="flex items-center justify-between relative z-10">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-200">Yıllık Toplam Gelir</span>
+            <div className="w-7 h-7 rounded-xl bg-white/15 border border-white/20 text-emerald-200 flex items-center justify-center backdrop-blur-xs">
               <ArrowUpRight className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-base sm:text-lg font-black text-emerald-700 dark:text-emerald-300 font-mono">
+          <p className="text-base sm:text-xl font-black text-white font-mono tracking-tight relative z-10 drop-shadow-xs">
             {format(annualData.totalIncome)}
           </p>
-          <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-medium">
+          <p className="text-[10.5px] text-emerald-100 font-bold relative z-10">
             Aylık Ort: {format(annualData.avgMonthlyIncome)}
           </p>
-        </div>
+        </motion.div>
 
         {/* Total Annual Expense */}
-        <div className="p-4 bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/40 rounded-3xl shadow-sm space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Yıllık Toplam Harcama</span>
-            <div className="w-7 h-7 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 flex items-center justify-center">
+        <motion.div 
+          whileHover={{ y: -3, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-4 sm:p-5 bg-gradient-to-br from-rose-600 via-red-700 to-indigo-950 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 border border-rose-500/40 text-white rounded-3xl shadow-lg shadow-rose-500/10 space-y-1 relative overflow-hidden"
+        >
+          <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-white/10 blur-lg pointer-events-none" />
+          <div className="flex items-center justify-between relative z-10">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-rose-200">Yıllık Harcama</span>
+            <div className="w-7 h-7 rounded-xl bg-white/15 border border-white/20 text-rose-200 flex items-center justify-center backdrop-blur-xs">
               <ArrowDownRight className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-base sm:text-lg font-black text-rose-700 dark:text-rose-300 font-mono">
+          <p className="text-base sm:text-xl font-black text-white font-mono tracking-tight relative z-10 drop-shadow-xs">
             {format(annualData.totalExpense)}
           </p>
-          <p className="text-[10px] text-rose-600/80 dark:text-rose-400/80 font-medium">
+          <p className="text-[10.5px] text-rose-100 font-bold relative z-10">
             Aylık Ort: {format(annualData.avgMonthlyExpense)}
           </p>
-        </div>
+        </motion.div>
 
         {/* Total Annual Debt Payments */}
-        <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/40 rounded-3xl shadow-sm space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Yıllık Borç Kapatma</span>
-            <div className="w-7 h-7 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 flex items-center justify-center">
+        <motion.div 
+          whileHover={{ y: -3, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-4 sm:p-5 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-950 dark:from-indigo-950/90 dark:via-indigo-900 dark:to-slate-900 border border-indigo-500/40 text-white rounded-3xl shadow-lg shadow-indigo-500/10 space-y-1 relative overflow-hidden"
+        >
+          <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-white/10 blur-lg pointer-events-none" />
+          <div className="flex items-center justify-between relative z-10">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-indigo-200">Borç Kapatma</span>
+            <div className="w-7 h-7 rounded-xl bg-white/15 border border-white/20 text-indigo-200 flex items-center justify-center backdrop-blur-xs">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-base sm:text-lg font-black text-indigo-700 dark:text-indigo-300 font-mono">
+          <p className="text-base sm:text-xl font-black text-white font-mono tracking-tight relative z-10 drop-shadow-xs">
             {format(annualData.totalPayment)}
           </p>
-          <p className="text-[10px] text-indigo-600/80 dark:text-indigo-400/80 font-medium">
+          <p className="text-[10.5px] text-indigo-100 font-bold relative z-10">
             Aylık Ort: {format(annualData.avgMonthlyPayment)}
           </p>
-        </div>
+        </motion.div>
 
         {/* Net Annual Balance & Savings */}
-        <div className={`p-4 ${annualData.netBalance >= 0 ? "bg-teal-50/70 dark:bg-teal-950/20 border-teal-200/60 dark:border-teal-800/40" : "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-800/40"} border rounded-3xl shadow-sm space-y-1`}>
-          <div className="flex items-center justify-between">
-            <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${annualData.netBalance >= 0 ? "text-teal-700 dark:text-teal-400" : "text-amber-700 dark:text-amber-400"}`}>
+        <motion.div 
+          whileHover={{ y: -3, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className={`p-4 sm:p-5 ${
+            annualData.netBalance >= 0 
+              ? "bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-950 dark:from-teal-950/90 dark:via-teal-900 dark:to-slate-900 border-teal-500/40 shadow-teal-500/10" 
+              : "bg-gradient-to-br from-amber-600 via-amber-700 to-orange-950 dark:from-amber-950/90 dark:via-amber-900 dark:to-slate-900 border-amber-500/40 shadow-amber-500/10"
+          } border text-white rounded-3xl shadow-lg space-y-1 relative overflow-hidden`}
+        >
+          <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-white/10 blur-lg pointer-events-none" />
+          <div className="flex items-center justify-between relative z-10">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white">
               Yıllık Net Bakiye
             </span>
-            <div className={`w-7 h-7 rounded-xl ${annualData.netBalance >= 0 ? "bg-teal-100 dark:bg-teal-900/50 text-teal-600" : "bg-amber-100 dark:bg-amber-900/50 text-amber-600"} flex items-center justify-center`}>
+            <div className="w-7 h-7 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center backdrop-blur-xs">
               <Percent className="w-4 h-4" />
             </div>
           </div>
-          <p className={`text-base sm:text-lg font-black font-mono ${annualData.netBalance >= 0 ? "text-teal-700 dark:text-teal-300" : "text-amber-700 dark:text-amber-400"}`}>
+          <p className="text-base sm:text-xl font-black text-white font-mono tracking-tight relative z-10 drop-shadow-xs">
             {format(annualData.netBalance)}
           </p>
-          <p className={`text-[10px] font-bold ${annualData.netBalance >= 0 ? "text-teal-600 dark:text-teal-400" : "text-amber-600 dark:text-amber-400"}`}>
+          <p className="text-[10.5px] font-bold text-white/90 relative z-10">
             Tasarruf Oranı: %{annualData.savingsRate.toFixed(1)}
           </p>
-        </div>
+        </motion.div>
       </div>
 
       {/* 12-Month Table & Comparison View */}

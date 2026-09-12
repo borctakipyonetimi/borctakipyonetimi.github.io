@@ -396,35 +396,35 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         );
       })()}
 
-      {/* Animated Fast Action Buttons under the Filter Section with beautiful Theme Integration & Premium Glow Effects */}
+      {/* Animated Fast Action Buttons: Borç Ekle, Gelir Ekle, Gider Ekle (Compact 3 side-by-side) */}
       {(() => {
         const getActionStyle = () => {
           if (colorTheme === "green") {
             return {
+              debt: "bg-teal-500/10 hover:bg-teal-500/20 dark:bg-teal-500/15 dark:hover:bg-teal-500/25 text-teal-600 dark:text-teal-400 border-teal-500/20 dark:border-teal-500/30 hover:border-teal-500 dark:hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/10 dark:hover:shadow-teal-500/20",
               income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
               expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              debt: "bg-teal-500/10 hover:bg-teal-500/20 dark:bg-teal-500/15 dark:hover:bg-teal-500/25 text-teal-600 dark:text-teal-400 border-teal-500/20 dark:border-teal-500/30 hover:border-teal-500 dark:hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/10 dark:hover:shadow-teal-500/20",
               badge: "bg-emerald-500 text-white"
             };
           } else if (colorTheme === "purple") {
             return {
+              debt: "bg-purple-500/10 hover:bg-purple-500/20 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-600 dark:text-purple-400 border-purple-500/20 dark:border-purple-500/30 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/10 dark:hover:shadow-purple-500/20",
               income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
               expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              debt: "bg-purple-500/10 hover:bg-purple-500/20 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-600 dark:text-purple-400 border-purple-500/20 dark:border-purple-500/30 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/10 dark:hover:shadow-purple-500/20",
               badge: "bg-purple-500 text-white"
             };
           } else if (colorTheme === "orange") {
             return {
+              debt: "bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-lg hover:shadow-amber-500/10 dark:hover:shadow-amber-500/20",
               income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
               expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              debt: "bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-lg hover:shadow-amber-500/10 dark:hover:shadow-amber-500/20",
               badge: "bg-amber-500 text-white"
             };
           } else { // default indigo
             return {
-              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
-              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-605 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
               debt: "bg-indigo-500/10 hover:bg-indigo-500/20 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 dark:border-indigo-500/30 hover:border-indigo-500 dark:hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 dark:hover:shadow-indigo-500/20",
+              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
+              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
               badge: "bg-indigo-500 text-white"
             };
           }
@@ -433,228 +433,170 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         const customStyle = getActionStyle();
 
         return (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            {/* Gelir Ekle */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3.5 pt-1">
+            {/* 1. Borç Ekle */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.05 }}
               whileHover={{ 
-                scale: 1.05, 
-                y: -5,
-                boxShadow: "0 20px 25px -5px rgba(16, 185, 129, 0.15), 0 10px 10px -5px rgba(16, 185, 129, 0.1)",
+                scale: 1.03, 
+                y: -3,
+                boxShadow: "0 15px 20px -5px rgba(99, 102, 241, 0.18)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                localStorage.setItem("auto_open_add_income", "true");
-                onNavigate("income");
-              }}
-              className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border flex flex-col items-center justify-center text-center gap-2.5 transition-all duration-300 cursor-pointer group ${customStyle.income}`}
-              id="quick-add-income-btn"
-            >
-              {/* Dynamic pulse aura in the background */}
-              <motion.div 
-                className="absolute inset-0 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-2xl -z-10"
-                animate={{
-                  scale: [1, 1.06, 1],
-                  opacity: [0.4, 0.8, 0.4]
-                }}
-                transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              />
-              
-              <motion.div 
-                className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-md shadow-emerald-500/20 flex items-center justify-center shrink-0 transition-all duration-300"
-                whileHover={{ 
-                  rotate: 180, 
-                  scale: 1.15,
-                  boxShadow: "0 0 15px rgba(16, 185, 129, 0.6)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 12 }}
-              >
-                <PlusCircle className="w-5 h-5 sm:w-6 sm:h-6" />
-              </motion.div>
-              
-              <div className="flex flex-col space-y-0.5 z-10">
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider group-hover:text-emerald-500 dark:group-hover:text-emerald-350 transition-colors duration-200">
-                  {language === "tr" ? "GELİR EKLE" : "ADD INCOME"}
-                </span>
-                <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
-                  {language === "tr" ? "Maaş, Kazanç" : "Salary, Earns"}
-                </span>
-              </div>
-            </motion.button>
-
-            {/* Gider Ekle */}
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-              whileHover={{ 
-                scale: 1.05, 
-                y: -5,
-                boxShadow: "0 20px 25px -5px rgba(239, 68, 68, 0.15), 0 10px 10px -5px rgba(239, 68, 68, 0.1)",
-                transition: { type: "spring", stiffness: 400, damping: 15 }
-              }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                localStorage.setItem("auto_open_add_expense", "true");
-                onNavigate("expenses");
-              }}
-              className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border flex flex-col items-center justify-center text-center gap-2.5 transition-all duration-300 cursor-pointer group ${customStyle.expense}`}
-              id="quick-add-expense-btn"
-            >
-              {/* Dynamic pulse aura in the background */}
-              <motion.div 
-                className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 rounded-2xl -z-10"
-                animate={{
-                  scale: [1, 1.06, 1],
-                  opacity: [0.4, 0.8, 0.4]
-                }}
-                transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: 0.4
-                }}
-              />
-
-              <motion.div 
-                className="p-2.5 bg-red-500 text-white rounded-xl shadow-md shadow-red-500/20 flex items-center justify-center shrink-0 transition-all duration-300"
-                whileHover={{ 
-                  y: -4, 
-                  x: 4,
-                  scale: 1.15,
-                  boxShadow: "0 0 15px rgba(239, 68, 68, 0.5)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 12 }}
-              >
-                <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6 rotate-90" />
-              </motion.div>
-
-              <div className="flex flex-col space-y-0.5 z-10">
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider group-hover:text-red-500 dark:group-hover:text-red-350 transition-colors duration-200">
-                  {language === "tr" ? "GİDER EKLE" : "ADD EXPENSE"}
-                </span>
-                <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
-                  {language === "tr" ? "Market, Fatura" : "Market, Bills"}
-                </span>
-              </div>
-            </motion.button>
-
-            {/* Borç Ekle */}
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
-              whileHover={{ 
-                scale: 1.05, 
-                y: -5,
-                boxShadow: "0 20px 25px -5px rgba(99, 102, 241, 0.15), 0 10px 10px -5px rgba(99, 102, 241, 0.1)",
-                transition: { type: "spring", stiffness: 400, damping: 15 }
-              }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
                 localStorage.setItem("auto_open_add_debt", "true");
                 onNavigate("debts");
               }}
-              className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border flex flex-col items-center justify-center text-center gap-2.5 transition-all duration-300 cursor-pointer group ${customStyle.debt}`}
+              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.debt}`}
               id="quick-add-debt-btn"
             >
-              {/* Dynamic pulse aura in the background */}
               <motion.div 
                 className="absolute inset-0 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-2xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
-                  opacity: [0.4, 0.8, 0.4]
+                  opacity: [0.35, 0.7, 0.35]
                 }}
                 transition={{
-                  duration: 2.5,
+                  duration: 2.8,
                   repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: 0.8
+                  ease: "easeInOut"
                 }}
               />
 
               <motion.div 
-                className={`p-2.5 rounded-xl shadow-md flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
+                className={`p-1.5 sm:p-2 rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
                 whileHover={{ 
-                  y: -5,
-                  scale: 1.15,
-                  boxShadow: "0 0 15px rgba(99, 102, 241, 0.5)"
+                  scale: 1.12,
+                  boxShadow: "0 0 12px rgba(99, 102, 241, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
               </motion.div>
 
-              <div className="flex flex-col space-y-0.5 z-10">
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider group-hover:opacity-100 transition-opacity duration-200">
+              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:opacity-100 transition-opacity duration-200 truncate">
                   {language === "tr" ? "BORÇ EKLE" : "ADD DEBT"}
                 </span>
-                <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
-                  {language === "tr" ? "Kredi, Banka" : "Loans, Bank"}
+                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                  {language === "tr" ? "Kredi & Kart" : "Loans & Credit"}
                 </span>
               </div>
             </motion.button>
 
-            {/* Kişi Borç/Cari Ekle */}
+            {/* 2. Gelir Ekle */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
               whileHover={{ 
-                scale: 1.05, 
-                y: -5,
-                boxShadow: "0 20px 25px -5px rgba(168, 85, 247, 0.15), 0 10px 10px -5px rgba(168, 85, 247, 0.1)",
+                scale: 1.03, 
+                y: -3,
+                boxShadow: "0 15px 20px -5px rgba(16, 185, 129, 0.18)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
-                onNavigate("contacts");
+                localStorage.setItem("auto_open_add_income", "true");
+                onNavigate("income");
               }}
-              className="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl border border-purple-200 dark:border-purple-800/50 bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-center gap-2.5 transition-all duration-300 cursor-pointer group text-purple-700 dark:text-purple-300"
-              id="quick-add-contact-btn"
+              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.income}`}
+              id="quick-add-income-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-purple-500/5 dark:bg-purple-500/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-2xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
-                  opacity: [0.4, 0.8, 0.4]
+                  opacity: [0.35, 0.7, 0.35]
                 }}
                 transition={{
-                  duration: 2.5,
+                  duration: 2.8,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: 1.0
+                  delay: 0.3
+                }}
+              />
+              
+              <motion.div 
+                className="p-1.5 sm:p-2 bg-emerald-500 text-white rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300"
+                whileHover={{ 
+                  rotate: 180, 
+                  scale: 1.12,
+                  boxShadow: "0 0 12px rgba(16, 185, 129, 0.5)"
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 12 }}
+              >
+                <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              </motion.div>
+              
+              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:text-emerald-500 dark:group-hover:text-emerald-350 transition-colors duration-200 truncate">
+                  {language === "tr" ? "GELİR EKLE" : "ADD INCOME"}
+                </span>
+                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                  {language === "tr" ? "Maaş & Ek Kazanç" : "Salary & Earns"}
+                </span>
+              </div>
+            </motion.button>
+
+            {/* 3. Gider Ekle */}
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
+              whileHover={{ 
+                scale: 1.03, 
+                y: -3,
+                boxShadow: "0 15px 20px -5px rgba(239, 68, 68, 0.18)",
+                transition: { type: "spring", stiffness: 400, damping: 15 }
+              }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                localStorage.setItem("auto_open_add_expense", "true");
+                onNavigate("expenses");
+              }}
+              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.expense}`}
+              id="quick-add-expense-btn"
+            >
+              <motion.div 
+                className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 rounded-2xl -z-10"
+                animate={{
+                  scale: [1, 1.06, 1],
+                  opacity: [0.35, 0.7, 0.35]
+                }}
+                transition={{
+                  duration: 2.8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.6
                 }}
               />
 
               <motion.div 
-                className="p-2.5 bg-purple-600 text-white rounded-xl shadow-md shadow-purple-500/20 flex items-center justify-center shrink-0 transition-all duration-300"
+                className="p-1.5 sm:p-2 bg-red-500 text-white rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300"
                 whileHover={{ 
-                  scale: 1.15,
-                  boxShadow: "0 0 15px rgba(168, 85, 247, 0.6)"
+                  y: -2, 
+                  x: 2,
+                  scale: 1.12,
+                  boxShadow: "0 0 12px rgba(239, 68, 68, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+                <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 rotate-90" />
               </motion.div>
 
-              <div className="flex flex-col space-y-0.5 z-10">
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors duration-200">
-                  {language === "tr" ? "KİŞİ BORÇLARI" : "PERSON DEBTS"}
+              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:text-red-500 dark:group-hover:text-red-350 transition-colors duration-200 truncate">
+                  {language === "tr" ? "GİDER EKLE" : "ADD EXPENSE"}
                 </span>
-                <span className="text-[9px] font-bold opacity-75 leading-none mt-0.5">
-                  {language === "tr" ? "Şahıs, Cari Hesabı" : "Personal, Contacts"}
+                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                  {language === "tr" ? "Fatura & Market" : "Bills & Market"}
                 </span>
               </div>
             </motion.button>
@@ -662,191 +604,235 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         );
       })()}
 
-      {/* Grid Stats Cards including Kişi Borçları Kartı */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {/* TOPLAM BORÇ */}
-        <div className="p-4 bg-indigo-600 dark:bg-indigo-950/85 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-indigo-200 block uppercase tracking-wide">TOPLAM BORÇ</span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalDebt)}</p>
-        </div>
-
-        {/* KİŞİ BORÇLARI TOPLAMI (Şahıs Borçları) */}
-        <div 
-          onClick={() => onNavigate("contacts")}
-          className="p-4 bg-purple-700 dark:bg-purple-950/85 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[100px] cursor-pointer"
+      {/* Grid Stats Cards: 6 Temel Finansal Gösterge Kartı (2 sütun mobilde, 3 sütun tablette, 6 sütun geniş ekranda) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        {/* 1. TOPLAM BORÇ */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[10px] font-bold text-purple-200 uppercase tracking-wide">
-            <Users className="w-3.5 h-3.5 text-purple-300" />
-            <span>KİŞİ BORÇLARI TOPLAMI</span>
-            <ArrowUpRight className="w-3 h-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-200 uppercase tracking-wide">
+            <Coins className="w-3 h-3 text-indigo-300" />
+            <span>{language === "tr" ? "TOPLAM BORÇ" : "TOTAL DEBT"}</span>
           </div>
-          <p className="text-sm sm:text-lg font-black font-mono">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalDebt)}</p>
+        </motion.div>
+
+        {/* 2. KİŞİ BORÇLARI TOPLAMI */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          onClick={() => onNavigate("contacts")}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-purple-600 via-purple-700 to-purple-900 dark:from-purple-950 dark:to-slate-900 border border-purple-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-purple-200 uppercase tracking-wide">
+            <Users className="w-3 h-3 text-purple-300" />
+            <span>{language === "tr" ? "KİŞİ BORÇLARI" : "CONTACTS"}</span>
+            <ArrowUpRight className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
             {format(stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0)}
           </p>
           {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
-            <span className="text-[9px] font-medium text-purple-200/90 block">
-              Alacak: {format(stats.contactReceivablesRemaining)}
+            <span className="text-[8.5px] font-medium text-purple-200/90 block truncate max-w-full">
+              {language === "tr" ? "Alacak: " : "Recv: "}{format(stats.contactReceivablesRemaining)}
             </span>
           )}
-        </div>
+        </motion.div>
 
-        {/* AYLIK GELİR */}
-        <div className="p-4 bg-blue-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-blue-105 block uppercase tracking-wide">
-            {language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalIncome)}</p>
-        </div>
+        {/* 3. AYLIK GELİR */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 dark:from-emerald-950 dark:to-slate-900 border border-emerald-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
+            <PlusCircle className="w-3 h-3 text-emerald-300" />
+            <span>{language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalIncome)}</p>
+        </motion.div>
 
-        {/* AYLIK GİDER */}
-        <div className="p-4 bg-amber-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-amber-105 block uppercase tracking-wide">
-            {language === "tr" ? "AYLIK GİDER" : "MONTHLY OUTFLOW"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.totalExpense)}</p>
-        </div>
+        {/* 4. AYLIK GİDER */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+            <ArrowUpRight className="w-3 h-3 text-rose-300" />
+            <span>{language === "tr" ? "AYLIK GİDER" : "MONTHLY EXPENSE"}</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalExpense)}</p>
+        </motion.div>
 
-        {/* BU AY ÖDENEN KISIM */}
-        <div className="p-4 bg-emerald-600 text-white rounded-3xl space-y-1.5 relative overflow-hidden group shadow-md hover:shadow-lg transition flex flex-col items-center justify-center text-center min-h-[100px]">
-          <span className="text-[10px] font-bold text-emerald-100 block uppercase tracking-wide">
-            {language === "tr"
-              ? (selectedMonth !== null ? "BU AY ÖDENEN KISIM" : "ÖDENMİŞ KISIM")
-              : (selectedMonth !== null ? "REPAID THIS MONTH" : "TOTAL REPAID")}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">
+        {/* 5. BU AY ÖDENEN KISIM */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+            <CheckCircle2 className="w-3 h-3 text-teal-300" />
+            <span>
+              {language === "tr"
+                ? (selectedMonth !== null ? "BU AY ÖDENEN" : "ÖDENEN KISIM")
+                : (selectedMonth !== null ? "REPAID MONTH" : "TOTAL REPAID")}
+            </span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
             {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid)}
           </p>
-        </div>
+        </motion.div>
 
-        {/* NET KALAN REZERV */}
-        <div className={`p-4 text-white rounded-3xl space-y-1.5 relative overflow-hidden shadow-md transition flex flex-col items-center justify-center text-center min-h-[100px] ${stats.netIncome >= 0 ? "bg-indigo-600" : "bg-red-700"}`}>
-          <span className="text-[10px] font-bold text-indigo-105 block uppercase tracking-wide">
-            {language === "tr" ? "NET KALAN REZERV" : "NET SURPLUS VALUE"}
-          </span>
-          <p className="text-sm sm:text-lg font-black font-mono">{format(stats.netIncome)}</p>
-        </div>
-
-        {/* BU AYKİ BORÇ & KALAN BORÇ */}
-        <div className="flex flex-col gap-3 h-full justify-between col-span-2 sm:col-span-1">
-          <div className="p-3.5 bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/20 text-indigo-950 dark:text-indigo-200 rounded-3xl space-y-0.5 relative overflow-hidden flex-1 shadow-sm flex flex-col items-center justify-center text-center min-h-[50px]">
-            <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 block uppercase tracking-wide">
-              {language === "tr" ? "BU AYKİ BORÇ TOPLAMI" : "MONTHLY TOTAL LOANS"}
-            </span>
-            <p className="text-sm sm:text-base font-extrabold font-mono">{format(stats.thisMonthTotalBorc)}</p>
+        {/* 6. NET KALAN REZERV */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className={`p-3.5 sm:p-4 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] ${
+            stats.netIncome >= 0 
+              ? "bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 dark:from-blue-950 dark:to-slate-900 border border-blue-500/30" 
+              : "bg-gradient-to-br from-amber-600 via-red-700 to-rose-900 dark:from-rose-950 dark:to-slate-900 border border-red-500/30"
+          }`}
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+            <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
+            <span>{language === "tr" ? "NET KALAN" : "NET SURPLUS"}</span>
           </div>
-
-          <div className="p-3.5 bg-rose-600 text-white rounded-3xl space-y-0.5 relative overflow-hidden flex-1 shadow-md hover:shadow-lg transition flex flex-col items-center justify-center text-center min-h-[50px]">
-            <span className="text-[9px] font-bold text-rose-100 block uppercase tracking-wide">
-              {language === "tr" ? "BU AY KALAN BORÇ" : "MONTH WRAP REMAINING"}
-            </span>
-            <p className="text-sm sm:text-base font-extrabold font-mono">{format(stats.thisMonthKalanBorc)}</p>
-          </div>
-        </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.netIncome)}</p>
+        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 pb-1 items-start">
-        {/* Card 1: Bu Ay Ödenecek Taksit */}
+      {/* Cari Ay Detay & Yükümlülük Kartları: 3 Dengeli Sütun */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1 items-stretch">
+        {/* Card 1: Bu Ayki Borç & Kalan Durumu */}
         <motion.div
           whileHover={{ 
             scale: 1.02, 
-            y: -3, 
-            boxShadow: "0 15px 30px -10px rgba(139, 92, 246, 0.25)",
+            y: -2, 
+            boxShadow: "0 12px 25px -10px rgba(99, 102, 241, 0.2)",
+            borderColor: "rgba(99, 102, 241, 0.4)" 
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-slate-500/5 to-purple-500/10 dark:from-indigo-950/30 dark:to-slate-900/40 border border-indigo-500/20 dark:border-indigo-500/30 shadow-xs transition-colors duration-300"
+        >
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-indigo-500/15">
+            <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{language === "tr" ? "Cari Ay Borç Durumu" : "Current Month Loan Wrap"}</span>
+            </span>
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
+              {selectedMonth !== null ? "Ay Filtreli" : "Genel Durum"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-3">
+            <div className="p-2.5 bg-white/70 dark:bg-slate-800/80 rounded-2xl border border-indigo-100 dark:border-indigo-950/60 flex flex-col items-center justify-center text-center">
+              <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+                {language === "tr" ? "Bu Ayki Toplam" : "Monthly Total"}
+              </span>
+              <p className="text-xs sm:text-sm font-black font-mono text-indigo-950 dark:text-indigo-200 mt-0.5">
+                {format(stats.thisMonthTotalBorc)}
+              </p>
+            </div>
+
+            <div className="p-2.5 bg-rose-500/15 dark:bg-rose-950/40 rounded-2xl border border-rose-500/25 flex flex-col items-center justify-center text-center">
+              <span className="text-[8.5px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">
+                {language === "tr" ? "Bu Ay Kalan" : "Month Remaining"}
+              </span>
+              <p className="text-xs sm:text-sm font-black font-mono text-rose-700 dark:text-rose-300 mt-0.5">
+                {format(stats.thisMonthKalanBorc)}
+              </p>
+            </div>
+          </div>
+          
+          <p className="text-[9.5px] font-medium text-slate-500 dark:text-slate-400 mt-2.5 text-center">
+            {language === "tr" ? "Cari aya ait vadesi gelen borç ve kapatılan bakiye" : "Due loans and settlement balance for this period"}
+          </p>
+        </motion.div>
+
+        {/* Card 2: Bu Ay Ödenecek Taksit */}
+        <motion.div
+          whileHover={{ 
+            scale: 1.02, 
+            y: -2, 
+            boxShadow: "0 12px 25px -10px rgba(139, 92, 246, 0.2)",
             borderColor: "rgba(139, 92, 246, 0.4)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex items-center gap-4 p-5 rounded-3xl bg-gradient-to-br from-violet-500/10 to-indigo-500/5 dark:from-violet-950/20 dark:to-indigo-950/10 border border-violet-500/20 dark:border-violet-500/30 shadow-xs h-full transition-colors duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-violet-500/10 to-indigo-500/5 dark:from-violet-950/30 dark:to-indigo-950/20 border border-violet-500/20 dark:border-violet-500/30 shadow-xs transition-colors duration-300"
         >
-          {/* Background Decorative Blur Orb */}
           <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="p-3.5 bg-violet-500/15 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-            <CalendarDays className="w-5.5 h-5.5 animate-pulse" />
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-black tracking-widest text-violet-500 dark:text-violet-400 uppercase block mb-1">
-              {translate("Bu Ay Ödenecek Taksit")}
-            </span>
-            <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className="text-xl sm:text-2xl font-black font-mono text-violet-800 dark:text-violet-200 tracking-tight leading-none">
-                {format(monthlyInstallmentsDue)}
-              </span>
-            </div>
-            <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 mt-1">
-              {translate("Aktif ödeme planlarındaki cari ay taksit yükümlülüğü")}
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Right Stack: Card 2 & Progress Card */}
-        <div className="space-y-4">
-          {/* Card 2: Bu Ay Yapılan Ödeme Adedi */}
-          <motion.div
-            whileHover={{ 
-              scale: 1.02, 
-              y: -3, 
-              boxShadow: "0 15px 30px -10px rgba(245, 158, 11, 0.25)",
-              borderColor: "rgba(245, 158, 11, 0.4)" 
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="relative overflow-hidden flex items-center gap-4 p-5 rounded-3xl bg-gradient-to-br from-amber-500/10 to-yellow-500/5 dark:from-amber-950/20 dark:to-yellow-950/10 border border-amber-500/20 dark:border-amber-500/30 shadow-xs transition-colors duration-300"
-          >
-            {/* Background Decorative Blur Orb */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="p-3.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-              <ClipboardCheck className="w-5.5 h-5.5 animate-bounce duration-[3000ms]" />
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 sm:p-3 bg-violet-500/15 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+              <CalendarDays className="w-5 h-5 animate-pulse" />
             </div>
             
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-black tracking-widest text-amber-600 dark:text-amber-400 uppercase block mb-1">
-                {translate("Bu Ay Yapılan Ödemeler")}
+              <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-violet-600 dark:text-violet-400 uppercase block mb-0.5">
+                {translate("Bu Ay Ödenecek Taksit")}
               </span>
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-xl sm:text-2xl font-black font-mono text-amber-800 dark:text-amber-200 tracking-tight leading-none">
-                  {monthlyPaymentsCount} <span className="text-xs sm:text-sm font-bold text-amber-600/80">{translate("Adet")}</span>
+                <span className="text-lg sm:text-xl font-black font-mono text-violet-800 dark:text-violet-200 tracking-tight leading-none">
+                  {format(monthlyInstallmentsDue)}
                 </span>
               </div>
-              <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 mt-1">
-                {translate("Sisteminizde bu ay başarıyla belgelenen ödeme sayısı")}
-              </p>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Progress Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            whileHover={{ scale: 1.01 }}
-            className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/65 dark:border-slate-700/60 shadow-sm space-y-4 relative overflow-hidden"
-          >
-            {/* Background dynamic blur orb */}
-            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 rounded-full blur-xl pointer-events-none" />
+          <div className="mt-3 pt-2.5 border-t border-violet-500/15 flex items-center justify-between text-[9.5px] font-semibold text-slate-600 dark:text-slate-300">
+            <span>{translate("Aktif Ödeme Planları")}</span>
+            <span className="font-bold text-violet-600 dark:text-violet-400">Cari Taksit Yükümlülüğü</span>
+          </div>
+        </motion.div>
 
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wide">{translate("Ödeme İlerlemesi")}</h4>
-              <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-xl font-mono">
-                %{paymentProgress.toFixed(1)} {translate("Ödendi")}
-              </span>
+        {/* Card 3: Ödeme İlerlemesi & Bu Ay Yapılan Ödeme Adedi */}
+        <motion.div
+          whileHover={{ 
+            scale: 1.02, 
+            y: -2, 
+            boxShadow: "0 12px 25px -10px rgba(16, 185, 129, 0.2)",
+            borderColor: "rgba(16, 185, 129, 0.4)" 
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-500/5 dark:from-emerald-950/30 dark:to-slate-900/40 border border-emerald-500/20 dark:border-emerald-500/30 shadow-xs transition-colors duration-300"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
+                <ClipboardCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-emerald-600 dark:text-emerald-400 uppercase block leading-none">
+                  {translate("Ödeme İlerlemesi")}
+                </span>
+                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 block">
+                  {monthlyPaymentsCount} {translate("Adet Ödeme Belgelendi")}
+                </span>
+              </div>
             </div>
             
-            <div className="w-full bg-slate-100 dark:bg-slate-700 h-4 rounded-full overflow-hidden flex shadow-inner relative">
+            <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded-lg font-mono">
+              %{paymentProgress.toFixed(1)}
+            </span>
+          </div>
+
+          <div className="mt-2.5 space-y-1.5">
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden flex shadow-inner relative">
               <motion.div
-                className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full"
+                className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(paymentProgress, 100)}%` }}
                 transition={{ duration: 1.5, ease: "easeOut" }}
               />
             </div>
-            
-            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-              {language === "tr"
-                ? `Toplam ${format(stats.totalDebt)} borcun ${format(stats.totalPaid)} kadarı ödendi. Sabırla ve planlı ödemelerle borçlarını sıfırlayabilirsin!`
-                : `Out of total ${format(stats.totalDebt)} debt, ${format(stats.totalPaid)} has been paid. With structured payments, you can settle your balances fully!`}
+            <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate text-center">
+              {format(stats.totalPaid)} / {format(stats.totalDebt)} {language === "tr" ? "kapatıldı" : "settled"}
             </p>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* Weather & Budget Habit Correlation Widget */}

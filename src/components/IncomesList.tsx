@@ -448,12 +448,79 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-300 rounded-2xl flex items-center justify-between font-bold text-xs border border-emerald-100/30">
-          <span>Aylık Toplam Gelir Kazancı ({MONTH_NAMES[selectedMonthVal]} {selectedYearVal}):</span>
-          <span className="text-base text-emerald-600 dark:text-emerald-400 font-mono">{format(totalIncomes)}</span>
-        </div>
-      </div>
+      {/* Income Summary Cards matching Dashboard Style */}
+      {(() => {
+        const recurringTotal = incomes.filter(i => i.isRecurring !== false).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        const oneTimeTotal = incomes.filter(i => i.isRecurring === false).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+        return (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {/* 1. AYLIK TOPLAM GELİR */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 dark:from-emerald-950 dark:to-slate-900 border border-emerald-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
+                <PlusCircle className="w-3 h-3 text-emerald-300" />
+                <span>TOPLAM GELİR</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalIncomes)}</p>
+              <span className="text-[8.5px] font-medium text-emerald-200/80 block">
+                {MONTH_NAMES[selectedMonthVal]} {selectedYearVal}
+              </span>
+            </motion.div>
+
+            {/* 2. DÜZENLİ / SABİT GELİR */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 dark:from-blue-950 dark:to-slate-900 border border-blue-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
+                <Wallet className="w-3 h-3 text-blue-300" />
+                <span>SABİT GELİRLER</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(recurringTotal)}</p>
+              <span className="text-[8.5px] font-medium text-blue-200/80 block">
+                Maaş & Düzenli Gelir
+              </span>
+            </motion.div>
+
+            {/* 3. EK / DEĞİŞKEN GELİR */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>EK KAZANÇLAR</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(oneTimeTotal)}</p>
+              <span className="text-[8.5px] font-medium text-amber-200/80 block">
+                Prim, Ek İş & Diğer
+              </span>
+            </motion.div>
+
+            {/* 4. GELİR ADEDİ */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            >
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+                <PiggyBank className="w-3 h-3 text-teal-300" />
+                <span>KAYIT SAYISI</span>
+              </div>
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{incomes.length} Adet</p>
+              <span className="text-[8.5px] font-medium text-teal-200/80 block">
+                Aktif Gelir Kalemi
+              </span>
+            </motion.div>
+          </div>
+        );
+      })()}
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">
         {/* Left Side: Listing */}
@@ -491,55 +558,60 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             </div>
           ) : (
             incomes.map((i) => (
-              <div
+              <motion.div
                 key={i.id}
-                className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-sm flex items-center justify-between transition hover:shadow-md"
+                whileHover={{ scale: 1.01, y: -2 }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                className="p-4 sm:p-5 bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 dark:from-emerald-950/90 dark:via-teal-950 dark:to-slate-900 border border-emerald-500/40 text-white rounded-3xl shadow-lg shadow-emerald-500/10 flex items-center justify-between gap-4 transition-all duration-300 relative overflow-hidden group"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
-                    <Wallet className="w-5 h-5 text-emerald-500" />
+                {/* Ambient glow */}
+                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-xl pointer-events-none" />
+
+                <div className="flex items-center gap-3.5 relative z-10 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 backdrop-blur-xs shadow-inner">
+                    <Wallet className="w-5 h-5 text-emerald-200" />
                   </div>
-                  <div>
-                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100">{i.name}</p>
+                  <div className="min-w-0">
+                    <p className="font-black text-sm sm:text-base text-white truncate tracking-tight">{i.name}</p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <p className="text-[10px] text-slate-400 flex items-center gap-0.5 font-medium">
-                        <Calendar className="w-3 h-3" /> {new Date(i.date).toLocaleDateString("tr-TR")}
+                      <p className="text-[10px] text-white/80 flex items-center gap-1 font-semibold bg-black/20 px-2 py-0.5 rounded-md border border-white/10">
+                        <Calendar className="w-3 h-3 text-emerald-300" /> {new Date(i.date).toLocaleDateString("tr-TR")}
                       </p>
                       <span
-                        className={`px-1.5 py-0.5 text-[8px] font-black rounded-md uppercase tracking-wider ${
+                        className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase tracking-wider backdrop-blur-xs border ${
                           i.isRecurring !== false
-                            ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 border border-indigo-500/10"
-                            : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-500/10"
+                            ? "bg-white/20 text-white border-white/30"
+                            : "bg-amber-400/30 text-amber-200 border-amber-300/40"
                         }`}
                       >
-                        {i.isRecurring !== false ? "🔄 Sabit" : "✨ Ek Gelir"}
+                        {i.isRecurring !== false ? "🔄 Sabit Gelir" : "✨ Ek Gelir"}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400 font-mono">
-                    {format(i.amount)}
+                <div className="flex items-center gap-3 relative z-10 shrink-0">
+                  <span className="font-black text-base sm:text-lg text-emerald-200 font-mono tracking-tight drop-shadow-xs">
+                    +{format(i.amount)}
                   </span>
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEdit(i)}
-                      className="p-1.5 text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 rounded-lg transition cursor-pointer"
+                      className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs"
                       title="Düzenle"
                     >
-                      <Edit className="w-3.5 h-3.5" />
+                      <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onDeleteIncome(i.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 rounded-lg transition cursor-pointer"
+                      className="p-2 text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs"
                       title="Sil"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>

@@ -798,36 +798,36 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
     <div className="space-y-4 sm:space-y-6 animate-fade-in w-full max-w-4xl mx-auto">
       
       {/* Modern AI Header with Gemini 3.7 Flash badge and actions */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-md border border-indigo-500/20 relative overflow-hidden">
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg border border-indigo-500/30 relative overflow-hidden">
         {/* Background glow effects */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-36 h-36 bg-purple-500/15 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-purple-500/20 rounded-full blur-xl pointer-events-none" />
         
         <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 text-center sm:text-left">
             <div className="relative">
               <motion.div
                 className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl blur-xs"
-                animate={{ opacity: [0.4, 0.8, 0.4] }}
+                animate={{ opacity: [0.5, 0.9, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2.5 }}
               />
-              <div className="relative p-3 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-2xl text-white shadow-md">
-                <Bot className="w-6 h-6" />
+              <div className="relative p-3 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-2xl text-white shadow-lg shadow-indigo-500/30">
+                <Bot className="w-6 h-6 text-white" />
               </div>
             </div>
             <div>
               <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">
+                <h3 className="text-base sm:text-lg font-black tracking-tight uppercase bg-gradient-to-r from-white via-indigo-100 to-purple-200 bg-clip-text text-transparent">
                   Bütçem AI Finans Asistanı
                 </h3>
-                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 rounded-full flex items-center gap-1">
-                  <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                <span className="px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-500/30 to-purple-500/30 text-indigo-200 border border-indigo-400/40 rounded-full flex items-center gap-1 shadow-xs">
+                  <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
                   Gemini 3.7 Flash
                 </span>
               </div>
               <p className="text-xs text-slate-300 font-medium mt-0.5 flex items-center justify-center sm:justify-start gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Canlı Piyasa Arama & Akıllı Borç Koçu Aktif</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-emerald-300 font-semibold">Canlı Finans Koçu & Piyasa Analizi Aktif</span>
               </p>
             </div>
           </div>
@@ -835,148 +835,37 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
           {/* Quick Chat Control Buttons */}
           <div className="flex items-center gap-2">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleClearChat}
               title="Sohbeti Temizle"
-              className="px-3 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/15 flex items-center gap-1.5 transition cursor-pointer"
+              className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Temizle</span>
             </motion.button>
 
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleGenerateMonthlyReport}
               disabled={loading}
-              className="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-500/25 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 active:scale-95"
             >
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>Aylık Rapor</span>
+              <span>Aylık Rapor Üret</span>
             </motion.button>
           </div>
         </div>
       </div>
 
-      {/* Live Currency & Gold Market Ticker Bar */}
-      <div className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900/95 via-indigo-950/90 to-slate-900/95 text-white rounded-3xl border border-indigo-500/25 shadow-sm space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
-              <span>💱 Canlı Piyasa & Döviz / Altın Kurları</span>
-            </span>
-            {ratesLastUpdated && (
-              <span className="hidden sm:inline text-[10px] text-slate-400 font-medium">
-                ({ratesLastUpdated})
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={() => updateRatesFromAPI()}
-            disabled={isRatesFetching}
-            title="Anlık Kurları Yenile"
-            className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-xl border border-white/15 flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
-          >
-            <RotateCcw className={`w-3 h-3 ${isRatesFetching ? "animate-spin text-indigo-400" : ""}`} />
-            <span>{isRatesFetching ? "Yükleniyor..." : "Kurları Yenile"}</span>
-          </button>
-        </div>
-
-        {/* Live Rates Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          <button
-            onClick={() => handleSend("Bugün güncel gram ve çeyrek altın fiyatı kaç TL?")}
-            className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🥇 Gram Altın</span>
-              <span className="text-[9px] opacity-75">24K</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{Math.round(rates.GOLD_GRAM || ((rates.GOLD_ONS || 4474) * (rates.USD || 45.85) / 31.1035)).toLocaleString("tr-TR")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Bugün çeyrek altın fiyatı kaç TL?")}
-            className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🪙 Çeyrek Altın</span>
-              <span className="text-[9px] opacity-75">Ziynet</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{Math.round(rates.GOLD_CEYREK || ((rates.GOLD_GRAM || 6595) * 1.635)).toLocaleString("tr-TR")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Dolar (USD) bugün kaç TL?")}
-            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-emerald-300 flex items-center justify-between">
-              <span>🇺🇸 Dolar (USD)</span>
-              <span className="text-[9px] opacity-75">Piyasa</span>
-            </div>
-            <div className="text-sm font-black text-emerald-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{(rates.USD || 45.85).toFixed(2)}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Euro (EUR) bugün kaç TL?")}
-            className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-blue-300 flex items-center justify-between">
-              <span>🇪🇺 Euro (EUR)</span>
-              <span className="text-[9px] opacity-75">Piyasa</span>
-            </div>
-            <div className="text-sm font-black text-blue-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{(rates.EUR || 49.85).toFixed(2)}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Ons Altın ($) bugün kaç Dolar?")}
-            className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🪙 Ons Altın</span>
-              <span className="text-[9px] opacity-75">USD</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ${Math.round(rates.GOLD_ONS || 4474).toLocaleString("en-US")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Bitcoin (BTC) kaç Dolar?")}
-            className="p-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-2xl text-left transition cursor-pointer group"
-          >
-            <div className="text-[10px] font-bold text-purple-300 flex items-center justify-between">
-              <span>₿ Bitcoin</span>
-              <span className="text-[9px] opacity-75">BTC</span>
-            </div>
-            <div className="text-sm font-black text-purple-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ${Math.round(rates.BTC_USD || 81588).toLocaleString("en-US")}
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Chat Conversation Container */}
-      <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+      {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}
+      <div className="border-2 border-indigo-500/30 dark:border-indigo-400/40 bg-slate-900/95 dark:bg-slate-950 rounded-3xl shadow-xl shadow-indigo-950/30 overflow-hidden flex flex-col">
         
         {/* Messages Scroll Viewport */}
         <div
           ref={chatContainerRef}
-          className="h-[380px] sm:h-[460px] md:h-[500px] overflow-y-auto p-3.5 sm:p-5 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 scroll-smooth"
+          className="h-[390px] sm:h-[460px] md:h-[500px] overflow-y-auto p-3.5 sm:p-5 space-y-4 scrollbar-thin scrollbar-thumb-indigo-600/40 dark:scrollbar-thumb-indigo-500/40 scroll-smooth bg-gradient-to-b from-slate-900/50 via-slate-950/60 to-slate-900/80"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => {
@@ -990,13 +879,21 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
                   className={`flex flex-col ${isUser ? "items-end" : "items-start"} w-full`}
                 >
                   {/* Sender Header Badge */}
-                  <div className={`flex items-center gap-1.5 mb-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+                  <div className={`flex items-center gap-1.5 mb-1.5 text-[10px] font-bold text-slate-300 dark:text-slate-400 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
                     <span className="flex items-center gap-1">
-                      {isUser ? <User className="w-3 h-3 text-indigo-500" /> : <Bot className="w-3 h-3 text-indigo-500" />}
-                      <span>{isUser ? "Siz" : "Gemini 3.7 Flash Asistan"}</span>
+                      {isUser ? (
+                        <div className="w-4 h-4 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center">
+                          <User className="w-2.5 h-2.5" />
+                        </div>
+                      ) : (
+                        <div className="w-4 h-4 rounded-full bg-emerald-500/30 text-emerald-300 flex items-center justify-center">
+                          <Bot className="w-2.5 h-2.5" />
+                        </div>
+                      )}
+                      <span className="font-extrabold">{isUser ? "Siz" : "Gemini 3.7 Flash Asistan"}</span>
                     </span>
                     {msg.timestamp && (
-                      <span className="text-[9px] opacity-70 font-normal">
+                      <span className="text-[9px] opacity-75 font-mono">
                         • {msg.timestamp}
                       </span>
                     )}
@@ -1004,24 +901,24 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
 
                   {/* Message Card Bubble */}
                   <div
-                    className={`max-w-[95%] sm:max-w-[85%] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4.5 transition-all shadow-xs ${
+                    className={`max-w-[95%] sm:max-w-[85%] rounded-2xl sm:rounded-3xl p-4 sm:p-5 transition-all shadow-md ${
                       isUser
-                        ? "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-tr-xs"
-                        : "bg-slate-50/90 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 rounded-tl-xs border border-slate-200/80 dark:border-slate-700/80"
+                        ? "bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-tr-xs border border-indigo-400/40 shadow-indigo-500/20"
+                        : "bg-slate-800/95 dark:bg-slate-900/95 text-slate-100 rounded-tl-xs border border-indigo-500/30 dark:border-slate-700/80 shadow-slate-950/40"
                     }`}
                   >
                     {isUser ? (
-                      <p className="text-xs sm:text-sm font-medium leading-relaxed break-words whitespace-pre-wrap">
+                      <p className="text-xs sm:text-sm font-semibold leading-relaxed break-words whitespace-pre-wrap">
                         {msg.text}
                       </p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         <FormattedText text={msg.text} />
                         
                         {/* Bot Action Bar (Copy & Voice Speak) */}
-                        <div className="pt-2 mt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-2 text-[10px] text-slate-400 dark:text-slate-500">
-                          <span className="flex items-center gap-1 font-semibold text-indigo-500 dark:text-indigo-400">
-                            <ShieldCheck className="w-3 h-3" />
+                        <div className="pt-2.5 mt-2.5 border-t border-slate-700/60 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                          <span className="flex items-center gap-1.5 font-bold text-emerald-400">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Doğrulanmış Finansal Analiz</span>
                           </span>
 
@@ -1029,10 +926,10 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
                             <button
                               onClick={() => toggleSpeakText(msg.text, idx)}
                               title={speakingIdx === idx ? "Sesli Okumayı Durdur" : "Sesli Oku"}
-                              className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                              className={`p-1.5 rounded-xl border transition cursor-pointer active:scale-95 ${
                                 speakingIdx === idx
-                                  ? "bg-indigo-500 text-white border-indigo-500 animate-pulse"
-                                  : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600"
+                                  ? "bg-indigo-600 text-white border-indigo-500 animate-pulse shadow-md shadow-indigo-500/30"
+                                  : "bg-slate-700/80 hover:bg-slate-700 text-slate-200 border-slate-600"
                               }`}
                             >
                               {speakingIdx === idx ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -1041,12 +938,12 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
                             <button
                               onClick={() => handleCopyMessage(msg.text, idx)}
                               title="Metni Kopyala"
-                              className="p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition cursor-pointer flex items-center gap-1"
+                              className="p-1.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-slate-600 transition cursor-pointer flex items-center gap-1 active:scale-95"
                             >
                               {copiedIdx === idx ? (
                                 <>
-                                  <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span className="text-[9px] text-emerald-500 font-bold">Kopyalandı</span>
+                                  <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-[9px] text-emerald-400 font-black">Kopyalandı</span>
                                 </>
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
@@ -1069,45 +966,45 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
               animate={{ opacity: 1, y: 0 }}
               className="flex items-start gap-3 max-w-[85%]"
             >
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-xs animate-pulse shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-md animate-pulse shrink-0">
                 <Sparkles className="w-4 h-4 text-amber-300" />
               </div>
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <div className="p-4 rounded-2xl bg-slate-800/90 border border-indigo-500/30 shadow-lg space-y-2">
+                <div className="flex items-center gap-2 text-xs font-black text-indigo-300">
                   <span>Gemini 3.7 Flash bütçenizi analiz ediyor</span>
                   <span className="flex items-center gap-0.5">
                     <motion.span
                       animate={{ y: [0, -3, 0] }}
                       transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
-                      className="w-1.5 h-1.5 bg-indigo-500 rounded-full"
+                      className="w-1.5 h-1.5 bg-indigo-400 rounded-full"
                     />
                     <motion.span
                       animate={{ y: [0, -3, 0] }}
                       transition={{ repeat: Infinity, duration: 0.6, delay: 0.15 }}
-                      className="w-1.5 h-1.5 bg-indigo-500 rounded-full"
+                      className="w-1.5 h-1.5 bg-indigo-400 rounded-full"
                     />
                     <motion.span
                       animate={{ y: [0, -3, 0] }}
                       transition={{ repeat: Infinity, duration: 0.6, delay: 0.3 }}
-                      className="w-1.5 h-1.5 bg-indigo-500 rounded-full"
+                      className="w-1.5 h-1.5 bg-indigo-400 rounded-full"
                     />
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  Borç vadeleri, gelir-gider dengesi ve güncel piyasa parametreleri hesaplanıyor...
+                <p className="text-[10px] text-slate-300 font-medium">
+                  Borç vadeleri, nakit akışı ve piyasa parametreleri taranıyor...
                 </p>
               </div>
             </motion.div>
           )}
         </div>
 
-        {/* Quick Suggested Questions Bar (Scrollable on small mobile screens) */}
-        <div className="px-3.5 py-2.5 bg-slate-50/70 dark:bg-slate-800/50 border-t border-slate-200/70 dark:border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-            <MessageSquareCode className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Hızlı Finansal Sorular:</span>
+        {/* Quick Suggested Questions Bar */}
+        <div className="px-3.5 py-3 bg-slate-950/80 border-t border-indigo-500/20">
+          <div className="flex items-center gap-1.5 text-[10.5px] font-black text-indigo-300 uppercase tracking-wider mb-2">
+            <MessageSquareCode className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Hızlı Finansal Sorular (Dokunarak Sorun):</span>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none">
             {[
               {
                 text: "Mevcut bütçemin genel risk durumu nedir?",
@@ -1132,11 +1029,11 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
             ].map((qn, i) => (
               <motion.button
                 key={i}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => handleQuickQuestion(qn.text)}
                 disabled={loading}
-                className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition shadow-2xs cursor-pointer shrink-0 disabled:opacity-40"
+                className="whitespace-nowrap px-3.5 py-2 bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 text-indigo-200 hover:text-white text-xs font-bold rounded-xl border border-indigo-500/30 hover:border-indigo-400 hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm cursor-pointer shrink-0 disabled:opacity-40"
               >
                 {qn.label}
               </motion.button>
@@ -1144,9 +1041,9 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
           </div>
         </div>
 
-        {/* Input Bar with Voice Mic, Enter submission, and Send Button */}
-        <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2">
+        {/* High-Visibility Writing & Input Bar with Voice Mic and Send Button */}
+        <div className="p-3 sm:p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t-2 border-indigo-500/30">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
               <input
                 type="text"
@@ -1156,54 +1053,167 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
                   if (e.key === "Enter" && !loading && inputValue.trim()) handleSend();
                 }}
                 disabled={loading}
-                placeholder={isListening ? "Dinleniyor... Lütfen konuşun..." : "Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"}
-                className={`w-full pl-3.5 pr-9 py-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border ${
+                placeholder={isListening ? "🎙️ Dinleniyor... Lütfen sorunuzu söyleyin..." : "Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"}
+                className={`w-full pl-4 pr-10 py-3.5 bg-slate-900 text-white border-2 ${
                   isListening 
-                    ? "border-red-500 ring-2 ring-red-500/20" 
-                    : "border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10"
-                } rounded-2xl text-xs sm:text-sm focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 transition font-medium`}
+                    ? "border-red-500 ring-4 ring-red-500/30 bg-red-950/20" 
+                    : "border-indigo-500/50 hover:border-indigo-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/25"
+                } rounded-2xl text-xs sm:text-sm focus:outline-none placeholder-slate-400 font-medium transition shadow-inner`}
               />
               
               {inputValue && (
                 <button
                   type="button"
                   onClick={() => setInputValue("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer transition"
+                  title="Temizle"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
             {/* Voice Input Mic Button */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
               onClick={toggleSpeechRecognition}
               type="button"
               title={isListening ? "Dinlemeyi Durdur" : "Sesli Soru Sor"}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition shadow-2xs shrink-0 cursor-pointer ${
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg shrink-0 cursor-pointer ${
                 isListening
-                  ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-500/20"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                  ? "bg-red-500 text-white animate-pulse shadow-red-500/40 ring-4 ring-red-400/40"
+                  : "bg-gradient-to-tr from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-emerald-500/30 border border-emerald-400/30"
               }`}
             >
-              {isListening ? <MicOff className="w-4.5 h-4.5" /> : <Mic className="w-4.5 h-4.5" />}
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </motion.button>
 
             {/* Send Message Button */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
               onClick={() => handleSend()}
               disabled={loading || !inputValue.trim()}
-              className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer transition"
+              className="w-12 h-12 bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/35 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer transition active:scale-95 border border-indigo-400/30"
+              title="Gönder"
             >
-              <Send className="w-4.5 h-4.5" />
+              <Send className="w-5 h-5" />
             </motion.button>
           </div>
         </div>
 
+      </div>
+
+      {/* Live Currency & Gold Market Ticker Bar (Positioned BELOW the AI Section) */}
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl border border-indigo-500/30 shadow-lg space-y-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
+              <span>💱 Canlı Piyasa & Döviz / Altın Kurları</span>
+            </span>
+            {ratesLastUpdated && (
+              <span className="hidden sm:inline text-[10px] text-slate-400 font-mono">
+                ({ratesLastUpdated})
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={() => updateRatesFromAPI()}
+            disabled={isRatesFetching}
+            title="Anlık Kurları Yenile"
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-xl border border-white/20 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 active:scale-95"
+          >
+            <RotateCcw className={`w-3 h-3 ${isRatesFetching ? "animate-spin text-indigo-400" : ""}`} />
+            <span>{isRatesFetching ? "Yükleniyor..." : "Kurları Yenile"}</span>
+          </button>
+        </div>
+
+        {/* Live Rates Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-2.5">
+          <button
+            onClick={() => handleSend("Bugün güncel gram ve çeyrek altın fiyatı kaç TL?")}
+            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
+          >
+            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
+              <span>🥇 Gram Altın</span>
+              <span className="text-[9px] opacity-75 font-mono">24K</span>
+            </div>
+            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ₺{Math.round(rates.GOLD_GRAM || ((rates.GOLD_ONS || 4474) * (rates.USD || 45.85) / 31.1035)).toLocaleString("tr-TR")}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSend("Bugün çeyrek altın fiyatı kaç TL?")}
+            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
+          >
+            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
+              <span>🪙 Çeyrek Altın</span>
+              <span className="text-[9px] opacity-75 font-mono">Ziynet</span>
+            </div>
+            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ₺{Math.round(rates.GOLD_CEYREK || ((rates.GOLD_GRAM || 6595) * 1.635)).toLocaleString("tr-TR")}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSend("Dolar (USD) bugün kaç TL?")}
+            className="p-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-emerald-400"
+          >
+            <div className="text-[10px] font-bold text-emerald-300 flex items-center justify-between">
+              <span>🇺🇸 Dolar (USD)</span>
+              <span className="text-[9px] opacity-75 font-mono">Piyasa</span>
+            </div>
+            <div className="text-sm font-black text-emerald-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ₺{(rates.USD || 45.85).toFixed(2)}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSend("Euro (EUR) bugün kaç TL?")}
+            className="p-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-blue-400"
+          >
+            <div className="text-[10px] font-bold text-blue-300 flex items-center justify-between">
+              <span>🇪🇺 Euro (EUR)</span>
+              <span className="text-[9px] opacity-75 font-mono">Piyasa</span>
+            </div>
+            <div className="text-sm font-black text-blue-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ₺{(rates.EUR || 49.85).toFixed(2)}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSend("Ons Altın ($) bugün kaç Dolar?")}
+            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
+          >
+            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
+              <span>🪙 Ons Altın</span>
+              <span className="text-[9px] opacity-75 font-mono">USD</span>
+            </div>
+            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ${Math.round(rates.GOLD_ONS || 4474).toLocaleString("en-US")}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSend("Bitcoin (BTC) kaç Dolar?")}
+            className="p-3 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-purple-400"
+          >
+            <div className="text-[10px] font-bold text-purple-300 flex items-center justify-between">
+              <span>₿ Bitcoin</span>
+              <span className="text-[9px] opacity-75 font-mono">BTC</span>
+            </div>
+            <div className="text-sm font-black text-purple-100 mt-0.5 group-hover:scale-105 transition-transform">
+              ${Math.round(rates.BTC_USD || 81588).toLocaleString("en-US")}
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Advanced Gemini API Key / Engine Settings Drawer */}

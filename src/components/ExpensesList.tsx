@@ -995,42 +995,84 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 15, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        whileHover={{ scale: 1.01 }}
-        className="p-4 bg-rose-50/50 dark:bg-rose-950/20 text-rose-950 dark:text-rose-300 rounded-2xl flex items-center justify-between font-bold text-xs gap-3"
-      >
-        <div className="flex items-center gap-2">
-          {netBalance !== undefined && (
-            netBalance >= 0 ? (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span id="expense-netbalance-success-badge" className="p-1 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0" title="Net Bakiye Artıda - Finansal Durum Sağlıklı">
-                  <Check className="w-3.5 h-3.5" />
-                </span>
-                <motion.span
-                  animate={{ opacity: [0.6, 1, 0.6], scale: [0.96, 1.04, 0.96] }}
-                  transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
-                  className="p-1 px-1.5 bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 rounded-lg flex items-center justify-center gap-1 shrink-0 text-[9px] font-black tracking-wide border border-emerald-500/20"
-                  title="Pozitif Tasarruf İvmesi - Tebrikler!"
-                >
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline text-[8px]">POZİTİF İVME</span>
-                </motion.span>
-              </div>
+      {/* Expense Summary Cards matching Dashboard Style */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* 1. TOPLAM GİDER */}
+        <motion.div
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+            <ShoppingCart className="w-3 h-3 text-rose-300" />
+            <span>TOPLAM GİDER</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalExpenses)}</p>
+          <span className="text-[8.5px] font-medium text-rose-200/80 block">
+            {selectedMonthStr === "all" ? "Tüm Harcamalar" : "Seçili Dönem Toplamı"}
+          </span>
+        </motion.div>
+
+        {/* 2. BÜTÇE LİMİTİ VEYA GÜNLÜK ORTALAMA */}
+        <motion.div
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+            <BarChart3 className="w-3 h-3 text-indigo-300" />
+            <span>{budgetGoal > 0 ? "BÜTÇE HEDEFİ" : "HARCAMA SAYISI"}</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
+            {budgetGoal > 0 ? format(budgetGoal) : `${filteredExpenses.length} Adet`}
+          </p>
+          <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+            {budgetGoal > 0 ? `Kullanım: %${Math.min(100, Math.round((currentMonthExpensesTotal / budgetGoal) * 100))}` : "Kayıtlı Harcama"}
+          </span>
+        </motion.div>
+
+        {/* 3. NET BAKİYE / DURUM */}
+        <motion.div
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className={`p-3.5 sm:p-4 ${
+            netBalance !== undefined && netBalance < 0
+              ? "bg-gradient-to-br from-red-600 via-red-700 to-rose-950 dark:from-red-950 dark:to-slate-900 border-red-500/30"
+              : "bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 dark:from-blue-950 dark:to-slate-900 border-blue-500/30"
+          } border text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]`}
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
+            {netBalance !== undefined && netBalance < 0 ? (
+              <AlertTriangle className="w-3 h-3 text-red-300 animate-pulse" />
             ) : (
-              <span id="expense-netbalance-alert-badge" className="p-1 bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-lg flex items-center justify-center shrink-0 animate-pulse" title="Net Bakiye Ekside - Lütfen Bütçenize Dikkat Edin">
-                <AlertTriangle className="w-3.5 h-3.5" />
-              </span>
-            )
-          )}
-          <span>Aylık Toplam Gider Masrafı:</span>
-        </div>
-        <span className="text-base text-rose-600 dark:text-rose-400 font-mono shrink-0">
-          {format(totalExpenses)}
-        </span>
-      </motion.div>
+              <TrendingUp className="w-3 h-3 text-blue-300" />
+            )}
+            <span>NET BAKİYE</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
+            {netBalance !== undefined ? format(netBalance) : format(0)}
+          </p>
+          <span className="text-[8.5px] font-medium text-blue-200/80 block">
+            {netBalance !== undefined && netBalance < 0 ? "Bütçe Aşımı Riski" : "Gelir - Gider Dengesi"}
+          </span>
+        </motion.div>
+
+        {/* 4. EN YÜKSEK KATEGORİ VEYA AKTİF KATEGORİ SAYISI */}
+        <motion.div
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+            <Sparkles className="w-3 h-3 text-amber-300" />
+            <span>KATEGORİLER</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{expenseCategories.length} Kategori</p>
+          <span className="text-[8.5px] font-medium text-amber-200/80 block">
+            Kişiselleştirilebilir
+          </span>
+        </motion.div>
+      </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">
         {/* Left Side: Listing */}
@@ -1169,12 +1211,16 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           ? { duration: 0.5, ease: "easeOut" }
                           : { type: "spring", stiffness: 350, damping: 25 }
                       }
-                      className={`relative overflow-hidden p-3 bg-white dark:bg-slate-800 rounded-2xl border flex items-center justify-between transition-all duration-300 ${
+                      whileHover={{ scale: 1.01, y: -2 }}
+                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-rose-600 via-red-700 to-indigo-950 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 text-white rounded-3xl border border-rose-500/40 shadow-lg shadow-rose-500/10 flex items-center justify-between gap-4 transition-all duration-300 ${
                         isNew
-                          ? "ring-2 ring-rose-500/50 border-rose-500/70 shadow-[0_0_20px_rgba(244,63,94,0.3)] dark:shadow-[0_0_25px_rgba(244,63,94,0.2)]"
-                          : "border-slate-100 dark:border-slate-700/50 shadow-sm"
+                          ? "ring-2 ring-amber-400 border-amber-300 shadow-[0_0_25px_rgba(244,63,94,0.4)]"
+                          : ""
                       }`}
                     >
+                      {/* Ambient decoration */}
+                      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-xl pointer-events-none" />
+
                       {/* Premium Shimmering Shine Parıltı Effect */}
                       {isNew && (
                         <motion.div
@@ -1186,52 +1232,50 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             duration: 1.6,
                             ease: "linear",
                           }}
-                          className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-rose-500/15 to-transparent pointer-events-none transform -skew-x-12"
+                          className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none transform -skew-x-12"
                         />
                       )}
 
                       {/* Sub-bar indicator for newly highlighted item */}
                       {isNew && (
-                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-rose-500 via-rose-400 to-rose-500 animate-pulse" />
+                        <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 via-rose-300 to-amber-400 animate-pulse" />
                       )}
 
-                      <div className="space-y-1 relative z-10">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-1.5 relative z-10 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className="px-2 py-0.5 text-[10px] font-extrabold rounded-full uppercase transition-all duration-500 ease-in-out font-sans shrink-0"
-                            style={{
-                              backgroundColor: `${cat?.color || "#ec4899"}15`,
-                              color: cat?.color || "#ec4899",
-                            }}
+                            className="px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider bg-white/20 text-white border border-white/30 backdrop-blur-xs shrink-0 shadow-xs"
                           >
                             {cat
                               ? `${cat.icon || "🛒"} ${cat.name}`
                               : "Kategorisiz"}
                           </span>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+                          <span className="text-xs sm:text-sm font-black text-white truncate tracking-tight">
                             {e.description || "Harcama açıklaması girmediniz"}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 flex items-center gap-0.5 font-semibold">
-                          <Calendar className="w-3 h-3" />{" "}
+                        <p className="text-[10px] text-white/80 flex items-center gap-1 font-semibold bg-black/20 px-2 py-0.5 rounded-md border border-white/10 w-fit">
+                          <Calendar className="w-3 h-3 text-rose-300" />{" "}
                           {new Date(e.date).toLocaleDateString("tr-TR")}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 relative z-10">
-                        <span className="font-extrabold text-sm text-rose-500 font-mono">
-                          {format(e.amount)}
+                      <div className="flex items-center gap-3 relative z-10 shrink-0">
+                        <span className="font-black text-base sm:text-lg text-rose-200 font-mono tracking-tight drop-shadow-xs">
+                          -{format(e.amount)}
                         </span>
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleOpenEditExpense(e)}
-                            className="p-1.5 text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 rounded-lg transition"
+                            className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                            title="Düzenle"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeleteExpense(e.id)}
-                            className="p-1.5 text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 rounded-lg transition"
+                            className="p-2 text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                            title="Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1390,15 +1434,15 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           setSelectedFilterCategoryId(isSelected ? null : c.id);
                         }
                       }}
-                      whileHover={undefined}
+                      whileHover={{ scale: 1.02 }}
                       whileTap={isInlineEditingCategory ? {} : { scale: 0.98 }}
-                      className={`relative group flex flex-col justify-between gap-2 px-3 py-2.5 text-slate-700 dark:text-slate-200 border-l-[4px] rounded-xl text-xs font-semibold select-none category-card-animated ${
+                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-300 shadow-md ${
                         isSelected
-                          ? "shadow-md ring-2 ring-indigo-500/30 dark:ring-indigo-400/20 font-bold"
-                          : "bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60"
+                          ? "ring-2 ring-indigo-400 bg-slate-900 text-white shadow-indigo-500/20"
+                          : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/60 hover:shadow-lg"
                       } ${
                         isInlineEditingCategory
-                          ? "shadow-md ring-1 ring-indigo-500/10 inline-editing"
+                          ? "ring-2 ring-amber-400/80 inline-editing"
                           : "cursor-pointer"
                       } ${
                         isDragged
@@ -1406,24 +1450,12 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : ""
                       } ${
                         isOver && !isDragged
-                          ? "border-indigo-500 ring-2 ring-indigo-500/20 scale-105"
+                          ? "border-indigo-500 ring-2 ring-indigo-500/30 scale-105"
                           : ""
                       }`}
                       style={{
-                        "--cat-color": c.color || "#6366f1",
-                        "--cat-bg": isSelected
-                          ? `${c.color || "#6366f1"}25`
-                          : isDragged
-                            ? "transparent"
-                            : `${c.color || "#6366f1"}04`,
-                        "--cat-bg-hover": isSelected
-                          ? `${c.color || "#6366f1"}35`
-                          : `${c.color || "#6366f1"}12`,
-                        borderLeftColor: "var(--cat-color)",
-                        borderTopColor: isSelected ? "var(--cat-color)" : undefined,
-                        borderRightColor: isSelected ? "var(--cat-color)" : undefined,
-                        borderBottomColor: isSelected ? "var(--cat-color)" : undefined,
-                      } as React.CSSProperties}
+                        borderLeft: `4px solid ${c.color || "#6366f1"}`,
+                      }}
                       title={
                         isInlineEditingCategory
                           ? "Kategeri ismini veya rengini doğrudan değiştirin"

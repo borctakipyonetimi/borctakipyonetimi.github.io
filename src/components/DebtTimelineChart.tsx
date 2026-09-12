@@ -223,12 +223,29 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .attr("opacity", 0.3);
 
     // Strategy Color Theme Setup
-    const strategyColor = strategy === "snowball" ? "#3b82f6" : "#f59e0b";
+    const strategyColor = strategy === "snowball" ? "#6366f1" : "#f59e0b";
     
-    // Add Gradients
+    // Add Gradients & Glow Filters
     const gradientId = `area-gradient-${strategy}`;
-    const gradient = svg
-      .append("defs")
+    const glowFilterId = `debt-timeline-glow-${strategy}`;
+
+    const defs = svg.append("defs");
+
+    // Glow Filter
+    const filter = defs
+      .append("filter")
+      .attr("id", glowFilterId)
+      .attr("x", "-20%")
+      .attr("y", "-20%")
+      .attr("width", "140%")
+      .attr("height", "140%");
+
+    filter.append("feGaussianBlur").attr("stdDeviation", "3").attr("result", "glow");
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode").attr("in", "glow");
+    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+    const gradient = defs
       .append("linearGradient")
       .attr("id", gradientId)
       .attr("x1", "0%")
@@ -240,13 +257,13 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .append("stop")
       .attr("offset", "0%")
       .attr("stop-color", strategyColor)
-      .attr("stop-opacity", 0.25);
+      .attr("stop-opacity", 0.45);
 
     gradient
       .append("stop")
       .attr("offset", "100%")
       .attr("stop-color", strategyColor)
-      .attr("stop-opacity", 0.01);
+      .attr("stop-opacity", 0.0);
 
     // Area Generator
     const areaGenerator = d3
@@ -268,16 +285,21 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .append("path")
       .datum(simulationData)
       .attr("fill", `url(#${gradientId})`)
-      .attr("d", areaGenerator);
+      .attr("d", areaGenerator)
+      .style("opacity", 0)
+      .transition()
+      .duration(700)
+      .style("opacity", 1);
 
-    // Draw Line with path animation
+    // Draw Line with path animation and neon glow
     const linePath = svg
       .append("path")
       .datum(simulationData)
       .attr("fill", "none")
       .attr("stroke", strategyColor)
-      .attr("stroke-width", 2.5)
+      .attr("stroke-width", 3)
       .attr("stroke-linecap", "round")
+      .attr("filter", `url(#${glowFilterId})`)
       .attr("d", lineGenerator);
 
     const totalLength = linePath.node()?.getTotalLength() || 0;
@@ -285,7 +307,7 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .attr("stroke-dasharray", `${totalLength} ${totalLength}`)
       .attr("stroke-dashoffset", totalLength)
       .transition()
-      .duration(800)
+      .duration(1100)
       .ease(d3.easeCubicOut)
       .attr("stroke-dashoffset", 0);
 
@@ -302,8 +324,8 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .append("line")
       .attr("y1", margin.top)
       .attr("y2", height - margin.bottom)
-      .attr("stroke", "#64748b")
-      .attr("stroke-width", 1)
+      .attr("stroke", strategyColor)
+      .attr("stroke-width", 1.5)
       .attr("stroke-dasharray", "3 3")
       .style("opacity", 0)
       .attr("pointer-events", "none");
@@ -311,10 +333,11 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
     // Add highlighted active indicator circle on chart curve
     const hoverDot = svg
       .append("circle")
-      .attr("r", 5)
-      .attr("fill", strategyColor)
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
+      .attr("r", 6)
+      .attr("fill", "#ffffff")
+      .attr("stroke", strategyColor)
+      .attr("stroke-width", 2.5)
+      .style("filter", `drop-shadow(0 0 6px ${strategyColor})`)
       .style("opacity", 0)
       .attr("pointer-events", "none");
 

@@ -1532,28 +1532,49 @@ export const DebtList: React.FC<DebtListProps> = ({
         className="hidden"
       />
 
-      {/* Top Level Key Debt Aggregates Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-indigo-600/[0.02] dark:from-indigo-500/10 dark:to-transparent rounded-2xl border border-indigo-100/40 dark:border-indigo-900/30 shadow-xs relative overflow-hidden">
-          <div className="absolute right-3.5 top-3.5 p-1 bg-indigo-500/10 text-indigo-500 rounded-lg">
-            <ClipboardList className="w-4 h-4" />
+      {/* Top Level Key Debt Aggregates Cards matching Dashboard */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* 1. TOPLAM BORÇ / GENEL LİMİT */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+            <ClipboardList className="w-3 h-3 text-indigo-300" />
+            <span>GENEL TOPLAM</span>
           </div>
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-widest block">GENEL LİMİT TOPLAMI</span>
-          <span className="text-base sm:text-lg font-black font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">{format(stats?.totalDebt ?? allTimeTotalAmount)}</span>
-          <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Tüm aktif & taksitli genel borçlar</span>
-        </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.totalDebt ?? allTimeTotalAmount)}</p>
+          <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+            Aktif & Taksitli Borçlar
+          </span>
+        </motion.div>
 
-        <div className="p-4 bg-gradient-to-br from-amber-500/5 to-amber-600/[0.02] dark:from-amber-500/10 dark:to-transparent rounded-2xl border border-amber-100/40 dark:border-amber-900/30 shadow-xs relative overflow-hidden">
-          <div className="absolute right-3.5 top-3.5 p-1 bg-amber-500/10 text-amber-500 rounded-lg">
-            <Calendar className="w-4 h-4" />
+        {/* 2. BU AY ÖDENECEK */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+            <Calendar className="w-3 h-3 text-amber-300" />
+            <span>BU AY ÖDENECEK</span>
           </div>
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-widest block">BU AY ÖDENECEK</span>
-          <span className="text-base sm:text-lg font-black font-mono text-amber-600 dark:text-amber-550 mt-1 block">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</span>
-          <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Bu ay vadesi gelen tüm taksit & borçlar</span>
-        </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-amber-200/80 block">
+            Vadesi Gelen Taksit & Borçlar
+          </span>
+        </motion.div>
 
-        <div className="p-4 bg-gradient-to-br from-emerald-500/5 to-emerald-600/[0.02] dark:from-emerald-500/10 dark:to-transparent rounded-2xl border border-emerald-100/40 dark:border-emerald-950/30 shadow-xs relative overflow-hidden group">
-          <div className="absolute right-3.5 top-3.5 flex items-center gap-1">
+        {/* 3. BU AY ÖDENEN */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
+        >
+          <div className="flex items-center justify-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+            <CheckCircle2 className="w-3 h-3 text-teal-300" />
+            <span>BU AY ÖDENEN</span>
             {onResetPayments && (
               <button
                 onClick={(e) => {
@@ -1561,28 +1582,33 @@ export const DebtList: React.FC<DebtListProps> = ({
                   setIsResetPaymentsModalOpen(true);
                 }}
                 title="Ödemeleri Sıfırla"
-                className="p-1 bg-emerald-500/10 hover:bg-rose-500/20 text-emerald-600 hover:text-rose-600 dark:text-emerald-400 dark:hover:text-rose-400 rounded-lg transition cursor-pointer"
+                className="p-0.5 hover:bg-white/20 rounded-md transition text-white/80 hover:text-white cursor-pointer ml-0.5"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
               </button>
             )}
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 rounded-lg">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
           </div>
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">BU AY ÖDENEN</span>
-          <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</span>
-          <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Seçili ay kapatılan borç/taksitler</span>
-        </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</p>
+          <span className="text-[8.5px] font-medium text-teal-200/80 block">
+            Kapatılan Borç/Taksitler
+          </span>
+        </motion.div>
 
-        <div className="p-4 bg-gradient-to-br from-rose-500/5 to-rose-600/[0.02] dark:from-rose-500/10 dark:to-transparent rounded-2xl border border-rose-100/40 dark:border-rose-900/30 shadow-xs relative overflow-hidden">
-          <div className="absolute right-3.5 top-3.5 p-1 bg-rose-500/10 text-rose-500 rounded-lg">
-            <AlertCircle className="w-4 h-4" />
+        {/* 4. BU AY KALAN BORÇ */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+            <AlertCircle className="w-3 h-3 text-rose-300" />
+            <span>KALAN BORÇ</span>
           </div>
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">BU AY KALAN BORÇ</span>
-          <span className="text-base sm:text-lg font-black font-mono text-rose-600 dark:text-rose-455 mt-1 block">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</span>
-          <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Bu ay ödenmesi gereken net bakiye</span>
-        </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-rose-200/80 block">
+            Ödenmesi Gereken Net Bakiye
+          </span>
+        </motion.div>
       </div>
 
       {/* Borçlar Özel Arama Çubuğu */}
@@ -1710,19 +1736,26 @@ export const DebtList: React.FC<DebtListProps> = ({
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                      className={`p-4 bg-white dark:bg-slate-800 rounded-2xl border-l-[6px] border border-slate-200/50 dark:border-slate-700/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-300 relative ${
-                        isPaid ? "border-l-emerald-500" : "border-l-rose-500"
+                      whileHover={{ scale: 1.01, y: -2 }}
+                      className={`p-4 sm:p-5 rounded-3xl border shadow-lg relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 text-white ${
+                        isPaid
+                          ? "bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 dark:from-emerald-950/90 dark:via-teal-950 dark:to-slate-900 border-emerald-500/40 shadow-emerald-500/10"
+                          : "bg-gradient-to-br from-rose-600 via-red-700 to-indigo-950 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 border-rose-500/40 shadow-rose-500/10"
                       }`}
                     >
+                      {/* Ambient background decoration */}
+                      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/10 blur-xl pointer-events-none" />
+                      <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full bg-white/5 blur-xl pointer-events-none" />
+
                       {isNearDue && (
-                        <div className="absolute top-2 right-2 flex items-center justify-center p-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40 shadow-xs animate-bounce" title="Vadesine Az Kaldı veya Geçti! ⏰">
-                          <span className="absolute inset-0 rounded-full bg-rose-500/20 animate-ping" />
-                          <BellRing className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" />
+                        <div className="absolute top-3 right-3 flex items-center justify-center p-1.5 rounded-full bg-white/20 border border-white/40 shadow-md animate-bounce z-10" title="Vadesine Az Kaldı veya Geçti! ⏰">
+                          <span className="absolute inset-0 rounded-full bg-amber-400/30 animate-ping" />
+                          <BellRing className="w-4 h-4 text-amber-300 animate-pulse" />
                         </div>
                       )}
 
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center flex-wrap gap-2 text-slate-800 dark:text-slate-100">
+                      <div className="space-y-2.5 flex-1 relative z-10">
+                        <div className="flex items-center flex-wrap gap-2 text-white">
                           {(() => {
                             const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
                             return (
@@ -1730,64 +1763,88 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 {provider && (
                                   <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
                                 )}
-                                <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                                <span className="font-black text-base sm:text-lg text-white tracking-tight drop-shadow-xs">
                                   {d.name}
                                 </span>
                                 {provider && (
-                                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50">
+                                  <span className="text-[10px] font-bold text-white/90 bg-white/15 px-2 py-0.5 rounded-lg border border-white/20 backdrop-blur-xs">
                                     {provider.badgeLabel || provider.name}
                                   </span>
                                 )}
                               </>
                             );
                           })()}
-                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] font-bold rounded-full">
+                          <span className="px-2.5 py-0.5 bg-white/15 text-white text-[10.5px] font-bold rounded-full border border-white/20 backdrop-blur-xs">
                             📁 {d.category}
                           </span>
                           {isPaid ? (
-                            <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/30">
+                            <span className="px-2.5 py-0.5 bg-white/25 text-white text-[10.5px] font-black rounded-full border border-white/30 backdrop-blur-xs flex items-center gap-1 shadow-xs">
                               🟢 Ödendi
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 bg-rose-100/70 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full border border-rose-500/20">
+                            <span className="px-2.5 py-0.5 bg-black/30 text-rose-200 text-[10.5px] font-black rounded-full border border-rose-300/30 backdrop-blur-xs flex items-center gap-1">
                               🔴 Ödenmedi
                             </span>
                           )}
                           {isOverdue && (
-                            <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-[10px] font-black rounded-full border border-rose-500/30 flex items-center gap-1 animate-pulse shrink-0 uppercase tracking-tight">
+                            <span className="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full border border-amber-300 flex items-center gap-1 animate-pulse shrink-0 uppercase tracking-tight shadow-md">
                               ⚠️ Vadesi Geçmiş
                             </span>
                           )}
                           {d.dueDate && (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-500">
-                              <Calendar className="w-3 h-3" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-white/85 bg-black/20 px-2 py-0.5 rounded-lg border border-white/10">
+                              <Calendar className="w-3.5 h-3.5 text-amber-300" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Tutar: <span className="font-bold font-mono">{format(d.amount)}</span> | Ödenen: <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{format(d.paid)}</span> | Kalan: <span className="font-bold text-rose-600 dark:text-rose-400 font-mono">{format(d.amount - d.paid)}</span>
+
+                        {/* Amount indicators stats grid */}
+                        <div className="flex items-center flex-wrap gap-2 text-xs text-white/90 font-medium">
+                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
+                            <span className="text-white/60 text-[10px] uppercase font-bold">Tutar:</span>
+                            <span className="font-black font-mono text-white text-xs sm:text-sm">{format(d.amount)}</span>
+                          </div>
+                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
+                            <span className="text-emerald-300 text-[10px] uppercase font-bold">Ödenen:</span>
+                            <span className="font-black text-emerald-300 font-mono text-xs sm:text-sm">{format(d.paid)}</span>
+                          </div>
+                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
+                            <span className="text-rose-300 text-[10px] uppercase font-bold">Kalan:</span>
+                            <span className="font-black text-rose-300 font-mono text-xs sm:text-sm">{format(d.amount - d.paid)}</span>
+                          </div>
                         </div>
-                        {/* Progress bar */}
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden shadow-inner">
-                          <div
-                            className="h-full bg-indigo-600 rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
+
+                        {/* High tech progress bar */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex justify-between text-[10px] text-white/70 font-mono font-bold">
+                            <span>Ödeme Oranı</span>
+                            <span>%{percentage.toFixed(0)}</span>
+                          </div>
+                          <div className="w-full bg-black/30 h-2 rounded-full overflow-hidden shadow-inner border border-white/10">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percentage}%` }}
+                              transition={{ duration: 0.8, ease: "easeOut" }}
+                              className={`h-full rounded-full transition-all ${
+                                isPaid ? "bg-emerald-300 shadow-sm shadow-emerald-400" : "bg-gradient-to-r from-amber-400 to-rose-400"
+                              }`}
+                            />
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:self-center">
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:self-center relative z-10">
                         <button
                           onClick={() => handleOpenEdit(d)}
                           title="Borcu Düzenle"
-                          className="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                          className="p-2.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDeleteDebt(d.id)}
                           title="Borcu Sil"
-                          className="p-2 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition"
+                          className="p-2.5 text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1795,10 +1852,10 @@ export const DebtList: React.FC<DebtListProps> = ({
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.96 }}
                           onClick={() => onToggleDebtPaid(d.id)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 select-none cursor-pointer transition-all duration-300 ${
+                          className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-md ${
                             isPaid 
-                              ? "bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-500/10" 
-                              : "bg-indigo-600 text-white hover:bg-indigo-750 shadow-md shadow-indigo-600/10"
+                              ? "bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-xs" 
+                              : "bg-white text-slate-900 hover:bg-slate-100 shadow-lg shadow-black/20"
                           }`}
                         >
                           <AnimatePresence mode="wait">
@@ -1811,7 +1868,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
                                 className="flex items-center justify-center"
                               >
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
                               </motion.span>
                             ) : (
                               <motion.span
@@ -1821,11 +1878,11 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 exit={{ scale: 0.8 }}
                                 className="flex items-center justify-center"
                               >
-                                <Circle className="w-4 h-4" />
+                                <Circle className="w-4 h-4 text-slate-600" />
                               </motion.span>
                             )}
                           </AnimatePresence>
-                          <span>{isPaid ? "Ödenmemiş Yap" : "Ödendi Yap"}</span>
+                          <span>{isPaid ? "Ödenmedi Yap" : "Ödendi Yap"}</span>
                         </motion.button>
                       </div>
                     </motion.div>
