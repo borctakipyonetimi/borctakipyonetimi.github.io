@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updatePassword } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear } from "./utils/dateUtils";
@@ -1732,7 +1732,7 @@ export default function App() {
       gProvider.setCustomParameters({ prompt: "select_account" });
       const res = await signInWithPopup(auth, gProvider);
       if (res.user) {
-        const emailOrUid = res.user.displayName || res.user.email || res.user.uid;
+        const emailOrUid = (res.user.email ? res.user.email.toLowerCase() : null) || res.user.uid;
         setCurrentUser(emailOrUid);
         localStorage.setItem("currentUser", emailOrUid);
         triggerToast("Google ile Giriş Yapıldı! 🎉");
@@ -1793,7 +1793,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const emailOrUid = user.email || user.uid;
+        const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;
         const displayName = emailOrUid.endsWith("@borctakip.app") 
           ? emailOrUid.replace("@borctakip.app", "") 
           : emailOrUid;
@@ -1870,6 +1870,56 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
+    const defaultCategories: ExpenseCategory[] = [
+      { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
+      { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
+      { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
+      { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
+      { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
+    ];
+
+    const applyDataPayload = (data: any) => {
+      if (!active) return;
+      setDebts(data.debts || []);
+      setIncomes(data.incomes || []);
+      setAlarms(data.alarms || []);
+      setNotifications(data.notifications || []);
+      setInstallmentDebts(data.installmentDebts || []);
+      setPayments(data.payments || []);
+      setExpenses(data.expenses || []);
+
+      if (data.isPremium !== undefined) {
+        setIsPremium(data.isPremium);
+        localStorage.setItem("is_premium", data.isPremium ? "true" : "false");
+      }
+      if (data.premiumPlan !== undefined) {
+        setSelectedPlan(data.premiumPlan);
+        localStorage.setItem("premium_plan", data.premiumPlan);
+      }
+
+      const hasCats = data.expenseCategories && Array.isArray(data.expenseCategories) && data.expenseCategories.length > 0;
+      setExpenseCategories(hasCats ? data.expenseCategories : defaultCategories);
+
+      // Cache locally for instant offline loading
+      const userKey = currentUser || (auth.currentUser?.email ? auth.currentUser.email.toLowerCase() : auth.currentUser?.uid);
+      if (userKey) {
+        const spaceKey = `user_${userKey}`;
+        const dataBag = {
+          debts: data.debts || [],
+          incomes: data.incomes || [],
+          alarms: data.alarms || [],
+          notifications: data.notifications || [],
+          installmentDebts: data.installmentDebts || [],
+          payments: data.payments || [],
+          expenses: data.expenses || [],
+          expenseCategories: hasCats ? data.expenseCategories : defaultCategories
+        };
+        try {
+          localStorage.setItem(spaceKey, JSON.stringify(dataBag));
+        } catch {}
+      }
+    };
+
     const loadFromLocalStorage = () => {
       const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
       const dataString = localStorage.getItem(spaceKey);
@@ -1893,20 +1943,16 @@ export default function App() {
           setInstallmentDebts(loadedInstallments);
           setPayments(cleanPayments);
           setExpenses(parsed.expenses || []);
-          const defaultCategories = [
-            { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
-            { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-            { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-            { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
-            { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
-          ];
           const hasCategories = parsed.expenseCategories && Array.isArray(parsed.expenseCategories) && parsed.expenseCategories.length > 0;
           setExpenseCategories(hasCategories ? parsed.expenseCategories : defaultCategories);
+          return;
         } catch (e) {
           console.error("Local data parsing warning:", e);
         }
-      } else {
-        // Load standard starter mockup parameters
+      }
+
+      // If NOT logged in (guest / anonymous), load starter sample mockup
+      if (!auth.currentUser && !currentUser) {
         setDebts([{ id: 1, name: "Örnek Finansal Borç", amount: 5000, paid: 1500, category: "Diğer", dueDate: "" }]);
         setIncomes([{ id: 1, name: "Aylık Maaş Geliri", amount: 20000, date: new Date().toISOString() }]);
         setAlarms([{ id: 1, title: "Kredi Kartı Son Ödeme", date: new Date().toISOString().slice(0, 10) }]);
@@ -1929,57 +1975,84 @@ export default function App() {
           { id: 1, categoryId: 2, amount: 550, description: "Haftalık mutfak alışverişi", date: new Date().toISOString() },
           { id: 2, categoryId: 5, amount: 240, description: "Elektrik Faturası", date: new Date().toISOString() }
         ]);
-        setExpenseCategories([
-          { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
-          { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-          { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-          { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
-          { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
-        ]);
+        setExpenseCategories(defaultCategories);
+      } else {
+        // Authenticated user with no existing data -> start clean with empty lists
+        setDebts([]);
+        setIncomes([]);
+        setAlarms([]);
+        setNotifications([]);
+        setInstallmentDebts([]);
+        setPayments([]);
+        setExpenses([]);
+        setExpenseCategories(defaultCategories);
       }
     };
+
+    let unsubscribeSnapshot: (() => void) | null = null;
 
     const loadData = async () => {
       const fbUser = auth.currentUser;
       if (fbUser) {
         try {
-          const userDocRef = doc(db, "users", fbUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (active) {
-            setIsOfflineMode(false);
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              setDebts(data.debts || []);
-              setIncomes(data.incomes || []);
-              setAlarms(data.alarms || []);
-              setNotifications(data.notifications || []);
-              setInstallmentDebts(data.installmentDebts || []);
-              setPayments(data.payments || []);
-              setExpenses(data.expenses || []);
+          setIsOfflineMode(false);
+          let userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          
+          // Secondary email fallback lookup if UID doc is empty/missing
+          if (!userDoc.exists() && fbUser.email) {
+            const cleanEmail = fbUser.email.toLowerCase();
+            const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
+            const emailDoc = await getDoc(doc(db, "users", emailDocId));
+            if (emailDoc.exists()) {
+              userDoc = emailDoc;
+            }
+          }
 
-              // Restore Premium billing tiers from Firestore backup after app reinstall
-              if (data.isPremium !== undefined) {
-                setIsPremium(data.isPremium);
-                localStorage.setItem("is_premium", data.isPremium ? "true" : "false");
+          if (userDoc.exists()) {
+            applyDataPayload(userDoc.data());
+          } else {
+            // Check local storage before treating as fresh account
+            const cleanEmail = fbUser.email ? fbUser.email.toLowerCase() : null;
+            const spaceKey = cleanEmail ? `user_${cleanEmail}` : `user_${fbUser.uid}`;
+            const localDataStr = localStorage.getItem(spaceKey) || (currentUser ? localStorage.getItem(`user_${currentUser}`) : null);
+            if (localDataStr) {
+              try {
+                const parsed = JSON.parse(localDataStr);
+                applyDataPayload(parsed);
+                // Push local data to Firestore to initialize the remote record for this account
+                const payload = {
+                  ...parsed,
+                  email: cleanEmail || "",
+                  emailLower: cleanEmail || "",
+                  userUid: fbUser.uid,
+                  isPremium: localStorage.getItem("is_premium") === "true",
+                  premiumPlan: localStorage.getItem("premium_plan") || "yearly",
+                  updatedAt: serverTimestamp()
+                };
+                await setDoc(doc(db, "users", fbUser.uid), payload, { merge: true });
+                if (cleanEmail) {
+                  const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
+                  await setDoc(doc(db, "users", emailDocId), payload, { merge: true });
+                }
+              } catch {
+                loadFromLocalStorage();
               }
-              if (data.premiumPlan !== undefined) {
-                setSelectedPlan(data.premiumPlan);
-                localStorage.setItem("premium_plan", data.premiumPlan);
-              }
-
-              const defaultCategories = [
-                { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
-                { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-                { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-                { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
-                { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
-              ];
-              const hasCats = data.expenseCategories && Array.isArray(data.expenseCategories) && data.expenseCategories.length > 0;
-              setExpenseCategories(hasCats ? data.expenseCategories : defaultCategories);
             } else {
               loadFromLocalStorage();
             }
           }
+
+          // Attach real-time Firestore sync snapshot listener for instant cross-device updates
+          try {
+            unsubscribeSnapshot = onSnapshot(doc(db, "users", fbUser.uid), (docSnap) => {
+              if (docSnap.exists() && active) {
+                applyDataPayload(docSnap.data());
+              }
+            });
+          } catch (snapErr) {
+            console.warn("Snapshot listener setup warning:", snapErr);
+          }
+
         } catch (err: any) {
           const isOfflineErr = err?.message?.toLowerCase().includes("offline") || 
                              err?.message?.toLowerCase().includes("network") ||
@@ -2019,6 +2092,9 @@ export default function App() {
 
     return () => {
       active = false;
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
     };
   }, [currentUser]);
 
@@ -2154,7 +2230,10 @@ export default function App() {
     updatedExpenses: Expense[],
     updatedCategories: ExpenseCategory[]
   ) => {
-    const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+    const fbUser = auth.currentUser;
+    const cleanEmail = fbUser?.email ? fbUser.email.toLowerCase() : (currentUser && currentUser.includes("@") ? currentUser.toLowerCase() : null);
+    const spaceKey = cleanEmail ? `user_${cleanEmail}` : (currentUser ? `user_${currentUser}` : "user_anonymous");
+    
     const dataBag = {
       debts: updatedDebts,
       incomes: updatedIncomes,
@@ -2168,16 +2247,29 @@ export default function App() {
 
     try {
       localStorage.setItem(spaceKey, JSON.stringify(dataBag));
+      if (fbUser?.uid) {
+        localStorage.setItem(`user_${fbUser.uid}`, JSON.stringify(dataBag));
+      }
       
-      const fbUser = auth.currentUser;
       if (fbUser) {
-        const userDocRef = doc(db, "users", fbUser.uid);
-        await setDoc(userDocRef, {
+        const payload = {
           ...dataBag,
+          email: cleanEmail || "",
+          emailLower: cleanEmail || "",
+          userUid: fbUser.uid,
           isPremium: localStorage.getItem("is_premium") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
           updatedAt: serverTimestamp()
-        });
+        };
+
+        const userDocRef = doc(db, "users", fbUser.uid);
+        await setDoc(userDocRef, payload, { merge: true });
+
+        if (cleanEmail) {
+          const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
+          const emailDocRef = doc(db, "users", emailDocId);
+          await setDoc(emailDocRef, payload, { merge: true });
+        }
         setIsOfflineMode(false);
       }
       triggerToast("Değişiklikler Kaydedildi");

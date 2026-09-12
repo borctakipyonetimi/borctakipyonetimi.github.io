@@ -37,6 +37,26 @@
           "type": "array",
           "description": "Selected expense categories configuration"
         },
+        "contacts": {
+          "type": "array",
+          "description": "Contacts directory with phone and categories"
+        },
+        "contactsTransactions": {
+          "type": "array",
+          "description": "Receivables and payables linked to contacts"
+        },
+        "userAvatar": {
+          "type": "string",
+          "description": "Base64 avatar image"
+        },
+        "isPremium": {
+          "type": "boolean",
+          "description": "User premium subscription status"
+        },
+        "premiumPlan": {
+          "type": "string",
+          "description": "Active subscription tier"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

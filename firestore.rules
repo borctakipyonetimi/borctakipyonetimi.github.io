@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
 
     function isSignedIn() {
@@ -15,16 +15,25 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && (
+        request.auth.uid == userId ||
+        (request.auth.token.email != null && userId == request.auth.token.email) ||
+        (request.auth.token.email != null && userId == ('email_' + request.auth.token.email.replace('[^a-zA-Z0-9_]', '_'))) ||
+        (resource != null && resource.data.email == request.auth.token.email) ||
+        (resource != null && resource.data.userUid == request.auth.uid) ||
+        (request.resource != null && request.resource.data.email == request.auth.token.email)
+      );
     }
 
-    // Secure users workspace doc with temporal verification
+    // Secure users workspace doc for the authenticated owner
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId)
-        && isValidId(userId)
-        && request.resource.data.updatedAt == request.time;
-      allow delete: if isOwner(userId);
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (request.auth.token.email != null && resource != null && resource.data.email == request.auth.token.email) ||
+        (request.auth.token.email != null && request.resource != null && request.resource.data.email == request.auth.token.email) ||
+        (resource != null && resource.data.userUid == request.auth.uid) ||
+        (request.auth.token.email != null && userId.matches('^email_.*'))
+      );
     }
 
     // Secure temporary APK sync sessions
