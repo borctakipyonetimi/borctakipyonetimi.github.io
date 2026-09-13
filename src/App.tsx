@@ -6467,55 +6467,6 @@ export default function App() {
                         {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
                       </button>
                     </div>
-
-                    {/* Android AlarmManager Donanım Köprüsü Durumu */}
-                    <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:col-span-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                          <span className="text-xs font-black text-emerald-950 dark:text-emerald-200">
-                            {isAndroidAlarmBridgeAvailable()
-                              ? "⚡ Android AlarmManager Donanım Köprüsü: AKTİF"
-                              : "📱 Android WebView & Exact AlarmManager Desteği: HAZIR"}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-emerald-900/80 dark:text-emerald-300/80 leading-relaxed font-medium">
-                          {isAndroidAlarmBridgeAvailable()
-                            ? "Uygulama tamamen kapalıyken veya telefon uykudayken dahi sistem alarm sesi, güçlü titreşim ve üst çekmece bildirimi üretilir."
-                            : "borctakipyonetimi.github.io Android APK sarmalayıcısı içinde çalışırken alarmlar donanımsal AlarmManager ile senkronize edilir."}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const testTime = Date.now() + 10000;
-                          const testId = 999999;
-                          if (isAndroidAlarmBridgeAvailable()) {
-                            scheduleAndroidDebtAlarm(
-                              testId,
-                              "TEST: Borç Ödeme Alarmı ⏰",
-                              testTime,
-                              "Bu bir Android AlarmManager donanım testi alarmıdır. Telefon kilitli olsa dahi başarıyla tetiklenir!"
-                            );
-                            triggerToast("⏰ Android Test Alarmı Kuruldu! (10 saniye sonra çalacak)");
-                          } else {
-                            // Tarayıcı simülasyonu
-                            setTimeout(() => {
-                              sendSystemNotification(
-                                "TEST: Borç Ödeme Alarmı ⏰",
-                                "AlarmManager köprüsü testi başarıyla tamamlandı!",
-                                false
-                              );
-                              triggerToast("⏰ Test Alarmı Tetiklendi!");
-                            }, 10000);
-                            triggerToast("⏰ Test Hatırlatıcısı Kuruldu (10 sn sonra tetiklenecek)");
-                          }
-                        }}
-                        className="shrink-0 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition cursor-pointer active:scale-95 shadow-xs flex items-center justify-center gap-1.5"
-                      >
-                        <span>⏰ 10sn Test Alarmı Kur</span>
-                      </button>
-                    </div>
                   </div>
 
                   {/* Vade Hatırlatma Kuralları Bilgi Kartı */}
@@ -6620,11 +6571,16 @@ export default function App() {
             {/* Sol Blok: Sosyal Medya Takip Alanı & Haberdar Ol Bülteni */}
             <div className="flex flex-col items-center justify-center text-center space-y-4">
               <div className="space-y-1.5 w-full flex flex-col items-center text-center">
-                <h4 className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
-                  Resmi Kanallarımız'ı Takip Edin
-                </h4>
+                <div className="flex items-center gap-1.5 justify-center">
+                  <h4 className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
+                    Resmi Kanallarımız
+                  </h4>
+                  <span className="px-2 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-black rounded-full uppercase tracking-wider">
+                    Çok Yakında ⏳
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center max-w-sm leading-relaxed">
-                  Finansal tüyolar, akıllı bütçe stratejileri ve sistem güncellemelerinden anında haberdar olmak için topluluklarımıza katılın.
+                  Resmi kanallarımız ve sosyal topluluk sayfalarımız çok yakında hizmete açılacaktır. Şu an için kullanılmayacaktır.
                 </p>
               </div>
               

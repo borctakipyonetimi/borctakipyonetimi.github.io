@@ -15,6 +15,7 @@ import { jsPDF } from "jspdf";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
@@ -124,25 +125,52 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
 
     if (pickFolder) {
-      // 1. Android APK & Mobile: Web Share API allows saving to Google Drive, Android Files (Dosyalarım), WhatsApp, etc.
-      try {
-        const testFile = new File([blob], fileName, { type: "application/json" });
-        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
-          await navigator.share({
-            title: "Taksitli Borç Planları",
-            text: `Bütçem Taksit Planları (${fileName})`,
-            files: [testFile],
-          });
-          alert(`✅ '${fileName}' taksit yedeği seçilen konuma / uygulamaya başarıyla iletildi!`);
-          setIsExportModalOpen(false);
-          return;
+      // 1. Android Native App Bridge Check
+      if (isAndroidAlarmBridgeAvailable()) {
+        try {
+          const isShared = shareAndroidNativeBackupFile(fileName, jsonString, "Taksitli Borç Planları");
+          if (isShared) {
+            alert(`✅ '${fileName}' taksit yedeği paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
+            setIsExportModalOpen(false);
+            return;
+          }
+          const isSaved = saveAndroidNativeBackupFile(fileName, jsonString);
+          if (isSaved) {
+            alert(`✅ '${fileName}' taksit yedeği İndirilenler klasörüne başarıyla kaydedildi!`);
+            setIsExportModalOpen(false);
+            return;
+          }
+        } catch (androidErr) {
+          console.warn("Android native save/share failed:", androidErr);
         }
-      } catch (shareErr: any) {
-        if (shareErr.name === "AbortError") return;
-        console.warn("navigator.share bypassed, trying file picker or download:", shareErr);
       }
 
-      // 1b. Desktop File System Access API
+      // Check for WebView environment (calling navigator.share in WebView often crashes WebView container)
+      const isWebViewEnv = typeof navigator !== "undefined" && (
+        /wv|Android.*Build\/|Version\/[0-9.]+/i.test(navigator.userAgent) && !/Chrome\/[0-9.]+\s+Mobile/i.test(navigator.userAgent)
+      );
+
+      // 2. Browser Web Share API (only if safe & not in WebView)
+      if (!isWebViewEnv && typeof navigator !== "undefined" && navigator.canShare) {
+        try {
+          const testFile = new File([blob], fileName, { type: "application/json" });
+          if (navigator.canShare({ files: [testFile] })) {
+            await navigator.share({
+              title: "Taksitli Borç Planları",
+              text: `Bütçem Taksit Planları (${fileName})`,
+              files: [testFile],
+            });
+            alert(`✅ '${fileName}' taksit yedeği seçilen konuma / uygulamaya başarıyla iletildi!`);
+            setIsExportModalOpen(false);
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === "AbortError") return;
+          console.warn("navigator.share bypassed, trying file picker or download:", shareErr);
+        }
+      }
+
+      // 3. Desktop File System Access API
       const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
       if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
         try {

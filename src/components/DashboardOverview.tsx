@@ -10,7 +10,6 @@ import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
 import { BarChart, DoughnutChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { AdMobBanner } from "./AdMobBanner";
-import { WeatherBudgetWidget } from "./WeatherBudgetWidget";
 import { t } from "../utils/translations";
 
 interface DashboardOverviewProps {
@@ -834,9 +833,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </motion.div>
       </div>
-
-      {/* Weather & Budget Habit Correlation Widget */}
-      <WeatherBudgetWidget expenses={expenses} language={language} />
 
       {/* Sponsor / Google AdMob Banner section for free tier - Placed above AI & Alarms section (Only show when there is actual content) */}
       {!isPremium && hasContent && (

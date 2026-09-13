@@ -343,38 +343,6 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       ]
     },
     {
-      id: "weather-budget-widget",
-      category: "budget",
-      categoryLabel: "Akıllı Tasarruf",
-      badgeColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
-      icon: "⛅",
-      title: "Hava Durumu & Psikolojik Tasarruf Widget'ı",
-      summary: "Yaşadığınız şehrin hava koşullarına göre dürtüsel harcamaları önleyen akıllı davranışsal ekonomi rehberi.",
-      badge: "Davranışsal Finans",
-      targetTab: "overview",
-      whatItDoes: "Hava durumu ile tüketim psikolojisi arasındaki bilimsel bağı analiz eder. Yağmurlu günlerde online sipariş ve kahve harcamalarını, güneşli günlerde dışarıda yeme-içme dürtülerini kontrol altına almanız için anlık bütçe tavsiyeleri sunar.",
-      instructions: [
-        {
-          step: 1,
-          title: "Bütçe Özetinde Hava Durumu Kartını Bulun",
-          desc: "Dashboard ana sayfasında yer alan 'Hava Durumu & Bütçe Rehberi' bileşenini görüntüleyin."
-        },
-        {
-          step: 2,
-          title: "Şehrinizi Seçin veya Konum İzni Verin",
-          desc: "Açılır menüden şehrinizi seçerek ya da konum butonuna dokunarak anlık meteorolojik verileri çekin."
-        },
-        {
-          step: 3,
-          title: "Günün Tasarruf Stratejisini İnceleyin",
-          desc: "Günün hava durumuna özel (Güneşli, Yağmurlu, Karlı, Bulutlu) bütçe tüyolarını okuyarak dürtüsel harcamalarınızı engelleyin."
-        }
-      ],
-      proTips: [
-        "Yağmurlu günlerde kurye ve teslimat ücretlerinden kaçınmak için evde yemek hazırlama tavsiyelerini uygulayarak ayda binlerce lira tasarruf sağlayabilirsiniz."
-      ]
-    },
-    {
       id: "debt-search-bar",
       category: "debt",
       categoryLabel: "Borç & Arama",

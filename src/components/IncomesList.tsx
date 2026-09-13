@@ -31,6 +31,7 @@ import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 
 interface IncomesListProps {
   incomes: Income[];
@@ -238,25 +239,52 @@ export const IncomesList: React.FC<IncomesListProps> = ({
     }
 
     if (method === "file_picker") {
-      // 1. Check Android / Mobile Web Share API for saving to Drive, Files, WhatsApp, etc.
-      try {
-        const testFile = new File([blob], fileName, { type: "application/json" });
-        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
-          await navigator.share({
-            title: "Gelir Şablonu",
-            text: `Bütçem Gelir Şablonu (${fileName})`,
-            files: [testFile],
-          });
-          alert(`✅ '${fileName}' gelir şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
-          setIsSaveTemplateModalOpen(false);
-          return;
+      // 1. Check Android Native App Bridge
+      if (isAndroidAlarmBridgeAvailable()) {
+        try {
+          const isShared = shareAndroidNativeBackupFile(fileName, jsonString, "Gelir Şablonu");
+          if (isShared) {
+            alert(`✅ '${fileName}' gelir şablonu paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
+            setIsSaveTemplateModalOpen(false);
+            return;
+          }
+          const isSaved = saveAndroidNativeBackupFile(fileName, jsonString);
+          if (isSaved) {
+            alert(`✅ '${fileName}' gelir şablonu İndirilenler klasörüne başarıyla kaydedildi!`);
+            setIsSaveTemplateModalOpen(false);
+            return;
+          }
+        } catch (androidErr) {
+          console.warn("Android native save/share failed:", androidErr);
         }
-      } catch (shareErr: any) {
-        if (shareErr.name === "AbortError") return;
-        console.warn("Share bypassed, falling back:", shareErr);
       }
 
-      // 1b. Desktop File System Access API
+      // Check for WebView environment (calling navigator.share in WebView often crashes WebView container)
+      const isWebViewEnv = typeof navigator !== "undefined" && (
+        /wv|Android.*Build\/|Version\/[0-9.]+/i.test(navigator.userAgent) && !/Chrome\/[0-9.]+\s+Mobile/i.test(navigator.userAgent)
+      );
+
+      // 2. Browser Web Share API (only if safe & not in WebView)
+      if (!isWebViewEnv && typeof navigator !== "undefined" && navigator.canShare) {
+        try {
+          const testFile = new File([blob], fileName, { type: "application/json" });
+          if (navigator.canShare({ files: [testFile] })) {
+            await navigator.share({
+              title: "Gelir Şablonu",
+              text: `Bütçem Gelir Şablonu (${fileName})`,
+              files: [testFile],
+            });
+            alert(`✅ '${fileName}' gelir şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
+            setIsSaveTemplateModalOpen(false);
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === "AbortError") return;
+          console.warn("Share bypassed, falling back:", shareErr);
+        }
+      }
+
+      // 3. Desktop File System Access API
       const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent);
       if (!isMobileDevice && typeof window !== "undefined" && "showSaveFilePicker" in window) {
         try {

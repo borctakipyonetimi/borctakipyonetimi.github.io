@@ -327,12 +327,6 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
           title: "Canlı Döviz, Altın & Kripto Kurları",
           desc: "TRY, USD, EUR, GBP, Gram Altın ve Bitcoin kurları anlık güncellenir ve bütçenize otomatik yansır.",
           tag: "Canlı Kur"
-        },
-        {
-          icon: <Zap className="w-4 h-4 text-purple-400" />,
-          title: "Akıllı Hava Durumu Bütçe Rehberi",
-          desc: "Bulunduğunuz şehrin hava koşullarına göre günlük tasarruf önerileri ve akıllı analizler.",
-          tag: "Akıllı"
         }
       ],
       mockup: (
