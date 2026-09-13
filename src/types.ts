@@ -106,3 +106,50 @@ export interface FinancialStats {
   contactReceivablesRemaining?: number;
   contactReceivablesCollected?: number;
 }
+
+export interface CordovaLocalNotificationOptions {
+  id: number;
+  title?: string;
+  text?: string;
+  message?: string;
+  trigger?: { at?: Date; in?: number; unit?: string };
+  foreground?: boolean;
+  vibrate?: boolean;
+  sound?: boolean | string;
+  priority?: number;
+  wakeup?: boolean;
+  smallIcon?: string;
+  icon?: string;
+  data?: any;
+  actions?: Array<{ id: string; title: string }>;
+}
+
+export interface CordovaLocalNotificationPlugin {
+  schedule: (options: CordovaLocalNotificationOptions | CordovaLocalNotificationOptions[], callback?: () => void) => void;
+  update?: (options: CordovaLocalNotificationOptions | CordovaLocalNotificationOptions[], callback?: () => void) => void;
+  clear?: (id: number | number[], callback?: () => void) => void;
+  clearAll?: (callback?: () => void) => void;
+  cancel: (id: number | number[], callback?: () => void) => void;
+  cancelAll?: (callback?: () => void) => void;
+  isPresent?: (id: number, callback: (present: boolean) => void) => void;
+  isScheduled?: (id: number, callback: (scheduled: boolean) => void) => void;
+  hasPermission?: (callback: (granted: boolean) => void) => void;
+  requestPermission?: (callback: (granted: boolean) => void) => void;
+  setDefaults?: (defaults: any) => void;
+  on?: (event: string, callback: (notification: any) => void) => void;
+}
+
+declare global {
+  var cordova: any;
+  interface Window {
+    cordova?: {
+      plugins?: {
+        notification?: {
+          local?: CordovaLocalNotificationPlugin;
+        };
+        [key: string]: any;
+      };
+      [key: string]: any;
+    };
+  }
+}

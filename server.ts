@@ -6,6 +6,7 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import webpush from "web-push";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -2466,7 +2467,8 @@ app.post("/api/push-register", (req, res) => {
     return res.status(400).json({ error: "Geçersiz abonelik bilgisi" });
   }
 
-  const endpointHash = subscription.endpoint.slice(-50) || Math.random().toString();
+  // Use cryptographic hash of endpoint to reliably identify device subscription
+  const endpointHash = crypto.createHash("md5").update(subscription.endpoint).digest("hex");
   const existing: PushSubscriptionRecord = subscriptionsMap[endpointHash] || {
     subscription,
     alarms: [],
@@ -2477,19 +2479,43 @@ app.post("/api/push-register", (req, res) => {
     lastDueTodayPushDate: ""
   };
 
+  const cleanAlarms = Array.isArray(alarms) ? alarms : (existing.alarms || []);
+  const cleanDebts = Array.isArray(debts) ? debts : (existing.debts || []);
+  const cleanInstallmentDebts = Array.isArray(installmentDebts) ? installmentDebts : (existing.installmentDebts || []);
+
   subscriptionsMap[endpointHash] = {
     ...existing,
     subscription,
-    alarms: alarms !== undefined ? alarms : (existing.alarms || []),
-    debts: debts !== undefined ? debts : (existing.debts || []),
-    installmentDebts: installmentDebts !== undefined ? installmentDebts : (existing.installmentDebts || []),
+    alarms: cleanAlarms,
+    debts: cleanDebts,
+    installmentDebts: cleanInstallmentDebts,
     user: user || existing.user || "anonymous",
     updatedAt: Date.now()
   };
 
   saveSubscriptionsToFile();
-  console.log(`[Push Server] Registered/updated subscription for user: ${user}. Total alarms: ${alarms?.length || 0}, Total debts: ${debts?.length || 0}`);
-  res.json({ success: true });
+  console.log(`[Push Server] Registered/updated subscription for user: ${user}. Total alarms: ${cleanAlarms.length}, Total debts: ${cleanDebts.length}`);
+  res.json({
+    success: true,
+    message: "Abonelik ve alarmlar başarıyla sunucuya kaydedildi.",
+    registeredAlarmsCount: cleanAlarms.length,
+    registeredDebtsCount: cleanDebts.length
+  });
+});
+
+// REST route to query push subscription status for diagnostics
+app.get("/api/push-status", (req, res) => {
+  const count = Object.keys(subscriptionsMap).length;
+  let totalAlarms = 0;
+  for (const s of Object.values(subscriptionsMap)) {
+    totalAlarms += s.alarms?.length || 0;
+  }
+  res.json({
+    success: true,
+    activeSubscriptions: count,
+    scheduledAlarms: totalAlarms,
+    serverTime: new Date().toISOString()
+  });
 });
 
 // REST route to trigger an instant overdue check push (manual trigger or test)
@@ -2552,32 +2578,32 @@ app.post("/api/send-test-push", async (req, res) => {
     return res.status(400).json({ error: "Geçersiz abonelik bilgisi" });
   }
 
-  const delay = parseInt(delaySeconds, 10) || 5;
+  const delay = Math.max(1, parseInt(delaySeconds, 10) || 5);
   const delayMs = delay * 1000;
   console.log(`[Push Server] Scheduled diagnostic test notification in ${delay} seconds.`);
 
   setTimeout(async () => {
     const payload = JSON.stringify({
-      title: "Bütçem Pro Sinyali ⏰",
-      body: "Harika! Telefon kapalıyken bile anlık bildirim sistemi başarıyla çalışıyor! Geçmiş ve yaklaşan borç uyarıları kilit ekranınıza gelecek. 🎉",
+      title: "Bütçem Pro Alarm Sinyali ⏰",
+      body: "Harika! Telefon kapalıyken bile Web Push ve Service Worker bildirim sistemi kusursuz çalışıyor! 🔔",
       tag: "test-push-alarm-" + Date.now(),
       icon: "/logo.png",
       badge: "/logo.png",
-      url: "/"
+      url: "/?tab=notifications"
     });
 
     try {
       await webpush.sendNotification(subscription, payload, {
         headers: { "Urgency": "high" },
-        TTL: 0
+        TTL: 86400
       });
-      console.log("[Push Server] Successfully pushed diagnostic alarm notification.");
+      console.log("[Push Server] Successfully pushed diagnostic alarm notification with TTL 86400.");
     } catch (pushErr) {
       console.error("[Push Server] Push error in diagnostic route:", pushErr);
     }
   }, delayMs);
 
-  res.json({ success: true, message: `Test bildirimi ${delay} saniye içinde gönderilecek.` });
+  res.json({ success: true, message: `Test bildirimi ${delay} saniye içinde gönderilecek. Telefonunuzu kilitleyebilirsiniz!` });
 });
 
 // ==========================================
@@ -3846,7 +3872,11 @@ setInterval(async () => {
           }
 
           if (!isNaN(alarmTime) && alarmTime <= nowTime) {
-            triggeredAlarms.push(alarm);
+            // Only fire if the alarm was due within the past 24 hours to prevent spamming very old historical entries
+            if (nowTime - alarmTime < 24 * 60 * 60 * 1000) {
+              triggeredAlarms.push(alarm);
+            }
+            // If it's already in the past, it won't be kept in remainingAlarms
           } else {
             remainingAlarms.push(alarm);
           }
@@ -3856,27 +3886,36 @@ setInterval(async () => {
           hasChanges = true;
           details.alarms = remainingAlarms;
 
-          // Send a push notification for each triggered alarm!
+          // Send a high-priority lockscreen push notification for each triggered alarm!
           for (const alarm of triggeredAlarms) {
+            const alarmTitle = alarm.title || "Ödeme / Borç Hatırlatması";
             const payload = JSON.stringify({
-              title: "Butcem Pro",
-              body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
-              tag: `alarm-${alarm.id}`,
-              action: "trigger-sync",
+              title: "Bütçem Pro: Ödeme Vakti Geldi! ⏰",
+              body: `${alarmTitle} - Hatırlatıcı zamanı geldi!`,
+              alarmId: alarm.id,
+              type: "alarm",
+              tag: `alarm-${alarm.id || Date.now()}`,
+              action: "alarm-trigger",
               syncTag: "server-cron-sync",
               icon: "/logo.png",
               badge: "/logo.png",
+              vibrate: [500, 150, 500, 150, 450, 150, 600],
+              requireInteraction: true,
+              silent: false,
               url: "/?tab=notifications"
             });
 
-            console.log(`[Push Server] Sending background notification for alarm: "${alarm.title}" to user "${details.user}"`);
+            console.log(`[Push Server] Sending high-urgency background alarm push for "${alarmTitle}" to user "${details.user}"`);
             
             try {
               await webpush.sendNotification(details.subscription, payload, {
-                headers: { "Urgency": "high" },
-                TTL: 0
+                headers: {
+                  "Urgency": "high",
+                  "Topic": `alarm-${alarm.id || "alert"}`
+                },
+                TTL: 86400 // 24 hours so FCM/Apple holds it if phone was asleep/turned off!
               });
-              console.log(`[Push Server] Successfully sent notification!`);
+              console.log(`[Push Server] Successfully sent lockscreen push notification for alarm: "${alarmTitle}"`);
             } catch (pushErr: any) {
               console.error(`[Push Server] Error sending push notification. Status code: ${pushErr.statusCode || "unknown"}`);
               if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {

@@ -1,24 +1,24 @@
-name: Deploy static content to Pages
+name: Deploy to GitHub Pages and Build Android APK
 
 on:
   push:
     branches: ["main", "master"]
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages and uploading releases/artifacts
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: "pages"
+  group: "pages-and-apk"
   cancel-in-progress: false
 
 jobs:
   deploy:
+    name: Deploy to GitHub Pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -43,3 +43,103 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  build-apk:
+    name: Build Ad-Free Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install NPM Dependencies
+        run: npm install
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Build Android APK with Cordova
+        run: |
+          # 1. Install Cordova CLI globally
+          npm install -g cordova
+
+          # 2. Create Cordova project container
+          cordova create cordova-build com.butcempro.app "ButcemPro"
+          cd cordova-build
+
+          # 3. Clean default www directory and transfer Vite build output
+          rm -rf www/*
+          cp -r ../dist/* www/
+
+          # 4. Inject cordova.js script tag into www/index.html if missing
+          if ! grep -q "cordova.js" www/index.html; then
+            sed -i 's/<head>/<head><script src="cordova.js"><\/script>/' www/index.html
+          fi
+
+          # 5. Use root config.xml with alarm permissions and plugins
+          if [ -f "../config.xml" ]; then
+            cp ../config.xml config.xml
+          fi
+
+          # 6. Install Cordova plugins including cordova-plugin-local-notification
+          cordova plugin add cordova-plugin-local-notification --save
+          cordova plugin add cordova-plugin-badge --save
+
+          # 7. Add Android platform
+          cordova platform add android@13.0.0
+
+          # 8. Build Ad-Free, Free Debug APK (installable on any Android device)
+          cordova build android --debug
+
+          # 9. Copy output APK to dist-apk directory
+          mkdir -p ../dist-apk
+          APK_PATH=$(find platforms/android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            cp "$APK_PATH" ../dist-apk/ButcemPro-AdFree.apk
+            echo "Successfully generated APK: ButcemPro-AdFree.apk"
+          else
+            echo "Error: Could not locate built APK file!"
+            exit 1
+          fi
+
+      - name: Upload Ad-Free Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ButcemPro-Android-APK
+          path: dist-apk/ButcemPro-AdFree.apk
+          if-no-files-found: error
+
+      - name: Publish or Update GitHub Release with APK
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: "Bütçem Pro - Güncel Android APK (Reklamsız & Ücretsiz)"
+          body: |
+            ### 📱 Bütçem Pro Android APK (Otomatik Derleme)
+            Bu APK, projenin her güncellemesinde GitHub Actions tarafından tamamen **ücretsiz ve reklamsız** olarak üretilmektedir.
+            
+            - **Altyapı:** Apache Cordova & `cordova-plugin-local-notification`
+            - **Özellik:** Telefon kapalıyken veya kilitliyken çalabilen yerel Android alarmları ve bütçe hatırlatıcıları.
+            - **Kurulum:** Aşağıdaki `ButcemPro-AdFree.apk` dosyasını Android telefonunuza indirip doğrudan kurabilirsiniz.
+          files: dist-apk/ButcemPro-AdFree.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

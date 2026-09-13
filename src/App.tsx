@@ -715,6 +715,7 @@ export default function App() {
   });
   const [isAddingAlarmNew, setIsAddingAlarmNew] = useState(false);
   const [testPushStatus, setTestPushStatus] = useState<string>("");
+  const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(false);
 
   const triggerDiagnosticTestPush = async () => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -749,7 +750,7 @@ export default function App() {
     }
 
     setTestPushStatus("HAZIRLIK");
-    triggerToast("Test hazırlanıyor... Abonelik kontrol ediliyor.");
+    triggerToast("Test hazırlanıyor... Web Push aboneliği kontrol ediliyor.");
 
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -786,13 +787,17 @@ export default function App() {
         return;
       }
 
-      // Sync user subscription details
+      setIsPushSubscribed(true);
+
+      // Sync user subscription details including current alarms and debts
       await fetch(getApiUrl("/api/push-register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subscription,
           alarms: alarmsRef.current,
+          debts: debtsRef.current,
+          installmentDebts: installmentDebtsRef.current,
           user: currentUser || "anonymous"
         })
       });
@@ -808,7 +813,7 @@ export default function App() {
 
       if (response.ok) {
         setTestPushStatus("SÜRE: 10 SANİYE ⏳");
-        triggerToast("Test uyarısı kuruldu! Lütfen HEMEN ekranınızı kilitleyin!");
+        triggerToast("⏰ 10 Saniyelik Test Başladı! Lütfen HEMEN telefonunuzu kilitleyin!");
         
         let count = 10;
         const interval = setInterval(() => {
@@ -1181,7 +1186,7 @@ export default function App() {
   };
 
   // Robust client-side Web Push subscription manager
-  const registerPushSubscription = async (reg: ServiceWorkerRegistration) => {
+  const registerPushSubscription = async (reg: ServiceWorkerRegistration, overrideAlarms?: Alarm[]) => {
     try {
       const res = await fetch(getApiUrl("/api/push-vapid-public-key"));
       if (!res.ok) throw new Error("VAPID public key fetch failed");
@@ -1189,7 +1194,7 @@ export default function App() {
       
       if (!publicKey) {
         console.warn("VAPID public key not configured on server.");
-        return;
+        return null;
       }
 
       // Convert VAPID base64url keys to Uint8Array for PushManager registration
@@ -1206,51 +1211,59 @@ export default function App() {
         applicationServerKey: outputArray
       });
 
+      setIsPushSubscribed(true);
       console.log("[Push Client] Registered subscription payload successfully:", subscription);
       
+      const targetAlarms = overrideAlarms !== undefined ? overrideAlarms : alarmsRef.current;
+
       // Dispatch subscription details, active alarms and debt records to the server-side cron scheduler
       await fetch(getApiUrl("/api/push-register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subscription,
-          alarms: alarmsRef.current,
+          alarms: targetAlarms,
           debts: debtsRef.current,
           installmentDebts: installmentDebtsRef.current,
           user: currentUser || "anonymous"
         })
       });
       console.log("[Push Client] Handshake with background push database successful.");
-      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Arka plan borç ve alarm bildirimleri aktif.");
+      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Telefon kapalıyken de alarmlar kilit ekranına gelecektir.");
+      return subscription;
     } catch (err: any) {
-      console.warn("[Push Client] Web Push subscription workflow aborted:", err);
+      console.warn("[Push Client] Web Push subscription workflow error:", err);
       if (err.name === "NotAllowedError") {
         triggerToast("❌ Tarayıcı bildirim iznini engelledi. Lütfen ayarlardan izin verin.");
       } else {
         triggerToast("⚠️ Bildirim bağlantısı kurulamadı. Lütfen tekrar deneyin.");
       }
+      return null;
     }
   };
 
-  const syncAlarmsWithPushServer = async () => {
+  const syncAlarmsWithPushServer = async (overrideAlarms?: Alarm[]) => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     try {
       const reg = await navigator.serviceWorker.ready;
       let subscription = await reg.pushManager.getSubscription();
       
+      const targetAlarms = overrideAlarms !== undefined ? overrideAlarms : alarmsRef.current;
+
       // Register subscription on demand if permission is granted but standard registration was cleared
-      if (!subscription && (Notification as any).permission === "granted") {
-        await registerPushSubscription(reg);
+      if (!subscription && typeof Notification !== "undefined" && (Notification as any).permission === "granted") {
+        subscription = await registerPushSubscription(reg, targetAlarms);
         return;
       }
       
       if (subscription) {
+        setIsPushSubscribed(true);
         await fetch(getApiUrl("/api/push-register"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             subscription,
-            alarms: alarmsRef.current,
+            alarms: targetAlarms,
             debts: debtsRef.current,
             installmentDebts: installmentDebtsRef.current,
             user: currentUser || "anonymous"
@@ -3389,8 +3402,32 @@ export default function App() {
     setNotifications(updatedNotifs);
     saveAllToUser(debts, incomes, updated, updatedNotifs, installmentDebts, payments, expenses, expenseCategories);
 
-    // Schedule alarm into native Android AlarmManager (exact background alarm with sound and vibration)
+    // Schedule alarm into Cordova Local Notification plugin (triggers when app is closed / phone locked)
     if (alarmDateObj.getTime() > Date.now()) {
+      try {
+        const anyWin = window as any;
+        const localPlugin = anyWin.cordova?.plugins?.notification?.local || (typeof cordova !== "undefined" ? (cordova as any)?.plugins?.notification?.local : null);
+        if (localPlugin && typeof localPlugin.schedule === "function") {
+          localPlugin.schedule({
+            id: newA.id,
+            title: titleString || "Ödeme Hatırlatması ⏰",
+            text: `Borç / Ödeme Hatırlatması: ${titleString}`,
+            trigger: { at: new Date(alarmDateObj.getTime()) },
+            foreground: true,
+            vibrate: true,
+            sound: true,
+            priority: 2,
+            wakeup: true,
+            smallIcon: "res://icon",
+            data: { id: newA.id, title: titleString }
+          });
+          console.log(`[Cordova LocalNotification] cordova.plugins.notification.local.schedule çağrıldı: Alarm #${newA.id}`);
+        }
+      } catch (cordErr) {
+        console.warn("[Cordova LocalNotification] schedule error:", cordErr);
+      }
+
+      // Also schedule alarm into native Android AlarmManager bridge
       scheduleAndroidDebtAlarm(
         newA.id,
         titleString,
@@ -3399,10 +3436,23 @@ export default function App() {
       );
     }
     
+    // Instantly synchronize with Service Worker and Web Push daemon for background/closed-phone delivery
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SYNC_ALL_DATA",
+          alarms: updated,
+          debts,
+          installmentDebts
+        });
+      }
+      syncAlarmsWithPushServer(updated);
+    }
+
     // Trigger OS alert sounds/visuals (persist is false here because we saved it already in the line above)
     sendSystemNotification(
       "Ödeme Hatırlatıcısı Kuruldu! ⏰",
-      `"${titleString}" başlıklı alarmınız başarıyla oluşturuldu ve cihazınıza tanımlandı.`,
+      `"${titleString}" başlıklı alarmınız kuruldu. Telefonunuz kapalıyken de kilit ekranına bildirim gelecektir.`,
       false
     );
   };
@@ -3456,9 +3506,35 @@ export default function App() {
 
   const handleDeleteAlarm = (id: number) => {
     cancelAndroidDebtAlarm(id);
+    if (typeof window !== "undefined") {
+      try {
+        const anyWin = window as any;
+        const localPlugin = anyWin.cordova?.plugins?.notification?.local || (typeof cordova !== "undefined" ? (cordova as any)?.plugins?.notification?.local : null);
+        if (localPlugin && typeof localPlugin.cancel === "function") {
+          localPlugin.cancel(id);
+          console.log(`[Cordova LocalNotification] Alarm #${id} local.cancel çağrıldı.`);
+        }
+      } catch (cErr) {
+        console.warn("[Cordova LocalNotification] cancel error:", cErr);
+      }
+    }
     const updated = alarms.filter((a) => a.id !== id);
     setAlarms(updated);
     saveAllToUser(debts, incomes, updated, notifications, installmentDebts, payments, expenses, expenseCategories);
+
+    // Instantly notify Service Worker and Web Push daemon of deletion
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SYNC_ALL_DATA",
+          alarms: updated,
+          debts,
+          installmentDebts
+        });
+      }
+      syncAlarmsWithPushServer(updated);
+    }
+    triggerToast("Alarm silindi ve arka plan servisinden kaldırıldı.");
   };
 
   const handleDeleteNotif = (id: number) => {
@@ -3832,6 +3908,10 @@ export default function App() {
       });
     };
 
+    const isWebViewEnv = typeof navigator !== "undefined" && (
+      /wv|Android.*Build\/|Version\/[0-9.]+/i.test(navigator.userAgent) && !/Chrome\/[0-9.]+\s+Mobile/i.test(navigator.userAgent)
+    );
+
     // 1. WhatsApp Action
     if (mode === "whatsapp") {
       // Android Native Share Check
@@ -3844,21 +3924,24 @@ export default function App() {
       }
 
       let sharedWithNative = false;
-      try {
-        const testFile = new File([blob], fileName, { type: "application/json" });
-        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
-          await navigator.share({
-            title: "Bütçem Veri Yedeği",
-            text: `Bütçem Pro Veri Yedeği (${fileName})`,
-            files: [testFile]
-          });
-          sharedWithNative = true;
-          triggerToast(`✅ Veri yedeği WhatsApp / seçilen uygulamaya iletildi: ${fileName}`);
-          localStorage.setItem("last_backup_export_date", new Date().toISOString());
-          return;
+
+      if (!isWebViewEnv) {
+        try {
+          const testFile = new File([blob], fileName, { type: "application/json" });
+          if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+            await navigator.share({
+              title: "Bütçem Veri Yedeği",
+              text: `Bütçem Pro Veri Yedeği (${fileName})`,
+              files: [testFile]
+            });
+            sharedWithNative = true;
+            triggerToast(`✅ Veri yedeği WhatsApp / seçilen uygulamaya iletildi: ${fileName}`);
+            localStorage.setItem("last_backup_export_date", new Date().toISOString());
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === "AbortError") return;
         }
-      } catch (shareErr: any) {
-        if (shareErr.name === "AbortError") return;
       }
 
       if (!sharedWithNative) {
@@ -3898,19 +3981,21 @@ export default function App() {
       }
 
       await triggerFileDownload();
-      try {
-        const testFile = new File([blob], fileName, { type: "application/json" });
-        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
-          await navigator.share({
-            title: "Google Drive'a Kaydet",
-            text: `Bütçem Pro Veri Yedeği: ${fileName}`,
-            files: [testFile]
-          });
-          localStorage.setItem("last_backup_export_date", new Date().toISOString());
-          return;
+      if (!isWebViewEnv) {
+        try {
+          const testFile = new File([blob], fileName, { type: "application/json" });
+          if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+            await navigator.share({
+              title: "Google Drive'a Kaydet",
+              text: `Bütçem Pro Veri Yedeği: ${fileName}`,
+              files: [testFile]
+            });
+            localStorage.setItem("last_backup_export_date", new Date().toISOString());
+            return;
+          }
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
         }
-      } catch (e: any) {
-        if (e.name === "AbortError") return;
       }
       
       // On desktop or when share is not available, offer 1-click Google Drive Web tab
@@ -3931,21 +4016,23 @@ export default function App() {
         }
       }
 
-      try {
-        const testFile = new File([blob], fileName, { type: "application/json" });
-        if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
-          await navigator.share({
-            title: "Bütçem Veri Yedeği",
-            text: `Bütçem Pro Veri Yedeği (${fileName})`,
-            files: [testFile]
-          });
-          triggerToast(`✅ Veri yedeği seçilen uygulamaya iletildi: ${fileName}`);
-          localStorage.setItem("last_backup_export_date", new Date().toISOString());
-          return;
+      if (!isWebViewEnv) {
+        try {
+          const testFile = new File([blob], fileName, { type: "application/json" });
+          if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [testFile] })) {
+            await navigator.share({
+              title: "Bütçem Veri Yedeği",
+              text: `Bütçem Pro Veri Yedeği (${fileName})`,
+              files: [testFile]
+            });
+            triggerToast(`✅ Veri yedeği seçilen uygulamaya iletildi: ${fileName}`);
+            localStorage.setItem("last_backup_export_date", new Date().toISOString());
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === "AbortError") return;
+          console.warn("navigator.share failed:", shareErr);
         }
-      } catch (shareErr: any) {
-        if (shareErr.name === "AbortError") return;
-        console.warn("navigator.share failed:", shareErr);
       }
 
       // If navigator.share was unavailable or rejected, fallback to direct download with the custom name
@@ -6011,7 +6098,24 @@ export default function App() {
                   </div>
                 </div>
 
-
+                {/* Web Push & Kapalı Ekran Durum Bandı */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/50 dark:border-indigo-900/50 rounded-2xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isPushSubscribed ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-[11px]">
+                      {isPushSubscribed
+                        ? "Web Push & Arka Plan Alarmı: Aktif (Telefon kapalıyken de kilit ekranına bildirim gelir)"
+                        : "Arka Plan Alarm Servisi: Bağlantı kuruluyor..."}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotifSectionTab("settings")}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>⚙️ Ayarlar & 10sn Test</span>
+                  </button>
+                </div>
 
                 {/* Premium Interactive Inline Alarm Ekleme Formu */}
                 {isAddingAlarmNew && (
@@ -6053,6 +6157,10 @@ export default function App() {
                         />
                       </div>
                     </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <span>🛡️</span>
+                      <span>Web Push ve Service Worker entegrasyonu sayesinde bu alarm telefonunuz kapalıyken veya kilitliyken de çalacaktır.</span>
+                    </p>
                     <div className="flex gap-2 justify-end pt-2">
                       <button
                         type="button"
@@ -6466,6 +6574,87 @@ export default function App() {
                       >
                         {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
                       </button>
+                    </div>
+                  </div>
+
+                  {/* TELEFON KAPALIYKEN ÇALIŞAN ALARM & WEB PUSH SİSTEMİ (SERVICE WORKER ALTYAPISI) */}
+                  <div className="p-5 bg-linear-to-br from-indigo-50/90 via-sky-50/50 to-emerald-50/50 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-800/80 rounded-3xl space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">⏰</span>
+                          <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                            Telefon Kapalıyken Çalışan Web Push & Alarm Altyapısı
+                          </h4>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
+                          Banka, kurye ve mesajlaşma uygulamalarındaki gibi; uygulamanız tamamen kapalıyken veya telefon kilitliyken bile Web Push ve Service Worker motoru sayesinde alarmlarınız zamanında çalar.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800/90 px-3 py-1.5 rounded-full border border-indigo-100 dark:border-indigo-900 shadow-2xs">
+                        <span className={`w-2.5 h-2.5 rounded-full ${isPushSubscribed ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
+                        <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                          {isPushSubscribed ? "Web Push Aktif & Bağlı" : "Bağlantı Kuruluyor"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Durum Göstergeleri */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Web Push Protokolü</span>
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <span>✓</span> {isPushSubscribed ? "VAPID & FCM Hazır" : "Kayıt Bekliyor"}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Arka Plan Service Worker</span>
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                          <span>✓</span> Kilit Ekranı Dinleyicisi
+                        </span>
+                      </div>
+                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Kilit Ekranı İzni</span>
+                        <span className={`text-xs font-black flex items-center gap-1 ${hasNotificationPermission === "granted" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                          <span>{hasNotificationPermission === "granted" ? "✓" : "!"}</span>
+                          {hasNotificationPermission === "granted" ? "Bildirim İzni Verildi" : "İzin Verilmesi Gerekiyor"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Eylem Butonları */}
+                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={triggerDiagnosticTestPush}
+                        disabled={testPushStatus.includes("SÜRE")}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <span>🧪 10 Saniyelik Kapalı Ekran Test Alarmı Gönder</span>
+                        {testPushStatus && (
+                          <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-mono">
+                            {testPushStatus}
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          triggerToast("Arka plan sunucusuyla senkronizasyon yapılıyor...");
+                          await syncAlarmsWithPushServer();
+                          triggerToast("✅ Alarmlar ve ödeme planınız arka plan bildirim servisine eşitlendi.");
+                        }}
+                        className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black transition cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <span>🔄 Alarmları Şimdi Eşitle</span>
+                      </button>
+                    </div>
+
+                    {/* APK & Telefon İpucu */}
+                    <div className="p-3 bg-indigo-100/50 dark:bg-indigo-950/30 rounded-xl text-[11px] text-indigo-950 dark:text-indigo-200 leading-relaxed border border-indigo-200/50 dark:border-indigo-900/40">
+                      <strong>💡 APK ve Kilitli Ekran Bilgilendirmesi:</strong> Web sitenizi APK'ya dönüştürdüğünüzde veya web uygulamasını ana ekrana eklediğinizde, bu altyapı arka planda Web Push API ve Service Worker üzerinden çalışır. Test butonuna bastıktan hemen sonra telefonunuzun ekranını kilitleyerek 10 saniye içinde bildirim geldiğini test edebilirsiniz. Android pil ayarlarında bu uygulamanın arka plan kısıtlamasının kapalı olduğundan emin olunuz.
                     </div>
                   </div>
 

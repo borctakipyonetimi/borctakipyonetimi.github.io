@@ -43,11 +43,32 @@ function getActiveBridge(): AndroidBridgeInterface | null {
 }
 
 /**
- * Android köprüsünün mevcut olup olmadığını test eder.
+ * Cordova Local Notification eklentisine güvenli erişim sağlar.
+ * Uygulama kapalıyken veya telefon kilitliyken Android sistem alarmını tetikler.
+ */
+export function getCordovaLocalNotification() {
+  if (typeof window === "undefined") return null;
+  const anyWin = window as any;
+  if (anyWin.cordova?.plugins?.notification?.local) {
+    return anyWin.cordova.plugins.notification.local;
+  }
+  return null;
+}
+
+/**
+ * Cordova Local Notification eklentisinin cihazda mevcut olup olmadığını kontrol eder.
+ */
+export function isCordovaLocalNotificationAvailable(): boolean {
+  return Boolean(getCordovaLocalNotification());
+}
+
+/**
+ * Android köprüsünün veya Cordova eklentisinin mevcut olup olmadığını test eder.
  */
 export function isAndroidAlarmBridgeAvailable(): boolean {
   if (typeof window === "undefined") return false;
   try {
+    if (isCordovaLocalNotificationAvailable()) return true;
     const bridge = getActiveBridge();
     return Boolean(
       bridge && (
@@ -65,7 +86,8 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
 }
 
 /**
- * Tekil bir borç veya taksit hatırlatıcısını Android AlarmManager'a kaydeder.
+ * Tekil bir borç veya taksit hatırlatıcısını Cordova Local Notification ve Android AlarmManager'a kaydeder.
+ * cordova.plugins.notification.local.schedule komutunu kullanarak telefon kapalıyken bile alarmın çalmasını sağlar.
  */
 export function scheduleAndroidDebtAlarm(
   id: number,
@@ -73,46 +95,86 @@ export function scheduleAndroidDebtAlarm(
   triggerAtMillis: number,
   message?: string
 ): boolean {
-  const bridge = getActiveBridge();
-  if (!bridge || typeof bridge.setDebtAlarm !== "function") {
+  const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
+  const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
+  
+  // Geçmiş tarihlere alarm kurulmaz
+  if (triggerAtMillis <= Date.now()) {
     return false;
   }
 
-  try {
-    const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
-    const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
-    
-    // Geçmiş tarihlere alarm kurulmaz
-    if (triggerAtMillis <= Date.now()) {
-      return false;
+  let isScheduled = false;
+
+  // 1. Cordova Local Notification Plugin (Uygulama kapalıyken Android sistemi tarafından tetiklenir)
+  const cordovaLocal = getCordovaLocalNotification();
+  if (cordovaLocal && typeof cordovaLocal.schedule === "function") {
+    try {
+      cordovaLocal.schedule({
+        id: Number(id),
+        title: safeTitle,
+        text: safeMessage,
+        trigger: { at: new Date(triggerAtMillis) },
+        foreground: true,
+        vibrate: true,
+        sound: true,
+        priority: 2,
+        wakeup: true,
+        smallIcon: "res://icon",
+        data: { id: Number(id), title: safeTitle, message: safeMessage }
+      });
+      console.log(`[Cordova LocalNotification] Alarm #${id} cordova.plugins.notification.local.schedule ile kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
+      isScheduled = true;
+    } catch (cErr) {
+      console.warn("[Cordova LocalNotification] schedule çağrısı hatası:", cErr);
     }
-
-    bridge.setDebtAlarm(id, safeTitle, triggerAtMillis, safeMessage);
-    console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'a başarıyla kaydedildi (${new Date(triggerAtMillis).toLocaleString()})`);
-    return true;
-  } catch (err) {
-    console.warn("[AndroidAlarmBridge] setDebtAlarm çağrılırken hata:", err);
-    return false;
   }
+
+  // 2. Android WebView AlarmManager Bridge (Varsa ek donanım koruması)
+  const bridge = getActiveBridge();
+  if (bridge && typeof bridge.setDebtAlarm === "function") {
+    try {
+      bridge.setDebtAlarm(id, safeTitle, triggerAtMillis, safeMessage);
+      console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'a kaydedildi (${new Date(triggerAtMillis).toLocaleString()})`);
+      isScheduled = true;
+    } catch (err) {
+      console.warn("[AndroidAlarmBridge] setDebtAlarm çağrılırken hata:", err);
+    }
+  }
+
+  return isScheduled;
 }
 
 /**
- * Belirli bir alarmı Android AlarmManager ve SharedPreferences deposundan siler.
+ * Belirli bir alarmı Cordova Local Notification ve Android AlarmManager'dan siler.
  */
 export function cancelAndroidDebtAlarm(id: number): boolean {
-  const bridge = getActiveBridge();
-  if (!bridge || typeof bridge.cancelDebtAlarm !== "function") {
-    return false;
+  let isCancelled = false;
+
+  // 1. Cordova Local Notification'dan kaldır
+  const cordovaLocal = getCordovaLocalNotification();
+  if (cordovaLocal && typeof cordovaLocal.cancel === "function") {
+    try {
+      cordovaLocal.cancel(Number(id));
+      console.log(`[Cordova LocalNotification] Alarm #${id} iptal edildi.`);
+      isCancelled = true;
+    } catch (cErr) {
+      console.warn("[Cordova LocalNotification] cancel hatası:", cErr);
+    }
   }
 
-  try {
-    bridge.cancelDebtAlarm(id);
-    console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'dan kaldırıldı.`);
-    return true;
-  } catch (err) {
-    console.warn("[AndroidAlarmBridge] cancelDebtAlarm çağrılırken hata:", err);
+  // 2. Android WebView Bridge'den kaldır
+  const bridge = getActiveBridge();
+  if (bridge && typeof bridge.cancelDebtAlarm === "function") {
+    try {
+      bridge.cancelDebtAlarm(id);
+      console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'dan kaldırıldı.`);
+      isCancelled = true;
+    } catch (err) {
+      console.warn("[AndroidAlarmBridge] cancelDebtAlarm çağrılırken hata:", err);
+    }
   }
-  return false;
+
+  return isCancelled;
 }
 
 /**
@@ -192,19 +254,14 @@ export function syncAllAlarmsToAndroid(
  * Ekran kapalıyken veya uygulama arka plandayken bildirim test etmek için 5 sn sonra çalan donanım alarmını kurar.
  */
 export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
-  const bridge = getActiveBridge();
-  if (!bridge) {
-    return false;
-  }
-
   try {
-    if (typeof bridge.testDelayedNotification === "function") {
+    const bridge = getActiveBridge();
+    if (bridge && typeof bridge.testDelayedNotification === "function") {
       bridge.testDelayedNotification(delaySeconds);
       return true;
-    } else {
-      const trigger = Date.now() + (delaySeconds * 1000);
-      return scheduleAndroidDebtAlarm(777777, "🔔 Ekran Kapalı Bildirim Testi", trigger, "Test bildirimi kilit ekranına ulaştı!");
     }
+    const trigger = Date.now() + (delaySeconds * 1000);
+    return scheduleAndroidDebtAlarm(777777, "🔔 Ekran Kapalı Bildirim Testi", trigger, "Test bildirimi kilit ekranına ulaştı!");
   } catch (e) {
     console.warn("[AndroidAlarmBridge] testAndroidBackgroundAlarm hatası:", e);
     return false;

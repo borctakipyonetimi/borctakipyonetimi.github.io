@@ -407,86 +407,117 @@ self.addEventListener("message", (event) => {
 
 // Handle push notifications received from Web Push / FCM
 self.addEventListener("push", (event) => {
-  let data = { title: "Bütçem Pro", body: "Ödeme Vaktiniz Geldi! ⏰", url: "/" };
+  let data = {
+    title: "Bütçem Pro: Ödeme Vakti Geldi! ⏰",
+    body: "Planlanmış borç veya taksit hatırlatıcınızın zamanı geldi!",
+    url: "/?tab=notifications"
+  };
+
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: "Bütçem Pro", body: event.data.text(), url: "/" };
+      data = {
+        title: "Bütçem Pro: Ödeme Vakti Geldi! ⏰",
+        body: event.data.text() || "Ödeme vaktiniz geldi!",
+        url: "/?tab=notifications"
+      };
     }
   }
 
-  const syncTag = data.syncTag || (data.action === "trigger-sync" ? "server-cron-sync" : "push-cron-sync");
+  const appIcon = self.location.origin + "/logo.png";
+  const appBadge = self.location.origin + "/logo.png";
+  const targetUrl = data.url || "/?tab=notifications";
 
-  const syncPromise = (async () => {
-    // 1. When server cron job push triggers while app is closed, register SyncManager sync if supported
-    if (self.registration && self.registration.sync) {
-      try {
-        await self.registration.sync.register(syncTag);
-      } catch (err) {}
+  // Build high-urgency lockscreen notification options
+  const notifOptions = {
+    body: data.body || "Planlanmış alarm / ödeme hatırlatması! ⏰",
+    icon: data.icon || appIcon,
+    badge: data.badge || appBadge,
+    vibrate: data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500],
+    tag: data.tag || `alarm-${data.alarmId || Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    silent: false,
+    timestamp: Date.now(),
+    actions: [
+      { action: "open_app", title: "Uygulamayı Aç" },
+      { action: "dismiss", title: "Kapat" }
+    ],
+    data: {
+      url: targetUrl,
+      alarmId: data.alarmId,
+      type: data.type || "alarm"
     }
+  };
 
-    // 2. Try background sync routine safely
-    try {
-      await handleBackgroundSync(syncTag);
-    } catch (bgErr) {
-      console.warn("[Service Worker] Background sync error:", bgErr);
-    }
+  // STEP 1: Immediately show notification to the device lock screen & notification drawer
+  const notificationPromise = self.registration.showNotification(
+    data.title || "Bütçem Pro: Ödeme Vakti Geldi! ⏰",
+    notifOptions
+  ).then(() => {
+    console.log("[Service Worker] Lockscreen alarm notification displayed successfully:", data.title);
+  }).catch((err) => {
+    console.error("[Service Worker] Failed to display notification:", err);
+  });
 
-    // 3. Always show notification on device lockscreen / drawer
-    const appIcon = self.location.origin + "/logo.png";
-    const appBadge = self.location.origin + "/logo.png";
-
+  // STEP 2: Background state updates (App badge, removing triggered alarm from cache, background debt sync)
+  const backgroundPromise = (async () => {
+    // 2.1 Update device app icon badge
     if (self.navigator && self.navigator.setAppBadge) {
       try {
         await self.navigator.setAppBadge(1);
       } catch (e) {}
     }
 
-    if (data.title || data.body) {
-      const options = {
-        body: data.body || "Vadesi gelen ödeme / borç hatırlatıcısı!",
-        icon: appIcon,
-        badge: appBadge,
-        vibrate: [300, 100, 300, 100, 400],
-        tag: data.tag || `alarm-${Date.now()}`,
-        renotify: true,
-        requireInteraction: true,
-        silent: false,
-        timestamp: Date.now(),
-        actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
-        data: { url: data.url || "/" }
-      };
-
+    // 2.2 If this was a specific alarm, remove it from active alarms cache to prevent duplicates
+    if (data.alarmId) {
       try {
-        await self.registration.showNotification(data.title || "Bütçem Pro Hatırlatıcı ⏰", options);
-        console.log("[Service Worker] Successfully displayed notification to user tray:", data.title);
-      } catch (notifErr) {
-        console.error("[Service Worker] Failed to display notification:", notifErr);
+        activeAlarms = activeAlarms.filter(a => String(a.id) !== String(data.alarmId));
+        await saveAlarmsToCache(activeAlarms);
+      } catch (err) {
+        console.warn("[Service Worker] Error removing fired alarm from cache:", err);
+      }
+    }
+
+    // 2.3 If server triggered a background sync tag, run background sync safely
+    if (data.action === "trigger-sync" || data.syncTag) {
+      try {
+        await handleBackgroundSync(data.syncTag || "push-sync");
+      } catch (bgErr) {
+        console.warn("[Service Worker] Background sync error during push:", bgErr);
       }
     }
   })();
 
-  event.waitUntil(syncPromise);
+  event.waitUntil(Promise.all([notificationPromise, backgroundPromise]));
 });
 
 // Handle notification click routing
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+
+  if (event.action === "dismiss") {
+    return;
+  }
+
+  const targetUrl = event.notification.data?.url || "/?tab=notifications";
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].url.includes(targetUrl) || clientList[i].focused) {
-            client = clientList[i];
-            break;
+      // If a window client is already open, focus and navigate it
+      for (const client of clientList) {
+        if ("focus" in client) {
+          if ("navigate" in client && targetUrl) {
+            client.navigate(targetUrl).catch(() => {});
           }
+          return client.focus();
         }
-        return client.focus();
       }
-      return self.clients.openWindow(targetUrl);
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
     })
   );
 });
