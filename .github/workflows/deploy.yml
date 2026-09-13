@@ -29,6 +29,18 @@ jobs:
           npm install
           npm install @capacitor/core @capacitor/cli @capacitor/local-notifications
 
+      - name: Uygulama ve Bildirim Logolarini Otomatik Uret
+        run: |
+          # İkon üretici aracı yükle
+          npm install -g @capacitor/assets
+          # En dıştaki logo.png dosyasını aracın okuyabileceği geçici bir klasöre kopyala
+          mkdir -p assets
+          cp logo.png assets/icon-only.png || cp public/logo.png assets/icon-only.png || true
+          cp logo.png assets/icon-foreground.png || cp public/logo.png assets/icon-foreground.png || true
+          cp logo.png assets/icon-background.png || cp public/logo.png assets/icon-background.png || true
+          # Android için gerekli tüm logo ve bildirim simgelerini tek komutla oluştur
+          npx capacitor-assets generate --android || true
+
       - name: Eski Kalintilari Tamamen Sil
         run: |
           rm -rf android
@@ -50,6 +62,7 @@ jobs:
       - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
         run: |
           npx cap add android
+          npx capacitor-assets generate --android || true
           npx cap sync android
 
       - name: Android APK Derle (Build)
