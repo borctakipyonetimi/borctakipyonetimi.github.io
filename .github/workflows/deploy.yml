@@ -31,15 +31,25 @@ jobs:
 
       - name: Uygulama ve Bildirim Logolarini Otomatik Uret
         run: |
-          # İkon üretici aracı yükle
+          # Aracı yükle
           npm install -g @capacitor/assets
-          # En dıştaki logo.png dosyasını aracın okuyabileceği geçici bir klasöre kopyala
+          
+          # Proje içindeki tüm olası eski logoları bizim logomuzla ezerek değiştiriyoruz
+          find . -name "favicon.ico" -exec cp logo.png {} \; 2>/dev/null || true
+          find . -name "icon.png" -exec cp logo.png {} \; 2>/dev/null || true
+          find . -name "logo.png" -exec cp logo.png {} \; 2>/dev/null || true
+          
+          # Capacitor assets için gerekli klasörü zorla doldur
+          rm -rf assets
           mkdir -p assets
-          cp logo.png assets/icon-only.png || cp public/logo.png assets/icon-only.png || true
-          cp logo.png assets/icon-foreground.png || cp public/logo.png assets/icon-foreground.png || true
-          cp logo.png assets/icon-background.png || cp public/logo.png assets/icon-background.png || true
-          # Android için gerekli tüm logo ve bildirim simgelerini tek komutla oluştur
-          npx capacitor-assets generate --android || true
+          cp logo.png assets/icon-only.png
+          cp logo.png assets/icon-foreground.png
+          cp logo.png assets/icon-background.png
+          cp logo.png assets/splash.png
+          cp logo.png assets/splash-dark.png
+          
+          # İkonları üret ve Android projesine yerleştir
+          npx capacitor-assets generate --android
 
       - name: Eski Kalintilari Tamamen Sil
         run: |
