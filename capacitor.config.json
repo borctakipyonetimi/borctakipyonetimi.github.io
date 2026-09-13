@@ -1,7 +1,7 @@
 {
   "appId": "com.borctakip.app",
   "appName": "BorcTakip",
-  "webDir": "www",
+  "webDir": "dist",
   "server": {
     "url": "https://borctakipyonetimi.github.io",
     "cleartext": true
