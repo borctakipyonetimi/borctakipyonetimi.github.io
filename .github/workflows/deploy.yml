@@ -34,9 +34,18 @@ jobs:
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Capacitor Ayar Dosyasini Olustur
+      - name: Gerekli Proje Altyapisini ve Ayarlarini Olustur
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "BorcTakip", "webDir": "."}' > capacitor.config.json
+          # Eksik olan package.json dosyasını otomatik oluştur
+          if [ ! -f package.json ]; then
+            echo '{"name": "borc-takip", "version": "1.0.0", "dependencies": {}}' > package.json
+          fi
+          # Web klasörü çakışmasını önlemek için geçici bir 'www' klasörü yapıp web kodlarını içine kopyala
+          mkdir -p www
+          shopt -s extglob
+          cp -r !(www|android|.github|node_modules|package.json|package-lock.json) www/ || true
+          # Ayar dosyasındaki webDir değerini '.' yerine 'www' olarak güncelle
+          echo '{"appId": "com.borctakip.app", "appName": "BorcTakip", "webDir": "www"}' > capacitor.config.json
 
       - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
         run: |
