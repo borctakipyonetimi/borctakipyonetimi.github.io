@@ -81,6 +81,9 @@ jobs:
       - name: Build Web Application
         run: npm run build
 
+      - name: Eski Android Klasorunu Temizle
+        run: rm -rf android
+
       - name: Setup Capacitor and Build Android APK
         run: |
           # 1. Install Capacitor Core & CLI
@@ -92,7 +95,8 @@ jobs:
           # 3. Initialize Capacitor project
           npx cap init "Borc Takip" "com.borctakip.app" --web-dir=dist
 
-          # 4. Add Android native platform
+          # 4. Clean old android directory if any and add Android native platform
+          rm -rf android
           npx cap add android
 
           # 5. Ensure required alarm & notification permissions in AndroidManifest.xml
