@@ -98,17 +98,56 @@ jobs:
             cp ../config.xml config.xml
           fi
 
-          # 6. Install Cordova plugins including cordova-plugin-local-notification
-          cordova plugin add cordova-plugin-local-notification --save
+          # 6. Install Cordova plugins including modern cordova-plugin-local-notifications-custom
+          cordova plugin add cordova-plugin-local-notifications-custom --save
           cordova plugin add cordova-plugin-badge --save
 
           # 7. Add Android platform
           cordova platform add android@13.0.0
 
-          # 8. Build Ad-Free, Free Debug APK (installable on any Android device)
+          # 8. Inject and enforce compileSdkVersion = 34 & targetSdkVersion = 34 across Android Gradle configs
+          echo "Injecting compileSdkVersion=34 and targetSdkVersion=34 into Android build files..."
+
+          # Patch platforms/android/cdv-gradle-config.json if generated
+          if [ -f "platforms/android/cdv-gradle-config.json" ]; then
+            sed -i 's/"COMPILE_SDK_VERSION": [0-9]*/"COMPILE_SDK_VERSION": 34/g' platforms/android/cdv-gradle-config.json || true
+            sed -i 's/"TARGET_SDK_VERSION": [0-9]*/"TARGET_SDK_VERSION": 34/g' platforms/android/cdv-gradle-config.json || true
+          fi
+
+          # Patch root and app build.gradle
+          for f in platforms/android/build.gradle platforms/android/app/build.gradle; do
+            if [ -f "$f" ]; then
+              sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' "$f" || true
+              sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' "$f" || true
+              sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' "$f" || true
+              sed -i 's/compileSdk [0-9]*/compileSdk 34/g' "$f" || true
+              sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' "$f" || true
+              sed -i 's/targetSdk [0-9]*/targetSdk 34/g' "$f" || true
+            fi
+          done
+
+          # Patch all plugin subprojects to prevent 'compileSdkVersion is not specified'
+          find platforms/android -name "build.gradle" | while read -r gfile; do
+            sed -i 's/cdvCompileSdkVersion ?: [0-9]*/34/g' "$gfile" || true
+            sed -i 's/cdvTargetSdkVersion ?: [0-9]*/34/g' "$gfile" || true
+            sed -i 's/cdvMinSdkVersion ?: [0-9]*/22/g' "$gfile" || true
+            sed -i 's/cdvBuildToolsVersion ?: [^)]*/"34.0.0"/g' "$gfile" || true
+          done
+
+          # Set Gradle properties for Cordova & AndroidX
+          if [ -f "platforms/android/gradle.properties" ]; then
+            echo "cdvCompileSdkVersion=34" >> platforms/android/gradle.properties
+            echo "cdvTargetSdkVersion=34" >> platforms/android/gradle.properties
+            echo "cdvMinSdkVersion=22" >> platforms/android/gradle.properties
+            echo "cdvBuildToolsVersion=34.0.0" >> platforms/android/gradle.properties
+            echo "android.useAndroidX=true" >> platforms/android/gradle.properties
+            echo "android.enableJetifier=true" >> platforms/android/gradle.properties
+          fi
+
+          # 9. Build Ad-Free, Free Debug APK (installable on any Android device)
           cordova build android --debug
 
-          # 9. Copy output APK to dist-apk directory
+          # 10. Copy output APK to dist-apk directory
           mkdir -p ../dist-apk
           APK_PATH=$(find platforms/android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
@@ -136,7 +175,7 @@ jobs:
             ### 📱 Bütçem Pro Android APK (Otomatik Derleme)
             Bu APK, projenin her güncellemesinde GitHub Actions tarafından tamamen **ücretsiz ve reklamsız** olarak üretilmektedir.
             
-            - **Altyapı:** Apache Cordova & `cordova-plugin-local-notification`
+            - **Altyapı:** Apache Cordova & `cordova-plugin-local-notifications-custom`
             - **Özellik:** Telefon kapalıyken veya kilitliyken çalabilen yerel Android alarmları ve bütçe hatırlatıcıları.
             - **Kurulum:** Aşağıdaki `ButcemPro-AdFree.apk` dosyasını Android telefonunuza indirip doğrudan kurabilirsiniz.
           files: dist-apk/ButcemPro-AdFree.apk

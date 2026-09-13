@@ -15,6 +15,8 @@
     <preference name="ScrollEnabled" value="true" />
     <preference name="android-minSdkVersion" value="22" />
     <preference name="android-targetSdkVersion" value="34" />
+    <preference name="android-compileSdkVersion" value="34" />
+    <preference name="android-buildToolsVersion" value="34.0.0" />
     <preference name="Orientation" value="default" />
     <preference name="KeepRunning" value="true" />
     <preference name="ShowSplashScreenSpinner" value="false" />
@@ -37,7 +39,7 @@
         </config-file>
     </platform>
 
-    <!-- Cordova Plugin Local Notification -->
-    <plugin name="cordova-plugin-local-notification" spec="^0.9.0-beta.3" />
+    <!-- Modern Cordova Local Notifications with Android 13/14 and Gradle 8+ support -->
+    <plugin name="cordova-plugin-local-notifications-custom" />
     <plugin name="cordova-plugin-badge" spec="^0.8.8" />
 </widget>
