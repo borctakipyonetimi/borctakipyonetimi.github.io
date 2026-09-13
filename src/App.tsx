@@ -118,6 +118,8 @@ import {
   cancelCapacitorAlarm,
   initCapacitorNotificationChannel,
   requestCapacitorNotificationPermission,
+  setupCapacitorNotificationListeners,
+  parseAlarmDateToMillis,
   syncAllAlarmsToAndroid,
   syncAllDebtsAndAlarmsToAndroid,
   testAndroidBackgroundAlarm,
@@ -922,7 +924,19 @@ export default function App() {
         return new Date(year, month - 1, day, hour, minute || 0, 0, 0);
       } else {
         const [year, month, day] = dateStr.split("-").map(Number);
-        return new Date(year, month - 1, day, 0, 0, 0, 0);
+        // Saat belirtilmediyse varsayılan olarak sabah 09:00'da uyandırma yap
+        const candidate = new Date(year, month - 1, day, 9, 0, 0, 0);
+        const now = new Date();
+        // Eğer seçilen tarih bugün ise ve saat 09:00'ı geçtiyse, test bildirimi için 2 dakika sonrasına ayarla
+        if (
+          candidate.getTime() <= now.getTime() &&
+          year === now.getFullYear() &&
+          (month - 1) === now.getMonth() &&
+          day === now.getDate()
+        ) {
+          return new Date(now.getTime() + 2 * 60 * 1000);
+        }
+        return candidate;
       }
     } catch (e) {
       console.warn("Date parsing error callback:", e, dateStr);
@@ -1327,6 +1341,15 @@ export default function App() {
           console.warn("[Badge System] Failed to clear application logo badge count:", err);
         }
       }
+
+      // Android 8.0+ Bildirim kanalını başlat ve Capacitor bildirim izinlerini kontrol et
+      initCapacitorNotificationChannel().catch(() => {});
+      requestCapacitorNotificationPermission().catch(() => {});
+      setupCapacitorNotificationListeners((notification) => {
+        if (notification?.title) {
+          triggerToast(`🔔 Bildirim: ${notification.title}`);
+        }
+      });
     }
   }, []);
 
@@ -2982,20 +3005,45 @@ export default function App() {
       }
     }
 
-    // Atomically create an Alarm and a Notification Item to avoid render race conditions
-    if (autoCreateAlarm && dueDate) {
+    // Borç kaydı tamamlandıktan sonra kaydedilen borcun güncel bilgilerini al
+    const savedDebt = updated.find((d) => (debtData.id ? d.id === debtData.id : d.name === debtName));
+    const effectiveAmount = savedDebt ? savedDebt.amount : (debtData.amount || 0);
+    const effectivePaid = savedDebt ? savedDebt.paid : (debtData.paid || 0);
+    const effectiveId = savedDebt ? savedDebt.id : (debtData.id || 0);
+
+    // Borç vade tarihi girildiğinde veya autoCreateAlarm aktif olduğunda Capacitor ve sistem alarmını kur/güncelle
+    const shouldSetAlarm = Boolean(dueDate && dueDate.trim()) && autoCreateAlarm !== false;
+    if (shouldSetAlarm && dueDate && effectivePaid < effectiveAmount) {
       if (typeof window !== "undefined" && "Notification" in window && (Notification as any).permission !== "granted") {
         requestNotificationPermission();
       }
       const titleString = `Borç Son Ödeme Tarihi: ${debtName}`;
       const alarmDateObj = parseLocalOrUTCString(dueDate);
-      const newA: Alarm = {
-        id: generateId(updatedAlarms),
-        title: titleString,
-        date: dueDate,
-        timestamp: alarmDateObj.getTime()
-      };
-      updatedAlarms = [...updatedAlarms, newA];
+
+      // Mevcut bir alarm kaydı varsa güncelle, yoksa yeni oluştur
+      const existingIdx = updatedAlarms.findIndex(
+        (a) => a.title.includes(debtName) || (effectiveId && a.id === effectiveId)
+      );
+
+      let targetAlarmId: number;
+      if (existingIdx >= 0) {
+        targetAlarmId = updatedAlarms[existingIdx].id;
+        updatedAlarms[existingIdx] = {
+          ...updatedAlarms[existingIdx],
+          title: titleString,
+          date: dueDate,
+          timestamp: alarmDateObj.getTime()
+        };
+      } else {
+        targetAlarmId = effectiveId || generateId(updatedAlarms);
+        const newA: Alarm = {
+          id: targetAlarmId,
+          title: titleString,
+          date: dueDate,
+          timestamp: alarmDateObj.getTime()
+        };
+        updatedAlarms = [...updatedAlarms, newA];
+      }
 
       const newNotifId = updatedNotifs.length > 0 ? Math.max(...updatedNotifs.map((n) => n.id)) + 1 : 1;
       const newNotif: NotificationItem = {
@@ -3007,28 +3055,34 @@ export default function App() {
       setAlarms(updatedAlarms);
       setNotifications(updatedNotifs);
 
-      // Play audio prompt and request OS notifications but skip double writes
+      // Play audio prompt and request OS notifications
       sendSystemNotification(
         "Ödeme Hatırlatıcısı Kuruldu! ⏰",
         `"${titleString}" başlıklı alarmınız otomatik oluşturulup cihazınıza kaydedildi.`,
         false
       );
 
-      // Capacitor LocalNotifications ile ekran kapalıyken çalan alarm kur
+      // Capacitor LocalNotifications ile ekran kapalıyken çalan donanım alarmı kur (allowWhileIdle: true)
       if (alarmDateObj.getTime() > Date.now()) {
+        const remaining = (effectiveAmount - effectivePaid).toLocaleString("tr-TR");
         scheduleCapacitorAlarm(
-          newA.id,
+          targetAlarmId,
           titleString,
           alarmDateObj.getTime(),
-          `Borç Son Ödeme Hatırlatması: ${titleString}`
+          `${debtName} borcunuzun son ödeme günü bugün! (Kalan: ₺${remaining})`
         ).catch(() => {});
         scheduleAndroidDebtAlarm(
-          newA.id,
+          targetAlarmId,
           titleString,
           alarmDateObj.getTime(),
-          `Borç Son Ödeme Hatırlatması: ${titleString}`
+          `${debtName} borcunuzun son ödeme günü bugün! (Kalan: ₺${remaining})`
         );
       }
+    } else if (effectivePaid >= effectiveAmount && effectiveId) {
+      // Borç tamamen ödendiyse eski alarmı iptal et
+      cancelCapacitorAlarm(effectiveId).catch(() => {});
+      cancelCapacitorAlarm(200000 + effectiveId).catch(() => {});
+      cancelAndroidDebtAlarm(effectiveId);
     }
 
     setDebts(updated);
@@ -3044,6 +3098,11 @@ export default function App() {
       "Borcu Sil",
       "Bu borç kaydı tamamen silinecektir, devam edilsin mi?",
       () => {
+        // Borca bağlı tüm sistem ve Capacitor alarmlarını iptal et
+        cancelCapacitorAlarm(id).catch(() => {});
+        cancelCapacitorAlarm(200000 + id).catch(() => {});
+        cancelAndroidDebtAlarm(id);
+
         const updatedDebts = debts.filter((d) => d.id !== id);
         const updatedPayments = payments.filter((p) => p.debtId !== id);
         setDebts(updatedDebts);
@@ -3084,6 +3143,22 @@ export default function App() {
           };
           updatedPayments.push(newPayment);
           shouldCelebrate = true;
+
+          // Borç tamamen ödendiğinde alarmı iptal et
+          cancelCapacitorAlarm(id).catch(() => {});
+          cancelCapacitorAlarm(200000 + id).catch(() => {});
+          cancelAndroidDebtAlarm(id);
+        } else if (d.dueDate) {
+          // Ödeme geri alındığında alarmı tekrar kur
+          const trig = parseAlarmDateToMillis(d.dueDate);
+          if (trig && trig > Date.now()) {
+            scheduleCapacitorAlarm(
+              200000 + id,
+              `Borç Son Ödeme: ${d.name} ⏰`,
+              trig,
+              `Bugün son ödeme günü! Kalan tutar: ₺${d.amount.toLocaleString("tr-TR")}`
+            ).catch(() => {});
+          }
         }
 
         return {
@@ -3236,6 +3311,26 @@ export default function App() {
     setInstallmentDebts(updated);
     setPayments(updatedPayments);
     saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+
+    // Sıradaki taksit ödeme günü için otomatik Capacitor alarmı kur
+    const savedInstId = instData.id || (updated.length > 0 ? updated[updated.length - 1].id : 0);
+    const targetInst = updated.find((i) => i.id === savedInstId);
+    if (targetInst && targetInst.firstDueDate && (targetInst.paidInstallmentCount || 0) < (targetInst.installmentCount || 1)) {
+      const nextIdx = Number(targetInst.paidInstallmentCount || 0);
+      const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
+        const trig = nextDate.getTime();
+        if (trig > Date.now()) {
+          scheduleCapacitorAlarm(
+            800000 + targetInst.id,
+            `Taksit Hatırlatması: ${targetInst.name} ⏰`,
+            trig,
+            `${targetInst.name} planınızın ${nextIdx + 1}. taksit ödeme günü geldi!`
+          ).catch(() => {});
+        }
+      }
+    }
   };
 
   const handleDeleteInstallment = (id: number) => {
@@ -3243,6 +3338,7 @@ export default function App() {
       "Taksit Planını Sil",
       "Taksit planı tamamen silinecektir, devam edilsin mi?",
       () => {
+        cancelCapacitorAlarm(800000 + id).catch(() => {});
         const updated = installmentDebts.filter((i) => i.id !== id);
         const updatedPayments = payments.filter((p) => !(p.debtId === id && p.type === "installment"));
         setInstallmentDebts(updated);
@@ -3288,6 +3384,30 @@ export default function App() {
     setInstallmentDebts(updated);
     setPayments(updatedPayments);
     saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+
+    // Taksit ödendikten sonra sıradaki taksit alarmını güncelle veya bittiyse iptal et
+    const targetInst = updated.find((i) => i.id === id);
+    if (targetInst) {
+      if ((targetInst.paidInstallmentCount || 0) >= (targetInst.installmentCount || 1)) {
+        cancelCapacitorAlarm(800000 + id).catch(() => {});
+      } else if (targetInst.firstDueDate) {
+        const nextIdx = Number(targetInst.paidInstallmentCount || 0);
+        const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
+          const trig = nextDate.getTime();
+          if (trig > Date.now()) {
+            scheduleCapacitorAlarm(
+              800000 + targetInst.id,
+              `Taksit Hatırlatması: ${targetInst.name} ⏰`,
+              trig,
+              `${targetInst.name} planınızın ${nextIdx + 1}. taksit ödeme günü geldi!`
+            ).catch(() => {});
+          }
+        }
+      }
+    }
+
     triggerToast("Taksit Ödemesi Kaydedildi");
   };
 
@@ -3548,6 +3668,9 @@ export default function App() {
   };
 
   const handleDeleteAlarm = (id: number) => {
+    cancelCapacitorAlarm(id).catch(() => {});
+    cancelCapacitorAlarm(200000 + id).catch(() => {});
+    cancelCapacitorAlarm(800000 + id).catch(() => {});
     cancelAndroidDebtAlarm(id);
     if (typeof window !== "undefined") {
       try {

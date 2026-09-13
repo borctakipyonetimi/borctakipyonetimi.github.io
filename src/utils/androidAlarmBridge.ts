@@ -115,8 +115,7 @@ export async function initCapacitorNotificationChannel(): Promise<void> {
       name: "Borç ve Ödeme Hatırlatıcıları",
       description: "Vadesi gelen borçlar ve taksitler için sesli ve titreşimli sistem alarmları",
       importance: 5, // IMPORTANCE_HIGH (Heads-up banner + ses)
-      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında göster)
-      sound: "beep.wav",
+      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında tam göster)
       vibration: true,
       lights: true,
       lightColor: "#4F46E5"
@@ -147,6 +146,45 @@ export async function requestCapacitorNotificationPermission(): Promise<boolean>
 }
 
 /**
+ * Tarih metnini veya zaman damgasını yerel saat dilimine göre milisaniyeye çevirir.
+ * Saat belirtilmemişse sabah 09:00'ı baz alır; bugün içinse birkaç dakika sonraya kurar.
+ */
+export function parseAlarmDateToMillis(dateStr?: string, timestamp?: number): number | null {
+  if (timestamp && !isNaN(Number(timestamp))) {
+    return Number(timestamp);
+  }
+  if (!dateStr || typeof dateStr !== "string") return null;
+
+  try {
+    if (dateStr.includes("T")) {
+      const [datePart, timePart] = dateStr.split("T");
+      const [year, month, day] = datePart.split("-").map(Number);
+      const [hour, minute] = timePart.split(":").map(Number);
+      const d = new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    } else {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      // Saat belirtilmemişse sabah 09:00'da uyandırma yap
+      const d = new Date(year, month - 1, day, 9, 0, 0, 0);
+      const now = new Date();
+      // Eğer seçilen gün bugün ise ve saat 09:00'ı geçmişse, kullanıcının testi görebilmesi için 2 dakika sonrasına kur
+      if (
+        d.getTime() <= now.getTime() &&
+        year === now.getFullYear() &&
+        (month - 1) === now.getMonth() &&
+        day === now.getDate()
+      ) {
+        return now.getTime() + 2 * 60 * 1000;
+      }
+      return isNaN(d.getTime()) ? null : d.getTime();
+    }
+  } catch {
+    const fallback = new Date(dateStr).getTime();
+    return isNaN(fallback) ? null : fallback;
+  }
+}
+
+/**
  * Capacitor LocalNotifications üzerinden arka planda/ekran kapalıyken çalan alarm kurar.
  */
 export async function scheduleCapacitorAlarm(
@@ -164,7 +202,7 @@ export async function scheduleCapacitorAlarm(
     const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
     const safeId = Math.abs(Number(id)) || Math.floor(Math.random() * 100000);
 
-    // İzin kontrolü
+    // İzin kontrolü ve otomatik talep
     try {
       const perm = await LocalNotifications.checkPermissions();
       if (perm.display !== "granted") {
@@ -191,8 +229,6 @@ export async function scheduleCapacitorAlarm(
             allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
           },
           channelId: "debt_reminders",
-          sound: "beep.wav",
-          smallIcon: "res://icon",
           autoCancel: true,
           extra: {
             id: safeId,
@@ -224,6 +260,27 @@ export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
   } catch (err) {
     console.warn("[Capacitor LocalNotifications] cancel error:", err);
     return false;
+  }
+}
+
+/**
+ * Capacitor bildirim tıklama ve alma dinleyicilerini kurar.
+ */
+export function setupCapacitorNotificationListeners(onAction?: (notification: any) => void) {
+  if (typeof window === "undefined") return;
+  try {
+    LocalNotifications.addListener("localNotificationReceived", (notification) => {
+      console.log("[Capacitor LocalNotifications] Bildirim ekrana ulaştı:", notification);
+    });
+
+    LocalNotifications.addListener("localNotificationActionPerformed", (action) => {
+      console.log("[Capacitor LocalNotifications] Bildirime tıklandı:", action);
+      if (onAction) {
+        onAction(action.notification);
+      }
+    });
+  } catch (e) {
+    // Desteklenmeyen ortamlarda sessizce geç
   }
 }
 
@@ -323,22 +380,68 @@ export function cancelAndroidDebtAlarm(id: number): boolean {
 }
 
 /**
- * Tüm alarmları, borçları ve taksitleri Android cihazın donanım katmanına (AlarmManager & SharedPreferences) senkronize eder.
- * Telefon kapalıyken veya ekran kilitliyken hem vadesi gelen alarmların hem de gecikmiş borç uyarılarının gelmesini sağlar.
+ * Tüm alarmları, borçları ve taksitleri Android cihazın donanım katmanına (AlarmManager & Capacitor LocalNotifications) senkronize eder.
+ * Telefon kapalıyken veya ekran kilitliyken hem vadesi gelen alarmların hem de borç ve taksit uyarılarının gelmesini sağlar.
  */
 export function syncAllDebtsAndAlarmsToAndroid(
   alarms: any[],
   debts: any[],
   installmentDebts: any[]
 ): boolean {
-  // Capacitor altyapısında gelecekteki tüm alarmları LocalNotifications.schedule ile zamanla
-  if (isCapacitorAvailable() || typeof window !== "undefined") {
-    syncAllAlarmsToAndroid(alarms);
+  const now = Date.now();
+
+  // 1. Manuel Alarmları senkronize et
+  syncAllAlarmsToAndroid(alarms || []);
+
+  // 2. Vadesi belirlenmiş ve henüz ödenmemiş borçları otomatik olarak zamanla
+  if (Array.isArray(debts)) {
+    debts.forEach((debt) => {
+      if (debt && debt.dueDate && Number(debt.paid || 0) < Number(debt.amount || 0)) {
+        const triggerMillis = parseAlarmDateToMillis(debt.dueDate);
+        if (triggerMillis && triggerMillis > now) {
+          const debtId = Math.abs(Number(debt.id)) || 1;
+          const remaining = (Number(debt.amount || 0) - Number(debt.paid || 0)).toLocaleString("tr-TR");
+          scheduleCapacitorAlarm(
+            200000 + debtId,
+            `Borç Son Ödeme Günü: ${debt.name || "Borç"} ⏰`,
+            triggerMillis,
+            `Bugün son ödeme günü! Kalan tutar: ₺${remaining}`
+          ).catch(() => {});
+        }
+      }
+    });
+  }
+
+  // 3. Taksitli borçların sıradaki taksit gününü otomatik zamanla
+  if (Array.isArray(installmentDebts)) {
+    installmentDebts.forEach((inst) => {
+      if (
+        inst &&
+        inst.firstDueDate &&
+        Number(inst.paidInstallmentCount || 0) < Number(inst.installmentCount || 1)
+      ) {
+        const nextIndex = Number(inst.paidInstallmentCount || 0);
+        const [year, month, day] = inst.firstDueDate.split("-").map(Number);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          const nextDate = new Date(year, (month - 1) + nextIndex, day, 9, 0, 0, 0);
+          const triggerMillis = nextDate.getTime();
+          if (triggerMillis > now) {
+            const instId = Math.abs(Number(inst.id)) || 1;
+            scheduleCapacitorAlarm(
+              800000 + instId,
+              `Taksit Hatırlatması: ${inst.name || "Taksit"} ⏰`,
+              triggerMillis,
+              `${inst.name || "Taksit"} planınızın ${nextIndex + 1}. taksit ödeme günü geldi!`
+            ).catch(() => {});
+          }
+        }
+      }
+    });
   }
 
   const bridge = getActiveBridge();
   if (!bridge) {
-    return isCapacitorAvailable();
+    return true;
   }
 
   try {
@@ -350,11 +453,8 @@ export function syncAllDebtsAndAlarmsToAndroid(
       bridge.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
       console.log("[AndroidAlarmBridge] syncAllData çağrıldı (alarmlar, borçlar, taksitler donanıma yazıldı).");
       return true;
-    } else {
-      // Fallback: Eski sürümlerde tek tek alarm kur
-      syncAllAlarmsToAndroid(alarms);
-      return true;
     }
+    return true;
   } catch (err) {
     console.warn("[AndroidAlarmBridge] syncAllDebtsAndAlarmsToAndroid hatası:", err);
     return false;
@@ -362,12 +462,12 @@ export function syncAllDebtsAndAlarmsToAndroid(
 }
 
 /**
- * Sistemdeki tüm aktif ve gelecekteki alarmları tek seferde Android AlarmManager ile senkronize eder.
+ * Sistemdeki tüm aktif ve gelecekteki alarmları tek seferde Capacitor ve Android ile senkronize eder.
  */
 export function syncAllAlarmsToAndroid(
   alarms: Array<{ id: number; title: string; date?: string; timestamp?: number }>
 ): number {
-  if (!isAndroidAlarmBridgeAvailable()) {
+  if (!Array.isArray(alarms) || alarms.length === 0) {
     return 0;
   }
 
@@ -375,25 +475,23 @@ export function syncAllAlarmsToAndroid(
   let scheduledCount = 0;
 
   alarms.forEach((alarm) => {
-    let triggerMillis: number | null = null;
-
-    if (alarm.timestamp && !isNaN(alarm.timestamp)) {
-      triggerMillis = alarm.timestamp;
-    } else if (alarm.date) {
-      const parsed = new Date(alarm.date).getTime();
-      if (!isNaN(parsed)) {
-        triggerMillis = parsed;
-      }
-    }
+    const triggerMillis = parseAlarmDateToMillis(alarm.date, alarm.timestamp);
 
     if (triggerMillis && triggerMillis > now) {
-      const success = scheduleAndroidDebtAlarm(
+      scheduleCapacitorAlarm(
         alarm.id,
-        alarm.title,
+        alarm.title || "Ödeme Hatırlatması ⏰",
         triggerMillis,
-        `Ödeme vadesi geldi: ${alarm.title}`
+        `Ödeme vadesi geldi: ${alarm.title || "Vadesi gelen ödemeniz var"}`
+      ).catch(() => {});
+
+      scheduleAndroidDebtAlarm(
+        alarm.id,
+        alarm.title || "Ödeme Hatırlatması ⏰",
+        triggerMillis,
+        `Ödeme vadesi geldi: ${alarm.title || "Vadesi gelen ödemeniz var"}`
       );
-      if (success) scheduledCount++;
+      scheduledCount++;
     }
   });
 
