@@ -1,7 +1,11 @@
 {
   "appId": "com.borctakip.app",
-  "appName": "Borc Takip",
-  "webDir": "dist",
+  "appName": "BorcTakip",
+  "webDir": "www",
+  "server": {
+    "url": "https://borctakipyonetimi.github.io",
+    "cleartext": true
+  },
   "plugins": {
     "LocalNotifications": {
       "smallIcon": "res://icon",

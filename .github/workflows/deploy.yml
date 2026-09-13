@@ -36,16 +36,37 @@ jobs:
 
       - name: Gerekli Proje Altyapisini ve Ayarlarini Olustur
         run: |
-          # Eksik olan package.json dosyasını otomatik oluştur
+          # Eksik olan package.json varsa oluştur
           if [ ! -f package.json ]; then
             echo '{"name": "borc-takip", "version": "1.0.0", "dependencies": {}}' > package.json
           fi
-          # Web klasörü çakışmasını önlemek için geçici bir 'www' klasörü yapıp web kodlarını içine kopyala
+          # Web kodlarını derle ve www klasörüne hazırla
+          npm run build || true
           mkdir -p www
-          shopt -s extglob
-          cp -r !(www|android|.github|node_modules|package.json|package-lock.json) www/ || true
-          # Ayar dosyasındaki webDir değerini '.' yerine 'www' olarak güncelle
-          echo '{"appId": "com.borctakip.app", "appName": "BorcTakip", "webDir": "www"}' > capacitor.config.json
+          if [ -d "dist" ]; then
+            cp -r dist/* www/
+          else
+            shopt -s extglob
+            cp -r !(www|android|.github|node_modules|package.json|package-lock.json) www/ || true
+          fi
+          # Canlı web sitesini çeken ve bildirim eklentilerini içeren ayar dosyasını oluştur
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.borctakip.app",
+            "appName": "BorcTakip",
+            "webDir": "www",
+            "server": {
+              "url": "https://borctakipyonetimi.github.io",
+              "cleartext": true
+            },
+            "plugins": {
+              "LocalNotifications": {
+                "smallIcon": "res://icon",
+                "iconColor": "#4F46E5"
+              }
+            }
+          }
+          EOF
 
       - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
         run: |
