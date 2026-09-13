@@ -114,6 +114,10 @@ import { getApiUrl, safeFetchJson } from "./utils/api";
 import {
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
+  scheduleCapacitorAlarm,
+  cancelCapacitorAlarm,
+  initCapacitorNotificationChannel,
+  requestCapacitorNotificationPermission,
   syncAllAlarmsToAndroid,
   syncAllDebtsAndAlarmsToAndroid,
   testAndroidBackgroundAlarm,
@@ -850,6 +854,23 @@ export default function App() {
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined") return;
+
+    // 1. Capacitor Native Notification İzni & Kanal Hazırlığı (Android 13+)
+    try {
+      const capGranted = await requestCapacitorNotificationPermission();
+      if (capGranted) {
+        setHasNotificationPermission("granted");
+        triggerToast("Cihaz Bildirim İzni Verildi 🔔");
+        sendSystemNotification(
+          "Anlık Bildirimler Aktif!", 
+          "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
+          false
+        );
+        return;
+      }
+    } catch (capErr) {
+      console.warn("Capacitor izin sorgusu web ortamına aktarıldı:", capErr);
+    }
 
     const hasNotification = "Notification" in window;
     const hasServiceWorker = "serviceWorker" in navigator;
@@ -2992,6 +3013,22 @@ export default function App() {
         `"${titleString}" başlıklı alarmınız otomatik oluşturulup cihazınıza kaydedildi.`,
         false
       );
+
+      // Capacitor LocalNotifications ile ekran kapalıyken çalan alarm kur
+      if (alarmDateObj.getTime() > Date.now()) {
+        scheduleCapacitorAlarm(
+          newA.id,
+          titleString,
+          alarmDateObj.getTime(),
+          `Borç Son Ödeme Hatırlatması: ${titleString}`
+        ).catch(() => {});
+        scheduleAndroidDebtAlarm(
+          newA.id,
+          titleString,
+          alarmDateObj.getTime(),
+          `Borç Son Ödeme Hatırlatması: ${titleString}`
+        );
+      }
     }
 
     setDebts(updated);
@@ -3406,6 +3443,7 @@ export default function App() {
     // Schedule alarm into Capacitor LocalNotifications (triggers when app is closed / phone locked)
     if (alarmDateObj.getTime() > Date.now()) {
       try {
+        initCapacitorNotificationChannel().catch(() => {});
         LocalNotifications.schedule({
           notifications: [
             {
@@ -3416,8 +3454,10 @@ export default function App() {
                 at: new Date(alarmDateObj.getTime()),
                 allowWhileIdle: true
               },
+              channelId: "debt_reminders",
               sound: "beep.wav",
               smallIcon: "res://icon",
+              autoCancel: true,
               extra: { id: newA.id, title: titleString }
             }
           ]
@@ -3552,6 +3592,18 @@ export default function App() {
 
   const handleTestBackgroundAlarm = async () => {
     try {
+      // 1. Capacitor LocalNotifications doğrudan test (Android 13/14 Doze & Kilit Ekranı)
+      const capOk = await scheduleCapacitorAlarm(
+        777777,
+        "🔔 Kilit Ekranı Bildirim Testi (Capacitor)",
+        Date.now() + 5000,
+        "Tebrikler! Capacitor bildirim motoru devrede. Kilit ekranında alarm başarıyla çaldı ⏰"
+      );
+      if (capOk) {
+        triggerToast("⏰ 5 Saniyelik Alarm Kuruldu! Lütfen HEMEN telefonunuzu kilitleyin veya uygulamayı kapatın.");
+        return;
+      }
+
       if (isAndroidAlarmBridgeAvailable()) {
         const ok = testAndroidBackgroundAlarm(5);
         if (ok) {

@@ -50,10 +50,15 @@ function getActiveBridge(): AndroidBridgeInterface | null {
  */
 export function isCapacitorAvailable(): boolean {
   if (typeof window === "undefined") return false;
-  return Boolean(
-    Capacitor.isNativePlatform() ||
-    (window as any).Capacitor?.isPluginAvailable?.("LocalNotifications")
-  );
+  try {
+    return Boolean(
+      Capacitor.isNativePlatform() ||
+      Capacitor.isPluginAvailable("LocalNotifications") ||
+      (window as any).Capacitor?.isPluginAvailable?.("LocalNotifications")
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -100,6 +105,48 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
 }
 
 /**
+ * Android 8.0+ için yüksek öncelikli sesli/titreşimli bildirim kanalını yapılandırır.
+ */
+export async function initCapacitorNotificationChannel(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await LocalNotifications.createChannel({
+      id: "debt_reminders",
+      name: "Borç ve Ödeme Hatırlatıcıları",
+      description: "Vadesi gelen borçlar ve taksitler için sesli ve titreşimli sistem alarmları",
+      importance: 5, // IMPORTANCE_HIGH (Heads-up banner + ses)
+      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında göster)
+      sound: "beep.wav",
+      vibration: true,
+      lights: true,
+      lightColor: "#4F46E5"
+    });
+  } catch (e) {
+    // Web ortamında veya kanalı desteklemeyen platformlarda sessizce devam et
+  }
+}
+
+/**
+ * Capacitor yerel bildirim iznini denetler ve ister.
+ */
+export async function requestCapacitorNotificationPermission(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  try {
+    const check = await LocalNotifications.checkPermissions();
+    if (check.display === "granted") {
+      await initCapacitorNotificationChannel();
+      return true;
+    }
+    const requested = await LocalNotifications.requestPermissions();
+    await initCapacitorNotificationChannel();
+    return requested.display === "granted";
+  } catch (err) {
+    console.warn("[Capacitor LocalNotifications] İzin sorgulama hatası:", err);
+    return false;
+  }
+}
+
+/**
  * Capacitor LocalNotifications üzerinden arka planda/ekran kapalıyken çalan alarm kurar.
  */
 export async function scheduleCapacitorAlarm(
@@ -110,6 +157,9 @@ export async function scheduleCapacitorAlarm(
 ): Promise<boolean> {
   if (triggerAtMillis <= Date.now()) return false;
   try {
+    // Android bildirim kanalını hazırla
+    await initCapacitorNotificationChannel();
+
     const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
     const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
     const safeId = Math.abs(Number(id)) || Math.floor(Math.random() * 100000);
@@ -124,6 +174,12 @@ export async function scheduleCapacitorAlarm(
       // İzin sorgusu desteklenmiyorsa devam et
     }
 
+    // Aynı id ile önceden kalma bildirim varsa temizle
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
+    } catch {}
+
+    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true
     await LocalNotifications.schedule({
       notifications: [
         {
@@ -134,11 +190,14 @@ export async function scheduleCapacitorAlarm(
             at: new Date(triggerAtMillis),
             allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
           },
+          channelId: "debt_reminders",
           sound: "beep.wav",
           smallIcon: "res://icon",
+          autoCancel: true,
           extra: {
             id: safeId,
-            title: safeTitle
+            title: safeTitle,
+            triggerAtMillis
           }
         }
       ]
@@ -272,9 +331,14 @@ export function syncAllDebtsAndAlarmsToAndroid(
   debts: any[],
   installmentDebts: any[]
 ): boolean {
+  // Capacitor altyapısında gelecekteki tüm alarmları LocalNotifications.schedule ile zamanla
+  if (isCapacitorAvailable() || typeof window !== "undefined") {
+    syncAllAlarmsToAndroid(alarms);
+  }
+
   const bridge = getActiveBridge();
   if (!bridge) {
-    return false;
+    return isCapacitorAvailable();
   }
 
   try {
