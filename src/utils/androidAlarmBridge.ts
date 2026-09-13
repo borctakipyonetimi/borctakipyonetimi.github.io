@@ -7,6 +7,9 @@
  * donanım seviyesinde kurulmasını, yedekleme ve sistem paylaşım menüsünü yönetir.
  */
 
+import { LocalNotifications } from "@capacitor/local-notifications";
+import { Capacitor } from "@capacitor/core";
+
 export interface AndroidBridgeInterface {
   setDebtAlarm?: (id: number, title: string, triggerAtMillis: number, message?: string) => void;
   cancelDebtAlarm?: (id: number) => void;
@@ -43,8 +46,18 @@ function getActiveBridge(): AndroidBridgeInterface | null {
 }
 
 /**
+ * Capacitor Local Notifications eklentisinin mevcut ve aktif olup olmadığını kontrol eder.
+ */
+export function isCapacitorAvailable(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    Capacitor.isNativePlatform() ||
+    (window as any).Capacitor?.isPluginAvailable?.("LocalNotifications")
+  );
+}
+
+/**
  * Cordova Local Notification eklentisine güvenli erişim sağlar.
- * Uygulama kapalıyken veya telefon kilitliyken Android sistem alarmını tetikler.
  */
 export function getCordovaLocalNotification() {
   if (typeof window === "undefined") return null;
@@ -63,11 +76,12 @@ export function isCordovaLocalNotificationAvailable(): boolean {
 }
 
 /**
- * Android köprüsünün veya Cordova eklentisinin mevcut olup olmadığını test eder.
+ * Android köprüsünün, Capacitor'ün veya Cordova'nın mevcut olup olmadığını test eder.
  */
 export function isAndroidAlarmBridgeAvailable(): boolean {
   if (typeof window === "undefined") return false;
   try {
+    if (isCapacitorAvailable()) return true;
     if (isCordovaLocalNotificationAvailable()) return true;
     const bridge = getActiveBridge();
     return Boolean(
@@ -86,8 +100,76 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
 }
 
 /**
- * Tekil bir borç veya taksit hatırlatıcısını Cordova Local Notification ve Android AlarmManager'a kaydeder.
- * cordova.plugins.notification.local.schedule komutunu kullanarak telefon kapalıyken bile alarmın çalmasını sağlar.
+ * Capacitor LocalNotifications üzerinden arka planda/ekran kapalıyken çalan alarm kurar.
+ */
+export async function scheduleCapacitorAlarm(
+  id: number,
+  title: string,
+  triggerAtMillis: number,
+  message?: string
+): Promise<boolean> {
+  if (triggerAtMillis <= Date.now()) return false;
+  try {
+    const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
+    const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
+    const safeId = Math.abs(Number(id)) || Math.floor(Math.random() * 100000);
+
+    // İzin kontrolü
+    try {
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== "granted") {
+        await LocalNotifications.requestPermissions();
+      }
+    } catch {
+      // İzin sorgusu desteklenmiyorsa devam et
+    }
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: safeId,
+          title: safeTitle,
+          body: safeMessage,
+          schedule: {
+            at: new Date(triggerAtMillis),
+            allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
+          },
+          sound: "beep.wav",
+          smallIcon: "res://icon",
+          extra: {
+            id: safeId,
+            title: safeTitle
+          }
+        }
+      ]
+    });
+    console.log(`[Capacitor LocalNotifications] Alarm #${safeId} kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
+    return true;
+  } catch (err) {
+    console.warn("[Capacitor LocalNotifications] schedule error:", err);
+    return false;
+  }
+}
+
+/**
+ * Capacitor LocalNotifications üzerinden alarmı iptal eder.
+ */
+export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
+  try {
+    const safeId = Math.abs(Number(id));
+    await LocalNotifications.cancel({
+      notifications: [{ id: safeId }]
+    });
+    console.log(`[Capacitor LocalNotifications] Alarm #${safeId} iptal edildi.`);
+    return true;
+  } catch (err) {
+    console.warn("[Capacitor LocalNotifications] cancel error:", err);
+    return false;
+  }
+}
+
+/**
+ * Tekil bir borç veya taksit hatırlatıcısını Capacitor, Cordova ve Android AlarmManager'a kaydeder.
  */
 export function scheduleAndroidDebtAlarm(
   id: number,
@@ -105,7 +187,11 @@ export function scheduleAndroidDebtAlarm(
 
   let isScheduled = false;
 
-  // 1. Cordova Local Notification Plugin (Uygulama kapalıyken Android sistemi tarafından tetiklenir)
+  // 1. Capacitor LocalNotifications (Modern Android 13/14, Doze modu & allowWhileIdle desteği)
+  scheduleCapacitorAlarm(id, safeTitle, triggerAtMillis, safeMessage).catch(() => {});
+  isScheduled = true;
+
+  // 2. Cordova Local Notification Plugin fallback
   const cordovaLocal = getCordovaLocalNotification();
   if (cordovaLocal && typeof cordovaLocal.schedule === "function") {
     try {
@@ -122,19 +208,17 @@ export function scheduleAndroidDebtAlarm(
         smallIcon: "res://icon",
         data: { id: Number(id), title: safeTitle, message: safeMessage }
       });
-      console.log(`[Cordova LocalNotification] Alarm #${id} cordova.plugins.notification.local.schedule ile kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
       isScheduled = true;
     } catch (cErr) {
       console.warn("[Cordova LocalNotification] schedule çağrısı hatası:", cErr);
     }
   }
 
-  // 2. Android WebView AlarmManager Bridge (Varsa ek donanım koruması)
+  // 3. Android WebView AlarmManager Bridge fallback
   const bridge = getActiveBridge();
   if (bridge && typeof bridge.setDebtAlarm === "function") {
     try {
       bridge.setDebtAlarm(id, safeTitle, triggerAtMillis, safeMessage);
-      console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'a kaydedildi (${new Date(triggerAtMillis).toLocaleString()})`);
       isScheduled = true;
     } catch (err) {
       console.warn("[AndroidAlarmBridge] setDebtAlarm çağrılırken hata:", err);
@@ -145,29 +229,31 @@ export function scheduleAndroidDebtAlarm(
 }
 
 /**
- * Belirli bir alarmı Cordova Local Notification ve Android AlarmManager'dan siler.
+ * Belirli bir alarmı Capacitor, Cordova ve Android AlarmManager'dan siler.
  */
 export function cancelAndroidDebtAlarm(id: number): boolean {
   let isCancelled = false;
 
-  // 1. Cordova Local Notification'dan kaldır
+  // 1. Capacitor LocalNotifications
+  cancelCapacitorAlarm(id).catch(() => {});
+  isCancelled = true;
+
+  // 2. Cordova Local Notification
   const cordovaLocal = getCordovaLocalNotification();
   if (cordovaLocal && typeof cordovaLocal.cancel === "function") {
     try {
       cordovaLocal.cancel(Number(id));
-      console.log(`[Cordova LocalNotification] Alarm #${id} iptal edildi.`);
       isCancelled = true;
     } catch (cErr) {
       console.warn("[Cordova LocalNotification] cancel hatası:", cErr);
     }
   }
 
-  // 2. Android WebView Bridge'den kaldır
+  // 3. Android WebView Bridge
   const bridge = getActiveBridge();
   if (bridge && typeof bridge.cancelDebtAlarm === "function") {
     try {
       bridge.cancelDebtAlarm(id);
-      console.log(`[AndroidAlarmBridge] Alarm #${id} AlarmManager'dan kaldırıldı.`);
       isCancelled = true;
     } catch (err) {
       console.warn("[AndroidAlarmBridge] cancelDebtAlarm çağrılırken hata:", err);

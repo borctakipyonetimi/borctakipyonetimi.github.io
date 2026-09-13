@@ -124,6 +124,7 @@ import {
   shareAndroidNativeBackupFile,
   openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
 
@@ -3402,29 +3403,31 @@ export default function App() {
     setNotifications(updatedNotifs);
     saveAllToUser(debts, incomes, updated, updatedNotifs, installmentDebts, payments, expenses, expenseCategories);
 
-    // Schedule alarm into Cordova Local Notification plugin (triggers when app is closed / phone locked)
+    // Schedule alarm into Capacitor LocalNotifications (triggers when app is closed / phone locked)
     if (alarmDateObj.getTime() > Date.now()) {
       try {
-        const anyWin = window as any;
-        const localPlugin = anyWin.cordova?.plugins?.notification?.local || (typeof cordova !== "undefined" ? (cordova as any)?.plugins?.notification?.local : null);
-        if (localPlugin && typeof localPlugin.schedule === "function") {
-          localPlugin.schedule({
-            id: newA.id,
-            title: titleString || "Ödeme Hatırlatması ⏰",
-            text: `Borç / Ödeme Hatırlatması: ${titleString}`,
-            trigger: { at: new Date(alarmDateObj.getTime()) },
-            foreground: true,
-            vibrate: true,
-            sound: true,
-            priority: 2,
-            wakeup: true,
-            smallIcon: "res://icon",
-            data: { id: newA.id, title: titleString }
-          });
-          console.log(`[Cordova LocalNotification] cordova.plugins.notification.local.schedule çağrıldı: Alarm #${newA.id}`);
-        }
-      } catch (cordErr) {
-        console.warn("[Cordova LocalNotification] schedule error:", cordErr);
+        LocalNotifications.schedule({
+          notifications: [
+            {
+              id: Math.abs(Number(newA.id)) || 1,
+              title: titleString || "Ödeme Hatırlatması ⏰",
+              body: `Borç / Ödeme Hatırlatması: ${titleString}`,
+              schedule: {
+                at: new Date(alarmDateObj.getTime()),
+                allowWhileIdle: true
+              },
+              sound: "beep.wav",
+              smallIcon: "res://icon",
+              extra: { id: newA.id, title: titleString }
+            }
+          ]
+        }).then(() => {
+          console.log(`[Capacitor LocalNotifications] Alarm #${newA.id} zamanlandı.`);
+        }).catch((cErr) => {
+          console.warn("[Capacitor LocalNotifications] schedule error:", cErr);
+        });
+      } catch (capErr) {
+        console.warn("[Capacitor LocalNotifications] call error:", capErr);
       }
 
       // Also schedule alarm into native Android AlarmManager bridge
@@ -3508,14 +3511,13 @@ export default function App() {
     cancelAndroidDebtAlarm(id);
     if (typeof window !== "undefined") {
       try {
-        const anyWin = window as any;
-        const localPlugin = anyWin.cordova?.plugins?.notification?.local || (typeof cordova !== "undefined" ? (cordova as any)?.plugins?.notification?.local : null);
-        if (localPlugin && typeof localPlugin.cancel === "function") {
-          localPlugin.cancel(id);
-          console.log(`[Cordova LocalNotification] Alarm #${id} local.cancel çağrıldı.`);
-        }
-      } catch (cErr) {
-        console.warn("[Cordova LocalNotification] cancel error:", cErr);
+        LocalNotifications.cancel({
+          notifications: [{ id: Math.abs(Number(id)) || 1 }]
+        }).then(() => {
+          console.log(`[Capacitor LocalNotifications] Alarm #${id} iptal edildi.`);
+        }).catch(() => {});
+      } catch (capErr) {
+        console.warn("[Capacitor LocalNotifications] cancel error:", capErr);
       }
     }
     const updated = alarms.filter((a) => a.id !== id);

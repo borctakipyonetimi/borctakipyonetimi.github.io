@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages and Build Android APK
+name: Deploy to GitHub Pages and Build Android APK (Capacitor)
 
 on:
   push:
@@ -26,26 +26,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Node
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - name: Install dependencies
         run: npm install
-      - name: Build
+
+      - name: Build Web Application
         run: npm run build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
   build-apk:
-    name: Build Ad-Free Android APK
+    name: Build Ad-Free Android APK (Capacitor)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -75,84 +81,45 @@ jobs:
       - name: Build Web Application
         run: npm run build
 
-      - name: Build Android APK with Cordova
+      - name: Setup Capacitor and Build Android APK
         run: |
-          # 1. Install Cordova CLI globally
-          npm install -g cordova
+          # 1. Install Capacitor Core & CLI
+          npm install @capacitor/core @capacitor/cli
 
-          # 2. Create Cordova project container
-          cordova create cordova-build com.butcempro.app "ButcemPro"
-          cd cordova-build
+          # 2. Install Capacitor Local Notifications & Android Platform packages
+          npm install @capacitor/local-notifications @capacitor/android
 
-          # 3. Clean default www directory and transfer Vite build output
-          rm -rf www/*
-          cp -r ../dist/* www/
+          # 3. Initialize Capacitor project
+          npx cap init "Borc Takip" "com.borctakip.app" --web-dir=dist
 
-          # 4. Inject cordova.js script tag into www/index.html if missing
-          if ! grep -q "cordova.js" www/index.html; then
-            sed -i 's/<head>/<head><script src="cordova.js"><\/script>/' www/index.html
+          # 4. Add Android native platform
+          npx cap add android
+
+          # 5. Ensure required alarm & notification permissions in AndroidManifest.xml
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            for perm in "POST_NOTIFICATIONS" "SCHEDULE_EXACT_ALARM" "USE_EXACT_ALARM" "RECEIVE_BOOT_COMPLETED" "WAKE_LOCK" "VIBRATE"; do
+              if ! grep -q "$perm" "$MANIFEST"; then
+                sed -i "/<\/manifest>/i \    <uses-permission android:name=\"android.permission.$perm\" \/>" "$MANIFEST"
+              fi
+            done
           fi
 
-          # 5. Use root config.xml with alarm permissions and plugins
-          if [ -f "../config.xml" ]; then
-            cp ../config.xml config.xml
-          fi
+          # 6. Sync web assets and plugins to Android project
+          npx cap sync android
 
-          # 6. Install Cordova plugins including modern cordova-plugin-local-notifications-custom
-          cordova plugin add cordova-plugin-local-notifications-custom --save
-          cordova plugin add cordova-plugin-badge --save
+          # 7. Compile APK using Gradle wrapper (./gradlew assembleDebug)
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cd ..
 
-          # 7. Add Android platform
-          cordova platform add android@13.0.0
-
-          # 8. Inject and enforce compileSdkVersion = 34 & targetSdkVersion = 34 across Android Gradle configs
-          echo "Injecting compileSdkVersion=34 and targetSdkVersion=34 into Android build files..."
-
-          # Patch platforms/android/cdv-gradle-config.json if generated
-          if [ -f "platforms/android/cdv-gradle-config.json" ]; then
-            sed -i 's/"COMPILE_SDK_VERSION": [0-9]*/"COMPILE_SDK_VERSION": 34/g' platforms/android/cdv-gradle-config.json || true
-            sed -i 's/"TARGET_SDK_VERSION": [0-9]*/"TARGET_SDK_VERSION": 34/g' platforms/android/cdv-gradle-config.json || true
-          fi
-
-          # Patch root and app build.gradle
-          for f in platforms/android/build.gradle platforms/android/app/build.gradle; do
-            if [ -f "$f" ]; then
-              sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' "$f" || true
-              sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' "$f" || true
-              sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' "$f" || true
-              sed -i 's/compileSdk [0-9]*/compileSdk 34/g' "$f" || true
-              sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' "$f" || true
-              sed -i 's/targetSdk [0-9]*/targetSdk 34/g' "$f" || true
-            fi
-          done
-
-          # Patch all plugin subprojects to prevent 'compileSdkVersion is not specified'
-          find platforms/android -name "build.gradle" | while read -r gfile; do
-            sed -i 's/cdvCompileSdkVersion ?: [0-9]*/34/g' "$gfile" || true
-            sed -i 's/cdvTargetSdkVersion ?: [0-9]*/34/g' "$gfile" || true
-            sed -i 's/cdvMinSdkVersion ?: [0-9]*/22/g' "$gfile" || true
-            sed -i 's/cdvBuildToolsVersion ?: [^)]*/"34.0.0"/g' "$gfile" || true
-          done
-
-          # Set Gradle properties for Cordova & AndroidX
-          if [ -f "platforms/android/gradle.properties" ]; then
-            echo "cdvCompileSdkVersion=34" >> platforms/android/gradle.properties
-            echo "cdvTargetSdkVersion=34" >> platforms/android/gradle.properties
-            echo "cdvMinSdkVersion=22" >> platforms/android/gradle.properties
-            echo "cdvBuildToolsVersion=34.0.0" >> platforms/android/gradle.properties
-            echo "android.useAndroidX=true" >> platforms/android/gradle.properties
-            echo "android.enableJetifier=true" >> platforms/android/gradle.properties
-          fi
-
-          # 9. Build Ad-Free, Free Debug APK (installable on any Android device)
-          cordova build android --debug
-
-          # 10. Copy output APK to dist-apk directory
-          mkdir -p ../dist-apk
-          APK_PATH=$(find platforms/android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
+          # 8. Copy and verify generated APK
+          mkdir -p dist-apk
+          APK_PATH=$(find android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            cp "$APK_PATH" ../dist-apk/ButcemPro-AdFree.apk
-            echo "Successfully generated APK: ButcemPro-AdFree.apk"
+            cp "$APK_PATH" dist-apk/BorcTakip-AdFree.apk
+            echo "Successfully generated APK: dist-apk/BorcTakip-AdFree.apk"
           else
             echo "Error: Could not locate built APK file!"
             exit 1
@@ -161,8 +128,8 @@ jobs:
       - name: Upload Ad-Free Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ButcemPro-Android-APK
-          path: dist-apk/ButcemPro-AdFree.apk
+          name: BorcTakip-Android-APK
+          path: dist-apk/BorcTakip-AdFree.apk
           if-no-files-found: error
 
       - name: Publish or Update GitHub Release with APK
@@ -170,15 +137,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: "Bütçem Pro - Güncel Android APK (Reklamsız & Ücretsiz)"
+          name: "Borç Takip - Güncel Android APK (Capacitor & Reklamsız)"
           body: |
-            ### 📱 Bütçem Pro Android APK (Otomatik Derleme)
+            ### 📱 Borç Takip Android APK (Capacitor Otomatik Derleme)
             Bu APK, projenin her güncellemesinde GitHub Actions tarafından tamamen **ücretsiz ve reklamsız** olarak üretilmektedir.
             
-            - **Altyapı:** Apache Cordova & `cordova-plugin-local-notifications-custom`
-            - **Özellik:** Telefon kapalıyken veya kilitliyken çalabilen yerel Android alarmları ve bütçe hatırlatıcıları.
-            - **Kurulum:** Aşağıdaki `ButcemPro-AdFree.apk` dosyasını Android telefonunuza indirip doğrudan kurabilirsiniz.
-          files: dist-apk/ButcemPro-AdFree.apk
+            - **Altyapı:** Modern Ionic Capacitor & `@capacitor/local-notifications`
+            - **Özellik:** Telefon kapalıyken veya kilitliyken `allowWhileIdle` ile çalabilen yerel Android alarmları ve bildirimleri.
+            - **Kurulum:** Aşağıdaki `BorcTakip-AdFree.apk` dosyasını Android telefonunuza indirip doğrudan kurabilirsiniz.
+          files: dist-apk/BorcTakip-AdFree.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true

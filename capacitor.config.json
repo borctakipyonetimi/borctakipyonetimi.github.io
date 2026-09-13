@@ -1,0 +1,11 @@
+{
+  "appId": "com.borctakip.app",
+  "appName": "Borc Takip",
+  "webDir": "dist",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "res://icon",
+      "iconColor": "#4F46E5"
+    }
+  }
+}
