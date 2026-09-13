@@ -1,155 +1,56 @@
-name: Deploy to GitHub Pages and Build Android APK (Capacitor)
-
+name: Kesin Cozum APK Uretici
 on:
   push:
-    branches: ["main", "master"]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages and uploading releases/artifacts
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-concurrency:
-  group: "pages-and-apk"
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    name: Deploy to GitHub Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Kodlari Cek
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Node.js 22 Kur
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Web Application
-        run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  build-apk:
-    name: Build Ad-Free Android APK (Capacitor)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
+      - name: Java 17 Kur
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK Licenses
+      - name: Bagimliliklari ve Capacitor CLI Yukle
         run: |
-          yes | sdkmanager --licenses || true
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install NPM Dependencies
-        run: npm install
-
-      - name: Build Web Application
-        run: npm run build
-
-      - name: Eski Android Klasorunu Temizle
-        run: rm -rf android
-
-      - name: Setup Capacitor and Build Android APK
+      - name: Eski Kalintilari Tamamen Sil
         run: |
-          # 1. Install Capacitor Core & CLI
-          npm install @capacitor/core @capacitor/cli
-
-          # 2. Install Capacitor Local Notifications & Android Platform packages
-          npm install @capacitor/local-notifications @capacitor/android
-
-          # 3. Initialize Capacitor project
-          npx cap init "Borc Takip" "com.borctakip.app" --web-dir=dist
-
-          # 4. Clean old android directory if any and add Android native platform
           rm -rf android
+          rm -f capacitor.config.json
+
+      - name: Capacitor Ayar Dosyasini Olustur
+        run: |
+          echo '{"appId": "com.borctakip.app", "appName": "BorcTakip", "webDir": "."}' > capacitor.config.json
+
+      - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
+        run: |
           npx cap add android
-
-          # 5. Ensure required alarm & notification permissions in AndroidManifest.xml
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            for perm in "POST_NOTIFICATIONS" "SCHEDULE_EXACT_ALARM" "USE_EXACT_ALARM" "RECEIVE_BOOT_COMPLETED" "WAKE_LOCK" "VIBRATE"; do
-              if ! grep -q "$perm" "$MANIFEST"; then
-                sed -i "/<\/manifest>/i \    <uses-permission android:name=\"android.permission.$perm\" \/>" "$MANIFEST"
-              fi
-            done
-          fi
-
-          # 6. Sync web assets and plugins to Android project
           npx cap sync android
 
-          # 7. Compile APK using Gradle wrapper (./gradlew assembleDebug)
+      - name: Android APK Derle (Build)
+        run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
-          cd ..
+          ./gradlew assembleDebug
 
-          # 8. Copy and verify generated APK
-          mkdir -p dist-apk
-          APK_PATH=$(find android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            cp "$APK_PATH" dist-apk/BorcTakip-AdFree.apk
-            echo "Successfully generated APK: dist-apk/BorcTakip-AdFree.apk"
-          else
-            echo "Error: Could not locate built APK file!"
-            exit 1
-          fi
-
-      - name: Upload Ad-Free Android APK Artifact
+      - name: Reklamsiz APK Dosyasini Yukle
         uses: actions/upload-artifact@v4
         with:
-          name: BorcTakip-Android-APK
-          path: dist-apk/BorcTakip-AdFree.apk
-          if-no-files-found: error
-
-      - name: Publish or Update GitHub Release with APK
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest-apk
-          name: "Borç Takip - Güncel Android APK (Capacitor & Reklamsız)"
-          body: |
-            ### 📱 Borç Takip Android APK (Capacitor Otomatik Derleme)
-            Bu APK, projenin her güncellemesinde GitHub Actions tarafından tamamen **ücretsiz ve reklamsız** olarak üretilmektedir.
-            
-            - **Altyapı:** Modern Ionic Capacitor & `@capacitor/local-notifications`
-            - **Özellik:** Telefon kapalıyken veya kilitliyken `allowWhileIdle` ile çalabilen yerel Android alarmları ve bildirimleri.
-            - **Kurulum:** Aşağıdaki `BorcTakip-AdFree.apk` dosyasını Android telefonunuza indirip doğrudan kurabilirsiniz.
-          files: dist-apk/BorcTakip-AdFree.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+          name: borc-takip-reklamsiz-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
