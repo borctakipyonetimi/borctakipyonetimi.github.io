@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
+import { auth, db, handleFirestoreError, OperationType, enableNetwork } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -60,6 +60,8 @@ import {
   Users,
   Camera,
   AlertCircle,
+  AlertTriangle,
+  RefreshCw,
   Smartphone,
   TrendingUp,
   Compass,
@@ -489,6 +491,7 @@ export default function App() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
 
   // Live Timer states
   const [liveClock, setLiveClock] = useState("--:--:--");
@@ -1213,12 +1216,12 @@ export default function App() {
     }
   };
 
-  const triggerToast = (msg: string) => {
+  const triggerToast = (msg: string, duration = 2000) => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => {
       setShowToast(false);
-    }, 2000);
+    }, duration);
   };
 
   // Robust client-side Web Push subscription manager
@@ -2014,6 +2017,15 @@ export default function App() {
       if (fbUser) {
         try {
           setIsOfflineMode(false);
+          setFirestoreErrorMessage(null);
+
+          // Çevrimdışı moddan kaçınmak için Firestore ağını zorunlu etkinleştir
+          try {
+            await enableNetwork(db);
+          } catch (netErr: any) {
+            console.warn("enableNetwork loadData uyarısı:", netErr?.message || netErr);
+          }
+
           // 1. Primary check on 'kullanicilar' collection
           let userDoc = await getDoc(doc(db, "kullanicilar", fbUser.uid));
           
@@ -2071,7 +2083,13 @@ export default function App() {
                   cleanEmail ? setDoc(doc(db, "kullanicilar", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve(),
                   cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
                 ]);
-              } catch {
+              } catch (initErr: any) {
+                const initErrCode = initErr?.code || "HATA";
+                const initErrMsg = initErr?.message || String(initErr);
+                const fullInitErr = `[${initErrCode}] ${initErrMsg}`;
+                console.warn("Firestore ilk kayıt hatası:", fullInitErr);
+                setFirestoreErrorMessage(`Firestore İlk Başlatma Hatası: ${fullInitErr}`);
+                triggerToast(`İlk Kayıt Hatası: ${fullInitErr}`, 5000);
                 loadFromLocalStorage();
               }
             } else {
@@ -2084,35 +2102,47 @@ export default function App() {
             unsubscribeSnapshot = onSnapshot(doc(db, "kullanicilar", fbUser.uid), (docSnap) => {
               if (docSnap.exists() && active) {
                 applyDataPayload(docSnap.data());
+                setFirestoreErrorMessage(null);
               }
             }, (error) => {
-              // If kullanicilar listener fails, listen to users doc
-              console.warn("kullanicilar snapshot warning, fallback to users listener:", error);
+              const snapCode = error?.code || "HATA";
+              const snapMsg = error?.message || String(error);
+              const fullSnapErr = `[${snapCode}] ${snapMsg}`;
+              console.warn("kullanicilar snapshot error, trying users listener:", fullSnapErr);
+              setFirestoreErrorMessage(`Firestore Dinleyici Hatası: ${fullSnapErr}`);
+
+              // Fallback to users doc
               unsubscribeSnapshot = onSnapshot(doc(db, "users", fbUser.uid), (userSnap) => {
                 if (userSnap.exists() && active) {
                   applyDataPayload(userSnap.data());
+                  setFirestoreErrorMessage(null);
                 }
+              }, (uError) => {
+                const uCode = uError?.code || "HATA";
+                const uMsg = uError?.message || String(uError);
+                const fullUErr = `[${uCode}] ${uMsg}`;
+                console.warn("users snapshot error:", fullUErr);
+                setFirestoreErrorMessage(`Firestore users Hatası: ${fullUErr}`);
               });
             });
-          } catch (snapErr) {
-            console.warn("Snapshot listener setup warning:", snapErr);
+          } catch (snapErr: any) {
+            const snapSetupCode = snapErr?.code || "HATA";
+            const snapSetupMsg = snapErr?.message || String(snapErr);
+            console.warn("Snapshot listener setup warning:", `[${snapSetupCode}] ${snapSetupMsg}`);
           }
 
         } catch (err: any) {
-          const isOfflineErr = err?.message?.toLowerCase().includes("offline") || 
-                             err?.message?.toLowerCase().includes("network") ||
-                             err?.code?.toLowerCase().includes("offline") ||
-                             !navigator.onLine;
+          const errCode = err?.code || "HATA";
+          const errMsg = err?.message || String(err);
+          const fullErrText = `[${errCode}] ${errMsg}`;
 
-          if (isOfflineErr) {
-            console.warn("Firestore loading connection warning (client is offline):", err);
-          } else {
-            console.error("Firestore loading error:", err);
-          }
+          console.error("Firestore loading error:", fullErrText, err);
 
           if (active) {
             loadFromLocalStorage();
             setIsOfflineMode(true);
+            setFirestoreErrorMessage(`Firestore Bağlantı Hatası: ${fullErrText}`);
+            triggerToast(`Firestore Bağlantı Hatası: ${fullErrText}`, 6000);
             
             const isPermissionError = err && (
               err.code === "permission-denied" || 
@@ -2121,9 +2151,11 @@ export default function App() {
             );
             
             if (isPermissionError) {
-              handleFirestoreError(err, OperationType.GET, `kullanicilar/${fbUser.uid}`);
-            } else {
-              triggerToast("Bulut senkronizasyonu kurulamadı: Çevrimdışı mod etkinleştirildi.");
+              try {
+                handleFirestoreError(err, OperationType.GET, `kullanicilar/${fbUser.uid}`);
+              } catch (e) {
+                console.error("Permission error handled:", e);
+              }
             }
           }
         }
@@ -2322,8 +2354,14 @@ export default function App() {
       }
       triggerToast("Değişiklikler Kaydedildi");
     } catch (err: any) {
-      console.error("Critical error in saveAllToUser storage write:", err);
+      const errCode = err?.code || "HATA";
+      const errMsg = err?.message || String(err);
+      const fullErrText = `[${errCode}] ${errMsg}`;
+
+      console.error("Critical error in saveAllToUser storage write:", fullErrText, err);
       setIsOfflineMode(true);
+      setFirestoreErrorMessage(`Firestore Kayıt Hatası: ${fullErrText}`);
+      triggerToast(`Bulut Kayıt Hatası: ${fullErrText}`, 6000);
       
       const isPermissionError = err && (
         err.code === "permission-denied" || 
@@ -2332,9 +2370,11 @@ export default function App() {
       );
       
       if (isPermissionError && auth.currentUser) {
-        handleFirestoreError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}`);
-      } else {
-        triggerToast("Değişiklikler yerel olarak kaydedildi (Çevrimdışı Mod)");
+        try {
+          handleFirestoreError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}`);
+        } catch (e) {
+          console.error("Permission write error handled:", e);
+        }
       }
     }
   };
@@ -5396,6 +5436,63 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Firestore Connection / Sync Error Banner with full error text and retry */}
+      {firestoreErrorMessage && (
+        <div className="bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md animate-in fade-in z-20 relative">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+            <div className="p-1.5 bg-rose-500/20 text-rose-300 rounded-lg shrink-0 mt-0.5 sm:mt-0">
+              <AlertTriangle className="w-4 h-4 text-rose-300 animate-pulse" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>Firebase Firestore Bağlantı Uyarısı</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-rose-500/30 text-rose-300 rounded font-mono uppercase">Detaylı Hata</span>
+              </p>
+              <p className="text-[11px] font-mono text-rose-200/90 break-all select-all mt-0.5 leading-relaxed bg-black/30 p-1.5 rounded border border-rose-500/20">
+                {firestoreErrorMessage}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <button
+              onClick={async () => {
+                try {
+                  await enableNetwork(db);
+                  triggerToast("Firestore ağı yeniden etkinleştirildi, kontrol ediliyor...");
+                  setFirestoreErrorMessage(null);
+                  if (auth.currentUser) {
+                    setIsOfflineMode(false);
+                    const userDoc = await getDoc(doc(db, "kullanicilar", auth.currentUser.uid));
+                    if (userDoc.exists()) {
+                      triggerToast("Bulut bağlantısı sağlandı ve veriler eşitlendi!");
+                    } else {
+                      triggerToast("Bağlantı açık, Firestore hazır.");
+                    }
+                  }
+                } catch (retryErr: any) {
+                  const retryCode = retryErr?.code || "HATA";
+                  const retryMsg = retryErr?.message || String(retryErr);
+                  const fullRetry = `[${retryCode}] ${retryMsg}`;
+                  setFirestoreErrorMessage(`Tekrar Deneme Hatası: ${fullRetry}`);
+                  triggerToast(`Hata: ${fullRetry}`, 5000);
+                }
+              }}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Ağı Yeniden Başlat</span>
+            </button>
+            <button
+              onClick={() => setFirestoreErrorMessage(null)}
+              className="p-1.5 text-rose-300 hover:text-white hover:bg-rose-500/20 rounded-lg transition cursor-pointer"
+              title="Kapat"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Overdue & Due Debts Sliding Marquee Banner */}
       {(() => {

@@ -8,10 +8,11 @@ import {
   onAuthStateChanged,
   User
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableNetwork } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
+// Proje ID: borc-takip-pro-f6936 ile %100 birebir eşleşen resmi konfigürasyon
 export const firebaseConfig = {
   apiKey: "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
   authDomain: "borc-takip-pro-f6936.firebaseapp.com",
@@ -25,6 +26,29 @@ export const firebaseConfig = {
 // Initialize Firebase
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+
+// getFirestore kodunun hemen altına enableNetwork(db) komutunu ekleyerek uygulamanın çevrim dışı moda kaçmasını kesin olarak engelle
+enableNetwork(db)
+  .then(() => {
+    console.log("Firestore ağı başarıyla etkinleştirildi (enableNetwork: OK)");
+  })
+  .catch((err) => {
+    console.warn("Firestore enableNetwork uyarısı:", err?.message || err);
+  });
+
+export { enableNetwork };
+
+export async function ensureFirestoreNetwork(): Promise<{ success: boolean; message: string }> {
+  try {
+    await enableNetwork(db);
+    return { success: true, message: "Firestore ağı aktif." };
+  } catch (err: any) {
+    const code = err?.code || "HATA";
+    const msg = err?.message || String(err);
+    return { success: false, message: `[${code}] ${msg}` };
+  }
+}
+
 export const auth = getAuth(app);
 
 // E-Posta ve Şifre ile Firebase Auth İşlemleri
@@ -90,8 +114,12 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMessage = error instanceof Error ? error.message : String(error);
+  const errCode = (error as any)?.code || "BilinmeyenHata";
+  const formattedError = `[${errCode}] ${errMessage}`;
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: formattedError,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -106,6 +134,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error("Firestore Secure Error: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error("Firestore Error: ", JSON.stringify(errInfo));
+  return formattedError;
 }

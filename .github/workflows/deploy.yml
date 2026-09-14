@@ -49,15 +49,18 @@ jobs:
           cp logo.png assets/splash.png
           cp logo.png assets/splash-dark.png
           
-          # İkonları üret ve Android projesine yerleştir
-          npx capacitor-assets generate --android
-
-          # Bildirimler için şeffaf ikonu gerekli klasörlere zorla kopyala
-          mkdir -p assets
-          cp notification-icon.png assets/android/notification-icon.png || true
+          # Bildirim ikonu etrafındaki şeffaf boşlukları kırparak tam boyutu kaplamasını sağla
+          mkdir -p assets/android
+          if command -v convert >/dev/null 2>&1; then
+            convert notification-icon.png -trim +repage -resize 512x512 -gravity center -background none -extent 512x512 assets/android/notification-icon.png || cp notification-icon.png assets/android/notification-icon.png
+            convert notification-icon.png -trim +repage -resize 512x512 -gravity center -background none -extent 512x512 assets/notification-icon.png || cp notification-icon.png assets/notification-icon.png
+          else
+            cp notification-icon.png assets/android/notification-icon.png || true
+            cp notification-icon.png assets/notification-icon.png || true
+          fi
           
-          # İkonları tekrar oluştur
-          npx capacitor-assets generate --android
+          # capacitor-assets aracına --asset-path parametresi vererek ikonun kırpılmasını ve küçülmesini önle
+          npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || npx capacitor-assets generate --android || true
 
       - name: Eski Kalintilari Tamamen Sil
         run: |
@@ -85,6 +88,10 @@ jobs:
             },
             "android": {
               "allowMixedContent": true
+            },
+            "server": {
+              "androidScheme": "https",
+              "cleartext": true
             }
           }
           EOF
@@ -92,7 +99,7 @@ jobs:
       - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
         run: |
           npx cap add android
-          npx capacitor-assets generate --android || true
+          npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || true
           npx cap sync android
 
       - name: Uygulama Ismini Butcem Pro Olarak Guncelle
@@ -106,20 +113,27 @@ jobs:
 
       - name: Bildirim Ikonlarini Kesin Olarak Yerlestir
         run: |
-          # Şeffaf ikonu Android'in tüm drawable ve mipmap kaynak klasörlerine kopyalıyoruz
+          # Bildirim görselinin etrafındaki şeffaf boşlukları tamamen kaldırıp tam boyutu kaplamasını sağlıyoruz
+          SOURCE_ICON="notification-icon.png"
+          if [ -f "assets/android/notification-icon.png" ]; then
+            SOURCE_ICON="assets/android/notification-icon.png"
+          fi
+
+          # Şeffaf ikonu Android'in tüm drawable ve mipmap kaynak klasörlerine tam boyutu kaplayacak şekilde kopyalıyoruz
           for dir in android/app/src/main/res/mipmap-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+            cp "$SOURCE_ICON" "$dir/ic_stat_notify.png" || true
           done
           for dir in android/app/src/main/res/drawable-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+            cp "$SOURCE_ICON" "$dir/ic_stat_notify.png" || true
           done
           mkdir -p android/app/src/main/res/drawable
-          cp notification-icon.png android/app/src/main/res/drawable/ic_stat_notify.png || true
+          cp "$SOURCE_ICON" android/app/src/main/res/drawable/ic_stat_notify.png || true
           
-          # AndroidManifest.xml içine bu resmi ismi gömüyoruz
+          # AndroidManifest.xml içine bildirim ikonu ve ağ ayarlarını gömüyoruz
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />' $MANIFEST_PATH
+            sed -i 's/<application /<application android:usesCleartextTraffic="true" /g' $MANIFEST_PATH || true
           fi
 
       - name: Android APK Derle (Build)
