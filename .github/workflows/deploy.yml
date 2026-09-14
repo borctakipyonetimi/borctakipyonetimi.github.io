@@ -52,6 +52,13 @@ jobs:
           # İkonları üret ve Android projesine yerleştir
           npx capacitor-assets generate --android
 
+          # Bildirimler için şeffaf ikonu gerekli klasörlere zorla kopyala
+          mkdir -p assets
+          cp notification-icon.png assets/android/notification-icon.png || true
+          
+          # İkonları tekrar oluştur
+          npx capacitor-assets generate --android
+
       - name: Eski Kalintilari Tamamen Sil
         run: |
           rm -rf android
@@ -65,7 +72,7 @@ jobs:
           cat << 'EOF' > capacitor.config.json
           {
             "appId": "com.borctakip.app",
-            "appName": "BorcTakip",
+            "appName": "Bütçem Pro",
             "webDir": "dist",
             "plugins": {
               "CapacitorCookies": {
@@ -88,6 +95,15 @@ jobs:
           npx capacitor-assets generate --android || true
           npx cap sync android
 
+      - name: Uygulama Ismini Butcem Pro Olarak Guncelle
+        run: |
+          STRING_PATH="android/app/src/main/res/values/strings.xml"
+          if [ -f "$STRING_PATH" ]; then
+            # strings.xml içindeki app_name ve title değerlerini Bütçem Pro yapıyoruz
+            sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">Bütçem Pro<\/string>/g' $STRING_PATH
+            sed -i 's/<string name="title_activity_main">.*<\/string>/<string name="title_activity_main">Bütçem Pro<\/string>/g' $STRING_PATH
+          fi
+
       - name: Android APK Derle (Build)
         run: |
           cd android
@@ -97,5 +113,5 @@ jobs:
       - name: Reklamsiz APK Dosyasini Yukle
         uses: actions/upload-artifact@v4
         with:
-          name: borc-takip-reklamsiz-apk
+          name: butcem-pro-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk

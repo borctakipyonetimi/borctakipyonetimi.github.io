@@ -1,6 +1,6 @@
 {
   "appId": "com.borctakip.app",
-  "appName": "BorcTakip",
+  "appName": "Bütçem Pro",
   "webDir": "dist",
   "plugins": {
     "CapacitorCookies": {

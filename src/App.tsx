@@ -8,7 +8,7 @@ import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePass
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
-import { parseDateParts, isSameMonthYear } from "./utils/dateUtils";
+import { parseDateParts, isSameMonthYear, isDateWithinRange } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Menu,
@@ -4219,30 +4219,58 @@ export default function App() {
       return `"${str.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
     };
 
-    const isWithinRange = (dateStr?: string) => {
-      if (!dateStr) return true; // keep undated items, or map safely
-      const dVal = dateStr.slice(0, 10);
-      if (startDate && dVal < startDate) return false;
-      if (endDate && dVal > endDate) return false;
-      return true;
-    };
+    // Filter data based on robust date range matching
+    const filteredIncomes = incomes.filter(inc => isDateWithinRange(inc.date, startDate, endDate));
+    const filteredExpenses = expenses.filter(exp => isDateWithinRange(exp.date, startDate, endDate));
+    const filteredDebts = debts.filter(d => isDateWithinRange(d.dueDate || (d as any).date, startDate, endDate));
+    const filteredInstallments = installmentDebts.filter(inst => isDateWithinRange(inst.firstDueDate, startDate, endDate));
 
-    // Filter data based on date ranges
-    const filteredIncomes = incomes.filter(inc => isWithinRange(inc.date));
-    const filteredExpenses = expenses.filter(exp => isWithinRange(exp.date));
-    const filteredDebts = debts.filter(d => isWithinRange(d.dueDate || d.date));
-    const filteredInstallments = installmentDebts.filter(inst => isWithinRange(inst.firstDueDate));
+    // Load contact transactions for this user space
+    let filteredContactPayables: any[] = [];
+    let filteredContactReceivables: any[] = [];
+    try {
+      const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+      const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((t: any) => {
+            if (isDateWithinRange(t.dueDate || t.createdAt, startDate, endDate)) {
+              if (t.type === "payable") {
+                filteredContactPayables.push(t);
+              } else if (t.type === "receivable") {
+                filteredContactReceivables.push(t);
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error reading contacts transactions for CSV:", e);
+    }
 
-    // Calculate sum statistics for the filtered period correctly
-    const filteredTotalIncome = filteredIncomes.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const filteredTotalExpense = filteredExpenses.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const filteredTotalDebt = filteredDebts.reduce((sum, item) => sum + (item.amount || 0), 0);
+    // Calculate sum statistics for the filtered period accurately
+    const filteredTotalIncome = filteredIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const filteredTotalExpense = filteredExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-    // Total payments made during this period (covers both simple debts and installments payments recorded in 'payments')
-    const filteredPayments = payments.filter(p => isWithinRange(p.date));
-    const filteredTotalPaid = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    const simpleDebtsTotal = filteredDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const simpleDebtsPaid = filteredDebts.reduce((sum, d) => {
+      const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
+      return sum + Math.min(Number(d.amount) || 0, paidVal);
+    }, 0);
 
-    const filteredRemainingDebt = filteredTotalDebt - filteredTotalPaid;
+    const installmentsTotal = filteredInstallments.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
+    const installmentsPaid = filteredInstallments.reduce((sum, inst) => {
+      const per = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
+      return sum + ((inst.paidInstallmentCount || 0) * per);
+    }, 0);
+
+    const contactPayablesTotal = filteredContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    const contactPayablesPaid = filteredContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+
+    const filteredTotalDebt = simpleDebtsTotal + installmentsTotal + contactPayablesTotal;
+    const filteredTotalPaid = simpleDebtsPaid + installmentsPaid + contactPayablesPaid;
+    const filteredRemainingDebt = Math.max(0, filteredTotalDebt - filteredTotalPaid);
     const filteredNetReserve = filteredTotalIncome - filteredTotalExpense - filteredTotalPaid;
 
     let csvContent = "";
@@ -4256,14 +4284,14 @@ export default function App() {
     csvContent += "\n";
 
     // Özet Tablosu (Dönemsel)
-    csvContent += [esc("=== DÖNEMSEL FİNANSAL GÖSTERGELER VE DETAY ==="), esc("")].join(";") + "\n";
+    csvContent += [esc("=== DÖNEMSEL FİNANSAL GÖSTERGELER VE ÖZET ==="), esc("")].join(";") + "\n";
     csvContent += [esc("Gösterge Kalemi"), esc(`Miktar (${activeCurrency})`)].join(";") + "\n";
     csvContent += [esc("Toplam Gelir (Seçilen Dönem)"), esc(format(filteredTotalIncome))].join(";") + "\n";
     csvContent += [esc("Toplam Gider (Seçilen Dönem)"), esc(format(filteredTotalExpense))].join(";") + "\n";
-    csvContent += [esc("Borç Ödemeleri & Taksitler (Seçilen Dönem)"), esc(format(filteredTotalPaid))].join(";") + "\n";
-    csvContent += [esc("Net Kalan Rezerv (Seçilen Dönem)"), esc(format(filteredNetReserve))].join(";") + "\n";
-    csvContent += [esc("Eklenen Toplam Borç (Seçilen Dönem)"), esc(format(filteredTotalDebt))].join(";") + "\n";
+    csvContent += [esc("Toplam Borç Kapsamı (Basit + Taksitli + Kişi Borçları)"), esc(format(filteredTotalDebt))].join(";") + "\n";
+    csvContent += [esc("Ödenen Borç Payı (Seçilen Dönem)"), esc(format(filteredTotalPaid))].join(";") + "\n";
     csvContent += [esc("Kalan Aktif Borç Payı (Seçilen Dönem)"), esc(format(filteredRemainingDebt))].join(";") + "\n";
+    csvContent += [esc("Net Kalan Rezerv (Gelir - Gider - Ödenen Borç)"), esc(format(filteredNetReserve))].join(";") + "\n";
     csvContent += "\n";
 
     // Gelirler
@@ -4297,15 +4325,16 @@ export default function App() {
       csvContent += [esc("Seçilen tarih aralığında kayıtlı borç kaydı bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredDebts.forEach((d: any) => {
-        const paidVal = d.paidAmount !== undefined ? d.paidAmount : (d.paid || 0);
+        const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
+        const amt = Number(d.amount) || 0;
         csvContent += [
           esc(d.title || d.name || "Borç"),
-          esc(d.amount),
+          esc(amt),
           esc(paidVal),
-          esc(d.amount - paidVal),
-          esc(d.creditor || "-"),
+          esc(Math.max(0, amt - paidVal)),
+          esc(d.creditor || d.category || "-"),
           esc(d.dueDate || ""),
-          esc(d.isPaid || paidVal >= d.amount ? "ÖDENDİ" : "BEKLEYEN ÖDEME")
+          esc(d.isPaid || paidVal >= amt ? "ÖDENDİ" : "BEKLEYEN ÖDEME")
         ].join(";") + "\n";
       });
     }
@@ -4318,8 +4347,8 @@ export default function App() {
       csvContent += [esc("Seçilen tarih aralığında kayıtlı taksitli borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredInstallments.forEach((inst: any) => {
-        const monthly = inst.monthlyPayment || (inst.totalAmount / (inst.installmentCount || 1));
-        const remaining = inst.remainingInstallments !== undefined ? inst.remainingInstallments : (inst.installmentCount - inst.paidInstallmentCount);
+        const monthly = inst.monthlyPayment || ((Number(inst.totalAmount) || 0) / (inst.installmentCount || 1));
+        const remaining = inst.remainingInstallments !== undefined ? inst.remainingInstallments : ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0));
         csvContent += [
           esc(inst.title || inst.name || "Taksit Planı"),
           esc(monthly),
@@ -4329,6 +4358,32 @@ export default function App() {
           esc(inst.firstDueDate || inst.startDate || "")
         ].join(";") + "\n";
       });
+    }
+    csvContent += "\n";
+
+    // Kişi Borçları ve Alacakları
+    if (filteredContactPayables.length > 0 || filteredContactReceivables.length > 0) {
+      csvContent += [esc("=== KİŞİ BORÇ VE ALACAKLARI ==="), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+      csvContent += [esc("Kişi / İşlem"), esc("İşlem Türü"), esc(`Miktar (${activeCurrency})`), esc("Durum"), esc("Vade Tarihi")].join(";") + "\n";
+      filteredContactPayables.forEach((c: any) => {
+        csvContent += [
+          esc(c.personName || c.title || "Kişi Borcu"),
+          esc("Borcum"),
+          esc(c.amount),
+          esc(c.isPaid ? "ÖDENDİ" : "BEKLİYOR"),
+          esc(c.dueDate || c.createdAt || "")
+        ].join(";") + "\n";
+      });
+      filteredContactReceivables.forEach((c: any) => {
+        csvContent += [
+          esc(c.personName || c.title || "Kişi Alacağı"),
+          esc("Alacağım"),
+          esc(c.amount),
+          esc(c.isPaid ? "TAHSİL EDİLDİ" : "BEKLİYOR"),
+          esc(c.dueDate || c.createdAt || "")
+        ].join(";") + "\n";
+      });
+      csvContent += "\n";
     }
 
     const dateSuffix = startDate && endDate ? `${startDate}_${endDate}` : `${new Date().toISOString().split('T')[0]}`;
@@ -7405,31 +7460,59 @@ export default function App() {
       {/* CSV Filter and Range Download Modal */}
       <AnimatePresence>
         {isCsvModalOpen && (() => {
-          const isWithinRangePreview = (dateStr?: string) => {
-            if (!dateStr) return true;
-            const dVal = dateStr.slice(0, 10);
-            if (csvStartDate && dVal < csvStartDate) return false;
-            if (csvEndDate && dVal > csvEndDate) return false;
-            return true;
-          };
+          const previewIncomes = incomes.filter(inc => isDateWithinRange(inc.date, csvStartDate, csvEndDate));
+          const previewExpenses = expenses.filter(exp => isDateWithinRange(exp.date, csvStartDate, csvEndDate));
+          const previewDebts = debts.filter(d => isDateWithinRange(d.dueDate || (d as any).date, csvStartDate, csvEndDate));
+          const previewInstallments = installmentDebts.filter(inst => isDateWithinRange(inst.firstDueDate, csvStartDate, csvEndDate));
 
-          const previewIncomes = incomes.filter(inc => isWithinRangePreview(inc.date));
-          const previewExpenses = expenses.filter(exp => isWithinRangePreview(exp.date));
-          const previewDebts = debts.filter(d => isWithinRangePreview(d.dueDate || d.date));
-          const previewInstallments = installmentDebts.filter(inst => isWithinRangePreview(inst.firstDueDate));
+          let previewContactPayables: any[] = [];
+          let previewContactReceivables: any[] = [];
+          try {
+            const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+            const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((t: any) => {
+                  if (isDateWithinRange(t.dueDate || t.createdAt, csvStartDate, csvEndDate)) {
+                    if (t.type === "payable") {
+                      previewContactPayables.push(t);
+                    } else if (t.type === "receivable") {
+                      previewContactReceivables.push(t);
+                    }
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Error reading contacts transactions for CSV preview:", e);
+          }
 
-          const previewTotalIncome = previewIncomes.reduce((sum, item) => sum + (item.amount || 0), 0);
-          const previewTotalExpense = previewExpenses.reduce((sum, item) => sum + (item.amount || 0), 0);
-          const previewTotalDebt = previewDebts.reduce((sum, item) => sum + (item.amount || 0), 0);
-          
-          // Total actual payments made in this range (matching CSV)
-          const previewPayments = payments.filter(p => isWithinRangePreview(p.date));
-          const previewTotalPaid = previewPayments.reduce((sum, p) => sum + p.amount, 0);
+          const previewTotalIncome = previewIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+          const previewTotalExpense = previewExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-          const previewRemainingDebt = previewTotalDebt - previewTotalPaid;
+          const previewSimpleDebtsTotal = previewDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+          const previewSimpleDebtsPaid = previewDebts.reduce((sum, d) => {
+            const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
+            return sum + Math.min(Number(d.amount) || 0, paidVal);
+          }, 0);
+
+          const previewInstallmentsTotal = previewInstallments.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
+          const previewInstallmentsPaid = previewInstallments.reduce((sum, inst) => {
+            const per = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
+            return sum + ((inst.paidInstallmentCount || 0) * per);
+          }, 0);
+
+          const previewContactPayablesTotal = previewContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+          const previewContactPayablesPaid = previewContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+
+          const previewTotalDebt = previewSimpleDebtsTotal + previewInstallmentsTotal + previewContactPayablesTotal;
+          const previewTotalPaid = previewSimpleDebtsPaid + previewInstallmentsPaid + previewContactPayablesPaid;
+          const previewRemainingDebt = Math.max(0, previewTotalDebt - previewTotalPaid);
           const previewNetReserve = previewTotalIncome - previewTotalExpense - previewTotalPaid;
 
-          const totalRecords = previewIncomes.length + previewExpenses.length + previewDebts.length + previewInstallments.length;
+          const totalDebtOperationsCount = previewDebts.length + previewInstallments.length + previewContactPayables.length;
+          const totalRecords = previewIncomes.length + previewExpenses.length + totalDebtOperationsCount + previewContactReceivables.length;
 
           return (
             <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 dark:bg-slate-950/70 backdrop-blur-xs">
@@ -7589,7 +7672,7 @@ export default function App() {
                           </div>
 
                           <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🏦 Toplam Borç ({previewDebts.length} işlem)</span>
+                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🏦 Toplam Borç ({totalDebtOperationsCount} işlem)</span>
                             <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalDebt)}</span>
                           </div>
 

@@ -54,3 +54,42 @@ export function isSameMonthYear(
   if (!parts) return false;
   return parts.year === targetYear && parts.month === targetMonth;
 }
+
+/**
+ * Converts a parsed date into a standard YYYY-MM-DD string for safe lexical comparison.
+ */
+export function normalizeToYMD(dateStr: string | undefined | null): string | null {
+  const parts = parseDateParts(dateStr);
+  if (!parts) return null;
+  return `${parts.year}-${String(parts.month + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+/**
+ * Checks if a given date string falls within [startDate, endDate] (inclusive).
+ * Safely parses any date format (YYYY-MM-DD, DD.MM.YYYY, ISO).
+ * If startDate or endDate is not specified, that boundary is ignored.
+ */
+export function isDateWithinRange(
+  dateStr: string | undefined | null,
+  startDate?: string | null,
+  endDate?: string | null
+): boolean {
+  if (!startDate && !endDate) return true;
+  if (!dateStr) return true;
+
+  const itemYMD = normalizeToYMD(dateStr);
+  if (!itemYMD) return true; // Keep items with unparseable dates to avoid dropping data
+
+  if (startDate) {
+    const startYMD = normalizeToYMD(startDate) || startDate.slice(0, 10);
+    if (itemYMD < startYMD) return false;
+  }
+
+  if (endDate) {
+    const endYMD = normalizeToYMD(endDate) || endDate.slice(0, 10);
+    if (itemYMD > endYMD) return false;
+  }
+
+  return true;
+}
+
