@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword } from "firebase/auth";
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType, googleIleGirisYap } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
@@ -1665,7 +1665,7 @@ export default function App() {
   const handleGoogleAuthForSync = async () => {
     try {
       await googleIleGirisYap();
-      triggerToast("Giriş sayfası tarayıcıda açıldı.");
+      triggerToast("Google ile Giriş yönlendiriliyor... 🔄");
     } catch (err: any) {
       console.warn("Google auth failure for sync:", err);
       triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
@@ -1760,7 +1760,7 @@ export default function App() {
     setIsQuickLoggingIn("google");
     try {
       await googleIleGirisYap();
-      triggerToast("Giriş sayfası harici tarayıcıda açıldı.");
+      triggerToast("Google ile Giriş sayfasına yönlendiriliyorsunuz... 🔄");
     } catch (err: any) {
       console.warn("Sidebar Google login error:", err);
       triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));
@@ -1805,6 +1805,23 @@ export default function App() {
 
   // Listen to genuine Firebase Authentication state changes
   useEffect(() => {
+    // Process redirect result if coming back from Google OAuth redirect
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result && result.user) {
+          const emailOrUid = (result.user.email ? result.user.email.toLowerCase() : null) || result.user.uid;
+          const displayName = emailOrUid.endsWith("@borctakip.app") 
+            ? emailOrUid.replace("@borctakip.app", "") 
+            : emailOrUid;
+          setCurrentUser(displayName);
+          localStorage.setItem("currentUser", displayName);
+          triggerToast("Google ile Giriş Yapıldı! 🎉");
+        }
+      })
+      .catch((err) => {
+        console.warn("getRedirectResult error:", err);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;

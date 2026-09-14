@@ -10,7 +10,8 @@
   "server": {
     "url": "https://borctakipyonetimi.github.io",
     "cleartext": true,
-    "allowNavigation": []
+    "androidScheme": "https",
+    "hostname": "borctakipyonetimi.github.io"
   },
   "plugins": {
     "CapacitorCookies": {

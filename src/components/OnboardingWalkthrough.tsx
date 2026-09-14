@@ -102,7 +102,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     setDomainError(null);
     try {
       await googleIleGirisYap();
-      setAuthSuccess("Google giriş sayfası harici tarayıcınızda açıldı.");
+      setAuthSuccess("Google giriş sayfasına yönlendiriliyorsunuz... 🔄");
       setTimeout(() => {
         onComplete();
       }, 1200);
