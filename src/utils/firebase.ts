@@ -1,38 +1,17 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, getRedirectResult } from "firebase/auth";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  User
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { Capacitor } from "@capacitor/core";
-
-export async function googleIleGirisYap() {
-  const isNative = Capacitor.isNativePlatform();
-
-  if (isNative) {
-    try {
-      // Doğrudan Android'in yerel 'Hesap Seçin' (Google One-Tap / Play Services) penceresini uygulama içinde açar
-      const result = await FirebaseAuthentication.signInWithGoogle();
-      if (result && result.user) {
-        console.log("Capacitor Yerel Google Girişi Başarılı:", result.user);
-        return result.user;
-      }
-    } catch (nativeErr: any) {
-      console.warn("Capacitor Firebase Auth yerel hata:", nativeErr);
-      // Native mobil ortamda signInWithPopup çağırmıyoruz, çünkü harici tarayıcı açıp oturumu uygulamanın içine aktaramaz
-      throw new Error(
-        "Android cihazınızda yerel Google servisleri ile bağlantı kurulamadı. Lütfen 'E-Posta ile Giriş' veya 'Hesapsız Başla' seçeneğini kullanın."
-      );
-    }
-  } else {
-    // Web ve önizleme ortamları için popup ile standart Google Girişi
-    const provider = new GoogleAuthProvider();
-    const webResult = await signInWithPopup(auth, provider);
-    return webResult.user;
-  }
-}
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 export const firebaseConfig = {
   apiKey: "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
   authDomain: "borc-takip-pro-f6936.firebaseapp.com",
@@ -47,6 +26,28 @@ export const firebaseConfig = {
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// E-Posta ve Şifre ile Firebase Auth İşlemleri
+export async function epostaIleGirisYap(email: string, sifre: string): Promise<User> {
+  const cleanEmail = email.trim().toLowerCase();
+  const credential = await signInWithEmailAndPassword(auth, cleanEmail, sifre);
+  return credential.user;
+}
+
+export async function epostaIleKayitOl(email: string, sifre: string): Promise<User> {
+  const cleanEmail = email.trim().toLowerCase();
+  const credential = await createUserWithEmailAndPassword(auth, cleanEmail, sifre);
+  return credential.user;
+}
+
+export async function epostaSifreSifirla(email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  await sendPasswordResetEmail(auth, cleanEmail);
+}
+
+export async function oturumuKapat(): Promise<void> {
+  await signOut(auth);
+}
 
 // Initialize Analytics conditionally in browser
 export let analytics: any = null;

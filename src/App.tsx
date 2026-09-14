@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType, googleIleGirisYap } from "./utils/firebase";
+import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -1662,21 +1662,9 @@ export default function App() {
     }
   };
 
-  const handleGoogleAuthForSync = async () => {
-    try {
-      const user: any = await googleIleGirisYap();
-      if (user && user.email) {
-        const cleanEmail = user.email.trim().toLowerCase();
-        setCurrentUser(cleanEmail);
-        localStorage.setItem("currentUser", cleanEmail);
-        triggerToast(`Bulut Senkronizasyonu Aktif: ${cleanEmail} ☁️`);
-      } else {
-        triggerToast("Google Girişi Başarılı! ☁️");
-      }
-    } catch (err: any) {
-      console.warn("Google auth failure for sync:", err);
-      triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
-    }
+  const handleGoogleAuthForSync = () => {
+    setSelectedProvider("google");
+    setProviderLoginOpen(true);
   };
 
   // Application Intro Loading Screen & 5-Page Visual Walkthrough states and handlers
@@ -1763,24 +1751,9 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  const handleSidebarGoogleLogin = async () => {
-    setIsQuickLoggingIn("google");
-    try {
-      const user: any = await googleIleGirisYap();
-      if (user && user.email) {
-        const cleanEmail = user.email.trim().toLowerCase();
-        setCurrentUser(cleanEmail);
-        localStorage.setItem("currentUser", cleanEmail);
-        triggerToast(`Google ile Giriş Yapıldı: ${user.displayName || cleanEmail} 🎉`);
-      } else {
-        triggerToast("Google ile Giriş Başarılı! 🎉");
-      }
-    } catch (err: any) {
-      console.warn("Sidebar Google login error:", err);
-      triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));
-    } finally {
-      setIsQuickLoggingIn(null);
-    }
+  const handleSidebarGoogleLogin = () => {
+    setSelectedProvider("google");
+    setProviderLoginOpen(true);
   };
 
   const handleSidebarDeviceLogin = () => {
@@ -5747,26 +5720,24 @@ export default function App() {
                   Kayıtlarınızı korumak ve tüm cihazlarınızdan senkronize etmek için bağlanın:
                 </p>
 
-                {/* Google Giriş Kartı - Canlı Animasyonlu, Titreşen Aura & Kozmik İndigo Renk */}
-                <div className="relative group/google">
-                  {/* Sürekli Titreşen Renkli Dış Işıltı (Pulsing Ambient Halo) */}
+                {/* E-Posta ile Bulut Giriş & Kayıt Kartı */}
+                <div className="relative group/auth">
                   <motion.div
                     animate={{
-                      scale: [1, 1.04, 1],
-                      opacity: [0.4, 0.75, 0.4]
+                      scale: [1, 1.03, 1],
+                      opacity: [0.4, 0.7, 0.4]
                     }}
                     transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 rounded-xl blur-xs pointer-events-none"
+                    className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 rounded-xl blur-xs pointer-events-none"
                   />
 
                   <motion.button
                     type="button"
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={handleSidebarGoogleLogin}
+                    onClick={handleSidebarDeviceLogin}
                     className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-850 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-indigo-400/60 shadow-lg shadow-indigo-600/25 transition-all cursor-pointer overflow-hidden text-left"
                   >
-                    {/* Sürekli Kayan Işık Hüzmesi (Shimmer Ray Animation) */}
                     <motion.div
                       animate={{ x: ["-100%", "240%"] }}
                       transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
@@ -5774,52 +5745,22 @@ export default function App() {
                     />
 
                     <div className="flex items-center gap-2.5 relative z-10">
-                      {/* Sürekli Yüzen ve Hafifçe Salınan Google Logosu */}
-                      <motion.div
-                        animate={{
-                          y: [0, -2, 0],
-                          rotate: [0, 5, -5, 0]
-                        }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-6 h-6 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center shrink-0 shadow-xs"
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                        </svg>
-                      </motion.div>
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-xs text-indigo-300">
+                        <Mail className="w-3.5 h-3.5 text-indigo-300" />
+                      </div>
                       <div>
-                        <div className="text-[11px] font-black text-white leading-tight">Google ile Giriş Yap</div>
-                        <div className="text-[8.5px] text-indigo-200/80 font-medium">Gmail & Drive Senkronizasyonu</div>
+                        <div className="text-[11px] font-black text-white leading-tight">E-Posta ile Giriş / Kayıt</div>
+                        <div className="text-[8.5px] text-indigo-200/80 font-medium">Firebase Bulut Senkronizasyonu</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 relative z-10 shrink-0">
-                      <span className="text-[8px] font-black text-amber-300 bg-amber-400/20 border border-amber-400/30 px-1.5 py-0.5 rounded">
-                        Önerilen ⭐
+                      <span className="text-[8px] font-black text-emerald-300 bg-emerald-400/20 border border-emerald-400/30 px-1.5 py-0.5 rounded">
+                        Bulut ⚡
                       </span>
                     </div>
                   </motion.button>
                 </div>
-
-                {/* Cihaz Girişi Butonu (Kullanıcı Adı veya E-Posta ile Cihaz Üzerinden) */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSidebarDeviceLogin}
-                  className="group w-full py-2 px-2.5 bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 text-white rounded-xl text-[10px] font-black flex items-center justify-between border border-indigo-500/40 shadow-sm transition-all cursor-pointer overflow-hidden"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-md bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Smartphone className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="truncate">Cihaz Girişi (E-Posta / Şifre)</span>
-                  </div>
-                  <ArrowRight className="w-3 h-3 text-indigo-200 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
               </div>
             ) : (
               <div className="space-y-2 text-center animate-fade-in">
