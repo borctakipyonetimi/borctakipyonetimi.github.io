@@ -3,24 +3,31 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, getRedirectResult } from 
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { Capacitor } from "@capacitor/core";
 
 export async function googleIleGirisYap() {
-  try {
-    // Doğrudan Android'in yerel 'Hesap Seçin' penceresini uygulamanın içinde açar
-    const result = await FirebaseAuthentication.signInWithGoogle();
-    if (result && result.user) {
-      console.log("Capacitor Yerel Google Girişi Başarılı:", result.user);
-      return result.user;
-    }
-  } catch (nativeErr: any) {
-    console.warn("Capacitor Firebase Auth yerel denendi, web fallback uygulanıyor:", nativeErr);
+  const isNative = Capacitor.isNativePlatform();
+
+  if (isNative) {
     try {
-      const provider = new GoogleAuthProvider();
-      const webResult = await signInWithPopup(auth, provider);
-      return webResult.user;
-    } catch (webErr) {
-      throw nativeErr || webErr;
+      // Doğrudan Android'in yerel 'Hesap Seçin' (Google One-Tap / Play Services) penceresini uygulama içinde açar
+      const result = await FirebaseAuthentication.signInWithGoogle();
+      if (result && result.user) {
+        console.log("Capacitor Yerel Google Girişi Başarılı:", result.user);
+        return result.user;
+      }
+    } catch (nativeErr: any) {
+      console.warn("Capacitor Firebase Auth yerel hata:", nativeErr);
+      // Native mobil ortamda signInWithPopup çağırmıyoruz, çünkü harici tarayıcı açıp oturumu uygulamanın içine aktaramaz
+      throw new Error(
+        "Android cihazınızda yerel Google servisleri ile bağlantı kurulamadı. Lütfen 'E-Posta ile Giriş' veya 'Hesapsız Başla' seçeneğini kullanın."
+      );
     }
+  } else {
+    // Web ve önizleme ortamları için popup ile standart Google Girişi
+    const provider = new GoogleAuthProvider();
+    const webResult = await signInWithPopup(auth, provider);
+    return webResult.user;
   }
 }
 

@@ -57,6 +57,7 @@ import {
   signOut
 } from "firebase/auth";
 import { auth, googleIleGirisYap } from "../utils/firebase";
+import { ProviderLoginModal } from "./ProviderLoginModal";
 
 interface OnboardingWalkthroughProps {
   onComplete: () => void;
@@ -94,6 +95,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   const [authError, setAuthError] = useState("");
   const [authSuccess, setAuthSuccess] = useState("");
   const [domainError, setDomainError] = useState<{ domain: string; copied: boolean } | null>(null);
+  const [showEmailLoginModal, setShowEmailLoginModal] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -1204,6 +1206,34 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                               </motion.div>
                             </div>
                           </motion.button>
+
+                          {/* 2. E-Posta / Şifre ile Uygulama İçi Giriş Butonu */}
+                          <motion.button
+                            type="button"
+                            disabled={authLoading}
+                            whileHover={{ scale: 1.01, y: -1 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setShowEmailLoginModal(true)}
+                            className="w-full p-3.5 sm:p-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-indigo-400/30 hover:border-indigo-400/60 active:scale-[0.98] text-white font-bold shadow-lg transition-all duration-200 flex items-center justify-between cursor-pointer text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                                <Mail className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                                  <span>E-Posta / Şifre ile Giriş Yap</span>
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    Uygulama İçi ⚡
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-300 mt-0.5">
+                                  Harici tarayıcı açmadan doğrudan uygulama içinde hızlıca hesap oluşturun veya giriş yapın
+                                </p>
+                              </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-indigo-300 shrink-0" />
+                          </motion.button>
                         </div>
 
                         {/* Hata & Başarı Bildirimleri */}
@@ -1516,6 +1546,21 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
           )}
         </div>
       </footer>
+
+      {/* Uygulama İçi E-Posta / Şifre Giriş & Kayıt Modalı */}
+      <ProviderLoginModal
+        isOpen={showEmailLoginModal}
+        provider="google"
+        onClose={() => setShowEmailLoginModal(false)}
+        onLoginSuccess={(email) => {
+          localStorage.setItem("currentUser", email.trim().toLowerCase());
+          setShowEmailLoginModal(false);
+          setAuthSuccess(`Giriş yapıldı: ${email} 🎉`);
+          setTimeout(() => {
+            onComplete();
+          }, 600);
+        }}
+      />
     </div>
   );
 };
