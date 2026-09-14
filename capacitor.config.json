@@ -2,9 +2,21 @@
   "appId": "com.borctakip.app",
   "appName": "BorcTakip",
   "webDir": "dist",
+  "cordova": {
+    "preferences": {
+      "InAppBrowserStatusbarOverlaysWebView": "true"
+    }
+  },
   "server": {
     "url": "https://borctakipyonetimi.github.io",
-    "cleartext": true
+    "cleartext": true,
+    "allowNavigation": [
+      "*.google.com",
+      "*.googleapis.com",
+      "*.firebaseapp.com",
+      "*.googleusercontent.com",
+      "accounts.google.com"
+    ]
   },
   "plugins": {
     "LocalNotifications": {

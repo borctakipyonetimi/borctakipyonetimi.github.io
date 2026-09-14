@@ -27,7 +27,7 @@ jobs:
       - name: Bagimliliklari ve Capacitor CLI Yukle
         run: |
           npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
 
       - name: Uygulama ve Bildirim Logolarini Otomatik Uret
         run: |
@@ -66,8 +66,36 @@ jobs:
           npm run build || true
           # Eğer dist klasörü oluşmazsa boş bir dist klasörü aç çakışmasın
           mkdir -p dist
-          # Capacitor ayar dosyasını canlı sitemizi (URL) açacak şekilde ayarla
-          echo '{"appId": "com.borctakip.app", "appName": "BorcTakip", "webDir": "dist", "server": {"url": "https://borctakipyonetimi.github.io", "cleartext": true}}' > capacitor.config.json
+          # Capacitor ayar dosyasını canlı sitemizi (URL) ve Google auth izinlerini açacak şekilde ayarla
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.borctakip.app",
+            "appName": "BorcTakip",
+            "webDir": "dist",
+            "cordova": {
+              "preferences": {
+                "InAppBrowserStatusbarOverlaysWebView": "true"
+              }
+            },
+            "server": {
+              "url": "https://borctakipyonetimi.github.io",
+              "cleartext": true,
+              "allowNavigation": [
+                "*.google.com",
+                "*.googleapis.com",
+                "*.firebaseapp.com",
+                "*.googleusercontent.com",
+                "accounts.google.com"
+              ]
+            },
+            "plugins": {
+              "LocalNotifications": {
+                "smallIcon": "res://icon",
+                "iconColor": "#4F46E5"
+              }
+            }
+          }
+          EOF
 
       - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
         run: |
