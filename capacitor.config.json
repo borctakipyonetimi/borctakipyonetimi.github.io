@@ -23,5 +23,8 @@
       "smallIcon": "res://icon",
       "iconColor": "#4F46E5"
     }
+  },
+  "android": {
+    "allowMixedContent": true
   }
 }
