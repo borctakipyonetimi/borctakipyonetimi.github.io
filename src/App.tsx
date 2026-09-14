@@ -1664,8 +1664,15 @@ export default function App() {
 
   const handleGoogleAuthForSync = async () => {
     try {
-      await googleIleGirisYap();
-      triggerToast("Google ile Giriş yönlendiriliyor... 🔄");
+      const user: any = await googleIleGirisYap();
+      if (user && user.email) {
+        const cleanEmail = user.email.trim().toLowerCase();
+        setCurrentUser(cleanEmail);
+        localStorage.setItem("currentUser", cleanEmail);
+        triggerToast(`Bulut Senkronizasyonu Aktif: ${cleanEmail} ☁️`);
+      } else {
+        triggerToast("Google Girişi Başarılı! ☁️");
+      }
     } catch (err: any) {
       console.warn("Google auth failure for sync:", err);
       triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
@@ -1759,8 +1766,15 @@ export default function App() {
   const handleSidebarGoogleLogin = async () => {
     setIsQuickLoggingIn("google");
     try {
-      await googleIleGirisYap();
-      triggerToast("Google ile Giriş sayfasına yönlendiriliyorsunuz... 🔄");
+      const user: any = await googleIleGirisYap();
+      if (user && user.email) {
+        const cleanEmail = user.email.trim().toLowerCase();
+        setCurrentUser(cleanEmail);
+        localStorage.setItem("currentUser", cleanEmail);
+        triggerToast(`Google ile Giriş Yapıldı: ${user.displayName || cleanEmail} 🎉`);
+      } else {
+        triggerToast("Google ile Giriş Başarılı! 🎉");
+      }
     } catch (err: any) {
       console.warn("Sidebar Google login error:", err);
       triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));

@@ -1,12 +1,27 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, getRedirectResult } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 
 export async function googleIleGirisYap() {
-  const provider = new GoogleAuthProvider();
-  // Firebase'in kendi resmi yönlendirme motorunu tetikliyoruz:
-  await signInWithRedirect(auth, provider);
+  try {
+    // Doğrudan Android'in yerel 'Hesap Seçin' penceresini uygulamanın içinde açar
+    const result = await FirebaseAuthentication.signInWithGoogle();
+    if (result && result.user) {
+      console.log("Capacitor Yerel Google Girişi Başarılı:", result.user);
+      return result.user;
+    }
+  } catch (nativeErr: any) {
+    console.warn("Capacitor Firebase Auth yerel denendi, web fallback uygulanıyor:", nativeErr);
+    try {
+      const provider = new GoogleAuthProvider();
+      const webResult = await signInWithPopup(auth, provider);
+      return webResult.user;
+    } catch (webErr) {
+      throw nativeErr || webErr;
+    }
+  }
 }
 
 // Your web app's Firebase configuration

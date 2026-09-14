@@ -101,11 +101,14 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     setAuthError("");
     setDomainError(null);
     try {
-      await googleIleGirisYap();
-      setAuthSuccess("Google giriş sayfasına yönlendiriliyorsunuz... 🔄");
+      const user: any = await googleIleGirisYap();
+      if (user && user.email) {
+        localStorage.setItem("currentUser", user.email.trim().toLowerCase());
+      }
+      setAuthSuccess("Google ile başarıyla giriş yapıldı! 🎉");
       setTimeout(() => {
         onComplete();
-      }, 1200);
+      }, 700);
     } catch (err: any) {
       console.warn("Walkthrough Google sign-in general error:", err);
       setAuthError(err.message || "Google ile giriş yapılırken bir hata oluştu.");
