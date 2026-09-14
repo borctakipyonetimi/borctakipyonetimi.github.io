@@ -59,29 +59,14 @@ jobs:
 
       - name: Gerekli Proje Altyapisini ve Ayarlarini Olustur
         run: |
-          # Eksik olan package.json dosyasını oluştur
-          if [ ! -f package.json ]; then
-            echo '{"name": "borc-takip", "version": "1.0.0", "dependencies": {}}' > package.json
-          fi
           # Projeyi Vite ile derle (dist klasörünü üretsin)
-          npm run build || true
-          # Eğer dist klasörü oluşmazsa boş bir dist klasörü aç çakışmasın
-          mkdir -p dist
-          # Capacitor ayar dosyasını canlı sitemizi (URL) ve bildirim ayarlarını içerecek şekilde ayarla
+          npm run build
+          # Capacitor ayar dosyasını yerel dist klasörünü kullanacak şekilde ayarla
           cat << 'EOF' > capacitor.config.json
           {
             "appId": "com.borctakip.app",
             "appName": "BorcTakip",
             "webDir": "dist",
-            "cordova": {
-              "preferences": {
-                "InAppBrowserStatusbarOverlaysWebView": "true"
-              }
-            },
-            "server": {
-              "url": "https://borctakipyonetimi.github.io",
-              "cleartext": true
-            },
             "plugins": {
               "CapacitorCookies": {
                 "enabled": true
