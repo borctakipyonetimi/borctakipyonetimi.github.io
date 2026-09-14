@@ -53,12 +53,10 @@ import {
   ExternalLink
 } from "lucide-react";
 import {
-  signInWithPopup,
-  GoogleAuthProvider,
   OAuthProvider,
   signOut
 } from "firebase/auth";
-import { auth } from "../utils/firebase";
+import { auth, googleIleGirisYap } from "../utils/firebase";
 
 interface OnboardingWalkthroughProps {
   onComplete: () => void;
@@ -103,37 +101,16 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     setAuthError("");
     setDomainError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      const res = await signInWithPopup(auth, provider);
-      if (res.user) {
-        setAuthSuccess(`Google ile giriş yapıldı: ${res.user.displayName || res.user.email || "Başarılı"}`);
+      const user = await googleIleGirisYap();
+      if (user) {
+        setAuthSuccess(`Google ile giriş yapıldı: ${user.displayName || user.email || "Başarılı"}`);
         setTimeout(() => {
           onComplete();
         }, 900);
       }
     } catch (err: any) {
-      if (err.code === "auth/unauthorized-domain") {
-        console.warn("Firebase Google Auth unauthorized domain warning:", err.message);
-        const host = typeof window !== "undefined" ? window.location.hostname : "";
-        setDomainError({ domain: host, copied: false });
-        setAuthError("Bu web adresi henüz Firebase projenizde yetkilendirilmedi.");
-      } else if (err.code === "auth/popup-closed-by-user") {
-        console.warn("Google auth popup closed by user");
-        setAuthError("Giriş penceresi kapatıldı. Dilerseniz 'Doğrudan Uygulamaya Başla' butonuna tıklayabilirsiniz.");
-      } else if (err.code === "auth/operation-not-allowed") {
-        console.warn("Google auth operation not allowed in Firebase");
-        setAuthError("Google Girişi Etkin Değil: Firebase Console > Authentication > Sign-in method üzerinden Google sağlayıcısını etkinleştiriniz.");
-      } else if (err.code === "auth/popup-blocked") {
-        console.warn("Google auth popup blocked by browser");
-        setAuthError("Tarayıcınız açılır pencereyi engelledi. Lütfen açılır pencerelere izin verip tekrar deneyin.");
-      } else if (err.code === "auth/missing-start-state") {
-        console.warn("Google auth missing start state");
-        setAuthError("Oturum durumu yenilendi. Lütfen 'Google ile Giriş Yap' butonuna tekrar tıklayın.");
-      } else {
-        console.warn("Walkthrough Google sign-in general error:", err);
-        setAuthError(err.message || "Google ile giriş yapılırken bir hata oluştu.");
-      }
+      console.warn("Walkthrough Google sign-in general error:", err);
+      setAuthError(err.message || "Google ile giriş yapılırken bir hata oluştu.");
     } finally {
       setAuthLoading(false);
       setIsGoogleLoading(false);

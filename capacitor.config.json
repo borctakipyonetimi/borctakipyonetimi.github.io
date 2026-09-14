@@ -22,6 +22,10 @@
     "LocalNotifications": {
       "smallIcon": "res://icon",
       "iconColor": "#4F46E5"
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
     }
   },
   "android": {

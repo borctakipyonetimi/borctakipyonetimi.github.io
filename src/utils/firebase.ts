@@ -2,6 +2,12 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+
+export async function googleIleGirisYap() {
+  const result = await FirebaseAuthentication.signInWithGoogle();
+  return result.user;
+}
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional

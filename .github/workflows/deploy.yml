@@ -27,7 +27,7 @@ jobs:
       - name: Bagimliliklari ve Capacitor CLI Yukle
         run: |
           npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser @capacitor-firebase/authentication
 
       - name: Uygulama ve Bildirim Logolarini Otomatik Uret
         run: |
@@ -92,6 +92,10 @@ jobs:
               "LocalNotifications": {
                 "smallIcon": "res://icon",
                 "iconColor": "#4F46E5"
+              },
+              "FirebaseAuthentication": {
+                "skipNativeAuth": false,
+                "providers": ["google.com"]
               }
             },
             "android": {

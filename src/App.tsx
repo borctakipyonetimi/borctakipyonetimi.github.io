@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updatePassword } from "firebase/auth";
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType } from "./utils/firebase";
+import { auth, db, handleFirestoreError, OperationType, googleIleGirisYap } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -1663,21 +1663,14 @@ export default function App() {
   };
 
   const handleGoogleAuthForSync = async () => {
-    const gProvider = new GoogleAuthProvider();
-    gProvider.setCustomParameters({ prompt: "select_account" });
     try {
-      await signInWithPopup(auth, gProvider);
-      triggerToast("Google Hesabı Başarıyla Doğrulandı! ✅");
-    } catch (err: any) {
-      if (err.code === "auth/unauthorized-domain") {
-        console.warn("Popup Google auth unauthorized-domain:", err.message);
-        triggerToast("Firebase Uyarısı: Bu alan adını Firebase Console > Authorized Domains'e ekleyiniz.");
-      } else if (err.code === "auth/popup-closed-by-user") {
-        console.warn("Popup closed by user");
-      } else {
-        console.warn("Popup Google auth failure for sync:", err);
-        triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
+      const user = await googleIleGirisYap();
+      if (user) {
+        triggerToast("Google Hesabı Başarıyla Doğrulandı! ✅");
       }
+    } catch (err: any) {
+      console.warn("Google auth failure for sync:", err);
+      triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
     }
   };
 
@@ -1768,28 +1761,16 @@ export default function App() {
   const handleSidebarGoogleLogin = async () => {
     setIsQuickLoggingIn("google");
     try {
-      const gProvider = new GoogleAuthProvider();
-      gProvider.setCustomParameters({ prompt: "select_account" });
-      const res = await signInWithPopup(auth, gProvider);
-      if (res.user) {
-        const emailOrUid = (res.user.email ? res.user.email.toLowerCase() : null) || res.user.uid;
+      const user = await googleIleGirisYap();
+      if (user) {
+        const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;
         setCurrentUser(emailOrUid);
         localStorage.setItem("currentUser", emailOrUid);
         triggerToast("Google ile Giriş Yapıldı! 🎉");
       }
     } catch (err: any) {
       console.warn("Sidebar Google login error:", err);
-      if (err.code === "auth/unauthorized-domain") {
-        triggerToast("Firebase Uyarısı: Bu alan adı Firebase Console > Authorized Domains'e eklenmelidir.");
-      } else if (err.code === "auth/popup-closed-by-user") {
-        // user cancelled popup
-      } else if (err.code === "auth/popup-blocked") {
-        triggerToast("Tarayıcınız açılır pencereyi engelledi. Lütfen açılır pencerelere izin veriniz.");
-      } else if (err.code === "auth/missing-start-state") {
-        triggerToast("Oturum durumu yenilendi, lütfen Google ile Giriş butonuna tekrar tıklayın.");
-      } else {
-        triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));
-      }
+      triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));
     } finally {
       setIsQuickLoggingIn(null);
     }
