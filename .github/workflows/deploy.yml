@@ -83,6 +83,10 @@ jobs:
               "cleartext": true
             },
             "plugins": {
+              "FirebaseAuthentication": {
+                "skipNativeAuth": false,
+                "providers": ["google.com"]
+              },
               "CapacitorCookies": {
                 "enabled": true
               },
@@ -102,15 +106,6 @@ jobs:
           npx cap add android
           npx capacitor-assets generate --android || true
           npx cap sync android
-
-      - name: Android Deep Linking Ayarlarini Otomatik Isle
-        run: |
-          # AndroidManifest.xml dosyasını bul ve içine Google girişinden sonra uygulamaya dönüş şemasını enjekte et
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST_PATH" ]; then
-            # Firebase auth geri dönüş şemasını (intent-filter) ana aktiviteye ekliyoruz
-            sed -i '/<activity/a \        <intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="com.borctakip.app" /></intent-filter>' $MANIFEST_PATH
-          fi
 
       - name: Android APK Derle (Build)
         run: |
