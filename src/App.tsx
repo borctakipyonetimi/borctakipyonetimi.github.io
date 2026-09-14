@@ -2009,13 +2009,21 @@ export default function App() {
 
     let unsubscribeSnapshot: (() => void) | null = null;
 
-    const loadData = async () => {
-      const fbUser = auth.currentUser;
+    const loadData = async (targetUser?: any) => {
+      const fbUser = targetUser || auth.currentUser;
       if (fbUser) {
         try {
           setIsOfflineMode(false);
           let userDoc = await getDoc(doc(db, "users", fbUser.uid));
           
+          // Check subcollection path users/UID/veriler/ana_veri
+          if (!userDoc.exists()) {
+            const verilerDoc = await getDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"));
+            if (verilerDoc.exists()) {
+              userDoc = verilerDoc;
+            }
+          }
+
           // Secondary email fallback lookup if UID doc is empty/missing
           if (!userDoc.exists() && fbUser.email) {
             const cleanEmail = fbUser.email.toLowerCase();
@@ -2047,11 +2055,11 @@ export default function App() {
                   premiumPlan: localStorage.getItem("premium_plan") || "yearly",
                   updatedAt: serverTimestamp()
                 };
-                await setDoc(doc(db, "users", fbUser.uid), payload, { merge: true });
-                if (cleanEmail) {
-                  const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
-                  await setDoc(doc(db, "users", emailDocId), payload, { merge: true });
-                }
+                await Promise.all([
+                  setDoc(doc(db, "users", fbUser.uid), payload, { merge: true }),
+                  setDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"), payload, { merge: true }),
+                  cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
+                ]);
               } catch {
                 loadFromLocalStorage();
               }
@@ -2281,13 +2289,13 @@ export default function App() {
         };
 
         const userDocRef = doc(db, "users", fbUser.uid);
-        await setDoc(userDocRef, payload, { merge: true });
-
-        if (cleanEmail) {
-          const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
-          const emailDocRef = doc(db, "users", emailDocId);
-          await setDoc(emailDocRef, payload, { merge: true });
-        }
+        const verilerDocRef = doc(db, "users", fbUser.uid, "veriler", "ana_veri");
+        
+        await Promise.all([
+          setDoc(userDocRef, payload, { merge: true }),
+          setDoc(verilerDocRef, payload, { merge: true }),
+          cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
+        ]);
         setIsOfflineMode(false);
       }
       triggerToast("Değişiklikler Kaydedildi");

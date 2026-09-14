@@ -25,7 +25,7 @@ service cloud.firestore {
       );
     }
 
-    // Secure users workspace doc for the authenticated owner
+    // Secure users workspace doc and subcollections for the authenticated owner
     match /users/{userId} {
       allow read, write: if isSignedIn() && (
         request.auth.uid == userId ||
@@ -34,6 +34,13 @@ service cloud.firestore {
         (resource != null && resource.data.userUid == request.auth.uid) ||
         (request.auth.token.email != null && userId.matches('^email_.*'))
       );
+
+      match /{document=**} {
+        allow read, write: if isSignedIn() && (
+          request.auth.uid == userId ||
+          (request.auth.token.email != null && userId.matches('^email_.*'))
+        );
+      }
     }
 
     // Secure temporary APK sync sessions
