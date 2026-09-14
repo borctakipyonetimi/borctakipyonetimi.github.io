@@ -12,10 +12,6 @@
     "cleartext": true
   },
   "plugins": {
-    "FirebaseAuthentication": {
-      "skipNativeAuth": false,
-      "providers": ["google.com"]
-    },
     "CapacitorCookies": {
       "enabled": true
     },

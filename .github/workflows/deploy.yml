@@ -67,7 +67,7 @@ jobs:
           npm run build || true
           # Eğer dist klasörü oluşmazsa boş bir dist klasörü aç çakışmasın
           mkdir -p dist
-          # Capacitor ayar dosyasını canlı sitemizi (URL) ve Google auth izinlerini açacak şekilde ayarla
+          # Capacitor ayar dosyasını canlı sitemizi (URL) ve bildirim ayarlarını içerecek şekilde ayarla
           cat << 'EOF' > capacitor.config.json
           {
             "appId": "com.borctakip.app",
@@ -83,10 +83,6 @@ jobs:
               "cleartext": true
             },
             "plugins": {
-              "FirebaseAuthentication": {
-                "skipNativeAuth": false,
-                "providers": ["google.com"]
-              },
               "CapacitorCookies": {
                 "enabled": true
               },
