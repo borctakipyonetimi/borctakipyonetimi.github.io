@@ -79,7 +79,7 @@ jobs:
                 "enabled": true
               },
               "LocalNotifications": {
-                "smallIcon": "res://icon",
+                "smallIcon": "ic_stat_notify",
                 "iconColor": "#4F46E5"
               }
             },
@@ -104,26 +104,22 @@ jobs:
             sed -i 's/<string name="title_activity_main">.*<\/string>/<string name="title_activity_main">Bütçem Pro<\/string>/g' $STRING_PATH
           fi
 
-      - name: Android Bildirim İkon Yolunu Tanımla
+      - name: Bildirim Ikonlarini Kesin Olarak Yerlestir
         run: |
-          # Bildirim ikonlarını android drawable ve mipmap dizinlerine kopyala
+          # Şeffaf ikonu Android'in tüm drawable ve mipmap kaynak klasörlerine kopyalıyoruz
+          for dir in android/app/src/main/res/mipmap-*; do
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+          done
+          for dir in android/app/src/main/res/drawable-*; do
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+          done
           mkdir -p android/app/src/main/res/drawable
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          cp notification-icon.png android/app/src/main/res/drawable/notification_icon.png || true
-          cp notification-icon.png android/app/src/main/res/mipmap-hdpi/notification_icon.png || true
-          cp notification-icon.png android/app/src/main/res/mipmap-mdpi/notification_icon.png || true
-          cp notification-icon.png android/app/src/main/res/mipmap-xhdpi/notification_icon.png || true
-          cp notification-icon.png android/app/src/main/res/mipmap-xxhdpi/notification_icon.png || true
-          cp notification-icon.png android/app/src/main/res/mipmap-xxxhdpi/notification_icon.png || true
-
+          cp notification-icon.png android/app/src/main/res/drawable/ic_stat_notify.png || true
+          
+          # AndroidManifest.xml içine bu resmi ismi gömüyoruz
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
-            # Android'e varsayılan bildirim ikonu olarak yüklediğimiz notification-icon dosyasını zorunlu kılıyoruz
-            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/notification_icon" />' $MANIFEST_PATH
+            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />' $MANIFEST_PATH
           fi
 
       - name: Android APK Derle (Build)

@@ -25,6 +25,21 @@ service cloud.firestore {
       );
     }
 
+    // Secure kullanicilar collection for authenticated owner
+    match /kullanicilar/{userId} {
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (request.auth.token.email != null && userId.matches('^email_.*'))
+      );
+
+      match /{document=**} {
+        allow read, write: if isSignedIn() && (
+          request.auth.uid == userId ||
+          (request.auth.token.email != null && userId.matches('^email_.*'))
+        );
+      }
+    }
+
     // Secure users workspace doc and subcollections for the authenticated owner
     match /users/{userId} {
       allow read, write: if isSignedIn() && (

@@ -7,7 +7,7 @@
       "enabled": true
     },
     "LocalNotifications": {
-      "smallIcon": "res://icon",
+      "smallIcon": "ic_stat_notify",
       "iconColor": "#4F46E5"
     }
   },

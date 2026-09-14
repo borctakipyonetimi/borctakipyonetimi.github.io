@@ -2014,9 +2014,15 @@ export default function App() {
       if (fbUser) {
         try {
           setIsOfflineMode(false);
-          let userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          // 1. Primary check on 'kullanicilar' collection
+          let userDoc = await getDoc(doc(db, "kullanicilar", fbUser.uid));
           
-          // Check subcollection path users/UID/veriler/ana_veri
+          // 2. Fallback to 'users' collection
+          if (!userDoc.exists()) {
+            userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          }
+
+          // 3. Fallback to subcollection path users/UID/veriler/ana_veri
           if (!userDoc.exists()) {
             const verilerDoc = await getDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"));
             if (verilerDoc.exists()) {
@@ -2024,11 +2030,14 @@ export default function App() {
             }
           }
 
-          // Secondary email fallback lookup if UID doc is empty/missing
+          // 4. Secondary email fallback lookup if UID doc is empty/missing
           if (!userDoc.exists() && fbUser.email) {
             const cleanEmail = fbUser.email.toLowerCase();
             const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
-            const emailDoc = await getDoc(doc(db, "users", emailDocId));
+            let emailDoc = await getDoc(doc(db, "kullanicilar", emailDocId));
+            if (!emailDoc.exists()) {
+              emailDoc = await getDoc(doc(db, "users", emailDocId));
+            }
             if (emailDoc.exists()) {
               userDoc = emailDoc;
             }
@@ -2056,8 +2065,10 @@ export default function App() {
                   updatedAt: serverTimestamp()
                 };
                 await Promise.all([
+                  setDoc(doc(db, "kullanicilar", fbUser.uid), payload, { merge: true }),
                   setDoc(doc(db, "users", fbUser.uid), payload, { merge: true }),
                   setDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"), payload, { merge: true }),
+                  cleanEmail ? setDoc(doc(db, "kullanicilar", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve(),
                   cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
                 ]);
               } catch {
@@ -2070,10 +2081,18 @@ export default function App() {
 
           // Attach real-time Firestore sync snapshot listener for instant cross-device updates
           try {
-            unsubscribeSnapshot = onSnapshot(doc(db, "users", fbUser.uid), (docSnap) => {
+            unsubscribeSnapshot = onSnapshot(doc(db, "kullanicilar", fbUser.uid), (docSnap) => {
               if (docSnap.exists() && active) {
                 applyDataPayload(docSnap.data());
               }
+            }, (error) => {
+              // If kullanicilar listener fails, listen to users doc
+              console.warn("kullanicilar snapshot warning, fallback to users listener:", error);
+              unsubscribeSnapshot = onSnapshot(doc(db, "users", fbUser.uid), (userSnap) => {
+                if (userSnap.exists() && active) {
+                  applyDataPayload(userSnap.data());
+                }
+              });
             });
           } catch (snapErr) {
             console.warn("Snapshot listener setup warning:", snapErr);
@@ -2102,7 +2121,7 @@ export default function App() {
             );
             
             if (isPermissionError) {
-              handleFirestoreError(err, OperationType.GET, `users/${fbUser.uid}`);
+              handleFirestoreError(err, OperationType.GET, `kullanicilar/${fbUser.uid}`);
             } else {
               triggerToast("Bulut senkronizasyonu kurulamadı: Çevrimdışı mod etkinleştirildi.");
             }
@@ -2288,12 +2307,15 @@ export default function App() {
           updatedAt: serverTimestamp()
         };
 
+        const kullaniciDocRef = doc(db, "kullanicilar", fbUser.uid);
         const userDocRef = doc(db, "users", fbUser.uid);
         const verilerDocRef = doc(db, "users", fbUser.uid, "veriler", "ana_veri");
         
         await Promise.all([
+          setDoc(kullaniciDocRef, payload, { merge: true }),
           setDoc(userDocRef, payload, { merge: true }),
           setDoc(verilerDocRef, payload, { merge: true }),
+          cleanEmail ? setDoc(doc(db, "kullanicilar", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve(),
           cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
         ]);
         setIsOfflineMode(false);
@@ -2310,7 +2332,7 @@ export default function App() {
       );
       
       if (isPermissionError && auth.currentUser) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${auth.currentUser.uid}`);
+        handleFirestoreError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}`);
       } else {
         triggerToast("Değişiklikler yerel olarak kaydedildi (Çevrimdışı Mod)");
       }
