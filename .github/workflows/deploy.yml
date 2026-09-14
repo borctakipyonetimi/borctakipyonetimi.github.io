@@ -129,11 +129,21 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp "$SOURCE_ICON" android/app/src/main/res/drawable/ic_stat_notify.png || true
           
-          # AndroidManifest.xml içine bildirim ikonu ve ağ ayarlarını gömüyoruz
+          # AndroidManifest.xml içine bildirim ikonu meta verisini gömüyoruz
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />' $MANIFEST_PATH
-            sed -i 's/<application /<application android:usesCleartextTraffic="true" /g' $MANIFEST_PATH || true
+          fi
+
+      - name: Android Internet ve Network Guvenlik Izinlerini Isle
+        run: |
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST_PATH" ]; then
+            # 1. Android Manifest içine genel internet izinlerini kesin olarak ekliyoruz
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST_PATH
+            
+            # 2. Application etiketi içine şifresiz/açık trafik izni (usesCleartextTraffic) ekliyoruz
+            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
       - name: Android APK Derle (Build)

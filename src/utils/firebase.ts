@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   User
 } from "firebase/auth";
-import { getFirestore, enableNetwork } from "firebase/firestore";
+import { getFirestore, initializeFirestore, enableNetwork } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
@@ -25,7 +25,17 @@ export const firebaseConfig = {
 
 // Initialize Firebase
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// Android WebView ve mobil tarayıcılarda WebSocket engellerini aşmak için experimentalForceLongPolling ile başlat
+let firestoreDb: any;
+try {
+  firestoreDb = initializeFirestore(app, {
+    experimentalForceLongPolling: true
+  });
+} catch {
+  firestoreDb = getFirestore(app);
+}
+export const db = firestoreDb;
 
 // getFirestore kodunun hemen altına enableNetwork(db) komutunu ekleyerek uygulamanın çevrim dışı moda kaçmasını kesin olarak engelle
 enableNetwork(db)
