@@ -80,22 +80,15 @@ jobs:
             "server": {
               "url": "https://borctakipyonetimi.github.io",
               "cleartext": true,
-              "allowNavigation": [
-                "*.google.com",
-                "*.googleapis.com",
-                "*.firebaseapp.com",
-                "*.googleusercontent.com",
-                "accounts.google.com"
-              ]
+              "allowNavigation": []
             },
             "plugins": {
+              "CapacitorCookies": {
+                "enabled": true
+              },
               "LocalNotifications": {
                 "smallIcon": "res://icon",
                 "iconColor": "#4F46E5"
-              },
-              "FirebaseAuthentication": {
-                "skipNativeAuth": false,
-                "providers": ["google.com"]
               }
             },
             "android": {

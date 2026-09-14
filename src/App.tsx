@@ -1664,10 +1664,8 @@ export default function App() {
 
   const handleGoogleAuthForSync = async () => {
     try {
-      const user = await googleIleGirisYap();
-      if (user) {
-        triggerToast("Google Hesabı Başarıyla Doğrulandı! ✅");
-      }
+      await googleIleGirisYap();
+      triggerToast("Giriş sayfası tarayıcıda açıldı.");
     } catch (err: any) {
       console.warn("Google auth failure for sync:", err);
       triggerToast("Bağlantı doğrulanamadı: " + (err.message || "Bilinmeyen Hata"));
@@ -1761,13 +1759,8 @@ export default function App() {
   const handleSidebarGoogleLogin = async () => {
     setIsQuickLoggingIn("google");
     try {
-      const user = await googleIleGirisYap();
-      if (user) {
-        const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;
-        setCurrentUser(emailOrUid);
-        localStorage.setItem("currentUser", emailOrUid);
-        triggerToast("Google ile Giriş Yapıldı! 🎉");
-      }
+      await googleIleGirisYap();
+      triggerToast("Giriş sayfası harici tarayıcıda açıldı.");
     } catch (err: any) {
       console.warn("Sidebar Google login error:", err);
       triggerToast("Google Girişi: " + (err.message || "Bağlantı hatası"));

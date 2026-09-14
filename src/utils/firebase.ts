@@ -2,11 +2,21 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { Browser } from '@capacitor/browser';
 
 export async function googleIleGirisYap() {
-  const result = await FirebaseAuthentication.signInWithGoogle();
-  return result.user;
+  // Gerçek Firebase Auth projemizin yönlendirme adresini tetikliyoruz:
+  const targetUrl = "https://borc-takip-pro-f6936.firebaseapp.com";
+  if (typeof window !== "undefined") {
+    try {
+      window.open(targetUrl, '_system');
+    } catch {
+      window.open(targetUrl, '_blank');
+    }
+  }
+  try {
+    await Browser.open({ url: targetUrl });
+  } catch {}
 }
 
 // Your web app's Firebase configuration
