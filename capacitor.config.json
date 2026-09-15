@@ -8,15 +8,14 @@
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_notify",
-      "iconColor": "#4F46E5"
+      "iconColor": "#10B981"
     },
     "SplashScreen": {
       "launchShowDuration": 0,
       "launchAutoHide": true,
-      "backgroundColor": "#020617",
-      "androidSplashResourceName": "splash",
-      "androidScaleType": "CENTER_CROP",
-      "showSpinner": false
+      "splashFullScreen": true,
+      "splashImmersive": true,
+      "backgroundColor": "#020617"
     }
   },
   "android": {
