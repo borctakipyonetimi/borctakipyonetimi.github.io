@@ -1,4 +1,4 @@
-name: Kesin Cozum APK Uretici
+name: Kesin Cozum Logo ve Isim Uretici
 on:
   push:
     branches:
@@ -25,169 +25,67 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Bagimliliklari ve Capacitor CLI Yukle
+      - name: Proje Altyapisini Olustur
         run: |
+          if [ ! -f package.json ]; then
+            echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json
+          fi
           npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/splash-screen @capacitor/local-notifications @capacitor/browser @capacitor-firebase/authentication
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
 
-      - name: Uygulama ve Bildirim Logolarini Zorla Yeniden Uret
-        run: |
-          npm install -g @capacitor/assets
-          find . -name "favicon.ico" -exec cp logo.png {} \; 2>/dev/null || true
-          find . -name "icon.png" -exec cp logo.png {} \; 2>/dev/null || true
-          cp logo.png public/logo.png || true
-          rm -rf assets && mkdir -p assets
-          cp logo.png assets/logo.png
-          cp logo.png assets/icon.png
-          cp logo.png assets/icon-only.png
-          cp logo.png assets/icon-foreground.png
-          cp logo.png assets/icon-background.png
-          cp logo.png assets/splash.png
-          cp logo.png assets/splash-dark.png
-          mkdir -p assets/android
-          cp notification-icon.png assets/android/notification-icon.png || true
-          npx capacitor-assets generate --android || true
-
-      - name: Eski Kalintilari Tamamen Sil
+      - name: Eski Kalintilari Temizle
         run: |
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Gerekli Proje Altyapisini ve Ayarlarini Olustur
+      - name: Capacitor Ayarlarini Olustur (Aclis Ekrani Kapatildi)
         run: |
-          # Projeyi Vite ile derle (dist klasörünü üretsin)
-          npm run build
-          # Capacitor ayar dosyasını yerel dist klasörünü kullanacak şekilde ayarla
-          cat << 'EOF' > capacitor.config.json
-          {
-            "appId": "com.borctakip.app",
-            "appName": "Bütçem Pro",
-            "webDir": "dist",
-            "plugins": {
-              "CapacitorCookies": {
-                "enabled": true
-              },
-              "LocalNotifications": {
-                "smallIcon": "ic_stat_notify",
-                "iconColor": "#4F46E5"
-              },
-              "SplashScreen": {
-                "launchShowDuration": 0,
-                "launchAutoHide": true,
-                "backgroundColor": "#020617",
-                "androidSplashResourceName": "splash",
-                "androidScaleType": "CENTER_CROP",
-                "showSpinner": false
-              }
-            },
-            "android": {
-              "allowMixedContent": true,
-              "backgroundColor": "#020617"
-            },
-            "server": {
-              "androidScheme": "https",
-              "cleartext": true
-            }
-          }
-          EOF
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
 
-      - name: Android Platformunu Sifirdan Ekle ve Senkronize Et
+      - name: Web Kodlarini Hazirla
+        run: |
+          mkdir -p www
+          shopt -s extglob
+          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) www/ || true
+
+      - name: Android Platformunu Ekle
         run: |
           npx cap add android
-          npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || true
-          
-          # 1. Sadece cozunurluk mipmap klasorlerindeki (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi) PNG dosyalarini guncelle
-          # ONEMLI: mipmap-anydpi-v26 klasorune kesinlikle PNG koymuyoruz (AAPT2 Duplicate resources hatasini onlemek icin XML kalmali)
-          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            dir="android/app/src/main/res/mipmap-$density"
-            if [ -d "$dir" ]; then
-              cp logo.png "$dir/ic_launcher.png" 2>/dev/null || true
-              cp logo.png "$dir/ic_launcher_round.png" 2>/dev/null || true
-              cp logo.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
-            fi
-            drawable_dir="android/app/src/main/res/drawable-$density"
-            if [ -d "$drawable_dir" ]; then
-              cp logo.png "$drawable_dir/ic_launcher_foreground.png" 2>/dev/null || true
-              cp logo.png "$drawable_dir/splash.png" 2>/dev/null || true
-            fi
-          done
 
-          # 2. Standart drawable klasorlerindeki splash gorsellerini logo.png ile guncelle
-          for dir in android/app/src/main/res/drawable*; do
-            if [ ! -f "$dir/splash.xml" ]; then
-              cp logo.png "$dir/splash.png" 2>/dev/null || true
-            fi
-          done
-
-          # 3. anydpi ve v24 gibi XML iceren ozel klasorlerdeki yanlis PNG kopyalarini kaldirarak cakisimlari engelle
-          rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png 2>/dev/null || true
-          rm -f android/app/src/main/res/drawable-v24/ic_launcher_foreground.png 2>/dev/null || true
-          rm -f android/app/src/main/res/drawable/ic_launcher_foreground.png 2>/dev/null || true
-
-          # 4. Android Adaptive Icon arka plan rengini koyu (#020617) olarak sabitle
-          COLOR_FILE="android/app/src/main/res/values/ic_launcher_background.xml"
-          if [ -f "$COLOR_FILE" ]; then
-            sed -i 's/<color name="ic_launcher_background">.*<\/color>/<color name="ic_launcher_background">#020617<\/color>/g' "$COLOR_FILE"
-          fi
-          COLORS_PATH="android/app/src/main/res/values/colors.xml"
-          if [ -f "$COLORS_PATH" ]; then
-            sed -i 's/<color name="splashBackground">.*<\/color>/<color name="splashBackground">#020617<\/color>/g' "$COLORS_PATH" || true
-          fi
-
-          npx cap sync android
-
-      - name: Uygulama Ismini Butcem Pro Olarak Guncelle
+      - name: Logolari ve Bildirim Simgelerini Kesin Olarak Yerlestir
         run: |
-          STRING_PATH="android/app/src/main/res/values/strings.xml"
-          if [ -f "$STRING_PATH" ]; then
-            # strings.xml içindeki app_name ve title değerlerini Bütçem Pro yapıyoruz
-            sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">Bütçem Pro<\/string>/g' $STRING_PATH
-            sed -i 's/<string name="title_activity_main">.*<\/string>/<string name="title_activity_main">Bütçem Pro<\/string>/g' $STRING_PATH
-          fi
+          npm install -g @capacitor/assets
+          mkdir -p assets
+          cp logo.png assets/icon-only.png || true
+          cp logo.png assets/icon-foreground.png || true
+          cp logo.png assets/icon-background.png || true
+          cp logo.png assets/splash.png || true
+          cp logo.png assets/splash-dark.png || true
+          npx capacitor-assets generate --android
 
-      - name: Bildirim Ikonlarini Kesin Olarak Yerlestir
+      - name: Bildirim Ikonunu Android Sistemine Kazı
         run: |
-          # Bildirim görselinin etrafındaki şeffaf boşlukları tamamen kaldırıp tam boyutu kaplamasını sağlıyoruz
-          SOURCE_ICON="notification-icon.png"
-          if [ -f "assets/android/notification-icon.png" ]; then
-            SOURCE_ICON="assets/android/notification-icon.png"
-          fi
-
-          # Şeffaf ikonu Android'in tüm drawable ve mipmap kaynak klasörlerine tam boyutu kaplayacak şekilde kopyalıyoruz
           for dir in android/app/src/main/res/mipmap-*; do
-            cp "$SOURCE_ICON" "$dir/ic_stat_notify.png" || true
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
           done
           for dir in android/app/src/main/res/drawable-*; do
-            cp "$SOURCE_ICON" "$dir/ic_stat_notify.png" || true
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
           done
-          mkdir -p android/app/src/main/res/drawable
-          cp "$SOURCE_ICON" android/app/src/main/res/drawable/ic_stat_notify.png || true
-          
-          # AndroidManifest.xml içine bildirim ikonu meta verisini gömüyoruz
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />' $MANIFEST_PATH
-          fi
-
-      - name: Android Internet ve Network Guvenlik Izinlerini Isle
-        run: |
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST_PATH" ]; then
-            # 1. Android Manifest içine genel internet izinlerini kesin olarak ekliyoruz
             sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST_PATH
-            
-            # 2. Application etiketi içine şifresiz/açık trafik izni (usesCleartextTraffic) ekliyoruz
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
       - name: Android APK Derle (Build)
         run: |
+          npx cap sync android
           cd android
-          chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Reklamsiz APK Dosyasini Yukle
+      - name: Butcem Pro APK Yukle
         uses: actions/upload-artifact@v4
         with:
-          name: butcem-pro-apk
+          name: butcem-pro-reklamsiz-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
