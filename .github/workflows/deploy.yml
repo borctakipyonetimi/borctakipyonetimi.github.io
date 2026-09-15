@@ -28,39 +28,19 @@ jobs:
       - name: Bagimliliklari ve Capacitor CLI Yukle
         run: |
           npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser @capacitor-firebase/authentication
+          npm install @capacitor/core @capacitor/cli @capacitor/splash-screen @capacitor/local-notifications @capacitor/browser @capacitor-firebase/authentication
 
-      - name: Uygulama ve Bildirim Logolarini Otomatik Uret
+      - name: Uygulama ve Bildirim Logolarini Zorla Yeniden Uret
         run: |
-          # Aracı yükle
           npm install -g @capacitor/assets
-          
-          # Proje içindeki tüm olası eski logoları bizim logomuzla ezerek değiştiriyoruz
           find . -name "favicon.ico" -exec cp logo.png {} \; 2>/dev/null || true
           find . -name "icon.png" -exec cp logo.png {} \; 2>/dev/null || true
-          find . -name "logo.png" -exec cp logo.png {} \; 2>/dev/null || true
-          
-          # Capacitor assets için gerekli klasörü zorla doldur
-          rm -rf assets
-          mkdir -p assets
+          rm -rf assets && mkdir -p assets
           cp logo.png assets/icon-only.png
           cp logo.png assets/icon-foreground.png
           cp logo.png assets/icon-background.png
-          cp logo.png assets/splash.png
-          cp logo.png assets/splash-dark.png
-          
-          # Bildirim ikonu etrafındaki şeffaf boşlukları kırparak tam boyutu kaplamasını sağla
-          mkdir -p assets/android
-          if command -v convert >/dev/null 2>&1; then
-            convert notification-icon.png -trim +repage -resize 512x512 -gravity center -background none -extent 512x512 assets/android/notification-icon.png || cp notification-icon.png assets/android/notification-icon.png
-            convert notification-icon.png -trim +repage -resize 512x512 -gravity center -background none -extent 512x512 assets/notification-icon.png || cp notification-icon.png assets/notification-icon.png
-          else
-            cp notification-icon.png assets/android/notification-icon.png || true
-            cp notification-icon.png assets/notification-icon.png || true
-          fi
-          
-          # capacitor-assets aracına --asset-path parametresi vererek ikonun kırpılmasını ve küçülmesini önle
-          npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || npx capacitor-assets generate --android || true
+          cp notification-icon.png assets/android/notification-icon.png || true
+          npx capacitor-assets generate --android
 
       - name: Eski Kalintilari Tamamen Sil
         run: |
@@ -84,6 +64,11 @@ jobs:
               "LocalNotifications": {
                 "smallIcon": "ic_stat_notify",
                 "iconColor": "#4F46E5"
+              },
+              "SplashScreen": {
+                "launchShowDuration": 0,
+                "launchAutoHide": true,
+                "androidSplashResourceName": "splash"
               }
             },
             "android": {

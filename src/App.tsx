@@ -497,9 +497,19 @@ export default function App() {
   const [liveClock, setLiveClock] = useState("--:--:--");
   const [isClockVisible, setIsClockVisible] = useState(true);
 
-  // Design palettes state - defaults
+  // Design palettes state - defaults with automatic phone/system adaptation
+  const [themeMode, setThemeMode] = useState<"auto" | "dark" | "light">(() => {
+    return (localStorage.getItem("themeMode") as "auto" | "dark" | "light") || "auto";
+  });
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem("darkMode") === "1";
+    const savedMode = localStorage.getItem("themeMode") || "auto";
+    if (savedMode === "dark") return true;
+    if (savedMode === "light") return false;
+    // Auto mode or initial visit -> adapt to phone / system setting
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
   });
   const [colorTheme, setColorTheme] = useState<string>(() => {
     return localStorage.getItem("colorTheme") || "default";
@@ -1859,6 +1869,31 @@ export default function App() {
     }
   }, [isUpgradeModalOpen]);
 
+  // Otomatik telefon karanlık / aydınlık mod dinleyicisi
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const handleSystemChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      const currentMode = localStorage.getItem("themeMode") || "auto";
+      if (currentMode === "auto") {
+        setDarkMode(e.matches);
+      }
+    };
+
+    if (themeMode === "auto") {
+      setDarkMode(mediaQuery.matches);
+    }
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleSystemChange);
+      return () => mediaQuery.removeEventListener("change", handleSystemChange);
+    } else {
+      mediaQuery.addListener(handleSystemChange);
+      return () => mediaQuery.removeListener(handleSystemChange);
+    }
+  }, [themeMode]);
+
   // Sync theme configurations on body
   useEffect(() => {
     if (darkMode) {
@@ -1899,15 +1934,55 @@ export default function App() {
       { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
     ];
 
+    const isSampleItem = (item: any, type: "debt" | "installment" | "income" | "expense" | "alarm" | "notif") => {
+      if (!item) return true;
+      if (type === "debt") {
+        if (item.name === "Örnek Finansal Borç" || item.name === "Telefon Taksidi (Örnek)") return true;
+        if (typeof item.name === "string" && item.name.toLowerCase().includes("örnek")) return true;
+      }
+      if (type === "installment") {
+        if (item.name === "Telefon Taksidi (Örnek)") return true;
+        if (typeof item.name === "string" && item.name.toLowerCase().includes("örnek")) return true;
+      }
+      if (type === "income") {
+        if (item.name === "Aylık Maaş Geliri" && Number(item.amount) === 20000) return true;
+        if (typeof item.name === "string" && item.name.toLowerCase().includes("örnek")) return true;
+      }
+      if (type === "expense") {
+        if (item.description === "Haftalık mutfak alışverişi" && Number(item.amount) === 550) return true;
+        if (item.description === "Elektrik Faturası" && Number(item.amount) === 240) return true;
+        if (typeof item.description === "string" && item.description.toLowerCase().includes("örnek")) return true;
+      }
+      if (type === "alarm") {
+        if (item.title === "Kredi Kartı Son Ödeme") return true;
+      }
+      if (type === "notif") {
+        if (item.title === "Sisteme Hoş Geldiniz! Borçlarınızı buraya kaydedebilirsiniz.") return true;
+      }
+      return false;
+    };
+
     const applyDataPayload = (data: any) => {
       if (!active) return;
-      setDebts(data.debts || []);
-      setIncomes(data.incomes || []);
-      setAlarms(data.alarms || []);
-      setNotifications(data.notifications || []);
-      setInstallmentDebts(data.installmentDebts || []);
-      setPayments(data.payments || []);
-      setExpenses(data.expenses || []);
+      const cleanDebts = (data.debts || []).filter((d: any) => !isSampleItem(d, "debt"));
+      const cleanInsts = (data.installmentDebts || []).filter((i: any) => !isSampleItem(i, "installment"));
+      const validDebtIds = new Set(cleanDebts.map((d: any) => d.id));
+      const validInstIds = new Set(cleanInsts.map((i: any) => i.id));
+      const cleanPayments = (data.payments || []).filter((p: any) => {
+        return p.debtId && (validDebtIds.has(p.debtId) || validInstIds.has(p.debtId));
+      });
+      const cleanIncomes = (data.incomes || []).filter((inc: any) => !isSampleItem(inc, "income"));
+      const cleanAlarms = (data.alarms || []).filter((a: any) => !isSampleItem(a, "alarm"));
+      const cleanNotifs = (data.notifications || []).filter((n: any) => !isSampleItem(n, "notif"));
+      const cleanExpenses = (data.expenses || []).filter((e: any) => !isSampleItem(e, "expense"));
+
+      setDebts(cleanDebts);
+      setIncomes(cleanIncomes);
+      setAlarms(cleanAlarms);
+      setNotifications(cleanNotifs);
+      setInstallmentDebts(cleanInsts);
+      setPayments(cleanPayments);
+      setExpenses(cleanExpenses);
 
       if (data.isPremium !== undefined) {
         setIsPremium(data.isPremium);
@@ -1926,13 +2001,13 @@ export default function App() {
       if (userKey) {
         const spaceKey = `user_${userKey}`;
         const dataBag = {
-          debts: data.debts || [],
-          incomes: data.incomes || [],
-          alarms: data.alarms || [],
-          notifications: data.notifications || [],
-          installmentDebts: data.installmentDebts || [],
-          payments: data.payments || [],
-          expenses: data.expenses || [],
+          debts: cleanDebts,
+          incomes: cleanIncomes,
+          alarms: cleanAlarms,
+          notifications: cleanNotifs,
+          installmentDebts: cleanInsts,
+          payments: cleanPayments,
+          expenses: cleanExpenses,
           expenseCategories: hasCats ? data.expenseCategories : defaultCategories
         };
         try {
@@ -1947,8 +2022,8 @@ export default function App() {
       if (dataString) {
         try {
           const parsed = JSON.parse(dataString);
-          const loadedDebts = parsed.debts || [];
-          const loadedInstallments = parsed.installmentDebts || [];
+          const loadedDebts = (parsed.debts || []).filter((d: any) => !isSampleItem(d, "debt"));
+          const loadedInstallments = (parsed.installmentDebts || []).filter((i: any) => !isSampleItem(i, "installment"));
           const validDebtIds = new Set(loadedDebts.map((d: any) => d.id));
           const validInstIds = new Set(loadedInstallments.map((i: any) => i.id));
           
@@ -1957,57 +2032,52 @@ export default function App() {
             return p.debtId && (validDebtIds.has(p.debtId) || validInstIds.has(p.debtId));
           });
 
+          const loadedIncomes = (parsed.incomes || []).filter((inc: any) => !isSampleItem(inc, "income"));
+          const loadedAlarms = (parsed.alarms || []).filter((a: any) => !isSampleItem(a, "alarm"));
+          const loadedNotifs = (parsed.notifications || []).filter((n: any) => !isSampleItem(n, "notif"));
+          const loadedExpenses = (parsed.expenses || []).filter((e: any) => !isSampleItem(e, "expense"));
+          const hasCategories = parsed.expenseCategories && Array.isArray(parsed.expenseCategories) && parsed.expenseCategories.length > 0;
+          const cleanCats = hasCategories ? parsed.expenseCategories : defaultCategories;
+
           setDebts(loadedDebts);
-          setIncomes(parsed.incomes || []);
-          setAlarms(parsed.alarms || []);
-          setNotifications(parsed.notifications || []);
+          setIncomes(loadedIncomes);
+          setAlarms(loadedAlarms);
+          setNotifications(loadedNotifs);
           setInstallmentDebts(loadedInstallments);
           setPayments(cleanPayments);
-          setExpenses(parsed.expenses || []);
-          const hasCategories = parsed.expenseCategories && Array.isArray(parsed.expenseCategories) && parsed.expenseCategories.length > 0;
-          setExpenseCategories(hasCategories ? parsed.expenseCategories : defaultCategories);
+          setExpenses(loadedExpenses);
+          setExpenseCategories(cleanCats);
+
+          // Update storage with cleaned data
+          try {
+            const cleanBag = {
+              ...parsed,
+              debts: loadedDebts,
+              installmentDebts: loadedInstallments,
+              incomes: loadedIncomes,
+              alarms: loadedAlarms,
+              notifications: loadedNotifs,
+              payments: cleanPayments,
+              expenses: loadedExpenses,
+              expenseCategories: cleanCats
+            };
+            localStorage.setItem(spaceKey, JSON.stringify(cleanBag));
+          } catch {}
           return;
         } catch (e) {
           console.error("Local data parsing warning:", e);
         }
       }
 
-      // If NOT logged in (guest / anonymous), load starter sample mockup
-      if (!auth.currentUser && !currentUser) {
-        setDebts([{ id: 1, name: "Örnek Finansal Borç", amount: 5000, paid: 1500, category: "Diğer", dueDate: "" }]);
-        setIncomes([{ id: 1, name: "Aylık Maaş Geliri", amount: 20000, date: new Date().toISOString() }]);
-        setAlarms([{ id: 1, title: "Kredi Kartı Son Ödeme", date: new Date().toISOString().slice(0, 10) }]);
-        setNotifications([{ id: 1, title: "Sisteme Hoş Geldiniz! Borçlarınızı buraya kaydedebilirsiniz." }]);
-        setInstallmentDebts([
-          {
-            id: 1,
-            name: "Telefon Taksidi (Örnek)",
-            totalAmount: 12000,
-            installmentCount: 12,
-            paidInstallmentCount: 3,
-            firstDueDate: new Date().toISOString().slice(0, 10)
-          }
-        ]);
-        setPayments([
-          { id: 1, debtId: 1, amount: 1500, date: new Date().toISOString(), type: "manual" },
-          { id: 2, debtId: 1, amount: 1000, date: new Date().toISOString(), type: "installment" }
-        ]);
-        setExpenses([
-          { id: 1, categoryId: 2, amount: 550, description: "Haftalık mutfak alışverişi", date: new Date().toISOString() },
-          { id: 2, categoryId: 5, amount: 240, description: "Elektrik Faturası", date: new Date().toISOString() }
-        ]);
-        setExpenseCategories(defaultCategories);
-      } else {
-        // Authenticated user with no existing data -> start clean with empty lists
-        setDebts([]);
-        setIncomes([]);
-        setAlarms([]);
-        setNotifications([]);
-        setInstallmentDebts([]);
-        setPayments([]);
-        setExpenses([]);
-        setExpenseCategories(defaultCategories);
-      }
+      // Completely clean system: start with empty tables
+      setDebts([]);
+      setIncomes([]);
+      setAlarms([]);
+      setNotifications([]);
+      setInstallmentDebts([]);
+      setPayments([]);
+      setExpenses([]);
+      setExpenseCategories(defaultCategories);
     };
 
     let unsubscribeSnapshot: (() => void) | null = null;
@@ -5325,11 +5395,36 @@ export default function App() {
 
 
             <button
-              onClick={() => setDarkMode((prev) => !prev)}
-              title="Arka Plan Teması"
-              className="p-1.5 sm:p-2 lg:p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner shrink-0"
+              onClick={() => {
+                if (themeMode === "auto") {
+                  const nextDark = !darkMode;
+                  const nextMode = nextDark ? "dark" : "light";
+                  setThemeMode(nextMode);
+                  setDarkMode(nextDark);
+                  localStorage.setItem("themeMode", nextMode);
+                  triggerToast(nextDark ? "Karanlık Mod Sabitlendi 🌙 (Otomatik için tekrar dokunun)" : "Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
+                } else if (themeMode === "dark") {
+                  setThemeMode("light");
+                  setDarkMode(false);
+                  localStorage.setItem("themeMode", "light");
+                  triggerToast("Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
+                } else {
+                  setThemeMode("auto");
+                  localStorage.setItem("themeMode", "auto");
+                  const isSysDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                  setDarkMode(!!isSysDark);
+                  triggerToast(`Telefona Uyarlandı (Otomatik Mod) 📱 (${isSysDark ? "Karanlık" : "Aydınlık"})`);
+                }
+              }}
+              title={`Tema: ${themeMode === "auto" ? "Telefona Göre Otomatik 📱" : themeMode === "dark" ? "Karanlık Mod 🌙" : "Aydınlık Mod ☀️"}`}
+              className="p-1.5 sm:p-2 lg:p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner shrink-0 relative"
             >
               {darkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-200" />}
+              {themeMode === "auto" && (
+                <span className="absolute -top-1 -right-1 px-1 py-0.2 text-[7px] font-black bg-emerald-500 text-slate-950 rounded-full leading-none shadow-xs">
+                  OTO
+                </span>
+              )}
             </button>
 
             <button
@@ -5781,14 +5876,14 @@ export default function App() {
         />
       )}
 
-      {/* Side drawer panel */}
+      {/* Side drawer panel - Açılır Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-72 bg-white dark:bg-slate-800 border-r border-slate-200/50 dark:border-slate-700/50 z-50 transform transition-transform duration-300 flex flex-col justify-between overflow-y-auto ${
+        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-linear-to-b from-white via-slate-50/95 to-indigo-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col justify-between overflow-y-auto shadow-2xl shadow-indigo-950/15 dark:shadow-black/70 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Animated fluid floating vector blobs for premium backdrop depth (100% stable, zero Math.random hydration hazards) */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.06] dark:opacity-[0.14] z-0">
+        {/* Animated fluid floating vector blobs for premium backdrop depth */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.08] dark:opacity-[0.14] z-0">
           <motion.div
             animate={{
               x: [0, 24, -14, 0],
@@ -5801,7 +5896,7 @@ export default function App() {
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-gradient-to-tr from-indigo-500 to-sky-450 blur-2xl"
+            className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-gradient-to-tr from-indigo-500 to-sky-400 blur-2xl"
           />
           <motion.div
             animate={{
@@ -5832,20 +5927,105 @@ export default function App() {
           />
         </div>
 
-        <div className="p-5 space-y-5 relative z-10">
-          {/* Workspace Title */}
-          <div className="flex items-center gap-2 border-b dark:border-slate-700 pb-3">
-            <Coins className="w-6 h-6 text-indigo-500 animate-pulse animate-spin [animation-duration:15s]" />
-            <div>
-              <h2 className="text-sm font-black text-slate-800 dark:text-slate-50 tracking-wide uppercase">
-                {language === "tr" ? "Hesap Asistanı" : "Account Advisor"}
-              </h2>
-              <p className="text-[10px] font-bold text-slate-400">v5.0 Ultimate</p>
+        <div className="p-4 sm:p-5 space-y-4 relative z-10">
+          {/* Workspace Title & Close Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-indigo-600 via-indigo-500 to-sky-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 shrink-0">
+                <Coins className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-black text-slate-900 dark:text-slate-50 tracking-tight uppercase leading-none truncate">
+                    {language === "tr" ? "Bütçem Pro" : "Budget Pro"}
+                  </h2>
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                    v5.0
+                  </span>
+                </div>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                  {language === "tr" ? "Akıllı Finans Asistanı" : "Financial Assistant"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition cursor-pointer active:scale-95 border border-slate-200/70 dark:border-slate-700/70 shrink-0"
+              title="Menüyü Kapat"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tema Seçici: Telefona Uyarla (Otomatik) / Aydınlık / Karanlık */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider">Görünüm Teması</span>
+              <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
+                {themeMode === "auto" ? "Telefona Uyumlu 📱" : themeMode === "dark" ? "Karanlık 🌙" : "Aydınlık ☀️"}
+              </span>
+            </div>
+            <div className="p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/70 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeMode("auto");
+                  localStorage.setItem("themeMode", "auto");
+                  const isSysDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                  setDarkMode(!!isSysDark);
+                  triggerToast(`Telefona Uyarlandı (Otomatik Mod) 📱 (${isSysDark ? "Karanlık" : "Aydınlık"})`);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  themeMode === "auto"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm border border-slate-200/60 dark:border-slate-600"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+                title="Telefonunuzun sistem ayarına göre otomatik geçiş yapar"
+              >
+                <Smartphone className="w-3 h-3 text-indigo-500" />
+                <span>Otomatik</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeMode("light");
+                  localStorage.setItem("themeMode", "light");
+                  setDarkMode(false);
+                  triggerToast("Aydınlık Mod Etkinleştirildi ☀️");
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  themeMode === "light"
+                    ? "bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Sun className="w-3 h-3 text-amber-500" />
+                <span>Aydınlık</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeMode("dark");
+                  localStorage.setItem("themeMode", "dark");
+                  setDarkMode(true);
+                  triggerToast("Karanlık Mod Etkinleştirildi 🌙");
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  themeMode === "dark"
+                    ? "bg-white dark:bg-slate-700 text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Moon className="w-3 h-3 text-sky-400" />
+                <span>Karanlık</span>
+              </button>
             </div>
           </div>
 
           {/* Local User Login profile area */}
-          <div className="p-3 bg-gradient-to-b from-slate-50 to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20 rounded-2xl flex flex-col gap-2 relative overflow-hidden border border-slate-200/70 dark:border-indigo-500/20 shadow-sm">
+          <div className="p-3.5 bg-white/90 dark:bg-slate-900/90 rounded-2xl flex flex-col gap-2 relative overflow-hidden border border-slate-200/90 dark:border-indigo-500/20 shadow-xs">
             {isQuickLoggingIn ? (
               <div className="py-6 text-center space-y-3">
                 <span className="w-7 h-7 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin inline-block" />
@@ -5856,7 +6036,7 @@ export default function App() {
               </div>
             ) : !currentUser ? (
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70 dark:border-slate-800">
                   <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Shield className="w-3 h-3 text-indigo-500" />
                     <span>Bulut & Cihaz Girişi</span>
@@ -5950,7 +6130,7 @@ export default function App() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200/50 dark:border-slate-800 text-center space-y-1.5"
+                      className="overflow-hidden bg-slate-100/80 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5"
                     >
                       <span className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 block">PROFİL RESMİ GÜNCELLE</span>
                       
@@ -6004,8 +6184,8 @@ export default function App() {
 
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
-                  <div className="px-3 py-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100/30 dark:border-indigo-900/20">
-                    <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-slate-200/40 dark:border-slate-800/85 mb-1">
+                  <div className="px-3 py-2 bg-indigo-50/70 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/20">
+                    <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-slate-200/60 dark:border-slate-800/85 mb-1">
                       <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
                         {currentUser.includes("@") && !currentUser.endsWith("@borctakip.app") ? (
                           <>
@@ -6051,25 +6231,38 @@ export default function App() {
             {sidebarItems.map((item) => {
               const Icon = item.icon;
               const isProFeatured = (item as any).isPro;
+              const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
-                  className={`w-full px-4 py-2.5 rounded-xl flex items-center justify-between text-xs font-bold leading-normal transition-all ${
-                    activeTab === item.id
-                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-l-[4px] border-indigo-600"
-                      : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50"
+                  className={`group w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-xs leading-normal transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-linear-to-r from-indigo-600 to-indigo-700 text-white font-black shadow-md shadow-indigo-600/25 ring-1 ring-indigo-500/30"
+                      : "text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800/80 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent hover:border-slate-200/70 dark:hover:border-slate-700/60 shadow-none hover:shadow-xs font-bold"
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isProFeatured ? "text-amber-500" : "text-slate-400"}`} />
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
+                        isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-950/60 dark:group-hover:text-indigo-400"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                    </div>
                     <span className="truncate text-left">{item.label}</span>
                   </div>
                   {isProFeatured && (
                     <motion.span
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 tracking-widest font-mono shadow-[0_0_8px_rgba(245,158,11,0.4)] shrink-0 ml-1.5"
+                      animate={{ scale: [1, 1.08, 1] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest font-mono shrink-0 ml-1.5 ${
+                        isActive
+                          ? "bg-amber-300 text-slate-950 shadow-xs"
+                          : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.35)]"
+                      }`}
                     >
                       PRO
                     </motion.span>
@@ -6077,15 +6270,14 @@ export default function App() {
                 </button>
               );
             })}
-
-            {/* Removed sidebar AdMob Banner to comply with Google AdSense navigation policies */}
           </nav>
         </div>
 
         {/* Database backup controllers inside side panel footer */}
-        <div className="p-4 border-t dark:border-slate-700 space-y-3 bg-slate-50/50 dark:bg-slate-900/40 relative z-10">
-          <div className="grid grid-cols-2 gap-1.5 text-[9px] font-bold">
+        <div className="p-4 border-t border-slate-200/80 dark:border-slate-800 space-y-2.5 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md relative z-10">
+          <div className="grid grid-cols-2 gap-2 text-[9px] font-bold">
             <button
+              type="button"
               onClick={() => {
                 if (!isPremium) {
                   setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
@@ -6094,12 +6286,13 @@ export default function App() {
                 }
                 handleExportBackup();
               }}
-              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
+              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
-              <Download className="w-3 h-3" /> DIŞA AKTAR
+              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> DIŞA AKTAR
               {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
             </button>
             <button
+              type="button"
               onClick={() => {
                 if (!isPremium) {
                   setPromoFeature("Veri Yedekleme (İçe Aktarma)");
@@ -6108,13 +6301,14 @@ export default function App() {
                 }
                 handleImportBackup();
               }}
-              className="py-1.5 px-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition relative overflow-hidden cursor-pointer"
+              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
-              <Upload className="w-3 h-3" /> İÇE AKTAR
+              <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> İÇE AKTAR
               {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
             </button>
           </div>
           <button
+            type="button"
             onClick={() => {
               if (!isPremium) {
                 setPromoFeature("CSV Raporu");
@@ -6124,14 +6318,15 @@ export default function App() {
               setCsvStep("filter");
               setIsCsvModalOpen(true);
             }}
-            className="w-full py-2 bg-gradient-to-tr from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-lg text-[10px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs hover:shadow-xs cursor-pointer uppercase tracking-tight relative overflow-hidden"
+            className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm hover:shadow-md cursor-pointer uppercase tracking-tight relative overflow-hidden"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" /> FİNANSAL RAPORU İNDİR (.CSV)
             {!isPremium && <span className="absolute -top-1 -right-4 px-5 py-2 bg-amber-500 text-[7px] text-white font-black transform rotate-12 shadow-sm border border-amber-300/30">PRO</span>}
           </button>
           <button
+            type="button"
             onClick={handleResetAllData}
-            className="w-full py-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg text-[9px] font-extrabold flex items-center justify-center gap-1 transition-all border border-dashed border-rose-500/30"
+            className="w-full py-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-[9px] font-extrabold flex items-center justify-center gap-1 transition-all border border-dashed border-rose-400/40 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" /> TÜM VERİLERİ SIFIRLA
           </button>
@@ -6851,87 +7046,6 @@ export default function App() {
                       >
                         {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
                       </button>
-                    </div>
-                  </div>
-
-                  {/* TELEFON KAPALIYKEN ÇALIŞAN ALARM & WEB PUSH SİSTEMİ (SERVICE WORKER ALTYAPISI) */}
-                  <div className="p-5 bg-linear-to-br from-indigo-50/90 via-sky-50/50 to-emerald-50/50 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-800/80 rounded-3xl space-y-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">⏰</span>
-                          <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                            Telefon Kapalıyken Çalışan Web Push & Alarm Altyapısı
-                          </h4>
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
-                          Banka, kurye ve mesajlaşma uygulamalarındaki gibi; uygulamanız tamamen kapalıyken veya telefon kilitliyken bile Web Push ve Service Worker motoru sayesinde alarmlarınız zamanında çalar.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800/90 px-3 py-1.5 rounded-full border border-indigo-100 dark:border-indigo-900 shadow-2xs">
-                        <span className={`w-2.5 h-2.5 rounded-full ${isPushSubscribed ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
-                        <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
-                          {isPushSubscribed ? "Web Push Aktif & Bağlı" : "Bağlantı Kuruluyor"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Durum Göstergeleri */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
-                        <span className="text-[10px] font-bold text-slate-400">Web Push Protokolü</span>
-                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <span>✓</span> {isPushSubscribed ? "VAPID & FCM Hazır" : "Kayıt Bekliyor"}
-                        </span>
-                      </div>
-                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
-                        <span className="text-[10px] font-bold text-slate-400">Arka Plan Service Worker</span>
-                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                          <span>✓</span> Kilit Ekranı Dinleyicisi
-                        </span>
-                      </div>
-                      <div className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-indigo-100/70 dark:border-slate-700 flex flex-col justify-between gap-1">
-                        <span className="text-[10px] font-bold text-slate-400">Kilit Ekranı İzni</span>
-                        <span className={`text-xs font-black flex items-center gap-1 ${hasNotificationPermission === "granted" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                          <span>{hasNotificationPermission === "granted" ? "✓" : "!"}</span>
-                          {hasNotificationPermission === "granted" ? "Bildirim İzni Verildi" : "İzin Verilmesi Gerekiyor"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Eylem Butonları */}
-                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={triggerDiagnosticTestPush}
-                        disabled={testPushStatus.includes("SÜRE")}
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <span>🧪 10 Saniyelik Kapalı Ekran Test Alarmı Gönder</span>
-                        {testPushStatus && (
-                          <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-mono">
-                            {testPushStatus}
-                          </span>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          triggerToast("Arka plan sunucusuyla senkronizasyon yapılıyor...");
-                          await syncAlarmsWithPushServer();
-                          triggerToast("✅ Alarmlar ve ödeme planınız arka plan bildirim servisine eşitlendi.");
-                        }}
-                        className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black transition cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <span>🔄 Alarmları Şimdi Eşitle</span>
-                      </button>
-                    </div>
-
-                    {/* APK & Telefon İpucu */}
-                    <div className="p-3 bg-indigo-100/50 dark:bg-indigo-950/30 rounded-xl text-[11px] text-indigo-950 dark:text-indigo-200 leading-relaxed border border-indigo-200/50 dark:border-indigo-900/40">
-                      <strong>💡 APK ve Kilitli Ekran Bilgilendirmesi:</strong> Web sitenizi APK'ya dönüştürdüğünüzde veya web uygulamasını ana ekrana eklediğinizde, bu altyapı arka planda Web Push API ve Service Worker üzerinden çalışır. Test butonuna bastıktan hemen sonra telefonunuzun ekranını kilitleyerek 10 saniye içinde bildirim geldiğini test edebilirsiniz. Android pil ayarlarında bu uygulamanın arka plan kısıtlamasının kapalı olduğundan emin olunuz.
                     </div>
                   </div>
 

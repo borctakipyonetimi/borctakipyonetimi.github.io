@@ -9,6 +9,11 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_notify",
       "iconColor": "#4F46E5"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "androidSplashResourceName": "splash"
     }
   },
   "android": {

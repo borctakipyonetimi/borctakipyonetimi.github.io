@@ -1915,7 +1915,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       {categoryName.trim() || "Kategori Adı Belirtin"}
                     </p>
                     <p className="text-[9px] text-slate-450 font-bold uppercase tracking-wider">
-                      Örnek Harcama Grubu
+                      Harcama Grubu Önizleme
                     </p>
                   </div>
                 </div>
