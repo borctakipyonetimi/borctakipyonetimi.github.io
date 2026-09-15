@@ -1689,7 +1689,7 @@ export default function App() {
       return false;
     }
   });
-  const [splashVisible, setSplashVisible] = useState<boolean>(false);
+  const [splashVisible, setSplashVisible] = useState<boolean>(true);
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
@@ -1736,10 +1736,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
-    if (completed && !showOnboarding) {
-      startSplashAnimation();
-    }
+    // Uygulama her açıldığında doğrudan animasyonlu açılış ekranı çalışır
+    startSplashAnimation();
     return () => {
       if (splashTimerRef.current) {
         clearInterval(splashTimerRef.current);
@@ -1755,8 +1753,6 @@ export default function App() {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
     setShowOnboarding(false);
-    // Directly launch the animated splash intro screen as requested
-    startSplashAnimation();
   };
 
   const handleQuickLogin = (provider: "google") => {

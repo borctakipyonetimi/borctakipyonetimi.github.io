@@ -46,7 +46,7 @@ jobs:
 
       - name: Capacitor Ayarlarini Olustur (Guncel dist Paketi)
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}, "SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "splashFullScreen": true, "splashImmersive": true, "backgroundColor": "#020617"}}, "android": {"allowMixedContent": true, "backgroundColor": "#020617"}}' > capacitor.config.json
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}, "SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "splashFullScreen": true, "splashImmersive": true, "backgroundColor": "#020617", "showSpinner": false}}, "android": {"allowMixedContent": true, "backgroundColor": "#020617"}}' > capacitor.config.json
 
       - name: Android Platformunu Ekle ve Senkronize Et
         run: |
@@ -60,9 +60,9 @@ jobs:
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
-          cp logo.png assets/splash.png || true
-          cp logo.png assets/splash-dark.png || true
-          npx capacitor-assets generate --android --icon || npx @capacitor/assets generate --android --icon || npx capacitor-assets generate --android || true
+          # Splash gorsellerini temizle ki static logo uretilmesin
+          rm -f assets/splash.png assets/splash-dark.png || true
+          npx capacitor-assets generate --android --icon || npx @capacitor/assets generate --android --icon || true
 
       - name: Bildirim Amblemini (BP) ve Yesil Vurgu Rengini Sisteme Kazı
         run: |
@@ -87,19 +87,37 @@ jobs:
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
-      - name: Sistem Splash Logosunu Tamamen Yok Et
+      - name: Sistem Splash Logosunu Tamamen Yok Et (Sadece Duz Koyu Zemin)
         run: |
-          STYLE_PATH="android/app/src/main/res/values/styles.xml"
-          if [ -f "$STYLE_PATH" ]; then
-            # Sistem logosunu taşıyan satırı siliyoruz ve düz renk yapıyoruz
-            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_PATH || true
-            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@android:color\/black<\/item>/g' $STYLE_PATH || true
-          fi
-          STYLE_NIGHT_PATH="android/app/src/main/res/values-night/styles.xml"
-          if [ -f "$STYLE_NIGHT_PATH" ]; then
-            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_NIGHT_PATH || true
-            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@android:color\/black<\/item>/g' $STYLE_NIGHT_PATH || true
-          fi
+          # 1. Tum static splash*.png dosyalarini sil
+          find android/app/src/main/res -name "splash*.png" -delete || true
+
+          # 2. colors.xml icinde splashBackground rengini tanimla / sabitle
+          for cfile in $(find android/app/src/main/res -name "colors.xml"); do
+            if grep -q "splashBackground" "$cfile"; then
+              sed -i 's/<color name="splashBackground">.*<\/color>/<color name="splashBackground">#020617<\/color>/g' "$cfile" || true
+            else
+              sed -i 's/<\/resources>/    <color name="splashBackground">#020617<\/color>\n<\/resources>/g' "$cfile" || true
+            fi
+          done
+
+          # 3. drawable/splash.xml dosyasini sadece duz zemin olarak yenile (bitmap logosunu tamamen at)
+          mkdir -p android/app/src/main/res/drawable
+          cat << 'EOF' > android/app/src/main/res/drawable/splash.xml
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splashBackground"/>
+</layer-list>
+EOF
+
+          # 4. Tum styles.xml dosyalarindaki NoActionBarLaunch temasini guncelle
+          for sfile in $(find android/app/src/main/res -name "styles.xml"); do
+            sed -i 's/<item name="android:background">.*<\/item>/<item name="android:background">@color\/splashBackground<\/item>/g' "$sfile" || true
+            sed -i 's/<item name="android:windowBackground">.*<\/item>/<item name="android:windowBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
+            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
+            sed -i '/windowSplashScreenAnimatedIcon/d' "$sfile" || true
+            sed -i 's/<item name="windowSplashScreenBackground">.*<\/item>/<item name="windowSplashScreenBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
+          done
 
       - name: Android APK Derle (Build)
         run: |

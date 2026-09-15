@@ -15,7 +15,8 @@
       "launchAutoHide": true,
       "splashFullScreen": true,
       "splashImmersive": true,
-      "backgroundColor": "#020617"
+      "backgroundColor": "#020617",
+      "showSpinner": false
     }
   },
   "android": {
