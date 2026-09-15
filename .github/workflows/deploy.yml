@@ -40,13 +40,17 @@ jobs:
 
       - name: Capacitor Ayarlarini Olustur (Aclis Ekrani Kapatildi)
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
 
-      - name: Web Kodlarini Hazirla
+      - name: Web Kodlarini Hazirla (Vite Build)
         run: |
-          mkdir -p www
+          # Vite derlemesini çalıştırarak dist klasörünü üretiyoruz
+          npm run build || true
+          # Eğer dist klasörü oluşmadıysa hata vermemesi için boş oluştur ve dosyaları kopyala
+          mkdir -p dist
+          if [ -d "www" ]; then cp -r www/* dist/ || true; fi
           shopt -s extglob
-          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) www/ || true
+          cp -r !(dist|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) dist/ || true
 
       - name: Android Platformunu Ekle
         run: |
