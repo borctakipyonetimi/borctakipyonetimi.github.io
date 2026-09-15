@@ -38,9 +38,9 @@ jobs:
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Capacitor Ayarlarini Olustur (Aclis Ekrani Kapatildi)
+      - name: Capacitor Ayarlarini Olustur (Canli Sunucu Baglantisi)
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "server": {"url": "https://borctakipyonetimi.github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
 
       - name: Web Kodlarini Hazirla (Vite Build)
         run: |

@@ -2,6 +2,11 @@
   "appId": "com.borctakip.app",
   "appName": "Bütçem Pro",
   "webDir": "dist",
+  "server": {
+    "url": "https://borctakipyonetimi.github.io",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
   "plugins": {
     "CapacitorCookies": {
       "enabled": true
@@ -22,10 +27,5 @@
   "android": {
     "allowMixedContent": true,
     "backgroundColor": "#020617"
-  },
-  "server": {
-    "androidScheme": "https",
-    "cleartext": true
   }
 }
-
