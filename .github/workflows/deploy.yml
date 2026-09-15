@@ -35,12 +35,18 @@ jobs:
           npm install -g @capacitor/assets
           find . -name "favicon.ico" -exec cp logo.png {} \; 2>/dev/null || true
           find . -name "icon.png" -exec cp logo.png {} \; 2>/dev/null || true
+          cp logo.png public/logo.png || true
           rm -rf assets && mkdir -p assets
+          cp logo.png assets/logo.png
+          cp logo.png assets/icon.png
           cp logo.png assets/icon-only.png
           cp logo.png assets/icon-foreground.png
           cp logo.png assets/icon-background.png
+          cp logo.png assets/splash.png
+          cp logo.png assets/splash-dark.png
+          mkdir -p assets/android
           cp notification-icon.png assets/android/notification-icon.png || true
-          npx capacitor-assets generate --android
+          npx capacitor-assets generate --android || true
 
       - name: Eski Kalintilari Tamamen Sil
         run: |
@@ -68,11 +74,15 @@ jobs:
               "SplashScreen": {
                 "launchShowDuration": 0,
                 "launchAutoHide": true,
-                "androidSplashResourceName": "splash"
+                "backgroundColor": "#020617",
+                "androidSplashResourceName": "splash",
+                "androidScaleType": "CENTER_CROP",
+                "showSpinner": false
               }
             },
             "android": {
-              "allowMixedContent": true
+              "allowMixedContent": true,
+              "backgroundColor": "#020617"
             },
             "server": {
               "androidScheme": "https",
@@ -85,6 +95,10 @@ jobs:
         run: |
           npx cap add android
           npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || true
+          # Splash ekranı için logo.png'yi tüm drawable klasörlerine splash.png olarak kopyala (beyaz ekran ve default ikon kalıntısını önler)
+          for dir in android/app/src/main/res/drawable*; do
+            cp logo.png "$dir/splash.png" 2>/dev/null || true
+          done
           npx cap sync android
 
       - name: Uygulama Ismini Butcem Pro Olarak Guncelle

@@ -4782,121 +4782,46 @@ export default function App() {
 
             <div className="text-center space-y-6 max-w-sm w-full relative z-10">
               {/* Premium Animated 4-Quadrant Logo Loader (Matching user's reference exactly) */}
-              <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-10">
+              {/* Genuine Bütçem Pro Logo (from logo.png) with Glowing Ambient Lighting and Orbital Rings */}
+              <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-8">
                 {/* Ambient glowing back shadow */}
-                <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-3xl scale-150 animate-pulse pointer-events-none" />
+                <div className="absolute inset-0 bg-indigo-500/25 rounded-full blur-3xl scale-150 animate-pulse pointer-events-none" />
                 
-                {/* Outer spinning ring (Clockwise) */}
+                {/* Outer spinning dashed ring (Clockwise) */}
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
-                  className="w-36 h-36 border border-dashed border-indigo-500/30 rounded-full absolute"
+                  transition={{ repeat: Infinity, duration: 16, ease: "linear" }}
+                  className="w-36 h-36 border border-dashed border-indigo-500/35 rounded-full absolute"
                 />
 
-                {/* Middle fast counter-spinning ring */}
+                {/* Middle fast counter-spinning dotted ring */}
                 <motion.div
                   animate={{ rotate: -360 }}
-                  transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
-                  className="w-32 h-32 border-2 border-dotted border-emerald-500/20 rounded-full absolute"
+                  transition={{ repeat: Infinity, duration: 22, ease: "linear" }}
+                  className="w-32 h-32 border-2 border-dotted border-emerald-500/30 rounded-full absolute"
                 />
 
-                {/* Main 4-Quadrant Circle Container */}
-                <motion.div 
-                  className="grid grid-cols-2 gap-1 w-[100px] h-[100px] relative z-10"
+                {/* Main Bütçem Pro Logo Container */}
+                <motion.div
+                  animate={{
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-3xl p-1 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 shadow-2xl shadow-indigo-500/40 ring-4 ring-indigo-500/25 overflow-hidden flex items-center justify-center"
                 >
-                  {/* Top-Left: Blue (Shopping Cart) - Steps: Active at 0.15 */}
-                  <motion.div
-                    animate={{
-                      scale: [1, 1.15, 1, 1, 1, 1],
-                      filter: ["brightness(0.7)", "brightness(1.5)", "brightness(0.7)", "brightness(0.7)", "brightness(0.7)", "brightness(0.7)"]
+                  <img
+                    src="/logo.png"
+                    alt="Bütçem Pro"
+                    className="w-full h-full object-contain rounded-2xl bg-slate-950/80 p-1"
+                    onError={(e: any) => {
+                      e.currentTarget.style.display = "none";
                     }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      times: [0, 0.15, 0.35, 0.55, 0.75, 1]
-                    }}
-                    whileHover={{ scale: 1.18 }}
-                    className="bg-[#0284c7] rounded-tl-full flex items-end justify-end p-2 pb-[8px] pr-[8px] relative overflow-hidden shadow-lg cursor-pointer group"
-                  >
-                    <ShoppingCart className="w-[20px] h-[20px] text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.35)]" />
-                  </motion.div>
-
-                  {/* Top-Right: Pink (Fuel Gas Pump) - Steps: Active at 0.35 */}
-                  <motion.div
-                    animate={{
-                      scale: [1, 1, 1.15, 1, 1, 1],
-                      filter: ["brightness(0.7)", "brightness(0.7)", "brightness(1.5)", "brightness(0.7)", "brightness(0.7)", "brightness(0.7)"]
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      times: [0, 0.15, 0.35, 0.55, 0.75, 1]
-                    }}
-                    whileHover={{ scale: 1.18 }}
-                    className="bg-[#ec4899] rounded-tr-full flex items-end justify-start p-2 pb-[8px] pl-[8px] relative overflow-hidden shadow-lg cursor-pointer group"
-                  >
-                    <Fuel className="w-[20px] h-[20px] text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.35)]" />
-                  </motion.div>
-
-                  {/* Bottom-Left: Green (Utensils Cutlery) - Steps: Active at 0.75 */}
-                  <motion.div
-                    animate={{
-                      scale: [1, 1, 1, 1, 1.15, 1],
-                      filter: ["brightness(0.7)", "brightness(0.7)", "brightness(0.7)", "brightness(0.7)", "brightness(1.5)", "brightness(0.7)"]
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      times: [0, 0.15, 0.35, 0.55, 0.75, 1]
-                    }}
-                    whileHover={{ scale: 1.18 }}
-                    className="bg-[#22c55e] rounded-bl-full flex items-start justify-end p-2 pt-[8px] pr-[8px] relative overflow-hidden shadow-lg cursor-pointer group"
-                  >
-                    <Utensils className="w-[20px] h-[20px] text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.35)]" />
-                  </motion.div>
-
-                  {/* Bottom-Right: Yellow (Coffee Cup) - Steps: Active at 0.55 */}
-                  <motion.div
-                    animate={{
-                      scale: [1, 1, 1, 1.15, 1, 1],
-                      filter: ["brightness(0.7)", "brightness(0.7)", "brightness(0.7)", "brightness(1.5)", "brightness(0.7)", "brightness(0.7)"]
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      times: [0, 0.15, 0.35, 0.55, 0.75, 1]
-                    }}
-                    whileHover={{ scale: 1.18 }}
-                    className="bg-[#eab308] rounded-br-full flex items-start justify-start p-2 pt-[8px] pl-[8px] relative overflow-hidden shadow-lg cursor-pointer group"
-                  >
-                    <Coffee className="w-[20px] h-[20px] text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.35)]" />
-                  </motion.div>
-
-                  {/* Central Hole ring */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5.5 h-5.5 bg-slate-950 rounded-full border border-slate-900 shadow-inner flex items-center justify-center z-20">
-                    <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-800" />
-                  </div>
+                  />
                 </motion.div>
-
-                {/* Smiling blue arc line beneath the logo */}
-                <div className="absolute top-[102px]">
-                  <svg width="112" height="24" viewBox="0 0 112 24" className="text-[#0284c7] overflow-visible">
-                    <motion.path
-                      d="M10,2 Q56,22 102,2"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ delay: 0.6, duration: 1.2, ease: "easeOut" }}
-                    />
-                  </svg>
-                </div>
               </div>
               
               {/* Splendid Title Card */}
@@ -5931,8 +5856,15 @@ export default function App() {
           {/* Workspace Title & Close Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-indigo-600 via-indigo-500 to-sky-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 shrink-0">
-                <Coins className="w-5 h-5 animate-pulse" />
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-500 to-sky-500 p-0.5 shadow-md shadow-indigo-500/25 shrink-0 overflow-hidden flex items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt="Bütçem Pro"
+                  className="w-full h-full object-contain rounded-xl"
+                  onError={(e: any) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
