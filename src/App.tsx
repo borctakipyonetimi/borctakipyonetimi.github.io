@@ -1689,7 +1689,16 @@ export default function App() {
       return false;
     }
   });
-  const [splashVisible, setSplashVisible] = useState<boolean>(true);
+  // Tanıtım sayfası ilk kez açılıyorsa splash henüz başlamasın; tanıtım bittiğinde başlayacak.
+  // Tanıtım zaten daha önce tamamlanmışsa doğrudan animasyonlu açılış ekranı başlar.
+  const [splashVisible, setSplashVisible] = useState<boolean>(() => {
+    try {
+      const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
+      return !!completed;
+    } catch {
+      return false;
+    }
+  });
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
@@ -1736,8 +1745,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Uygulama her açıldığında doğrudan animasyonlu açılış ekranı çalışır
-    startSplashAnimation();
+    // Tanıtım daha önce tamamlanmışsa uygulama açılışında animasyonlu ekranı hemen başlat
+    const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
+    if (completed) {
+      startSplashAnimation();
+    }
     return () => {
       if (splashTimerRef.current) {
         clearInterval(splashTimerRef.current);
@@ -1753,6 +1765,8 @@ export default function App() {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
     setShowOnboarding(false);
+    // 5 sayfalık tanıtım sayfasından hemen sonra Bütçem Pro animasyonlu açılış sayfası başlar
+    startSplashAnimation();
   };
 
   const handleQuickLogin = (provider: "google") => {

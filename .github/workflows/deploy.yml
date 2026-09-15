@@ -59,6 +59,8 @@ jobs:
           
           # Geçici bir assets klasörü açıp ana ekrandaki renkli logomuzu kopyalıyoruz
           rm -rf assets && mkdir -p assets
+          cp logo.png assets/icon.png || true
+          cp logo.png assets/logo.png || true
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
@@ -66,8 +68,17 @@ jobs:
           cp logo.png assets/splash-dark.png || true
           
           # Sadece ana ekran için renkli logomuzu üretiyoruz (--icon parametresiyle)
-          npx capacitor-assets generate --android --icon || true
+          npx @capacitor/assets generate --android --icon || npx capacitor-assets generate --android --icon || true
           
+          # KESİN GARANTİ: logo.png dosyasını tüm mipmap klasörlerine doğrudan ic_launcher, ic_launcher_round ve ic_launcher_foreground olarak kopyalıyoruz
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ] && [ "$dir" != "android/app/src/main/res/mipmap-anydpi-v26" ]; then
+              cp logo.png "$dir/ic_launcher.png" || true
+              cp logo.png "$dir/ic_launcher_round.png" || true
+              cp logo.png "$dir/ic_launcher_foreground.png" || true
+            fi
+          done
+
           # Siyah-beyaz olan notification-icon.png dosyasını bildirim simgesi (ic_stat_notify) olarak sisteme kazıyoruz
           for dir in android/app/src/main/res/mipmap-*; do
             cp notification-icon.png "$dir/ic_stat_notify.png" || true
