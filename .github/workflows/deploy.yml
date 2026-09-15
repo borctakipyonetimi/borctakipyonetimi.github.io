@@ -87,37 +87,17 @@ jobs:
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
-      - name: Sistem Splash Logosunu Tamamen Yok Et (Sadece Duz Koyu Zemin)
+      - name: Sistem Splash Ekranini Tamamen Temizle
         run: |
-          # 1. Tum static splash*.png dosyalarini sil
+          # Android projesi içindeki tüm varsayılan splash resimlerini kökten siliyoruz
           find android/app/src/main/res -name "splash*.png" -delete || true
-
-          # 2. colors.xml icinde splashBackground rengini tanimla / sabitle
-          for cfile in $(find android/app/src/main/res -name "colors.xml"); do
-            if grep -q "splashBackground" "$cfile"; then
-              sed -i 's/<color name="splashBackground">.*<\/color>/<color name="splashBackground">#020617<\/color>/g' "$cfile" || true
-            else
-              sed -i 's/<\/resources>/    <color name="splashBackground">#020617<\/color>\n<\/resources>/g' "$cfile" || true
-            fi
-          done
-
-          # 3. drawable/splash.xml dosyasini sadece duz zemin olarak yenile (bitmap logosunu tamamen at)
-          mkdir -p android/app/src/main/res/drawable
-          cat << 'EOF' > android/app/src/main/res/drawable/splash.xml
-<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splashBackground"/>
-</layer-list>
-EOF
-
-          # 4. Tum styles.xml dosyalarindaki NoActionBarLaunch temasini guncelle
-          for sfile in $(find android/app/src/main/res -name "styles.xml"); do
-            sed -i 's/<item name="android:background">.*<\/item>/<item name="android:background">@color\/splashBackground<\/item>/g' "$sfile" || true
-            sed -i 's/<item name="android:windowBackground">.*<\/item>/<item name="android:windowBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
-            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
-            sed -i '/windowSplashScreenAnimatedIcon/d' "$sfile" || true
-            sed -i 's/<item name="windowSplashScreenBackground">.*<\/item>/<item name="windowSplashScreenBackground">@color\/splashBackground<\/item>/g' "$sfile" || true
-          done
+          
+          # strings.xml ve styles.xml içindeki splash arka plan tanımlarını güvenli bir şekilde nötrlüyoruz
+          STYLE_FILE="android/app/src/main/res/values/styles.xml"
+          if [ -f "$STYLE_FILE" ]; then
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_FILE || true
+            sed -i '/windowSplashScreenBackground/d' $STYLE_FILE || true
+          fi
 
       - name: Android APK Derle (Build)
         run: |
