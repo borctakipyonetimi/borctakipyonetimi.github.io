@@ -7,6 +7,11 @@ on:
       - ana
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,31 +30,25 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Proje Altyapisini Olustur
+      - name: Proje Bagimliliklarini Kur
         run: |
-          if [ ! -f package.json ]; then
-            echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json
-          fi
-          npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
+          npm install --legacy-peer-deps || npm install
+
+      - name: Guncel React Kodlarini Derle (Vite Build)
+        run: |
+          # En guncel kodlari dist klasorune derliyoruz
+          npm run build || npx vite build
 
       - name: Eski Kalintilari Temizle
         run: |
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Capacitor Ayarlarini Olustur (Canli Sunucu ve Acilis Ekrani Kapatma)
+      - name: Capacitor Ayarlarini Olustur (Guncel dist Paketi)
         run: |
-          # En baştaki beyaz açılış ekranını (Splash) sıfır saniyeye indirerek tamamen kapatıyoruz
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "server": {"url": "https://borctakipyonetimi.github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "androidSplashResourceName": "splash"}}}' > capacitor.config.json
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "backgroundColor": "#020617"}}, "android": {"allowMixedContent": true, "backgroundColor": "#020617"}}' > capacitor.config.json
 
-      - name: Web Kodlarini Hazirla
-        run: |
-          mkdir -p www
-          shopt -s extglob
-          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) www/ || true
-
-      - name: Android Platformunu Ekle
+      - name: Android Platformunu Ekle ve Senkronize Et
         run: |
           npx cap add android
 
@@ -57,12 +56,13 @@ jobs:
         run: |
           npm install -g @capacitor/assets
           mkdir -p assets
+          cp logo.png assets/icon.png || true
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
           cp logo.png assets/splash.png || true
           cp logo.png assets/splash-dark.png || true
-          npx capacitor-assets generate --android
+          npx capacitor-assets generate --android || true
 
       - name: Bildirim Ikonunu ve Internet Izinlerini Sisteme Kazı
         run: |
@@ -86,3 +86,9 @@ jobs:
         with:
           name: butcem-pro-reklamsiz-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Guncel Web Sitesini (dist) GitHub Pages Icin Yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: butcem-pro-web-dist
+          path: dist/
