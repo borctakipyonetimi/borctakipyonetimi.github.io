@@ -60,8 +60,8 @@ jobs:
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
-          # Splash gorsellerini temizle ki static logo uretilmesin
-          rm -f assets/splash.png assets/splash-dark.png || true
+          cp logo.png assets/splash.png || true
+          cp logo.png assets/splash-dark.png || true
           npx capacitor-assets generate --android --icon || npx @capacitor/assets generate --android --icon || true
 
       - name: Bildirim Amblemini (BP) ve Yesil Vurgu Rengini Sisteme Kazı
@@ -87,16 +87,22 @@ jobs:
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
-      - name: Sistem Splash Ekranini Tamamen Temizle
+      - name: Sistem Splash Ekranini Hatasiz Karart
         run: |
-          # Android projesi içindeki tüm varsayılan splash resimlerini kökten siliyoruz
-          find android/app/src/main/res -name "splash*.png" -delete || true
-          
-          # strings.xml ve styles.xml içindeki splash arka plan tanımlarını güvenli bir şekilde nötrlüyoruz
+          # Değişiklik yapılacak Android XML dosya yollarını tanımlıyoruz
           STYLE_FILE="android/app/src/main/res/values/styles.xml"
+          STYL_V31_FILE="android/app/src/main/res/values-v31/styles.xml"
+          
+          # 1. Normal styles.xml dosyasındaki splash arka planını ve ikonunu temizliyoruz
           if [ -f "$STYLE_FILE" ]; then
             sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_FILE || true
-            sed -i '/windowSplashScreenBackground/d' $STYLE_FILE || true
+            sed -i 's/drawable\/splash/@android:color\/black/g' $STYLE_FILE || true
+          fi
+          
+          # 2. Android 12+ için geçerli olan v31/styles.xml içindeki ikonları da tamamen temizliyoruz
+          if [ -f "$STYL_V31_FILE" ]; then
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYL_V31_FILE || true
+            sed -i 's/drawable\/splash/@android:color\/black/g' $STYL_V31_FILE || true
           fi
 
       - name: Android APK Derle (Build)
