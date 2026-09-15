@@ -1,4 +1,4 @@
-name: Kesin Cozum Logo ve Isim Uretici
+name: Butcem Pro Nihai Uretici
 on:
   push:
     branches:
@@ -38,19 +38,16 @@ jobs:
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Capacitor Ayarlarini Olustur (Canli Sunucu Baglantisi)
+      - name: Capacitor Ayarlarini Olustur (Canli Sunucu ve Acilis Ekrani Kapatma)
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "server": {"url": "https://borctakipyonetimi.github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}}}' > capacitor.config.json
+          # En baştaki beyaz açılış ekranını (Splash) sıfır saniyeye indirerek tamamen kapatıyoruz
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "server": {"url": "https://borctakipyonetimi.github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "androidSplashResourceName": "splash"}}}' > capacitor.config.json
 
-      - name: Web Kodlarini Hazirla (Vite Build)
+      - name: Web Kodlarini Hazirla
         run: |
-          # Vite derlemesini çalıştırarak dist klasörünü üretiyoruz
-          npm run build || true
-          # Eğer dist klasörü oluşmadıysa hata vermemesi için boş oluştur ve dosyaları kopyala
-          mkdir -p dist
-          if [ -d "www" ]; then cp -r www/* dist/ || true; fi
+          mkdir -p www
           shopt -s extglob
-          cp -r !(dist|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) dist/ || true
+          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) www/ || true
 
       - name: Android Platformunu Ekle
         run: |
@@ -67,14 +64,10 @@ jobs:
           cp logo.png assets/splash-dark.png || true
           npx capacitor-assets generate --android
 
-      - name: Bildirim Ikonunu Android Sistemine Kazı
+      - name: Bildirim Ikonunu ve Internet Izinlerini Sisteme Kazı
         run: |
-          for dir in android/app/src/main/res/mipmap-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
-          done
-          for dir in android/app/src/main/res/drawable-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
-          done
+          for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
+          for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />' $MANIFEST_PATH
