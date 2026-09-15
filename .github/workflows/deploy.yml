@@ -52,25 +52,33 @@ jobs:
         run: |
           npx cap add android
 
-      - name: Ana Ekran Amblemini (APK Logosu) Uret
+      - name: Renkli Ana Logoyu ve Siyah-Beyaz Bildirim Ikonunu Ayri Ayri Isle
         run: |
+          # İkon üretim aracını kuruyoruz
           npm install -g @capacitor/assets
-          mkdir -p assets
-          cp logo.png assets/icon.png || true
+          
+          # Geçici bir assets klasörü açıp ana ekrandaki renkli logomuzu kopyalıyoruz
+          rm -rf assets && mkdir -p assets
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
           cp logo.png assets/splash.png || true
           cp logo.png assets/splash-dark.png || true
-          npx capacitor-assets generate --android --icon || npx @capacitor/assets generate --android --icon || true
+          
+          # Sadece ana ekran için renkli logomuzu üretiyoruz (--icon parametresiyle)
+          npx capacitor-assets generate --android --icon || true
+          
+          # Siyah-beyaz olan notification-icon.png dosyasını bildirim simgesi (ic_stat_notify) olarak sisteme kazıyoruz
+          for dir in android/app/src/main/res/mipmap-*; do
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+          done
+          for dir in android/app/src/main/res/drawable-*; do
+            cp notification-icon.png "$dir/ic_stat_notify.png" || true
+          done
 
-      - name: Bildirim Amblemini (BP) ve Yesil Vurgu Rengini Sisteme Kazı
+      - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
         run: |
-          # 1. notification-icon.png (yeni BP amblemi) dosyasini tum mipmap ve drawable klasorlerine dogrudan ic_stat_notify.png olarak kopyala
-          for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
-          for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
-
-          # 2. Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle
+          # Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle
           COLORS_PATH="android/app/src/main/res/values/colors.xml"
           if [ -f "$COLORS_PATH" ]; then
             sed -i 's/<\/resources>/    <color name="default_notification_color">#10B981<\/color>\n<\/resources>/g' $COLORS_PATH || true
@@ -79,7 +87,7 @@ jobs:
             echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="default_notification_color">#10B981</color></resources>' > $COLORS_PATH
           fi
 
-          # 3. AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981) ve ag izinlerini ekle
+          # AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981) ve ag izinlerini ekle
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/default_notification_color" />' $MANIFEST_PATH
