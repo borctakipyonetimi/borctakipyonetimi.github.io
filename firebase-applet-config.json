@@ -3,6 +3,7 @@
   "appId": "1:845600628526:web:f3321e061df344971624bf",
   "apiKey": "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
   "authDomain": "borc-takip-pro-f6936.firebaseapp.com",
+  "databaseURL": "https://borc-takip-pro-f6936-default-rtdb.firebaseio.com",
   "firestoreDatabaseId": "(default)",
   "storageBucket": "borc-takip-pro-f6936.firebasestorage.app",
   "messagingSenderId": "845600628526",

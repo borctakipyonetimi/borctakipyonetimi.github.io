@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { ref, set, get, update } from "firebase/database";
 
 // Product configuration requested by user
 export interface ProductInfo {
@@ -118,20 +118,20 @@ class RevenueCatService {
       }
     };
 
-    // Save to Firestore permanently if logged in
+    // Save to Realtime Database permanently if logged in
     const fbUser = auth.currentUser;
     if (fbUser) {
       try {
-        const userDocRef = doc(db, "users", fbUser.uid);
-        await setDoc(userDocRef, {
+        const userRef = ref(db, `users/${fbUser.uid}`);
+        await update(userRef, {
           isPremium: true,
           premiumPlan: productId === "borc_takip_aylik" ? "monthly" : productId === "borc_takip_yillik" ? "yearly" : "lifetime",
-          purchasedAt: serverTimestamp(),
+          purchasedAt: Date.now(),
           productId: productId,
           gpaCode: `GPA.3312-${Math.floor(Math.random() * 9000 + 1000)}-${Math.floor(Math.random() * 9000 + 1000)}-${Math.floor(Math.random() * 90000 + 10000)}`
-        }, { merge: true });
+        });
       } catch (err) {
-        console.error("[RevenueCat] Could not sync web purchase to Firestore:", err);
+        console.error("[RevenueCat] Could not sync web purchase to Database:", err);
       }
     }
 
@@ -159,10 +159,10 @@ class RevenueCatService {
     const fbUser = auth.currentUser;
     if (fbUser) {
       try {
-        const userDocRef = doc(db, "users", fbUser.uid);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists() && userSnap.data().isPremium) {
-          const data = userSnap.data();
+        const userRef = ref(db, `users/${fbUser.uid}`);
+        const userSnap = await get(userRef);
+        if (userSnap.exists() && userSnap.val()?.isPremium) {
+          const data = userSnap.val();
           const pPlan = data.premiumPlan || "yearly";
           const pId = pPlan === "monthly" ? "borc_takip_aylik" : pPlan === "yearly" ? "borc_takip_yillik" : "borc_takip_sinirsiz";
 

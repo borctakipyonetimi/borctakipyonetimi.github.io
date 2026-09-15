@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, query, where, collection } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType, enableNetwork } from "./utils/firebase";
+import { ref, get, set, update, onValue, off } from "firebase/database";
+import { auth, db, handleDatabaseError, handleFirestoreError, OperationType, goOnline, enableNetwork } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -1651,11 +1651,11 @@ export default function App() {
     }
 
     try {
-      await setDoc(doc(db, "apk_sync_sessions", syncCodeToApprove), {
+      await set(ref(db, `apk_sync_sessions/${syncCodeToApprove}`), {
         status: "success",
         email: auth.currentUser.email || auth.currentUser.uid,
         uid: auth.currentUser.uid,
-        approvedAt: serverTimestamp()
+        approvedAt: Date.now()
       });
       triggerToast("APK Girişi Başarıyla Yetkilendirildi! 🎉");
       setSyncCodeToApprove(null);
@@ -2019,46 +2019,34 @@ export default function App() {
           setIsOfflineMode(false);
           setFirestoreErrorMessage(null);
 
-          // Çevrimdışı moddan kaçınmak için Firestore ağını zorunlu etkinleştir
+          // Realtime Database bağlantısını online tut
           try {
-            await enableNetwork(db);
+            goOnline(db);
           } catch (netErr: any) {
-            console.warn("enableNetwork loadData uyarısı:", netErr?.message || netErr);
+            console.warn("Realtime Database goOnline uyarısı:", netErr?.message || netErr);
           }
 
-          // 1. Primary check on 'kullanicilar' collection
-          let userDoc = await getDoc(doc(db, "kullanicilar", fbUser.uid));
-          
-          // 2. Fallback to 'users' collection
-          if (!userDoc.exists()) {
-            userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          // 1. Birincil kontrol: doğrudan kullanicilar/KULLANICI_UID/veriler düğümü
+          const primaryVerilerRef = ref(db, `kullanicilar/${fbUser.uid}/veriler`);
+          let snap = await get(primaryVerilerRef);
+
+          // 2. Yedek kontrol: kullanicilar/KULLANICI_UID veya users/KULLANICI_UID/veriler
+          if (!snap.exists()) {
+            snap = await get(ref(db, `users/${fbUser.uid}/veriler`));
+          }
+          if (!snap.exists()) {
+            snap = await get(ref(db, `kullanicilar/${fbUser.uid}`));
+          }
+          if (!snap.exists()) {
+            snap = await get(ref(db, `users/${fbUser.uid}`));
           }
 
-          // 3. Fallback to subcollection path users/UID/veriler/ana_veri
-          if (!userDoc.exists()) {
-            const verilerDoc = await getDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"));
-            if (verilerDoc.exists()) {
-              userDoc = verilerDoc;
-            }
-          }
-
-          // 4. Secondary email fallback lookup if UID doc is empty/missing
-          if (!userDoc.exists() && fbUser.email) {
-            const cleanEmail = fbUser.email.toLowerCase();
-            const emailDocId = `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
-            let emailDoc = await getDoc(doc(db, "kullanicilar", emailDocId));
-            if (!emailDoc.exists()) {
-              emailDoc = await getDoc(doc(db, "users", emailDocId));
-            }
-            if (emailDoc.exists()) {
-              userDoc = emailDoc;
-            }
-          }
-
-          if (userDoc.exists()) {
-            applyDataPayload(userDoc.data());
+          if (snap.exists() && snap.val()) {
+            const val = snap.val();
+            const resolvedData = val.veriler ? val.veriler : val;
+            applyDataPayload(resolvedData);
           } else {
-            // Check local storage before treating as fresh account
+            // Yerel hafızadaki verileri kontrol et ve Realtime Database'e ilk eşitlemeyi yap
             const cleanEmail = fbUser.email ? fbUser.email.toLowerCase() : null;
             const spaceKey = cleanEmail ? `user_${cleanEmail}` : `user_${fbUser.uid}`;
             const localDataStr = localStorage.getItem(spaceKey) || (currentUser ? localStorage.getItem(`user_${currentUser}`) : null);
@@ -2066,7 +2054,6 @@ export default function App() {
               try {
                 const parsed = JSON.parse(localDataStr);
                 applyDataPayload(parsed);
-                // Push local data to Firestore to initialize the remote record for this account
                 const payload = {
                   ...parsed,
                   email: cleanEmail || "",
@@ -2074,21 +2061,18 @@ export default function App() {
                   userUid: fbUser.uid,
                   isPremium: localStorage.getItem("is_premium") === "true",
                   premiumPlan: localStorage.getItem("premium_plan") || "yearly",
-                  updatedAt: serverTimestamp()
+                  updatedAt: Date.now()
                 };
                 await Promise.all([
-                  setDoc(doc(db, "kullanicilar", fbUser.uid), payload, { merge: true }),
-                  setDoc(doc(db, "users", fbUser.uid), payload, { merge: true }),
-                  setDoc(doc(db, "users", fbUser.uid, "veriler", "ana_veri"), payload, { merge: true }),
-                  cleanEmail ? setDoc(doc(db, "kullanicilar", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve(),
-                  cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
+                  set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
+                  set(ref(db, `users/${fbUser.uid}/veriler`), payload)
                 ]);
               } catch (initErr: any) {
                 const initErrCode = initErr?.code || "HATA";
                 const initErrMsg = initErr?.message || String(initErr);
                 const fullInitErr = `[${initErrCode}] ${initErrMsg}`;
-                console.warn("Firestore ilk kayıt hatası:", fullInitErr);
-                setFirestoreErrorMessage(`Firestore İlk Başlatma Hatası: ${fullInitErr}`);
+                console.warn("Realtime Database ilk kayıt hatası:", fullInitErr);
+                setFirestoreErrorMessage(`Database İlk Başlatma Hatası: ${fullInitErr}`);
                 triggerToast(`İlk Kayıt Hatası: ${fullInitErr}`, 5000);
                 loadFromLocalStorage();
               }
@@ -2097,38 +2081,26 @@ export default function App() {
             }
           }
 
-          // Attach real-time Firestore sync snapshot listener for instant cross-device updates
+          // Realtime Database canlı senkronizasyon dinleyicisi (onValue)
           try {
-            unsubscribeSnapshot = onSnapshot(doc(db, "kullanicilar", fbUser.uid), (docSnap) => {
-              if (docSnap.exists() && active) {
-                applyDataPayload(docSnap.data());
+            const rtdbUnsub = onValue(primaryVerilerRef, (snapshot) => {
+              if (snapshot.exists() && active) {
+                const val = snapshot.val();
+                applyDataPayload(val.veriler ? val.veriler : val);
                 setFirestoreErrorMessage(null);
               }
-            }, (error) => {
+            }, (error: any) => {
               const snapCode = error?.code || "HATA";
               const snapMsg = error?.message || String(error);
               const fullSnapErr = `[${snapCode}] ${snapMsg}`;
-              console.warn("kullanicilar snapshot error, trying users listener:", fullSnapErr);
-              setFirestoreErrorMessage(`Firestore Dinleyici Hatası: ${fullSnapErr}`);
-
-              // Fallback to users doc
-              unsubscribeSnapshot = onSnapshot(doc(db, "users", fbUser.uid), (userSnap) => {
-                if (userSnap.exists() && active) {
-                  applyDataPayload(userSnap.data());
-                  setFirestoreErrorMessage(null);
-                }
-              }, (uError) => {
-                const uCode = uError?.code || "HATA";
-                const uMsg = uError?.message || String(uError);
-                const fullUErr = `[${uCode}] ${uMsg}`;
-                console.warn("users snapshot error:", fullUErr);
-                setFirestoreErrorMessage(`Firestore users Hatası: ${fullUErr}`);
-              });
+              console.warn("Realtime Database dinleyici hatası:", fullSnapErr);
+              setFirestoreErrorMessage(`Database Dinleyici Hatası: ${fullSnapErr}`);
             });
+            unsubscribeSnapshot = rtdbUnsub;
           } catch (snapErr: any) {
             const snapSetupCode = snapErr?.code || "HATA";
             const snapSetupMsg = snapErr?.message || String(snapErr);
-            console.warn("Snapshot listener setup warning:", `[${snapSetupCode}] ${snapSetupMsg}`);
+            console.warn("Database dinleyici kurulum uyarısı:", `[${snapSetupCode}] ${snapSetupMsg}`);
           }
 
         } catch (err: any) {
@@ -2136,13 +2108,13 @@ export default function App() {
           const errMsg = err?.message || String(err);
           const fullErrText = `[${errCode}] ${errMsg}`;
 
-          console.error("Firestore loading error:", fullErrText, err);
+          console.error("Realtime Database yükleme hatası:", fullErrText, err);
 
           if (active) {
             loadFromLocalStorage();
             setIsOfflineMode(true);
-            setFirestoreErrorMessage(`Firestore Bağlantı Hatası: ${fullErrText}`);
-            triggerToast(`Firestore Bağlantı Hatası: ${fullErrText}`, 6000);
+            setFirestoreErrorMessage(`Database Bağlantı Hatası: ${fullErrText}`);
+            triggerToast(`Database Bağlantı Hatası: ${fullErrText}`, 6000);
             
             const isPermissionError = err && (
               err.code === "permission-denied" || 
@@ -2152,7 +2124,7 @@ export default function App() {
             
             if (isPermissionError) {
               try {
-                handleFirestoreError(err, OperationType.GET, `kullanicilar/${fbUser.uid}`);
+                handleDatabaseError(err, OperationType.GET, `kullanicilar/${fbUser.uid}/veriler`);
               } catch (e) {
                 console.error("Permission error handled:", e);
               }
@@ -2336,19 +2308,13 @@ export default function App() {
           userUid: fbUser.uid,
           isPremium: localStorage.getItem("is_premium") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
-          updatedAt: serverTimestamp()
+          updatedAt: Date.now()
         };
 
-        const kullaniciDocRef = doc(db, "kullanicilar", fbUser.uid);
-        const userDocRef = doc(db, "users", fbUser.uid);
-        const verilerDocRef = doc(db, "users", fbUser.uid, "veriler", "ana_veri");
-        
+        // Realtime Database: verileri doğrudan kullanicilar/KULLANICI_UID/veriler düğümüne kaydet
         await Promise.all([
-          setDoc(kullaniciDocRef, payload, { merge: true }),
-          setDoc(userDocRef, payload, { merge: true }),
-          setDoc(verilerDocRef, payload, { merge: true }),
-          cleanEmail ? setDoc(doc(db, "kullanicilar", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve(),
-          cleanEmail ? setDoc(doc(db, "users", `email_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`), payload, { merge: true }) : Promise.resolve()
+          set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
+          set(ref(db, `users/${fbUser.uid}/veriler`), payload)
         ]);
         setIsOfflineMode(false);
       }
@@ -2360,7 +2326,7 @@ export default function App() {
 
       console.error("Critical error in saveAllToUser storage write:", fullErrText, err);
       setIsOfflineMode(true);
-      setFirestoreErrorMessage(`Firestore Kayıt Hatası: ${fullErrText}`);
+      setFirestoreErrorMessage(`Database Kayıt Hatası: ${fullErrText}`);
       triggerToast(`Bulut Kayıt Hatası: ${fullErrText}`, 6000);
       
       const isPermissionError = err && (
@@ -2371,7 +2337,7 @@ export default function App() {
       
       if (isPermissionError && auth.currentUser) {
         try {
-          handleFirestoreError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}`);
+          handleDatabaseError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}/veriler`);
         } catch (e) {
           console.error("Permission write error handled:", e);
         }
@@ -2393,14 +2359,20 @@ export default function App() {
     const fbUser = auth.currentUser;
     if (fbUser) {
       try {
-        const userDocRef = doc(db, "users", fbUser.uid);
-        await setDoc(userDocRef, {
-          isPremium: premiumState,
-          premiumPlan: planType,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+        await Promise.all([
+          update(ref(db, `kullanicilar/${fbUser.uid}/veriler`), {
+            isPremium: premiumState,
+            premiumPlan: planType,
+            updatedAt: Date.now()
+          }),
+          update(ref(db, `users/${fbUser.uid}/veriler`), {
+            isPremium: premiumState,
+            premiumPlan: planType,
+            updatedAt: Date.now()
+          })
+        ]);
       } catch (err) {
-        console.warn("Could not sync restored premium status to Firestore:", err);
+        console.warn("Could not sync restored premium status to Database:", err);
       }
     }
   };
@@ -5458,16 +5430,16 @@ export default function App() {
             <button
               onClick={async () => {
                 try {
-                  await enableNetwork(db);
-                  triggerToast("Firestore ağı yeniden etkinleştirildi, kontrol ediliyor...");
+                  goOnline(db);
+                  triggerToast("Realtime Database ağı kontrol ediliyor...");
                   setFirestoreErrorMessage(null);
                   if (auth.currentUser) {
                     setIsOfflineMode(false);
-                    const userDoc = await getDoc(doc(db, "kullanicilar", auth.currentUser.uid));
-                    if (userDoc.exists()) {
+                    const snap = await get(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler`));
+                    if (snap.exists()) {
                       triggerToast("Bulut bağlantısı sağlandı ve veriler eşitlendi!");
                     } else {
-                      triggerToast("Bağlantı açık, Firestore hazır.");
+                      triggerToast("Bağlantı açık, Realtime Database hazır.");
                     }
                   }
                 } catch (retryErr: any) {

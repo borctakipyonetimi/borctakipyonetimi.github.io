@@ -8,14 +8,15 @@ import {
   onAuthStateChanged,
   User
 } from "firebase/auth";
-import { getFirestore, initializeFirestore, enableNetwork } from "firebase/firestore";
+import { getDatabase, ref, set, get, child, update, onValue, off, serverTimestamp, goOnline } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
-// Proje ID: borc-takip-pro-f6936 ile %100 birebir eşleşen resmi konfigürasyon
+// Proje ID: borc-takip-pro-f6936 - Realtime Database databaseURL ekli
 export const firebaseConfig = {
   apiKey: "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
   authDomain: "borc-takip-pro-f6936.firebaseapp.com",
+  databaseURL: "https://borc-takip-pro-f6936-default-rtdb.firebaseio.com",
   projectId: "borc-takip-pro-f6936",
   storageBucket: "borc-takip-pro-f6936.firebasestorage.app",
   messagingSenderId: "845600628526",
@@ -26,38 +27,38 @@ export const firebaseConfig = {
 // Initialize Firebase
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Android WebView ve mobil tarayıcılarda WebSocket engellerini aşmak için experimentalForceLongPolling ile başlat
-let firestoreDb: any;
+// Firebase Realtime Database - Android WebView ağ engeline takılmayan standart veritabanı
+export const db = getDatabase(app);
+
+// Veritabanı bağlantısını çevrim içi tut
 try {
-  firestoreDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true
-  });
-} catch {
-  firestoreDb = getFirestore(app);
+  goOnline(db);
+  console.log("Firebase Realtime Database başarıyla başlatıldı ve goOnline() çağrıldı.");
+} catch (rtdbErr) {
+  console.warn("Realtime Database goOnline uyarısı:", rtdbErr);
 }
-export const db = firestoreDb;
 
-// getFirestore kodunun hemen altına enableNetwork(db) komutunu ekleyerek uygulamanın çevrim dışı moda kaçmasını kesin olarak engelle
-enableNetwork(db)
-  .then(() => {
-    console.log("Firestore ağı başarıyla etkinleştirildi (enableNetwork: OK)");
-  })
-  .catch((err) => {
-    console.warn("Firestore enableNetwork uyarısı:", err?.message || err);
-  });
+export { ref, set, get, child, update, onValue, off, serverTimestamp, goOnline };
 
-export { enableNetwork };
-
-export async function ensureFirestoreNetwork(): Promise<{ success: boolean; message: string }> {
+export async function ensureDatabaseNetwork(): Promise<{ success: boolean; message: string }> {
   try {
-    await enableNetwork(db);
-    return { success: true, message: "Firestore ağı aktif." };
+    goOnline(db);
+    return { success: true, message: "Realtime Database ağı aktif." };
   } catch (err: any) {
     const code = err?.code || "HATA";
     const msg = err?.message || String(err);
     return { success: false, message: `[${code}] ${msg}` };
   }
 }
+export const ensureFirestoreNetwork = ensureDatabaseNetwork;
+export const enableNetwork = (databaseInstance?: any) => {
+  try {
+    goOnline(databaseInstance || db);
+    return Promise.resolve();
+  } catch (err) {
+    return Promise.reject(err);
+  }
+};
 
 export const auth = getAuth(app);
 
@@ -106,7 +107,7 @@ export enum OperationType {
   WRITE = "write",
 }
 
-export interface FirestoreErrorInfo {
+export interface DatabaseErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
@@ -122,13 +123,14 @@ export interface FirestoreErrorInfo {
     }[];
   };
 }
+export type FirestoreErrorInfo = DatabaseErrorInfo;
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleDatabaseError(error: unknown, operationType: OperationType, path: string | null) {
   const errMessage = error instanceof Error ? error.message : String(error);
   const errCode = (error as any)?.code || "BilinmeyenHata";
   const formattedError = `[${errCode}] ${errMessage}`;
 
-  const errInfo: FirestoreErrorInfo = {
+  const errInfo: DatabaseErrorInfo = {
     error: formattedError,
     authInfo: {
       userId: auth.currentUser?.uid,
@@ -144,6 +146,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error("Firestore Error: ", JSON.stringify(errInfo));
+  console.error("Firebase Database Error: ", JSON.stringify(errInfo));
   return formattedError;
 }
+export const handleFirestoreError = handleDatabaseError;
