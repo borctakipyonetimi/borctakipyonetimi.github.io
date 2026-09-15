@@ -3666,7 +3666,8 @@ export default function App() {
               },
               channelId: "debt_reminders",
               sound: "beep.wav",
-              smallIcon: "res://icon",
+              smallIcon: 'ic_stat_notify',
+              iconColor: '#10B981',
               autoCancel: true,
               extra: { id: newA.id, title: titleString }
             }

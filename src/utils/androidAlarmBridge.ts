@@ -230,6 +230,8 @@ export async function scheduleCapacitorAlarm(
           },
           channelId: "debt_reminders",
           autoCancel: true,
+          smallIcon: 'ic_stat_notify',
+          iconColor: '#10B981',
           extra: {
             id: safeId,
             title: safeTitle,

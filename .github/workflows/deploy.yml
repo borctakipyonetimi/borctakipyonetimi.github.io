@@ -87,11 +87,18 @@ jobs:
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi
 
-      - name: Android Sistem Splash Arka Planini Temizle
+      - name: Sistem Splash Logosunu Tamamen Yok Et
         run: |
           STYLE_PATH="android/app/src/main/res/values/styles.xml"
           if [ -f "$STYLE_PATH" ]; then
-            sed -i '/background/d' $STYLE_PATH || true
+            # Sistem logosunu taşıyan satırı siliyoruz ve düz renk yapıyoruz
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_PATH || true
+            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@android:color\/black<\/item>/g' $STYLE_PATH || true
+          fi
+          STYLE_NIGHT_PATH="android/app/src/main/res/values-night/styles.xml"
+          if [ -f "$STYLE_NIGHT_PATH" ]; then
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_NIGHT_PATH || true
+            sed -i 's/<item name="windowBackground">.*<\/item>/<item name="windowBackground">@android:color\/black<\/item>/g' $STYLE_NIGHT_PATH || true
           fi
 
       - name: Android APK Derle (Build)
