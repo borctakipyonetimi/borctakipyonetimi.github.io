@@ -96,22 +96,35 @@ jobs:
           npx cap add android
           npx @capacitor/assets generate --android --asset-path assets || npx capacitor-assets generate --android --asset-path assets || true
           
-          # 1. Tum mipmap klasorlerindeki ic_launcher, ic_launcher_round ve ic_launcher_foreground ikonlarini logo.png ile kesin olarak ez
-          for dir in android/app/src/main/res/mipmap-*; do
-            cp logo.png "$dir/ic_launcher.png" 2>/dev/null || true
-            cp logo.png "$dir/ic_launcher_round.png" 2>/dev/null || true
-            cp logo.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+          # 1. Sadece cozunurluk mipmap klasorlerindeki (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi) PNG dosyalarini guncelle
+          # ONEMLI: mipmap-anydpi-v26 klasorune kesinlikle PNG koymuyoruz (AAPT2 Duplicate resources hatasini onlemek icin XML kalmali)
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            dir="android/app/src/main/res/mipmap-$density"
+            if [ -d "$dir" ]; then
+              cp logo.png "$dir/ic_launcher.png" 2>/dev/null || true
+              cp logo.png "$dir/ic_launcher_round.png" 2>/dev/null || true
+              cp logo.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+            fi
+            drawable_dir="android/app/src/main/res/drawable-$density"
+            if [ -d "$drawable_dir" ]; then
+              cp logo.png "$drawable_dir/ic_launcher_foreground.png" 2>/dev/null || true
+              cp logo.png "$drawable_dir/splash.png" 2>/dev/null || true
+            fi
           done
 
-          # 2. Tum drawable klasorlerindeki ikon ve splash gorsellerini logo.png ile kesin olarak ez
+          # 2. Standart drawable klasorlerindeki splash gorsellerini logo.png ile guncelle
           for dir in android/app/src/main/res/drawable*; do
-            cp logo.png "$dir/ic_launcher.png" 2>/dev/null || true
-            cp logo.png "$dir/ic_launcher_round.png" 2>/dev/null || true
-            cp logo.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
-            cp logo.png "$dir/splash.png" 2>/dev/null || true
+            if [ ! -f "$dir/splash.xml" ]; then
+              cp logo.png "$dir/splash.png" 2>/dev/null || true
+            fi
           done
 
-          # 3. Android Adaptive Icon arka plan rengini koyu (#020617) olarak sabitle
+          # 3. anydpi ve v24 gibi XML iceren ozel klasorlerdeki yanlis PNG kopyalarini kaldirarak cakisimlari engelle
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png 2>/dev/null || true
+          rm -f android/app/src/main/res/drawable-v24/ic_launcher_foreground.png 2>/dev/null || true
+          rm -f android/app/src/main/res/drawable/ic_launcher_foreground.png 2>/dev/null || true
+
+          # 4. Android Adaptive Icon arka plan rengini koyu (#020617) olarak sabitle
           COLOR_FILE="android/app/src/main/res/values/ic_launcher_background.xml"
           if [ -f "$COLOR_FILE" ]; then
             sed -i 's/<color name="ic_launcher_background">.*<\/color>/<color name="ic_launcher_background">#020617<\/color>/g' "$COLOR_FILE"
