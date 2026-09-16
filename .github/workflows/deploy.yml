@@ -52,7 +52,7 @@ jobs:
         run: |
           npx cap add android
 
-      - name: Renkli Ana Logoyu ve Siyah-Beyaz Bildirim Ikonunu Ayri Ayri Isle
+      - name: Renkli Ana Logoyu Isle
         run: |
           # İkon üretim aracını kuruyoruz
           npm install -g @capacitor/assets
@@ -79,19 +79,28 @@ jobs:
             fi
           done
 
-          # Siyah-beyaz olan notification-icon.png dosyasını bildirim simgesi (ic_stat_notify) olarak sisteme kazıyoruz
-          for dir in android/app/src/main/res/mipmap-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
-          done
-          for dir in android/app/src/main/res/drawable-*; do
-            cp notification-icon.png "$dir/ic_stat_notify.png" || true
-          done
-
           # Renkli logo.png dosyasını büyük resimli bildirimler (Big Picture & Large Icon) için drawable klasörlerine ekliyoruz
           mkdir -p android/app/src/main/res/drawable
           cp logo.png android/app/src/main/res/drawable/logo.png || true
           for dir in android/app/src/main/res/drawable-*; do
             cp logo.png "$dir/logo.png" || true
+          done
+
+      - name: Inject Black and White Notification Icon
+        run: |
+          # İkonu Android standartlarında kırpıp tam boyuta getirmek için ImageMagick aracını kullanıyoruz
+          sudo apt-get install imagemagick -y || true
+          
+          # notification-icon.png görselinin etrafındaki gereksiz şeffaf boşlukları otomatik kırpıp tam boyuta büyüterek kaydediyoruz
+          convert notification-icon.png -trim +repage -resize 96x96 notification_final.png || true
+          if [ ! -f notification_final.png ]; then cp notification-icon.png notification_final.png || true; fi
+          
+          # Elde ettiğimiz bu tam boyutlu büyük ikonu tüm Android mipmap ve drawable klasörlerine zorla basıyoruz
+          for dir in android/app/src/main/res/mipmap-*; do
+            cp notification_final.png "$dir/ic_stat_notify.png" || true
+          done
+          for dir in android/app/src/main/res/drawable-*; do
+            cp notification_final.png "$dir/ic_stat_notify.png" || true
           done
 
       - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
