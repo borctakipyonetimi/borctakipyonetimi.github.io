@@ -98,12 +98,41 @@ jobs:
             echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="default_notification_color">#10B981</color></resources>' > $COLORS_PATH
           fi
 
-          # AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981) ve ag izinlerini ekle
+          # AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981), ag ve mikrofon izinlerini ekle
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/default_notification_color" />' $MANIFEST_PATH
-            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST_PATH
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-feature android:name="android.hardware.microphone" android:required="false" />' $MANIFEST_PATH
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
+          fi
+
+          # MainActivity.java icine mikrofon izin talebini guvenle ekle
+          MAIN_ACT="android/app/src/main/java/com/borctakip/app/MainActivity.java"
+          if [ -f "$MAIN_ACT" ]; then
+            cat << 'EOF' > $MAIN_ACT
+package com.borctakip.app;
+
+import android.os.Bundle;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS
+            }, 1001);
+        }
+    }
+}
+EOF
           fi
 
       - name: Sistem Splash Ekranini Hatasiz Karart
