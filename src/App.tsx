@@ -135,6 +135,8 @@ import {
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
@@ -4269,6 +4271,95 @@ export default function App() {
       /wv|Android.*Build\/|Version\/[0-9.]+/i.test(navigator.userAgent) && !/Chrome\/[0-9.]+\s+Mobile/i.test(navigator.userAgent)
     );
 
+    // 0. Capacitor Native Platform (Android / iOS APK) Tam Desteği:
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const cacheRes = await Filesystem.writeFile({
+          path: fileName,
+          data: jsonString,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+          recursive: true
+        });
+
+        // Ayrıca kullanıcının Dosyalar / Belgeler klasörüne de kaydet
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: jsonString,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+        } catch {}
+
+        if (mode === "drive") {
+          triggerToast(`📁 '${fileName}' hazırlandı! Menüden Google Drive'ı seçerek bulutunuza kaydedebilirsiniz.`);
+          await Share.share({
+            title: "Google Drive'a Kaydet",
+            text: `Bütçem Pro Veri Yedeği (${fileName})`,
+            url: cacheRes.uri,
+            dialogTitle: "Google Drive veya Buluta Kaydet"
+          });
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+
+        if (mode === "whatsapp") {
+          const summaryText = 
+            `💰 *BÜTÇEM PRO - VERİ YEDEĞİ* 📊\n` +
+            `📅 Tarih: ${new Date().toLocaleDateString("tr-TR")}\n` +
+            `📁 Dosya: ${fileName}\n\n` +
+            `📌 *Kayıt Özeti:*\n` +
+            `• ${debts.length} Borç Kaydı\n` +
+            `• ${incomes.length} Gelir Kaydı\n` +
+            `• ${expenses.length} Gider Kaydı\n` +
+            `• ${installmentDebts.length} Taksitli Borç Planı\n` +
+            `• ${contactsData.length} Kişi Cari Kaydı\n\n` +
+            `_Bütçem Pro ile güvenle yedeklendi._`;
+
+          await Share.share({
+            title: "WhatsApp ile Paylaş",
+            text: summaryText,
+            url: cacheRes.uri,
+            dialogTitle: "WhatsApp veya Uygulama Seçin"
+          });
+          triggerToast(`✅ Veri yedeği paylaşıldı: ${fileName}`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+
+        if (mode === "share") {
+          await Share.share({
+            title: "Bütçem Veri Yedeği",
+            text: `Bütçem Pro Veri Yedeği: ${fileName}`,
+            url: cacheRes.uri,
+            dialogTitle: "Yedeği Paylaş veya Kaydet"
+          });
+          triggerToast(`✅ Paylaşım menüsü açıldı!`);
+          localStorage.setItem("last_backup_export_date", new Date().toISOString());
+          return;
+        }
+
+        // mode === "download"
+        triggerToast(`✅ '${fileName}' İndirilenler/Belgeler klasörüne başarıyla kaydedildi!`);
+        try {
+          await Share.share({
+            title: fileName,
+            text: fileName,
+            url: cacheRes.uri,
+            dialogTitle: "Dosyayı Kaydet veya Aç"
+          });
+        } catch {}
+        localStorage.setItem("last_backup_export_date", new Date().toISOString());
+        return;
+      } catch (capErr: any) {
+        if (capErr?.name !== "AbortError") {
+          console.warn("[executeExportBackup] Capacitor export fallback:", capErr);
+        }
+      }
+    }
+
     // 1. WhatsApp Action
     if (mode === "whatsapp") {
       // Android Native Share Check
@@ -4421,110 +4512,246 @@ export default function App() {
       return `"${str.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
     };
 
-    // Filter data based on robust date range matching
+    // 1. Gelir ve Gider filtrelemeleri
     const filteredIncomes = incomes.filter(inc => isDateWithinRange(inc.date, startDate, endDate));
     const filteredExpenses = expenses.filter(exp => isDateWithinRange(exp.date, startDate, endDate));
-    const filteredDebts = debts.filter(d => isDateWithinRange(d.dueDate || (d as any).date, startDate, endDate));
-    const filteredInstallments = installmentDebts.filter(inst => isDateWithinRange(inst.firstDueDate, startDate, endDate));
 
-    // Load contact transactions for this user space
-    let filteredContactPayables: any[] = [];
-    let filteredContactReceivables: any[] = [];
-    try {
-      const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-      const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((t: any) => {
-            if (isDateWithinRange(t.dueDate || t.createdAt, startDate, endDate)) {
-              if (t.type === "payable") {
-                filteredContactPayables.push(t);
-              } else if (t.type === "receivable") {
-                filteredContactReceivables.push(t);
-              }
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Error reading contacts transactions for CSV:", e);
-    }
-
-    // Calculate sum statistics for the filtered period accurately
     const filteredTotalIncome = filteredIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const filteredTotalExpense = filteredExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+    // 2. Kişi Cari Defteri (Contacts Directory ve İşlemleri)
+    const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+    let contactsDirectory: any[] = [];
+    let contactTransactions: any[] = [];
+    try {
+      contactsDirectory = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_directory`) || "[]");
+    } catch {}
+    try {
+      contactTransactions = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_transactions`) || "[]");
+    } catch {}
+
+    const contactMap = new Map<string, { name: string; phone: string }>();
+    if (Array.isArray(contactsDirectory)) {
+      contactsDirectory.forEach((c: any) => {
+        contactMap.set(String(c.id), { name: c.name || "Kişi", phone: c.phone || "" });
+      });
+    }
+
+    const filteredContactPayables: any[] = [];
+    const filteredContactReceivables: any[] = [];
+    if (Array.isArray(contactTransactions)) {
+      contactTransactions.forEach((t: any) => {
+        const txDate = t.dueDate || t.createdAt;
+        if (isDateWithinRange(txDate, startDate, endDate)) {
+          const info = contactMap.get(String(t.contactId)) || { name: t.personName || "Kişi", phone: "" };
+          const item = {
+            ...t,
+            displayName: info.name,
+            displayPhone: info.phone,
+            effectiveDate: txDate
+          };
+          if (t.type === "payable") {
+            filteredContactPayables.push(item);
+          } else if (t.type === "receivable") {
+            filteredContactReceivables.push(item);
+          }
+        }
+      });
+    }
+
+    const contactPayablesTotal = filteredContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    const contactPayablesPaid = filteredContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+    const contactPayablesRemaining = Math.max(0, contactPayablesTotal - contactPayablesPaid);
+
+    const contactReceivablesTotal = filteredContactReceivables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    const contactReceivablesCollected = filteredContactReceivables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+    const contactReceivablesPending = Math.max(0, contactReceivablesTotal - contactReceivablesCollected);
+
+    // 3. Basit / Kurumsal Borçlar
+    const filteredDebts = debts.filter(d => {
+      if (!startDate && !endDate) return true;
+      if (isDateWithinRange(d.dueDate || (d as any).date, startDate, endDate)) return true;
+      const hasPayment = payments.some(p => p.debtId === d.id && isDateWithinRange(p.date, startDate, endDate));
+      return hasPayment;
+    });
 
     const simpleDebtsTotal = filteredDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const simpleDebtsPaid = filteredDebts.reduce((sum, d) => {
       const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
       return sum + Math.min(Number(d.amount) || 0, paidVal);
     }, 0);
+    const simpleDebtsRemaining = Math.max(0, simpleDebtsTotal - simpleDebtsPaid);
 
-    const installmentsTotal = filteredInstallments.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
-    const installmentsPaid = filteredInstallments.reduce((sum, inst) => {
-      const per = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
-      return sum + ((inst.paidInstallmentCount || 0) * per);
-    }, 0);
+    // 4. Taksitli Borç ve Kredi Planları
+    let installmentsTotal = 0;
+    let installmentsPaid = 0;
+    const filteredInstallments: any[] = [];
 
-    const contactPayablesTotal = filteredContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-    const contactPayablesPaid = filteredContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+    installmentDebts.forEach((inst: any) => {
+      const count = inst.installmentCount || 1;
+      const monthlyAmt = (Number(inst.totalAmount) || 0) / count;
 
+      if (!startDate && !endDate) {
+        const planPaid = (inst.paidInstallmentCount || 0) * monthlyAmt;
+        installmentsTotal += (Number(inst.totalAmount) || 0);
+        installmentsPaid += planPaid;
+        filteredInstallments.push({
+          ...inst,
+          periodDueAmount: Number(inst.totalAmount) || 0,
+          periodPaidAmount: planPaid,
+          periodRemainingAmount: Math.max(0, (Number(inst.totalAmount) || 0) - planPaid),
+          periodInstallmentDue: count,
+          periodInstallmentPaidCount: inst.paidInstallmentCount || 0
+        });
+      } else {
+        let occurrences = 0;
+        let paidOccurrences = 0;
+        const startParts = parseDateParts(inst.firstDueDate);
+        if (startParts) {
+          for (let i = 0; i < count; i++) {
+            const occDate = new Date(startParts.year, startParts.month + i, startParts.day);
+            const occYMD = occDate.toISOString().slice(0, 10);
+            if (isDateWithinRange(occYMD, startDate, endDate)) {
+              occurrences++;
+              if ((inst.paidInstallmentCount || 0) > i) {
+                paidOccurrences++;
+              }
+            }
+          }
+        } else if (isDateWithinRange(inst.firstDueDate, startDate, endDate)) {
+          occurrences = 1;
+          if ((inst.paidInstallmentCount || 0) > 0) paidOccurrences = 1;
+        }
+
+        if (occurrences > 0) {
+          const periodDue = occurrences * monthlyAmt;
+          const periodPaid = paidOccurrences * monthlyAmt;
+          installmentsTotal += periodDue;
+          installmentsPaid += periodPaid;
+          filteredInstallments.push({
+            ...inst,
+            periodDueAmount: periodDue,
+            periodPaidAmount: periodPaid,
+            periodRemainingAmount: Math.max(0, periodDue - periodPaid),
+            periodInstallmentDue: occurrences,
+            periodInstallmentPaidCount: paidOccurrences
+          });
+        }
+      }
+    });
+    const installmentsRemaining = Math.max(0, installmentsTotal - installmentsPaid);
+
+    // 5. Gerçek Toplamlar (Basit + Taksitli + Kişi Borçları)
     const filteredTotalDebt = simpleDebtsTotal + installmentsTotal + contactPayablesTotal;
     const filteredTotalPaid = simpleDebtsPaid + installmentsPaid + contactPayablesPaid;
     const filteredRemainingDebt = Math.max(0, filteredTotalDebt - filteredTotalPaid);
     const filteredNetReserve = filteredTotalIncome - filteredTotalExpense - filteredTotalPaid;
 
-    let csvContent = "";
-    csvContent += "\uFEFF"; // UTF-8 BOM byte sequence to render Turkish characters elegantly in Excel
+    let periodLabel = "Tüm Zamanlar (Filtresiz)";
+    if (startDate && endDate) {
+      if (startDate === endDate) {
+        periodLabel = `${startDate} (Günlük Rapor)`;
+      } else {
+        periodLabel = `${startDate} ile ${endDate}`;
+      }
+    } else if (startDate) {
+      periodLabel = `${startDate} sonrasındaki kayıtlar`;
+    } else if (endDate) {
+      periodLabel = `${endDate} öncesindeki kayıtlar`;
+    }
 
-    // Header Info
-    csvContent += [esc("FİNANSAL DURUM VE BÜTÇE TAKİP RAPORU"), esc("")].join(";") + "\n";
+    let csvContent = "";
+    csvContent += "\uFEFF"; // UTF-8 BOM byte sequence Excel Türkçe karakter desteği
+
+    // Başlık
+    csvContent += [esc("FİNANSAL DURUM VE KAPSAMLI BÜTÇE RAPORU"), esc("")].join(";") + "\n";
     csvContent += [esc("Rapor Oluşturma Tarihi"), esc(new Date().toLocaleDateString("tr-TR"))].join(";") + "\n";
-    csvContent += [esc("Rapor Filtre Aralığı"), esc(startDate && endDate ? `${startDate} - ${endDate}` : "Tüm Dönemler (Filtresiz)")].join(";") + "\n";
+    csvContent += [esc("Rapor Filtrelenen Dönem"), esc(periodLabel)].join(";") + "\n";
     csvContent += [esc("Aktif Para Birimi"), esc(activeCurrency)].join(";") + "\n";
     csvContent += "\n";
 
-    // Özet Tablosu (Dönemsel)
-    csvContent += [esc("=== DÖNEMSEL FİNANSAL GÖSTERGELER VE ÖZET ==="), esc("")].join(";") + "\n";
-    csvContent += [esc("Gösterge Kalemi"), esc(`Miktar (${activeCurrency})`)].join(";") + "\n";
-    csvContent += [esc("Toplam Gelir (Seçilen Dönem)"), esc(format(filteredTotalIncome))].join(";") + "\n";
-    csvContent += [esc("Toplam Gider (Seçilen Dönem)"), esc(format(filteredTotalExpense))].join(";") + "\n";
-    csvContent += [esc("Toplam Borç Kapsamı (Basit + Taksitli + Kişi Borçları)"), esc(format(filteredTotalDebt))].join(";") + "\n";
-    csvContent += [esc("Ödenen Borç Payı (Seçilen Dönem)"), esc(format(filteredTotalPaid))].join(";") + "\n";
-    csvContent += [esc("Kalan Aktif Borç Payı (Seçilen Dönem)"), esc(format(filteredRemainingDebt))].join(";") + "\n";
-    csvContent += [esc("Net Kalan Rezerv (Gelir - Gider - Ödenen Borç)"), esc(format(filteredNetReserve))].join(";") + "\n";
+    // 1. DÖNEMSEL FİNANSAL GÖSTERGELER VE GENEL ÖZET
+    csvContent += [esc("=== 1. DÖNEMSEL FİNANSAL GÖSTERGELER VE GENEL ÖZET ==="), esc(""), esc("")].join(";") + "\n";
+    csvContent += [esc("Finansal Gösterge"), esc(`Tutar (${activeCurrency})`), esc("Açıklama / Kapsam")].join(";") + "\n";
+    csvContent += [esc("Toplam Gelir"), esc(format(filteredTotalIncome)), esc(`${filteredIncomes.length} adet gelir işlemi`)].join(";") + "\n";
+    csvContent += [esc("Toplam Gider (Harcama)"), esc(format(filteredTotalExpense)), esc(`${filteredExpenses.length} adet harcama işlemi`)].join(";") + "\n";
+    csvContent += [esc("Basit ve Kurumsal Borçlar Kapsamı"), esc(format(simpleDebtsTotal)), esc(`${filteredDebts.length} adet borç kaydı`)].join(";") + "\n";
+    csvContent += [esc("Taksitli Borç ve Kredi Payı"), esc(format(installmentsTotal)), esc(`${filteredInstallments.length} adet taksitli plan`)].join(";") + "\n";
+    csvContent += [esc("Kişilere Olan Borçlarımız (Verecekler)"), esc(format(contactPayablesTotal)), esc(`${filteredContactPayables.length} kişi borç kaydı`)].join(";") + "\n";
+    csvContent += [esc("⭐ GERÇEK TOPLAM BORÇ KAPSAMI"), esc(format(filteredTotalDebt)), esc("Basit + Taksitli + Kişi Borçları Toplamı")].join(";") + "\n";
+    csvContent += [esc("↳ Toplam Ödenen Borç Payı"), esc(format(filteredTotalPaid)), esc("Bu dönemde kapatılan tüm borçlar")].join(";") + "\n";
+    csvContent += [esc("↳ Kalan Aktif Gerçek Borç"), esc(format(filteredRemainingDebt)), esc("Ödenmesi gereken güncel net borç")].join(";") + "\n";
+    csvContent += [esc("Kişilerden Beklenen Alacaklarımız (Tahsilat)"), esc(format(contactReceivablesTotal)), esc(`${filteredContactReceivables.length} kişi alacak kaydı (Kalan: ${format(contactReceivablesPending)})`)].join(";") + "\n";
+    csvContent += [esc("💰 NET FİNANSAL DURUM (KALAN REZERV)"), esc(format(filteredNetReserve)), esc("Toplam Gelir - Toplam Gider - Ödenen Borçlar")].join(";") + "\n";
     csvContent += "\n";
 
-    // Gelirler
-    csvContent += [esc("=== DETAYLI KAYITLI GELİRLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
+    // 2. KİŞİLERE OLAN BORÇLARIMIZ (VERECEKLER - AYRI LİSTE)
+    csvContent += [esc("=== 2. KİŞİLERE OLAN BORÇLARIMIZ (VERECEKLER - AYRI LİSTE) ==="), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    csvContent += [esc("Kişi / Alacaklı Adı"), esc("Telefon"), esc(`Borç Tutarı (${activeCurrency})`), esc("Vade / İşlem Tarihi"), esc("Açıklama"), esc("Ödeme Durumu")].join(";") + "\n";
+    if (filteredContactPayables.length === 0) {
+      csvContent += [esc("Seçilen dönemde kişilere ait kayıtlı borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    } else {
+      filteredContactPayables.forEach((c: any) => {
+        csvContent += [
+          esc(c.displayName || c.personName || "Kişi"),
+          esc(c.displayPhone || "-"),
+          esc(c.amount),
+          esc(c.effectiveDate || "-"),
+          esc(c.description || c.notes || "-"),
+          esc(c.isPaid ? "ÖDENDİ" : "BEKLİYOR")
+        ].join(";") + "\n";
+      });
+    }
+    csvContent += "\n";
+
+    // 3. KİŞİLERDEN OLAN ALACAKLARIMIZ (TAHSİLATLAR - AYRI LİSTE)
+    csvContent += [esc("=== 3. KİŞİLERDEN OLAN ALACAKLARIMIZ (TAHSİLATLAR - AYRI LİSTE) ==="), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    csvContent += [esc("Kişi / Borçlu Adı"), esc("Telefon"), esc(`Alacak Tutarı (${activeCurrency})`), esc("Vade / İşlem Tarihi"), esc("Açıklama"), esc("Tahsilat Durumu")].join(";") + "\n";
+    if (filteredContactReceivables.length === 0) {
+      csvContent += [esc("Seçilen dönemde kişilerden kayıtlı alacak bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    } else {
+      filteredContactReceivables.forEach((c: any) => {
+        csvContent += [
+          esc(c.displayName || c.personName || "Kişi"),
+          esc(c.displayPhone || "-"),
+          esc(c.amount),
+          esc(c.effectiveDate || "-"),
+          esc(c.description || c.notes || "-"),
+          esc(c.isPaid ? "TAHSİL EDİLDİ" : "BEKLİYOR")
+        ].join(";") + "\n";
+      });
+    }
+    csvContent += "\n";
+
+    // 4. DETAYLI KAYITLI GELİRLER
+    csvContent += [esc("=== 4. DETAYLI KAYITLI GELİRLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
     csvContent += [esc("Gelir Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Gelir Kategorisi"), esc("Tarih / Not")].join(";") + "\n";
     if (filteredIncomes.length === 0) {
-      csvContent += [esc("Seçilen tarih aralığında kayıtlı gelir bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
+      csvContent += [esc("Seçilen dönemde kayıtlı gelir bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredIncomes.forEach((inc: any) => {
-        csvContent += [esc(inc.title || inc.name || "İsimsiz Gelir"), esc(inc.amount), esc(inc.category || "Genel"), esc(inc.date || "")].join(";") + "\n";
+        csvContent += [esc(inc.title || inc.name || "Gelir"), esc(inc.amount), esc(inc.category || "Genel"), esc(inc.date || "")].join(";") + "\n";
       });
     }
     csvContent += "\n";
 
-    // Giderler
-    csvContent += [esc("=== DETAYLI HARCAMA VE GİDERLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
+    // 5. DETAYLI HARCAMA VE GİDERLER
+    csvContent += [esc("=== 5. DETAYLI HARCAMA VE GİDERLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
     csvContent += [esc("Harcama Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Kategori"), esc("Harcama Tarihi")].join(";") + "\n";
     if (filteredExpenses.length === 0) {
-      csvContent += [esc("Seçilen tarih aralığında kayıtlı gider bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
+      csvContent += [esc("Seçilen dönemde kayıtlı harcama bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredExpenses.forEach((exp: any) => {
-        csvContent += [esc(exp.title || exp.description || "İsimsiz Gider"), esc(exp.amount), esc(exp.category || "Genel"), esc(exp.date || "")].join(";") + "\n";
+        csvContent += [esc(exp.title || exp.description || "Gider"), esc(exp.amount), esc(exp.category || "Genel"), esc(exp.date || "")].join(";") + "\n";
       });
     }
     csvContent += "\n";
 
-    // Borçlar
-    csvContent += [esc("=== DETAYLI BORÇ LİSTESİ VE DURUMLARI ==="), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Borç Açıklaması"), esc("Toplam Borç"), esc("Ödenen Kısım"), esc("Kalan Tutar"), esc("Alacaklı Kurum/Kişi"), esc("Vade Tarihi"), esc("Ödeme Durumu")].join(";") + "\n";
+    // 6. DETAYLI BASİT VE KURUMSAL BORÇLAR
+    csvContent += [esc("=== 6. DETAYLI BASİT VE KURUMSAL BORÇLAR ==="), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    csvContent += [esc("Borç Açıklaması"), esc(`Toplam Tutar (${activeCurrency})`), esc("Ödenen Kısım"), esc("Kalan Tutar"), esc("Alacaklı Kurum / Kişi"), esc("Vade Tarihi"), esc("Durum")].join(";") + "\n";
     if (filteredDebts.length === 0) {
-      csvContent += [esc("Seçilen tarih aralığında kayıtlı borç kaydı bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+      csvContent += [esc("Seçilen dönemde kayıtlı borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredDebts.forEach((d: any) => {
         const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
@@ -4542,54 +4769,29 @@ export default function App() {
     }
     csvContent += "\n";
 
-    // Taksitler
-    csvContent += [esc("=== AKTİF KREDİ VE TAKSİTLİ HARCAMA PLANLARI ==="), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Kredi/Taksit Adı"), esc("Aylık Ödeme"), esc("Toplam Taksit"), esc("Kalan Taksit"), esc("Toplam Tutar"), esc("Başlangıç Tarihi")].join(";") + "\n";
+    // 7. DETAYLI TAKSİTLİ HARCAMA VE KREDİLER
+    csvContent += [esc("=== 7. DETAYLI TAKSİTLİ HARCAMA VE KREDİLER ==="), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+    csvContent += [esc("Kredi / Taksit Adı"), esc("Aylık Tutar"), esc("Dönemdeki Taksit"), esc("Dönem Tutar Payı"), esc("Ödenen Pay"), esc("Kalan Tutar"), esc("İlk Vade Tarihi")].join(";") + "\n";
     if (filteredInstallments.length === 0) {
-      csvContent += [esc("Seçilen tarih aralığında kayıtlı taksitli borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
+      csvContent += [esc("Seçilen dönemde kayıtlı taksitli borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredInstallments.forEach((inst: any) => {
-        const monthly = inst.monthlyPayment || ((Number(inst.totalAmount) || 0) / (inst.installmentCount || 1));
-        const remaining = inst.remainingInstallments !== undefined ? inst.remainingInstallments : ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0));
+        const monthly = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
         csvContent += [
           esc(inst.title || inst.name || "Taksit Planı"),
           esc(monthly),
-          esc(inst.installmentCount),
-          esc(remaining),
-          esc(inst.totalAmount),
+          esc(`${inst.periodInstallmentDue || inst.installmentCount} taksit`),
+          esc(inst.periodDueAmount || inst.totalAmount),
+          esc(inst.periodPaidAmount || 0),
+          esc(inst.periodRemainingAmount || 0),
           esc(inst.firstDueDate || inst.startDate || "")
         ].join(";") + "\n";
       });
     }
     csvContent += "\n";
 
-    // Kişi Borçları ve Alacakları
-    if (filteredContactPayables.length > 0 || filteredContactReceivables.length > 0) {
-      csvContent += [esc("=== KİŞİ BORÇ VE ALACAKLARI ==="), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
-      csvContent += [esc("Kişi / İşlem"), esc("İşlem Türü"), esc(`Miktar (${activeCurrency})`), esc("Durum"), esc("Vade Tarihi")].join(";") + "\n";
-      filteredContactPayables.forEach((c: any) => {
-        csvContent += [
-          esc(c.personName || c.title || "Kişi Borcu"),
-          esc("Borcum"),
-          esc(c.amount),
-          esc(c.isPaid ? "ÖDENDİ" : "BEKLİYOR"),
-          esc(c.dueDate || c.createdAt || "")
-        ].join(";") + "\n";
-      });
-      filteredContactReceivables.forEach((c: any) => {
-        csvContent += [
-          esc(c.personName || c.title || "Kişi Alacağı"),
-          esc("Alacağım"),
-          esc(c.amount),
-          esc(c.isPaid ? "TAHSİL EDİLDİ" : "BEKLİYOR"),
-          esc(c.dueDate || c.createdAt || "")
-        ].join(";") + "\n";
-      });
-      csvContent += "\n";
-    }
-
     const dateSuffix = startDate && endDate ? `${startDate}_${endDate}` : `${new Date().toISOString().split('T')[0]}`;
-    const fileName = `Finansal_Rapor_Filtreli_${dateSuffix}.csv`;
+    const fileName = `Finansal_Rapor_${dateSuffix}.csv`;
 
     return { fileName, csvContent };
   };
@@ -7798,56 +8000,112 @@ export default function App() {
         {isCsvModalOpen && (() => {
           const previewIncomes = incomes.filter(inc => isDateWithinRange(inc.date, csvStartDate, csvEndDate));
           const previewExpenses = expenses.filter(exp => isDateWithinRange(exp.date, csvStartDate, csvEndDate));
-          const previewDebts = debts.filter(d => isDateWithinRange(d.dueDate || (d as any).date, csvStartDate, csvEndDate));
-          const previewInstallments = installmentDebts.filter(inst => isDateWithinRange(inst.firstDueDate, csvStartDate, csvEndDate));
+
+          // Load contacts and map names
+          const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+          let contactsDirectory: any[] = [];
+          let contactTransactions: any[] = [];
+          try {
+            contactsDirectory = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_directory`) || "[]");
+          } catch {}
+          try {
+            contactTransactions = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_transactions`) || "[]");
+          } catch {}
+
+          const contactMap = new Map<string, { name: string; phone: string }>();
+          if (Array.isArray(contactsDirectory)) {
+            contactsDirectory.forEach((c: any) => {
+              contactMap.set(String(c.id), { name: c.name || "Kişi", phone: c.phone || "" });
+            });
+          }
 
           let previewContactPayables: any[] = [];
           let previewContactReceivables: any[] = [];
-          try {
-            const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-            const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                parsed.forEach((t: any) => {
-                  if (isDateWithinRange(t.dueDate || t.createdAt, csvStartDate, csvEndDate)) {
-                    if (t.type === "payable") {
-                      previewContactPayables.push(t);
-                    } else if (t.type === "receivable") {
-                      previewContactReceivables.push(t);
-                    }
-                  }
-                });
+          if (Array.isArray(contactTransactions)) {
+            contactTransactions.forEach((t: any) => {
+              const txDate = t.dueDate || t.createdAt;
+              if (isDateWithinRange(txDate, csvStartDate, csvEndDate)) {
+                const info = contactMap.get(String(t.contactId)) || { name: t.personName || "Kişi", phone: "" };
+                const item = { ...t, displayName: info.name, displayPhone: info.phone, effectiveDate: txDate };
+                if (t.type === "payable") {
+                  previewContactPayables.push(item);
+                } else if (t.type === "receivable") {
+                  previewContactReceivables.push(item);
+                }
               }
-            }
-          } catch (e) {
-            console.error("Error reading contacts transactions for CSV preview:", e);
+            });
           }
+
+          const previewContactPayablesTotal = previewContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+          const previewContactPayablesPaid = previewContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+          const previewContactPayablesRemaining = Math.max(0, previewContactPayablesTotal - previewContactPayablesPaid);
+
+          const previewContactReceivablesTotal = previewContactReceivables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+          const previewContactReceivablesCollected = previewContactReceivables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+          const previewContactReceivablesPending = Math.max(0, previewContactReceivablesTotal - previewContactReceivablesCollected);
 
           const previewTotalIncome = previewIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
           const previewTotalExpense = previewExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+          const previewDebts = debts.filter(d => {
+            if (!csvStartDate && !csvEndDate) return true;
+            if (isDateWithinRange(d.dueDate || (d as any).date, csvStartDate, csvEndDate)) return true;
+            const hasPayment = payments.some(p => p.debtId === d.id && isDateWithinRange(p.date, csvStartDate, csvEndDate));
+            return hasPayment;
+          });
 
           const previewSimpleDebtsTotal = previewDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
           const previewSimpleDebtsPaid = previewDebts.reduce((sum, d) => {
             const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
             return sum + Math.min(Number(d.amount) || 0, paidVal);
           }, 0);
+          const previewSimpleDebtsRemaining = Math.max(0, previewSimpleDebtsTotal - previewSimpleDebtsPaid);
 
-          const previewInstallmentsTotal = previewInstallments.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
-          const previewInstallmentsPaid = previewInstallments.reduce((sum, inst) => {
-            const per = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
-            return sum + ((inst.paidInstallmentCount || 0) * per);
-          }, 0);
+          let previewInstallmentsTotal = 0;
+          let previewInstallmentsPaid = 0;
+          let previewInstallmentsCount = 0;
 
-          const previewContactPayablesTotal = previewContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-          const previewContactPayablesPaid = previewContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
+          installmentDebts.forEach((inst: any) => {
+            const count = inst.installmentCount || 1;
+            const monthlyAmt = (Number(inst.totalAmount) || 0) / count;
+
+            if (!csvStartDate && !csvEndDate) {
+              previewInstallmentsTotal += (Number(inst.totalAmount) || 0);
+              previewInstallmentsPaid += ((inst.paidInstallmentCount || 0) * monthlyAmt);
+              previewInstallmentsCount++;
+            } else {
+              let occ = 0;
+              let paidOcc = 0;
+              const startParts = parseDateParts(inst.firstDueDate);
+              if (startParts) {
+                for (let i = 0; i < count; i++) {
+                  const occDate = new Date(startParts.year, startParts.month + i, startParts.day);
+                  const occYMD = occDate.toISOString().slice(0, 10);
+                  if (isDateWithinRange(occYMD, csvStartDate, csvEndDate)) {
+                    occ++;
+                    if ((inst.paidInstallmentCount || 0) > i) paidOcc++;
+                  }
+                }
+              } else if (isDateWithinRange(inst.firstDueDate, csvStartDate, csvEndDate)) {
+                occ = 1;
+                if ((inst.paidInstallmentCount || 0) > 0) paidOcc = 1;
+              }
+
+              if (occ > 0) {
+                previewInstallmentsTotal += (occ * monthlyAmt);
+                previewInstallmentsPaid += (paidOcc * monthlyAmt);
+                previewInstallmentsCount++;
+              }
+            }
+          });
+          const previewInstallmentsRemaining = Math.max(0, previewInstallmentsTotal - previewInstallmentsPaid);
 
           const previewTotalDebt = previewSimpleDebtsTotal + previewInstallmentsTotal + previewContactPayablesTotal;
           const previewTotalPaid = previewSimpleDebtsPaid + previewInstallmentsPaid + previewContactPayablesPaid;
           const previewRemainingDebt = Math.max(0, previewTotalDebt - previewTotalPaid);
           const previewNetReserve = previewTotalIncome - previewTotalExpense - previewTotalPaid;
 
-          const totalDebtOperationsCount = previewDebts.length + previewInstallments.length + previewContactPayables.length;
+          const totalDebtOperationsCount = previewDebts.length + previewInstallmentsCount + previewContactPayables.length;
           const totalRecords = previewIncomes.length + previewExpenses.length + totalDebtOperationsCount + previewContactReceivables.length;
 
           return (
@@ -7863,15 +8121,15 @@ export default function App() {
                 <div className="bg-slate-950 text-white p-5 relative">
                   <h3 className="text-sm font-bold flex items-center gap-2">
                     {csvStep === "filter" ? (
-                      <>📊 DETAYLI CSV RAPORU HAZIRLA</>
+                      <>📊 FİNANSAL RAPOR VE CSV İNDİRME</>
                     ) : (
-                      <>📋 CSV İNDİRME ÖNİZLEME VE ONAYI</>
+                      <>📋 CSV RAPOR ÖNİZLEMESİ VE DOĞRULAMA</>
                     )}
                   </h3>
-                  <p className="text-[10px] text-slate-300 mt-1 uppercase tracking-tight">
+                  <p className="text-[10.5px] text-slate-300 mt-1">
                     {csvStep === "filter" 
-                      ? "Tarih aralığı seçerek gelir, gider ve borç kayıtlarınızı filtreleyin."
-                      : "Dışa aktarılacak finansal kayıtlarınızın veri özeti aşağıdadır."}
+                      ? "Dönem seçin (günlük, aylık, yıllık) veya özel tarih aralığı belirleyin."
+                      : "Filtrelenen döneme ait gerçek finansal göstergeler aşağıdadır."}
                   </p>
                   <button
                     type="button"
@@ -7891,7 +8149,38 @@ export default function App() {
                         <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block mb-2 tracking-widest leading-none">
                           HIZLI DÖNEM SEÇENEKLERİ
                         </span>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              const todayStr = now.toISOString().slice(0, 10);
+                              setCsvStartDate(todayStr);
+                              setCsvEndDate(todayStr);
+                            }}
+                            className={`py-2 px-2 rounded-xl font-bold transition text-[11px] text-center shrink-0 cursor-pointer border ${
+                              csvStartDate === csvEndDate && csvStartDate === new Date().toISOString().slice(0, 10)
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-transparent hover:border-emerald-500/30"
+                            }`}
+                          >
+                            📅 Bugün (Günlük)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              const day = now.getDay();
+                              const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+                              const monday = new Date(now.setDate(diff));
+                              const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+                              setCsvStartDate(monday.toISOString().slice(0, 10));
+                              setCsvEndDate(sunday.toISOString().slice(0, 10));
+                            }}
+                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                          >
+                            📅 Bu Hafta
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -7901,9 +8190,9 @@ export default function App() {
                               setCsvStartDate(firstDay.toISOString().slice(0, 10));
                               setCsvEndDate(lastDay.toISOString().slice(0, 10));
                             }}
-                            className="py-1.5 px-3 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-left shrink-0 cursor-pointer"
+                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
                           >
-                            📅 Bu Ay
+                            📅 Bu Ay (Aylık)
                           </button>
                           <button
                             type="button"
@@ -7914,7 +8203,7 @@ export default function App() {
                               setCsvStartDate(firstDay.toISOString().slice(0, 10));
                               setCsvEndDate(lastDay.toISOString().slice(0, 10));
                             }}
-                            className="py-1.5 px-3 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-left shrink-0 cursor-pointer"
+                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
                           >
                             📅 Geçen Ay
                           </button>
@@ -7922,23 +8211,43 @@ export default function App() {
                             type="button"
                             onClick={() => {
                               const now = new Date();
-                              const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                              setCsvStartDate(start.toISOString().slice(0, 10));
-                              setCsvEndDate(now.toISOString().slice(0, 10));
+                              const firstDay = new Date(now.getFullYear(), 0, 1);
+                              const lastDay = new Date(now.getFullYear(), 11, 31);
+                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
+                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
                             }}
-                            className="py-1.5 px-3 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-left shrink-0 cursor-pointer"
+                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
                           >
-                            📅 Son 30 Gün
+                            📅 Bu Yıl (Yıllık)
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              const firstDay = new Date(now.getFullYear() - 1, 0, 1);
+                              const lastDay = new Date(now.getFullYear() - 1, 11, 31);
+                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
+                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
+                            }}
+                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                          >
+                            📅 Geçen Yıl
+                          </button>
+                        </div>
+                        <div className="mt-2">
                           <button
                             type="button"
                             onClick={() => {
                               setCsvStartDate("");
                               setCsvEndDate("");
                             }}
-                            className="py-1.5 px-3 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-left shrink-0 cursor-pointer"
+                            className={`w-full py-2 px-3 rounded-xl font-bold transition text-[11px] text-center cursor-pointer border ${
+                              !csvStartDate && !csvEndDate
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 border-transparent hover:border-indigo-500/30"
+                            }`}
                           >
-                            🚀 Tüm Zamanlar
+                            🚀 Tüm Zamanlar (Filtresiz)
                           </button>
                         </div>
                       </div>
@@ -7973,7 +8282,7 @@ export default function App() {
                       <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex gap-2 border border-emerald-100 dark:border-emerald-950/40 text-[10.5px] leading-relaxed">
                         <Info className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
                         <span>
-                          Detaylı CSV çıktısı seçtiğiniz aralıktaki tüm harcamalar, gelirler, borç ödemeleri ve taksitli işlemleri ayrı ayrı gruplandırarak size tam bir tablo sunar.
+                          Rapor; seçtiğiniz döneme göre <strong>Gelirler</strong>, <strong>Giderler</strong>, <strong>Basit/Kurumsal Borçlar</strong>, <strong>Taksitler</strong> ve <strong>Kişi Borç ve Alacaklarını</strong> ayrı listeler halinde eksiksiz hesaplayarak CSV formatında sunar.
                         </span>
                       </div>
                     </>
@@ -7982,50 +8291,75 @@ export default function App() {
                       {/* Filter Details Alert */}
                       <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold block">FİLTRELENEN TARİH ARALIĞI</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold block">FİLTRELENEN DÖNEM</span>
                           <span className="font-extrabold text-[11px] text-slate-950 dark:text-white">
-                            {csvStartDate || csvEndDate ? `${csvStartDate || "Öncesi"} ile ${csvEndDate || "Sonrası"}` : "Tüm Dönemler (Filtresiz)"}
+                            {csvStartDate && csvEndDate 
+                              ? (csvStartDate === csvEndDate ? `${csvStartDate} (Günlük)` : `${csvStartDate} ile ${csvEndDate}`)
+                              : (csvStartDate ? `${csvStartDate} sonrası` : (csvEndDate ? `${csvEndDate} öncesi` : "Tüm Zamanlar"))}
                           </span>
                         </div>
                         <div className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg text-[10px] font-black border border-emerald-500/10">
-                          {totalRecords} Kayıt Aktarılıyor
+                          {totalRecords} Kayıt Aktarılacak
                         </div>
                       </div>
 
-                      {/* Summary breakdown details inside a beautiful nested Card */}
-                      <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                        <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block tracking-wider leading-none">METRİKLER VE VERİ GÖSTERGELERİ</span>
+                      {/* Summary breakdown details */}
+                      <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5 max-h-[340px] overflow-y-auto">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block tracking-wider leading-none">GERÇEK FİNANSAL GÖSTERGELER</span>
                         
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🟢 Toplam Gelir ({previewIncomes.length} işlem)</span>
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">🟢 Toplam Gelir ({previewIncomes.length} işlem)</span>
                             <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalIncome)}</span>
                           </div>
                           
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🔴 Toplam Gider ({previewExpenses.length} işlem)</span>
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">🔴 Toplam Gider ({previewExpenses.length} işlem)</span>
                             <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalExpense)}</span>
                           </div>
 
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">🏦 Toplam Borç ({totalDebtOperationsCount} işlem)</span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewTotalDebt)}</span>
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">🏛️ Basit & Kurumsal Borçlar ({previewDebts.length} borç)</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{format(previewSimpleDebtsTotal)}</span>
                           </div>
 
-                          <div className="flex justify-between items-center pb-1.5 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">↳ Ödenen Borç Payı</span>
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">💳 Taksitli Krediler / Borçlar ({previewInstallmentsCount} plan)</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{format(previewInstallmentsTotal)}</span>
+                          </div>
+
+                          {/* Kişi Borçları Ayrı Gösterim */}
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800 bg-amber-500/5 -mx-2 px-2 py-1 rounded-lg">
+                            <span className="text-amber-700 dark:text-amber-400 font-bold">👥 Kişilere Olan Borçlarımız ({previewContactPayables.length} kişi)</span>
+                            <span className="font-bold text-amber-700 dark:text-amber-400">{format(previewContactPayablesTotal)}</span>
+                          </div>
+
+                          {/* Kişi Alacakları Ayrı Gösterim */}
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800 bg-sky-500/5 -mx-2 px-2 py-1 rounded-lg">
+                            <span className="text-sky-700 dark:text-sky-400 font-bold">💼 Kişilerden Olan Alacaklarımız ({previewContactReceivables.length} kişi)</span>
+                            <span className="font-bold text-sky-700 dark:text-sky-400">{format(previewContactReceivablesTotal)}</span>
+                          </div>
+
+                          {/* Gerçek Toplam Borç Kapsamı */}
+                          <div className="flex justify-between items-center pt-1 pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-slate-900 dark:text-white font-extrabold">⭐ GERÇEK TOPLAM BORÇ</span>
+                            <span className="font-black text-slate-950 dark:text-white text-xs">{format(previewTotalDebt)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-800 text-[11px]">
+                            <span className="text-slate-600 dark:text-slate-400">↳ Ödenen Borç Payı</span>
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{format(previewTotalPaid)}</span>
                           </div>
 
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">↳ Kalan Kapsam</span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100">{format(previewRemainingDebt)}</span>
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-slate-600 dark:text-slate-400">↳ Kalan Aktif Borç</span>
+                            <span className="font-bold text-red-600 dark:text-red-400">{format(previewRemainingDebt)}</span>
                           </div>
                         </div>
 
                         {/* Combined Result Balance Indicator */}
                         <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                          <span className="font-bold text-slate-700 dark:text-slate-300">Net Kalan Rezerv:</span>
+                          <span className="font-black text-slate-800 dark:text-slate-200">Net Kalan Bakiye (Rezerv):</span>
                           <span className={`font-black text-xs px-2.5 py-1 rounded-xl ${previewNetReserve >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'}`}>
                             {format(previewNetReserve)}
                           </span>
@@ -8033,11 +8367,11 @@ export default function App() {
                       </div>
 
                       {/* Check confirmation note */}
-                      <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-500/30 text-amber-900 dark:text-amber-300 text-[10.5px] leading-relaxed flex gap-2">
+                      <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-500/30 text-amber-900 dark:text-amber-300 text-[10px] leading-relaxed flex gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                         <div>
-                          <p className="font-bold text-amber-950 dark:text-amber-200">Dosyayı İndir Onayı:</p>
-                          <p className="opacity-90">Yukarıda saptanan {totalRecords} satırlık veri, Excel, Numbers ve tüm diğer tablolama analiz programlarıyla Türkçe karakterleri koruyarak çalışacak bir CSV dosyasına çevrilecektir. Onaylıyor musunuz?</p>
+                          <p className="font-bold text-amber-950 dark:text-amber-200">Türkçe Excel ve Numbers Uyumlu:</p>
+                          <p className="opacity-90">CSV dosyasında kişi borçları ve alacakları ayrı başlıklar halinde detaylandırılmıştır. Excel veya E-Tablolar'da sıfır karakter bozulmasıyla açılır.</p>
                         </div>
                       </div>
                     </>
@@ -8045,59 +8379,73 @@ export default function App() {
                 </div>
 
                 {/* Modal Footer */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-2">
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-2">
                   {csvStep === "filter" ? (
                     <>
                       <button
                         type="button"
                         onClick={() => setIsCsvModalOpen(false)}
-                        className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer"
+                        className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer text-xs"
                       >
                         {language === "tr" ? "Vazgeç" : "Cancel"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setCsvStep("preview")}
-                        className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl font-black text-xs transition active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer border-transparent"
-                      >
-                        Önizleme ve İlerle ➔
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDownloadCSV(csvStartDate, csvEndDate);
+                            setIsCsvModalOpen(false);
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl font-bold text-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer border-transparent"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Hemen İndir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCsvStep("preview")}
+                          className="px-4 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl font-black text-xs transition active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer border-transparent"
+                        >
+                          Önizleme Yap ➔
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>
                       <button
                         type="button"
                         onClick={() => setCsvStep("filter")}
-                        className="px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer"
+                        className="px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition cursor-pointer text-xs"
                       >
                         ⬅ Geri
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const { csvContent } = generateCSVData(csvStartDate, csvEndDate);
-                          try {
-                            navigator.clipboard.writeText(csvContent);
-                            triggerToast("📋 Rapor başarıyla kopyalandı! Excel veya Google Sheets'e yapıştırabilirsiniz.");
-                          } catch (err) {
-                            triggerToast("❌ Kopyalama başarısız oldu.");
-                          }
-                          setIsCsvModalOpen(false);
-                        }}
-                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer border-transparent"
-                      >
-                        <Copy className="w-3.5 h-3.5" /> Panoya Kopyala
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleDownloadCSV(csvStartDate, csvEndDate);
-                          setIsCsvModalOpen(false);
-                        }}
-                        className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl font-black text-xs transition active:scale-95 flex items-center gap-1.5 shadow-md cursor-pointer border-transparent"
-                      >
-                        <Download className="w-4 h-4" /> {language === "tr" ? "Dosyayı İndir" : "Download"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const { csvContent } = generateCSVData(csvStartDate, csvEndDate);
+                            try {
+                              navigator.clipboard.writeText(csvContent);
+                              triggerToast("📋 Rapor başarıyla kopyalandı! Excel veya Google Sheets'e yapıştırabilirsiniz.");
+                            } catch (err) {
+                              triggerToast("❌ Kopyalama başarısız oldu.");
+                            }
+                            setIsCsvModalOpen(false);
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer border-transparent"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Kopyala
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDownloadCSV(csvStartDate, csvEndDate);
+                            setIsCsvModalOpen(false);
+                          }}
+                          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl font-black text-xs transition active:scale-95 flex items-center gap-1.5 shadow-md cursor-pointer border-transparent"
+                        >
+                          <Download className="w-4 h-4" /> {language === "tr" ? "Dosyayı İndir (.CSV)" : "Download"}
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>

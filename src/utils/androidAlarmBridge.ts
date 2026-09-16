@@ -9,6 +9,9 @@
 
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { Browser } from "@capacitor/browser";
 
 export interface AndroidBridgeInterface {
   setDebtAlarm?: (id: number, title: string, triggerAtMillis: number, message?: string) => void;
@@ -591,23 +594,44 @@ export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
 }
 
 /**
- * Android cihazın İndirilenler (Downloads) klasörüne belirlenen dosya adıyla kaydeder.
+ * Android cihazın İndirilenler / Documents klasörüne belirlenen dosya adıyla kaydeder.
  */
 export function saveAndroidNativeFile(fileName: string, content: string, mimeType: string = "application/json"): boolean {
   const bridge = getActiveBridge();
-  if (!bridge) return false;
-
-  try {
-    if (typeof bridge.saveFile === "function") {
-      bridge.saveFile(fileName, content, mimeType);
-      return true;
-    } else if (typeof bridge.saveBackupFile === "function") {
-      bridge.saveBackupFile(fileName, content);
-      return true;
+  if (bridge) {
+    try {
+      if (typeof bridge.saveFile === "function") {
+        bridge.saveFile(fileName, content, mimeType);
+        return true;
+      } else if (typeof bridge.saveBackupFile === "function") {
+        bridge.saveBackupFile(fileName, content);
+        return true;
+      }
+    } catch (e) {
+      console.warn("[AndroidAlarmBridge] saveAndroidNativeFile hatası:", e);
     }
-  } catch (e) {
-    console.warn("[AndroidAlarmBridge] saveAndroidNativeFile hatası:", e);
   }
+
+  // Capacitor Native Desteği (APK Ortamı)
+  if (Capacitor.isNativePlatform()) {
+    (async () => {
+      try {
+        const isBase64 = content.startsWith("data:") || mimeType.startsWith("image/");
+        const cleanContent = isBase64 && content.includes(",") ? content.split(",")[1] : content;
+        await Filesystem.writeFile({
+          path: fileName,
+          data: cleanContent,
+          directory: Directory.Documents,
+          encoding: isBase64 ? undefined : Encoding.UTF8,
+          recursive: true
+        });
+      } catch (err) {
+        console.warn("[AndroidAlarmBridge] Capacitor writeFile hatası:", err);
+      }
+    })();
+    return true;
+  }
+
   return false;
 }
 
@@ -623,15 +647,32 @@ export function saveAndroidNativeBackupFile(fileName: string, jsonContent: strin
  */
 export function saveAndroidNativeImageToGallery(fileName: string, base64Data: string, mimeType: string = "image/jpeg"): boolean {
   const bridge = getActiveBridge();
-  if (!bridge || typeof bridge.saveImageToGallery !== "function") {
-    return false;
+  if (bridge && typeof bridge.saveImageToGallery === "function") {
+    try {
+      bridge.saveImageToGallery(fileName, base64Data, mimeType);
+      return true;
+    } catch (e) {
+      console.warn("[AndroidAlarmBridge] saveAndroidNativeImageToGallery hatası:", e);
+    }
   }
-  try {
-    bridge.saveImageToGallery(fileName, base64Data, mimeType);
+
+  if (Capacitor.isNativePlatform()) {
+    (async () => {
+      try {
+        const cleanData = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
+        await Filesystem.writeFile({
+          path: fileName,
+          data: cleanData,
+          directory: Directory.Documents,
+          recursive: true
+        });
+      } catch (err) {
+        console.warn("[AndroidAlarmBridge] Capacitor saveImage error:", err);
+      }
+    })();
     return true;
-  } catch (e) {
-    console.warn("[AndroidAlarmBridge] saveAndroidNativeImageToGallery hatası:", e);
   }
+
   return false;
 }
 
@@ -640,15 +681,54 @@ export function saveAndroidNativeImageToGallery(fileName: string, base64Data: st
  */
 export function shareAndroidNativeBackupFile(fileName: string, jsonContent: string, title?: string): boolean {
   const bridge = getActiveBridge();
-  if (!bridge || typeof bridge.shareBackupFile !== "function") {
-    return false;
+  if (bridge && typeof bridge.shareBackupFile === "function") {
+    try {
+      bridge.shareBackupFile(fileName, jsonContent, title || "Bütçem Veri Yedeği");
+      return true;
+    } catch (e) {
+      console.warn("[AndroidAlarmBridge] shareBackupFile hatası:", e);
+    }
   }
-  try {
-    bridge.shareBackupFile(fileName, jsonContent, title || "Bütçem Veri Yedeği");
+
+  // Capacitor Native Desteği (APK Ortamı)
+  if (Capacitor.isNativePlatform()) {
+    (async () => {
+      try {
+        // Cache klasörüne yaz (Android FileProvider güvenle erişsin)
+        const cacheRes = await Filesystem.writeFile({
+          path: fileName,
+          data: jsonContent,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+          recursive: true
+        });
+
+        // Ayrıca kalıcı olarak Documents klasörüne de kaydet
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: jsonContent,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+        } catch {}
+
+        await Share.share({
+          title: title || "Bütçem Veri Yedeği",
+          text: `Bütçem Pro Veri Yedeği: ${fileName}`,
+          url: cacheRes.uri,
+          dialogTitle: title || "Yedeği Paylaş veya Kaydet"
+        });
+      } catch (shareErr: any) {
+        if (shareErr?.name !== "AbortError") {
+          console.warn("[AndroidAlarmBridge] Capacitor Share hatası:", shareErr);
+        }
+      }
+    })();
     return true;
-  } catch (e) {
-    console.warn("[AndroidAlarmBridge] shareBackupFile hatası:", e);
   }
+
   return false;
 }
 
@@ -657,17 +737,23 @@ export function shareAndroidNativeBackupFile(fileName: string, jsonContent: stri
  */
 export function openAndroidGoogleDrive(): boolean {
   const bridge = getActiveBridge();
-  if (!bridge) {
-    return false;
-  }
-  try {
-    if (typeof bridge.openGoogleDrive === "function") {
+  if (bridge && typeof bridge.openGoogleDrive === "function") {
+    try {
       bridge.openGoogleDrive();
       return true;
+    } catch (e) {
+      console.warn("[AndroidAlarmBridge] openGoogleDrive hatası:", e);
     }
-  } catch (e) {
-    console.warn("[AndroidAlarmBridge] openGoogleDrive hatası:", e);
   }
-  return false;
+
+  if (Capacitor.isNativePlatform()) {
+    Browser.open({ url: "https://drive.google.com/drive/my-drive" }).catch(() => {
+      window.open("https://drive.google.com/drive/my-drive", "_blank");
+    });
+    return true;
+  }
+
+  window.open("https://drive.google.com/drive/my-drive", "_blank");
+  return true;
 }
 

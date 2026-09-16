@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { 
   isAndroidAlarmBridgeAvailable, 
   saveAndroidNativeFile, 
@@ -30,9 +33,57 @@ export interface SaveImageOptions {
 export async function downloadFileWithCustomName(options: DownloadFileOptions): Promise<boolean> {
   const { fileName, content, mimeType = "application/json;charset=utf-8", onSuccess, onError } = options;
 
-  // 1. Android APK / Native Bridge Kontrolü:
-  // Eğer Android ortamındaysak, doğrudan Android MediaStore / Downloads APIsini çağırır.
-  // Bu sayede Android sistemi asla generic 'download.json' veya 'download (1).json' üretmez!
+  // 1. Capacitor Native Android / iOS APK Platformu
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const isBase64 = content.startsWith("data:") || (mimeType && mimeType.startsWith("image/"));
+      const cleanData = isBase64 && content.includes(",") ? content.split(",")[1] : content;
+
+      // Cihazın Documents klasörüne dosya adıyla kaydet
+      const docResult = await Filesystem.writeFile({
+        path: fileName,
+        data: cleanData,
+        directory: Directory.Documents,
+        encoding: isBase64 ? undefined : Encoding.UTF8,
+        recursive: true
+      });
+
+      // Paylaşım menüsü (Share provider) için Cache klasörüne de güvenle yaz
+      let shareUri = docResult.uri;
+      try {
+        const cacheResult = await Filesystem.writeFile({
+          path: fileName,
+          data: cleanData,
+          directory: Directory.Cache,
+          encoding: isBase64 ? undefined : Encoding.UTF8,
+          recursive: true
+        });
+        shareUri = cacheResult.uri;
+      } catch {}
+
+      // Android Yerel Paylaşım / Kayıt Arayüzünü tetikle (Google Drive, WhatsApp, İndirilenler, Dosyalarım vb.)
+      try {
+        await Share.share({
+          title: fileName,
+          text: fileName,
+          url: shareUri,
+          dialogTitle: "Dosyayı Kaydet veya Aç"
+        });
+      } catch (shareErr: any) {
+        // Kullanıcı menüyü kapatırsa veya iptal ederse dosya zaten Documents klasöründe kayıtlıdır
+        if (shareErr?.name !== "AbortError") {
+          console.log("[downloadFileWithCustomName] Share dialog info:", shareErr);
+        }
+      }
+
+      if (onSuccess) onSuccess();
+      return true;
+    } catch (capErr) {
+      console.warn("[downloadFileWithCustomName] Capacitor native write error:", capErr);
+    }
+  }
+
+  // 2. Android Cordova / WebView Native Bridge Kontrolü:
   if (isAndroidAlarmBridgeAvailable()) {
     try {
       const saved = saveAndroidNativeFile(fileName, content, mimeType);
@@ -103,8 +154,45 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
 /**
  * Resim, dekont ve fotoğrafları Galeri / Pictures klasörüne kaydetme yardımcısı
  */
-export function saveImageToGalleryWithCustomName(options: SaveImageOptions): boolean {
+export async function saveImageToGalleryWithCustomName(options: SaveImageOptions): Promise<boolean> {
   const { fileName, base64Data, mimeType = "image/jpeg", onSuccess, onError } = options;
+
+  // 1. Capacitor Native Android / iOS APK
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const cleanData = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
+      const writeResult = await Filesystem.writeFile({
+        path: fileName,
+        data: cleanData,
+        directory: Directory.Documents,
+        recursive: true
+      });
+
+      let shareUri = writeResult.uri;
+      try {
+        const cacheRes = await Filesystem.writeFile({
+          path: fileName,
+          data: cleanData,
+          directory: Directory.Cache,
+          recursive: true
+        });
+        shareUri = cacheRes.uri;
+      } catch {}
+
+      try {
+        await Share.share({
+          title: fileName,
+          url: shareUri,
+          dialogTitle: "Görseli Kaydet veya Paylaş"
+        });
+      } catch {}
+
+      if (onSuccess) onSuccess();
+      return true;
+    } catch (e) {
+      console.warn("[saveImageToGalleryWithCustomName] Capacitor native write error:", e);
+    }
+  }
 
   if (isAndroidAlarmBridgeAvailable()) {
     try {
