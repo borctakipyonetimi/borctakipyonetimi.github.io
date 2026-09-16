@@ -10,6 +10,7 @@ let activeAlarms = [];
 let activeDebts = [];
 let activeInstallments = [];
 let alarmTimers = [];
+let pushSettings = { enabled: true, frequency: "2" };
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -217,6 +218,12 @@ async function loadCachedInstallments() {
 async function handleBackgroundSync(tag) {
   console.log(`[Service Worker] Executing background sync listener for tag: "${tag}"`);
 
+  // If push notifications are turned off by user, do not send any alerts
+  if (pushSettings && pushSettings.enabled === false) {
+    console.log("[Service Worker] Push notifications are disabled by user, skipping sync alerts.");
+    return;
+  }
+
   // 1. Reload latest cached alarms, debts, and installments
   await Promise.all([
     loadAndScheduleCachedAlarms(),
@@ -308,6 +315,20 @@ async function handleBackgroundSync(tag) {
   }
 
   // 5. Trigger notifications for overdue / due-today debts
+  const hr = today.getHours();
+  let currentSlot = "slot";
+  if (pushSettings.frequency === "1") {
+    currentSlot = "daily";
+  } else if (pushSettings.frequency === "2") {
+    currentSlot = hr >= 16 ? "evening" : "morning";
+  } else if (pushSettings.frequency === "3") {
+    currentSlot = hr >= 17 ? "evening" : hr >= 12 ? "noon" : "morning";
+  } else if (pushSettings.frequency === "4") {
+    currentSlot = hr >= 20 ? "night" : hr >= 16 ? "evening" : hr >= 12 ? "noon" : "morning";
+  } else if (pushSettings.frequency === "hourly") {
+    currentSlot = "h" + hr;
+  }
+
   const dateFormatted = today.toLocaleDateString("tr-TR");
   if (overdueList.length > 0) {
     const top = overdueList[0];
@@ -319,7 +340,7 @@ async function handleBackgroundSync(tag) {
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-overdue-sync-" + todayStr,
+      tag: "sw-overdue-sync-" + todayStr + "-" + currentSlot,
       renotify: true,
       requireInteraction: true,
       silent: false,
@@ -336,7 +357,7 @@ async function handleBackgroundSync(tag) {
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-duetoday-sync-" + todayStr,
+      tag: "sw-duetoday-sync-" + todayStr + "-" + currentSlot,
       renotify: true,
       requireInteraction: true,
       silent: false,
@@ -400,6 +421,14 @@ self.addEventListener("message", (event) => {
   if (event.data.type === "SYNC_INSTALLMENTS") {
     activeInstallments = event.data.installmentDebts || [];
     saveInstallmentsToCache(activeInstallments);
+  }
+
+  if (event.data.type === "SYNC_PUSH_SETTINGS") {
+    pushSettings = {
+      enabled: event.data.enabled !== false,
+      frequency: event.data.frequency || "2"
+    };
+    console.log("[Service Worker] Push settings updated:", pushSettings);
   }
 
   if (event.data.type === "TRIGGER_MANUAL_SYNC" || event.data.type === "CHECK_NOW") {

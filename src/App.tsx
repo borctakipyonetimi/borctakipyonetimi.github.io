@@ -50,8 +50,9 @@ import {
   Facebook,
   Link,
   Twitter,
-  Volume2,
-  VolumeX,
+  BellRing,
+  Check,
+  Zap,
   Sliders,
   Play,
   CheckCircle2,
@@ -515,13 +516,55 @@ export default function App() {
     return localStorage.getItem("colorTheme") || "default";
   });
 
-  // Sound settings and Notification Filters state
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    return localStorage.getItem("soundEnabled") !== "0";
+  // Push Notification settings and Daily Frequency state (Uygulama içi sesler kaldırılmıştır)
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState<boolean>(() => {
+    return localStorage.getItem("pushNotificationsEnabled") !== "false";
   });
-  const [useSystemSound, setUseSystemSound] = useState<boolean>(() => {
-    return localStorage.getItem("useSystemSound") === "1";
+  const [pushFrequency, setPushFrequency] = useState<string>(() => {
+    return localStorage.getItem("pushNotificationFrequency") || "2";
   });
+
+  const handleTogglePushNotifications = async (enabled: boolean) => {
+    setPushNotificationsEnabled(enabled);
+    localStorage.setItem("pushNotificationsEnabled", String(enabled));
+
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "SYNC_PUSH_SETTINGS",
+        enabled: enabled,
+        frequency: pushFrequency
+      });
+    }
+
+    if (enabled) {
+      await requestNotificationPermission();
+      triggerToast("Push Bildirimleri Aktifleştirildi 🔔");
+    } else {
+      triggerToast("Push Bildirimleri Kapatıldı 🔕");
+    }
+  };
+
+  const handleSetPushFrequency = (val: string) => {
+    setPushFrequency(val);
+    localStorage.setItem("pushNotificationFrequency", val);
+
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "SYNC_PUSH_SETTINGS",
+        enabled: pushNotificationsEnabled,
+        frequency: val
+      });
+    }
+
+    const labels: Record<string, string> = {
+      "1": "Günde 1 Kez (Sabah 09:00)",
+      "2": "Günde 2 Kez (09:00 ve 18:00)",
+      "3": "Günde 3 Kez (09:00, 13:00 ve 19:00)",
+      "4": "Günde 4 Kez (09:00, 13:00, 18:00 ve 21:00)",
+      "hourly": "2 Saatte Bir (09:00 - 21:00)"
+    };
+    triggerToast(`Bildirim Sıklığı: ${labels[val] || val} ⏰`);
+  };
   const [marqueeSpeed, setMarqueeSpeed] = useState<number>(() => {
     const saved = localStorage.getItem("marqueeSpeed");
     return saved ? parseInt(saved, 10) : 55;
@@ -565,9 +608,6 @@ export default function App() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
   });
-  const [alarmSoundType, setAlarmSoundType] = useState<string>(() => {
-    return localStorage.getItem("alarmSoundType") || (localStorage.getItem("useSystemSound") === "1" ? "system" : "digital");
-  });
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState<boolean>(() => {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
@@ -576,7 +616,7 @@ export default function App() {
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
-    return localStorage.getItem("oneSignalAppId") || (import.meta as any).env?.VITE_ONESIGNAL_APP_ID || "";
+    return localStorage.getItem("oneSignalAppId") || (import.meta as any).env?.VITE_ONESIGNAL_APP_ID || "f0a34e24-e5c9-423e-927f-399736f68a92";
   });
   const [oneSignalInput, setOneSignalInput] = useState(oneSignalAppId);
   const [oneSignalSubscribed, setOneSignalSubscribed] = useState(false);
@@ -587,40 +627,105 @@ export default function App() {
 
   // Initialize and register OneSignal dynamically
   useEffect(() => {
-    if (typeof window !== "undefined" && oneSignalAppId) {
+    if (typeof window !== "undefined") {
       try {
         const win = window as any;
-        win.OneSignal = win.OneSignal || [];
-        
-        win.OneSignal.push(() => {
-          win.OneSignal.init({
-            appId: oneSignalAppId,
-            allowLocalhostAsSecureOrigin: true,
-            notifyButton: {
-              enable: false, // Custom styled trigger inside UI is much more premium
-            },
-          }).then(() => {
-            console.log("OneSignal verified & initialized with client App ID.");
-            
-            // Check subscription status
-            if (win.OneSignal.User && win.OneSignal.User.PushSubscription) {
-              setOneSignalSubscribed(!!win.OneSignal.User.PushSubscription.optedIn);
-              
-              // Event listener to monitor dynamic subscribe state changes
-              win.OneSignal.User.PushSubscription.addEventListener("change", (e: any) => {
-                setOneSignalSubscribed(!!e.current.optedIn);
-              });
-            } else if (win.OneSignal.isPushNotificationsSupported && win.OneSignal.isPushNotificationsSupported()) {
-              win.OneSignal.isPushNotificationsEnabled().then((isEnabled: boolean) => {
-                setOneSignalSubscribed(isEnabled);
-              });
+        const activeAppId = oneSignalAppId || "f0a34e24-e5c9-423e-927f-399736f68a92";
+        const hostname = win.location?.hostname || "";
+        const protocol = win.location?.protocol || "";
+        const isSupportedOrigin =
+          hostname.includes("borctakipyonetimi.github.io") ||
+          hostname === "localhost" ||
+          hostname === "127.0.0.1" ||
+          protocol === "capacitor:" ||
+          protocol === "file:" ||
+          !!win.Capacitor?.isNativePlatform?.();
+
+        // OneSignal'ı bana özel App ID ile başlatıyoruz
+        if (win.OneSignal && typeof win.OneSignal.initialize === "function") {
+          try {
+            win.OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
+          } catch (initErr) {
+            console.warn("[OneSignal] initialize notice:", initErr);
+          }
+        }
+
+        // Web Push / SDK v16 OneSignalDeferred desteği
+        win.OneSignalDeferred = win.OneSignalDeferred || [];
+        win.OneSignalDeferred.push(async function (OneSignalInstance: any) {
+          try {
+            if (OneSignalInstance && typeof OneSignalInstance.initialize === "function") {
+              try {
+                OneSignalInstance.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
+              } catch (initErr) {
+                console.warn("[OneSignal] Deferred initialize notice:", initErr);
+              }
             }
-          }).catch((err: any) => {
-            console.warn("OneSignal Web client setup bypass/error:", err);
-          });
+            if (OneSignalInstance && typeof OneSignalInstance.init === "function" && isSupportedOrigin) {
+              await OneSignalInstance.init({
+                appId: activeAppId,
+                allowLocalhostAsSecureOrigin: true,
+                notifyButton: {
+                  enable: false,
+                },
+              }).catch((initErr: any) => {
+                console.warn("[OneSignal] Deferred init origin or bypass notice:", initErr);
+              });
+            } else if (!isSupportedOrigin) {
+              console.info("[OneSignal] Canlı domain (borctakipyonetimi.github.io) dışındaki önizleme ortamında OneSignal başlatması bekletildi.");
+            }
+          } catch (deferredErr) {
+            console.warn("OneSignalDeferred setup notice:", deferredErr);
+          }
+        });
+
+        win.OneSignal = win.OneSignal || [];
+        win.OneSignal.push(async () => {
+          try {
+            // OneSignal'ı bana özel App ID ile başlatıyoruz
+            if (typeof win.OneSignal.initialize === "function") {
+              try {
+                win.OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
+              } catch (initErr) {
+                console.warn("[OneSignal] queue initialize notice:", initErr);
+              }
+            }
+
+            if (!isSupportedOrigin) {
+              return;
+            }
+
+            await win.OneSignal.init({
+              appId: activeAppId,
+              allowLocalhostAsSecureOrigin: true,
+              notifyButton: {
+                enable: false, // Custom styled trigger inside UI is much more premium
+              },
+            }).then(() => {
+              console.log("OneSignal verified & initialized with client App ID: f0a34e24-e5c9-423e-927f-399736f68a92");
+              
+              // Check subscription status
+              if (win.OneSignal.User && win.OneSignal.User.PushSubscription) {
+                setOneSignalSubscribed(!!win.OneSignal.User.PushSubscription.optedIn);
+                
+                // Event listener to monitor dynamic subscribe state changes
+                win.OneSignal.User.PushSubscription.addEventListener("change", (e: any) => {
+                  setOneSignalSubscribed(!!e.current.optedIn);
+                });
+              } else if (win.OneSignal.isPushNotificationsSupported && win.OneSignal.isPushNotificationsSupported()) {
+                win.OneSignal.isPushNotificationsEnabled().then((isEnabled: boolean) => {
+                  setOneSignalSubscribed(isEnabled);
+                });
+              }
+            }).catch((err: any) => {
+              console.warn("OneSignal Web client setup bypass/error:", err);
+            });
+          } catch (pushErr) {
+            console.warn("OneSignal push execution notice:", pushErr);
+          }
         });
       } catch (err) {
-        console.error("OneSignal load exception ignored safely:", err);
+        console.warn("OneSignal load exception handled safely:", err);
       }
     }
   }, [oneSignalAppId]);
@@ -678,46 +783,16 @@ export default function App() {
         setHasNotificationPermission("granted");
       }
 
-      // 3. Audio Autoplay Gesture Unlocker for iOS, Android, Chrome & WebViews
-      let unlocked = false;
-      const unlockAudio = () => {
-        if (unlocked) return;
-        unlocked = true;
-        
-        // Try to play a silent WAV to authorize subsequent HTML5 Audio requests
-        try {
-          const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
-          silentAudio.play()
-            .then(() => {
-              console.log("Audio session unlocked dynamically via user gesture.");
-              window.removeEventListener("click", unlockAudio);
-              window.removeEventListener("touchstart", unlockAudio);
-            })
-            .catch((e) => {
-              console.warn("Silent audio context unlock deferred:", e);
-            });
-        } catch {}
-
-        // Also resume Web Audio context safely
-        try {
-          const AudioCtxConstructor = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioCtxConstructor) {
-            const testCtx = new AudioCtxConstructor();
-            if (testCtx.state === "suspended") {
-              testCtx.resume().finally(() => {
-                setTimeout(() => testCtx.close().catch(() => {}), 500);
-              });
-            } else {
-              setTimeout(() => testCtx.close().catch(() => {}), 500);
-            }
-          }
-        } catch (e) {
-          console.warn("Web Audio Context automatic resume error:", e);
-        }
-      };
-
-      window.addEventListener("click", unlockAudio, { passive: true, once: true });
-      window.addEventListener("touchstart", unlockAudio, { passive: true, once: true });
+      // Sync initial push notification preferences to Service Worker
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        const savedPushEnabled = localStorage.getItem("pushNotificationsEnabled") !== "false";
+        const savedPushFreq = localStorage.getItem("pushNotificationFrequency") || "2";
+        navigator.serviceWorker.controller.postMessage({
+          type: "SYNC_PUSH_SETTINGS",
+          enabled: savedPushEnabled,
+          frequency: savedPushFreq
+        });
+      }
     }
   }, []);
 
@@ -958,150 +1033,30 @@ export default function App() {
   };
 
   const sendSystemNotification = (title: string, body: string, persist = true) => {
-    // 1. Trigger robust physical phone buzzer vibration
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate([300, 100, 300, 100, 400, 120, 300, 100, 500]);
-    }
-
-    // 2. Synthesize or play premium audio chime only if sound is enabled
-    if (soundEnabled) {
-      const soundUrls: Record<string, string> = {
-        digital: "https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav",
-        system: "https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav",
-        crystal: "https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav",
-        victory: "https://assets.mixkit.co/active_storage/sfx/2018/2018-84.wav",
-        arcade: "https://assets.mixkit.co/active_storage/sfx/1012/1012-84.wav"
-      };
-
-      const audioUrl = soundUrls[alarmSoundType] || soundUrls.digital;
-
-      let isAudioPlayed = false;
-      const runSynthFallback = () => {
-        if (isAudioPlayed) return;
-        try {
-          const AudioCtxConstructor = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioCtxConstructor) {
-            const audioCtx = new AudioCtxConstructor();
-            if (audioCtx.state === "suspended") {
-              audioCtx.resume();
-            }
-
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            const nowTime = audioCtx.currentTime;
-
-            if (alarmSoundType === "system") {
-              osc.type = "sine";
-              osc.frequency.setValueAtTime(523.25, nowTime);
-              gainNode.gain.setValueAtTime(0.20, nowTime);
-              gainNode.gain.setValueAtTime(0, nowTime + 0.15);
-              
-              osc.frequency.setValueAtTime(659.25, nowTime + 0.18);
-              gainNode.gain.setValueAtTime(0.20, nowTime + 0.18);
-              gainNode.gain.setValueAtTime(0, nowTime + 0.33);
-              
-              osc.frequency.setValueAtTime(783.99, nowTime + 0.36);
-              gainNode.gain.setValueAtTime(0.25, nowTime + 0.36);
-              gainNode.gain.exponentialRampToValueAtTime(0.01, nowTime + 0.65);
-              
-              osc.start(nowTime);
-              osc.stop(nowTime + 0.70);
-            } else if (alarmSoundType === "crystal") {
-              osc.type = "sine";
-              osc.frequency.setValueAtTime(987.77, nowTime);
-              gainNode.gain.setValueAtTime(0.15, nowTime);
-              gainNode.gain.exponentialRampToValueAtTime(0.01, nowTime + 0.12);
-
-              const osc2 = audioCtx.createOscillator();
-              const gainNode2 = audioCtx.createGain();
-              osc2.type = "sine";
-              osc2.frequency.setValueAtTime(1318.51, nowTime + 0.05);
-              osc2.connect(gainNode2);
-              gainNode2.connect(audioCtx.destination);
-              gainNode2.gain.setValueAtTime(0.20, nowTime + 0.05);
-              gainNode2.gain.exponentialRampToValueAtTime(0.01, nowTime + 1.20);
-
-              osc.start(nowTime);
-              osc.stop(nowTime + 1.20);
-              osc2.start(nowTime + 0.05);
-              osc2.stop(nowTime + 1.20);
-            } else if (alarmSoundType === "victory") {
-              osc.type = "triangle";
-              gainNode.gain.setValueAtTime(0.15, nowTime);
-              
-              const freqs = [523.25, 659.25, 783.99, 1046.50];
-              freqs.forEach((f, idx) => {
-                const stepTime = nowTime + (idx * 0.12);
-                osc.frequency.setValueAtTime(f, stepTime);
-                gainNode.gain.setValueAtTime(0.15, stepTime);
-                gainNode.gain.setValueAtTime(idx === freqs.length - 1 ? 0.15 : 0.06, stepTime + 0.10);
-              });
-              
-              gainNode.gain.exponentialRampToValueAtTime(0.01, nowTime + 0.80);
-              osc.start(nowTime);
-              osc.stop(nowTime + 0.90);
-            } else if (alarmSoundType === "arcade") {
-              osc.type = "sawtooth";
-              osc.frequency.setValueAtTime(1200, nowTime);
-              osc.frequency.exponentialRampToValueAtTime(150, nowTime + 0.50);
-              gainNode.gain.setValueAtTime(0.20, nowTime);
-              gainNode.gain.exponentialRampToValueAtTime(0.01, nowTime + 0.55);
-              
-              osc.start(nowTime);
-              osc.stop(nowTime + 0.60);
-            } else {
-              osc.type = "sawtooth";
-              osc.frequency.setValueAtTime(987.77, nowTime);
-              gainNode.gain.setValueAtTime(0.35, nowTime);
-              gainNode.gain.setValueAtTime(0, nowTime + 0.15);
-              
-              osc.frequency.setValueAtTime(987.77, nowTime + 0.22);
-              gainNode.gain.setValueAtTime(0.35, nowTime + 0.22);
-              gainNode.gain.setValueAtTime(0, nowTime + 0.37);
-              
-              osc.frequency.setValueAtTime(1174.66, nowTime + 0.44);
-              gainNode.gain.setValueAtTime(0.40, nowTime + 0.44);
-              gainNode.gain.exponentialRampToValueAtTime(0.01, nowTime + 0.69);
-              
-              osc.start(nowTime);
-              osc.stop(nowTime + 0.72);
-            }
-
-            setTimeout(() => {
-              try {
-                audioCtx.close().catch(() => {});
-              } catch {}
-            }, 1500);
-          }
-        } catch (synthError) {
-          console.log("Synthesizer fallback suppressed by restriction:", synthError);
-        }
-      };
-
-      try {
-        const audio = new Audio(audioUrl);
-        audio.volume = 0.90;
-        audio.play()
-          .then(() => {
-            isAudioPlayed = true;
-            console.log("Premium HTML5 notification audio played successfully.");
-          })
-          .catch((e) => {
-            console.warn("HTML5 premium audio blocked, playing Web Audio synth...", e);
-            runSynthFallback();
-          });
-      } catch (err) {
-        console.warn("Audio element failed to load/play, using synthetic fallback:", err);
-        runSynthFallback();
+    // Push bildirimleri kullanıcı tarafından kapatıldıysa cihaz uyarısı üretme
+    if (!pushNotificationsEnabled) {
+      console.log("Push bildirimleri kullanıcı tarafından kapatıldı.");
+      if (persist) {
+        const newNotificationItem: NotificationItem = {
+          id: Date.now(),
+          title,
+          message: body,
+          date: new Date().toISOString(),
+          isRead: false
+        };
+        const updated = [newNotificationItem, ...notifications];
+        setNotifications(updated);
+        saveAllToUser(debts, incomes, alarms, updated, installmentDebts, payments, expenses, expenseCategories);
       }
-    } else {
-      console.log("Notification sound muted by user configuration settings.");
+      return;
     }
 
-    // 3. Official SMS-formatted Notification message
+    // 1. Sessiz fiziksel titreşim (melodik sesler tamamen kaldırılmıştır)
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate([250, 100, 250]);
+    }
+
+    // 2. Official SMS-formatted Notification message
     const todayStr = new Date().toLocaleDateString("tr-TR");
     const safeUser = (currentUser && currentUser !== "Varsayılan Kullanıcı") ? currentUser.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
     const officialSmsMessage = `SN. ${safeUser}\n${todayStr} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n- ${title}${body ? `\n- ${body}` : ""}\n- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
@@ -2318,35 +2273,104 @@ export default function App() {
     return list.sort((a, b) => a.daysLeft - b.daysLeft);
   };
 
-  // Automatically check for upcoming payments (due in <= 3 days) on load/change
+  // Belirlenen günlük push sıklığına (günde kaç kez) göre otomatik ödeme hatırlatıcı kontrolü
   useEffect(() => {
+    if (!pushNotificationsEnabled) return;
     if (debts.length === 0 && installmentDebts.length === 0) return;
 
-    const list = getUpcomingPayments();
-    if (list.length > 0) {
-      const urgentList = list.filter(item => item.daysLeft >= 0 && item.daysLeft <= 3);
-      if (urgentList.length === 0) return;
+    const checkAndTriggerPushReminders = () => {
+      if (!pushNotificationsEnabled) return;
 
-      const userKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-      const lastAlertedKey = `last_upcoming_alert_${userKey}`;
-      const hasAlertedThisSession = sessionStorage.getItem(lastAlertedKey);
+      const now = new Date();
+      const currentHour = now.getHours();
+      // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
+      if (currentHour < 8 || currentHour >= 23) return;
 
-      if (!hasAlertedThisSession) {
-        sessionStorage.setItem(lastAlertedKey, "true");
-        
-        const summary = urgentList.map(item => `- ${item.title} (${item.daysLeft === 0 ? "BUGÜN" : `${item.daysLeft} gün kaldı`})`).join("\n");
-        
-        // Trigger a highly immersive audio + visual alerting cascade
-        setTimeout(() => {
-          sendSystemNotification(
-            "Yaklaşan Ödeme Modülü ⏰",
-            `Yaklaşan ${urgentList.length} ödemeniz var:\n${summary}`,
-            false // do not persist as an extra database row so that it is entirely dynamic
-          );
-        }, 1500); // slight delay after mount for high premium presentation feel
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const logKey = `push_reminder_log_${todayKey}`;
+      let logData: { slots: string[]; lastTimestamp?: number } = { slots: [] };
+      try {
+        const saved = localStorage.getItem(logKey);
+        if (saved) logData = JSON.parse(saved);
+      } catch {}
+
+      let activeSlot: string | null = null;
+      if (pushFrequency === "1") {
+        // Günde 1 kez: Sabah 09:00 ve sonrası
+        if (currentHour >= 9 && !logData.slots.includes("morning")) {
+          activeSlot = "morning";
+        }
+      } else if (pushFrequency === "2") {
+        // Günde 2 kez: Sabah 09:00-14:59 ve Akşam 17:00-22:59
+        if (currentHour >= 9 && currentHour < 15 && !logData.slots.includes("morning")) {
+          activeSlot = "morning";
+        } else if (currentHour >= 17 && !logData.slots.includes("evening")) {
+          activeSlot = "evening";
+        }
+      } else if (pushFrequency === "3") {
+        // Günde 3 kez: Sabah 09:00, Öğle 13:00, Akşam 18:00
+        if (currentHour >= 9 && currentHour < 13 && !logData.slots.includes("morning")) {
+          activeSlot = "morning";
+        } else if (currentHour >= 13 && currentHour < 18 && !logData.slots.includes("noon")) {
+          activeSlot = "noon";
+        } else if (currentHour >= 18 && !logData.slots.includes("evening")) {
+          activeSlot = "evening";
+        }
+      } else if (pushFrequency === "4") {
+        // Günde 4 kez: Sabah 09:00, Öğle 13:00, Akşam 18:00, Gece 21:00
+        if (currentHour >= 9 && currentHour < 13 && !logData.slots.includes("morning")) {
+          activeSlot = "morning";
+        } else if (currentHour >= 13 && currentHour < 17 && !logData.slots.includes("noon")) {
+          activeSlot = "noon";
+        } else if (currentHour >= 17 && currentHour < 21 && !logData.slots.includes("evening")) {
+          activeSlot = "evening";
+        } else if (currentHour >= 21 && !logData.slots.includes("night")) {
+          activeSlot = "night";
+        }
+      } else if (pushFrequency === "hourly") {
+        // 2 saatte bir
+        const lastTime = logData.lastTimestamp || 0;
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+        if (Date.now() - lastTime >= twoHoursMs) {
+          activeSlot = `hour_${currentHour}`;
+        }
       }
-    }
-  }, [debts, installmentDebts, currentUser]);
+
+      if (!activeSlot) return;
+
+      const list = getUpcomingPayments();
+      if (list.length === 0) return;
+
+      const urgentList = list.filter(item => item.daysLeft >= 0 && item.daysLeft <= 3);
+      const overdueList = list.filter(item => item.daysLeft < 0);
+
+      if (urgentList.length === 0 && overdueList.length === 0) return;
+
+      // Slotu kaydet
+      logData.slots.push(activeSlot);
+      logData.lastTimestamp = Date.now();
+      localStorage.setItem(logKey, JSON.stringify(logData));
+
+      const title = overdueList.length > 0
+        ? `⚠️ Bütçem Pro: ${overdueList.length} Gecikmiş Ödemeniz Bulunuyor!`
+        : `⏰ Bütçem Pro: ${urgentList.length} Yaklaşan Ödeme Hatırlatması`;
+
+      const topItems = [...overdueList, ...urgentList].slice(0, 3);
+      const summary = topItems.map(item => `- ${item.title} (${item.daysLeft < 0 ? `${Math.abs(item.daysLeft)} gün gecikti` : item.daysLeft === 0 ? "BUGÜN" : `${item.daysLeft} gün kaldı`})`).join("\n");
+
+      setTimeout(() => {
+        sendSystemNotification(
+          title,
+          `Günlük ödeme hatırlatması:\n${summary}`,
+          false
+        );
+      }, 1200);
+    };
+
+    checkAndTriggerPushReminders();
+    const interval = setInterval(checkAndTriggerPushReminders, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [debts, installmentDebts, pushNotificationsEnabled, pushFrequency]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)
   const saveAllToUser = async (
@@ -3734,7 +3758,6 @@ export default function App() {
                 allowWhileIdle: true
               },
               channelId: "debt_reminders",
-              sound: "beep.wav",
               smallIcon: 'ic_stat_notify',
               iconColor: '#10B981',
               largeIcon: 'logo',
@@ -6551,7 +6574,7 @@ export default function App() {
                 }`}
               >
                 <Sliders className="w-4 h-4" />
-                <span>Bildirim & Ses Ayarları</span>
+                <span>Push Bildirim & Sıklık Ayarları</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               </button>
             </div>
@@ -6925,103 +6948,204 @@ export default function App() {
               </div>
             )}
 
-            {/* SEÇİLEN BÖLÜM 2: BİLDİRİM VE ZİL SESİ AYARLARI */}
+            {/* SEÇİLEN BÖLÜM 2: PUSH BİLDİRİM VE SIKLIK AYARLARI */}
             {notifSectionTab === "settings" && (
               <div className="space-y-5 animate-fade-in">
                 <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl shadow-sm space-y-6">
                   <div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                      <Volume2 className="w-5 h-5 text-indigo-500 animate-pulse" />
-                      Bildirim ve Zil Sesi Ayarları
+                      <BellRing className="w-5 h-5 text-indigo-500 animate-pulse" />
+                      Push Bildirim ve Hatırlatıcı Ayarları
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mt-1">
-                      Ödeme alarmlarında çalacak zil sesi melodisini seçebilir, ses seviyesini ve tarayıcı/cihaz izinlerini yapılandırabilirsiniz.
+                      Ödeme zamanı gelen borç ve taksitleriniz için telefonunuza ulaşacak anlık push bildirimlerini açıp kapatabilir, gün içi bildirim sıklığını belirleyebilirsiniz.
                     </p>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {/* Zil Sesi Durumu */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Zil Sesi Durumu</span>
-                        <span className="text-[10px] text-slate-400 font-medium leading-none block mt-1">Tüm alarm ve ödeme zil sesleri</span>
+                  {/* 1. Push Bildirimleri Ana Kontrolü (Açık / Kapalı) */}
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${
+                        pushNotificationsEnabled 
+                          ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" 
+                          : "bg-slate-200 dark:bg-slate-800 text-slate-400"
+                      }`}>
+                        <Bell className="w-5 h-5" />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = !soundEnabled;
-                          setSoundEnabled(next);
-                          localStorage.setItem("soundEnabled", next ? "1" : "0");
-                          triggerToast(next ? "Zil Sesi Aktif Edildi 🔔" : "Zil Sesi Sessize Alındı 🔕");
-                        }}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
-                          soundEnabled
-                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                      <div>
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                          Push Bildirimleri (Anlık Mesajlar)
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          {pushNotificationsEnabled
+                            ? "Bildirimler aktif: Kilit ekranına ve bildirim çekmecesine uyarılar iletilir"
+                            : "Bildirimler kapalı: Cihazınıza anlık push mesajı gönderilmez"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePushNotifications(!pushNotificationsEnabled)}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer transition select-none shadow-sm flex items-center gap-2 ${
+                        pushNotificationsEnabled
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                          : "bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      <span>{pushNotificationsEnabled ? "AÇIK 🔔" : "KAPALI 🔕"}</span>
+                    </button>
+                  </div>
+
+                  {/* 2. Günlük Bildirim Sıklığı Ayarı */}
+                  <div className={`p-5 rounded-2xl border transition space-y-3.5 ${
+                    pushNotificationsEnabled 
+                      ? "bg-slate-50 dark:bg-slate-900/90 border-slate-200 dark:border-slate-800" 
+                      : "bg-slate-100/50 dark:bg-slate-900/30 border-slate-200/50 dark:border-slate-800/50 opacity-60 pointer-events-none"
+                  }`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-500" />
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          Günlük Hatırlatma Mesajı Sıklığı
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50">
+                        {pushFrequency === "1" && "Günde 1 Kez (09:00)"}
+                        {pushFrequency === "2" && "Günde 2 Kez (09:00 ve 18:00)"}
+                        {pushFrequency === "3" && "Günde 3 Kez (09:00, 13:00, 19:00)"}
+                        {pushFrequency === "4" && "Günde 4 Kez (09:00, 13:00, 18:00, 21:00)"}
+                        {pushFrequency === "hourly" && "2 Saatte Bir (09:00 - 21:00)"}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Ödeme zamanı gelen borç ve taksitler gün içerisinde kaç defa hatırlatma mesajı olarak gelsin? İstediğiniz sıklığı aşağıdan seçebilirsiniz:
+                    </p>
+
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+                      {/* Seçenek 1: Günde 1 Kez */}
+                      <div
+                        onClick={() => handleSetPushFrequency("1")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition select-none relative flex flex-col justify-between ${
+                          pushFrequency === "1"
+                            ? "bg-white dark:bg-slate-800 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                            : "bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                         }`}
                       >
-                        {soundEnabled ? "AÇIK 🔔" : "KAPALI 🔕"}
-                      </button>
-                    </div>
-
-                    {/* Melodi Türü ve Test Dinleme */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Melodi Türü (5 Alternatif)</span>
-                          <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">Zil sesi melodi alternatifi</span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-black text-slate-800 dark:text-slate-100">Günde 1 Kez</span>
+                          {pushFrequency === "1" && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const names: Record<string, string> = {
-                              digital: "Dijital Saat Sinyali ⏰",
-                              system: "Yumuşak Sistem Tınısı ⚙️",
-                              crystal: "Kristal Çan Melodisi 💎",
-                              victory: "Başarı & Ödeme Efekti 🏆",
-                              arcade: "Retro Atari Sesi 👾"
-                            };
-                            triggerToast(`${names[alarmSoundType] || alarmSoundType} Çalınıyor... 🔔`);
-                            sendSystemNotification("Zil Sesi Test Edildi! 🔔", `Çalan Melodi: ${names[alarmSoundType] || alarmSoundType}`, false);
-                          }}
-                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition shadow-xs"
-                        >
-                          <Play className="w-3 h-3 fill-white" />
-                          <span>Test Et</span>
-                        </button>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Sabah tek seferlik genel özet bildirimi.</p>
+                        <div className="flex items-center gap-1.5 mt-auto">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">09:00</span>
+                        </div>
                       </div>
-                      <select
-                        value={alarmSoundType}
-                        onChange={(e) => {
-                          const selected = e.target.value;
-                          setAlarmSoundType(selected);
-                          localStorage.setItem("alarmSoundType", selected);
-                          localStorage.setItem("useSystemSound", selected === "system" ? "1" : "0");
-                          setUseSystemSound(selected === "system");
-                          
-                          const names: Record<string, string> = {
-                            digital: "Dijital Saat Sinyali ⏰",
-                            system: "Yumuşak Sistem Tınısı ⚙️",
-                            crystal: "Kristal Çan Melodisi 💎",
-                            victory: "Başarı & Ödeme Efekti 🏆",
-                            arcade: "Retro Atari Sesi 👾"
-                          };
-                          triggerToast(`${names[selected] || selected} Seçildi ve Test Ediliyor...`);
-                          
-                          setTimeout(() => {
-                            sendSystemNotification("Zil Sesi Test Edildi! 🔔", `Seçilen Melodi: ${names[selected]}`, false);
-                          }, 200);
-                        }}
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold cursor-pointer transition focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="digital">Dijital Saat Bipi ⏰</option>
-                        <option value="system">Yumuşak Sistem Tınısı ⚙️</option>
-                        <option value="crystal">Kristal Çan Melodisi 💎</option>
-                        <option value="victory">Başarı ve Ödeme Zili 🏆</option>
-                        <option value="arcade">Retro Atari Melodisi 👾</option>
-                      </select>
-                    </div>
 
+                      {/* Seçenek 2: Günde 2 Kez (Önerilen) */}
+                      <div
+                        onClick={() => handleSetPushFrequency("2")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition select-none relative flex flex-col justify-between ${
+                          pushFrequency === "2"
+                            ? "bg-white dark:bg-slate-800 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                            : "bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-slate-800 dark:text-slate-100">Günde 2 Kez</span>
+                            <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">Önerilen</span>
+                          </div>
+                          {pushFrequency === "2" && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Sabah planlama ve akşam kontrol bildirimi.</p>
+                        <div className="flex items-center gap-1.5 mt-auto">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">09:00</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">18:00</span>
+                        </div>
+                      </div>
+
+                      {/* Seçenek 3: Günde 3 Kez */}
+                      <div
+                        onClick={() => handleSetPushFrequency("3")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition select-none relative flex flex-col justify-between ${
+                          pushFrequency === "3"
+                            ? "bg-white dark:bg-slate-800 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                            : "bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-black text-slate-800 dark:text-slate-100">Günde 3 Kez</span>
+                          {pushFrequency === "3" && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Sabah, öğle ve akşam hatırlatmaları.</p>
+                        <div className="flex items-center gap-1.5 mt-auto">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">09:00</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">13:00</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">19:00</span>
+                        </div>
+                      </div>
+
+                      {/* Seçenek 4: Günde 4 Kez */}
+                      <div
+                        onClick={() => handleSetPushFrequency("4")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition select-none relative flex flex-col justify-between ${
+                          pushFrequency === "4"
+                            ? "bg-white dark:bg-slate-800 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                            : "bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-black text-slate-800 dark:text-slate-100">Günde 4 Kez</span>
+                          {pushFrequency === "4" && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Gün boyunca düzenli aralıklarla takip.</p>
+                        <div className="flex flex-wrap items-center gap-1 mt-auto">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">09:00</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">13:00</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">18:00</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">21:00</span>
+                        </div>
+                      </div>
+
+                      {/* Seçenek 5: 2 Saatte Bir */}
+                      <div
+                        onClick={() => handleSetPushFrequency("hourly")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition select-none relative flex flex-col justify-between sm:col-span-2 lg:col-span-2 ${
+                          pushFrequency === "hourly"
+                            ? "bg-white dark:bg-slate-800 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                            : "bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-slate-800 dark:text-slate-100">2 Saatte Bir (Periyodik)</span>
+                            <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">Yoğun Takip</span>
+                          </div>
+                          {pushFrequency === "hourly" && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                          Ödeme günü gelen borçlar için saat 09:00 ile 21:00 arasında her 2 saatte bir düzenli hatırlatma gönderilir.
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-auto">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">09:00 - 21:00 Arası Periyodik</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. İzinler ve Test Bölümü */}
+                  <div className="grid gap-4 sm:grid-cols-2">
                     {/* Cihaz Bildirim İzni */}
                     <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
                       <div>
@@ -7069,13 +7193,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Vade Hatırlatma Kuralları Bilgi Kartı */}
+                  {/* 4. Sessiz ve Akıllı Hatırlatma Mimarisi Bilgi Kartı */}
                   <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 rounded-2xl space-y-1.5 text-xs text-indigo-950 dark:text-indigo-200">
                     <h4 className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
-                      <span>💡 Otomatik Hatırlatma Sistemi Nasıl Çalışır?</span>
+                      <span>💡 Sessiz ve Akıllı Hatırlatma Mimarisi</span>
                     </h4>
                     <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                      Bütçem Pro, vadesine <strong>3 gün kalan</strong>, <strong>vadesi bugün dolan</strong> ve <strong>gecikmiş</strong> tüm borç ve taksitleri otomatik olarak algılar. Üst bildirim bandında ve akış panelinde acil durum uyarısı oluşturur.
+                      Uygulama içi rahatsız edici melodik sesler tamamen kaldırılmıştır. Borç ve taksit hatırlatmalarınız, yukarıda seçtiğiniz sıklık ayarlarına göre sessiz, net ve kilit ekranında okunabilir anlık push bildirimleri olarak telefonunuza ulaştırılır.
                     </p>
                   </div>
                 </div>

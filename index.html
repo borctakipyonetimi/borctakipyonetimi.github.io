@@ -81,8 +81,72 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
     
+    <!-- Global OneSignal Domain & Error Shield -->
+    <script>
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event && event.reason && (
+          String(event.reason).includes('borctakipyonetimi.github.io') ||
+          String(event.reason).includes('Can only be used on') ||
+          String(event.reason).includes('OneSignal')
+        )) {
+          event.preventDefault();
+          console.info('[OneSignal] Domain notice handled safely in preview environment:', event.reason);
+        }
+      });
+      window.addEventListener('error', function(event) {
+        if (event && event.message && (
+          String(event.message).includes('borctakipyonetimi.github.io') ||
+          String(event.message).includes('Can only be used on') ||
+          String(event.message).includes('OneSignal')
+        )) {
+          event.preventDefault();
+          console.info('[OneSignal] Origin error handled safely:', event.message);
+        }
+      });
+    </script>
+    
     <!-- OneSignal Notification SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      (function() {
+        var isSupportedOrigin = typeof window !== 'undefined' && (
+          window.location.hostname.indexOf('borctakipyonetimi.github.io') !== -1 ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.protocol === 'capacitor:' ||
+          window.location.protocol === 'file:'
+        );
+
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        window.OneSignalDeferred.push(async function(OneSignal) {
+          try {
+            // OneSignal'ı bana özel App ID ile başlatıyoruz
+            if (typeof OneSignal.initialize === "function") {
+              try {
+                OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
+              } catch (initErr) {
+                console.warn("[OneSignal] initialize notice:", initErr);
+              }
+            }
+            if (typeof OneSignal.init === "function" && isSupportedOrigin) {
+              await OneSignal.init({
+                appId: "f0a34e24-e5c9-423e-927f-399736f68a92",
+                allowLocalhostAsSecureOrigin: true,
+                notifyButton: {
+                  enable: false,
+                },
+              }).catch(function(err) {
+                console.warn("[OneSignal] Web init bypassed or origin mismatch:", err);
+              });
+            } else if (!isSupportedOrigin) {
+              console.info("[OneSignal] Aktif alan adı borctakipyonetimi.github.io olmadığından dev ortamında OneSignal başlatması güvenle bekletildi.");
+            }
+          } catch (deferredErr) {
+            console.warn("[OneSignal] Deferred execution caught:", deferredErr);
+          }
+        });
+      })();
+    </script>
   </head>
   <body style="background-color: #020617; margin: 0; padding: 0;">
     <div id="root"></div>

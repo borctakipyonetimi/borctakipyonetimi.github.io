@@ -113,8 +113,8 @@ export async function initCapacitorNotificationChannel(): Promise<void> {
     await LocalNotifications.createChannel({
       id: "debt_reminders",
       name: "Borç ve Ödeme Hatırlatıcıları",
-      description: "Vadesi gelen borçlar ve taksitler için sesli ve titreşimli sistem alarmları",
-      importance: 5, // IMPORTANCE_HIGH (Heads-up banner + ses)
+      description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
+      importance: 4, // IMPORTANCE_HIGH (Heads-up banner)
       visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında tam göster)
       vibration: true,
       lights: true,
@@ -257,7 +257,6 @@ export async function scheduleCapacitorAlarm(
             allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
           },
           channelId: "debt_reminders",
-          sound: "beep.wav",
           autoCancel: true,
           smallIcon: 'ic_stat_notify',
           iconColor: '#10B981',
@@ -360,7 +359,7 @@ export function scheduleAndroidDebtAlarm(
         trigger: { at: new Date(triggerAtMillis) },
         foreground: true,
         vibrate: true,
-        sound: true,
+        sound: false,
         priority: 2,
         wakeup: true,
         smallIcon: "res://icon",
