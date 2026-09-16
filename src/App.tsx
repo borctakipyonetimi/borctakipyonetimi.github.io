@@ -134,8 +134,68 @@ import {
   openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { Capacitor } from "@capacitor/core";
+import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
+
+// Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
+if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
+  const origInitialize = OneSignal.initialize.bind(OneSignal);
+  (OneSignal as any).initialize = async function (configOrAppId: any) {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+    const finalAppId =
+      typeof configOrAppId === "object" && configOrAppId !== null && "appId" in configOrAppId
+        ? configOrAppId.appId
+        : configOrAppId;
+    return origInitialize(finalAppId);
+  };
+}
+
+if (typeof OneSignal !== "undefined" && OneSignal?.Notifications && typeof OneSignal.Notifications.requestPermission === "function") {
+  const origRequestPermission = OneSignal.Notifications.requestPermission.bind(OneSignal.Notifications);
+  OneSignal.Notifications.requestPermission = async function (fallbackToSettings?: boolean) {
+    if (!Capacitor.isNativePlatform()) {
+      return false;
+    }
+    return origRequestPermission(fallbackToSettings);
+  };
+}
+
+async function OneSignalGuncelBaslat() {
+  // OneSignal Capacitor eklentisi yalnızca yerel mobil platformda (Android / iOS) çalışır
+  if (!Capacitor.isNativePlatform()) {
+    console.info("[OneSignal] Web ortamı aktif; OneSignal Capacitor mobil motoru yerel Android cihazda devreye girer.");
+    return;
+  }
+
+  try {
+    // Capacitor resmi OneSignal başlatma motoru
+    await (OneSignal as any).initialize({ appId: "f0a34e24-e5c9-423e-927f-399736f68a92" });
+
+    // Android 13+ için ekrana zorunlu bildirim izin penceresini fırlatıyoruz
+    if (OneSignal?.Notifications?.requestPermission) {
+      await OneSignal.Notifications.requestPermission(true);
+    }
+    console.log("OneSignal Başarıyla Aktif Edildi.");
+  } catch (error: any) {
+    if (error?.message?.includes("not implemented on web") || String(error).includes("not implemented on web")) {
+      console.info("[OneSignal] Web ortamı; mobil eklenti güvenle bekletildi.");
+      return;
+    }
+    console.error("OneSignal Hatası:", error);
+  }
+}
+
+// Uygulama yüklenir yüklenmez tetikle
+if (typeof window !== "undefined") {
+  window.addEventListener('DOMContentLoaded', OneSignalGuncelBaslat);
+  if (document.readyState !== "loading") {
+    OneSignalGuncelBaslat();
+  }
+}
 
 export default function App() {
   const { activeCurrency, setActiveCurrency, rates, setRates, format, convert, currencySymbol } = useCurrency();
@@ -625,107 +685,26 @@ export default function App() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [isNewsletterSubscribed, setIsNewsletterSubscribed] = useState(false);
 
-  // Initialize and register OneSignal dynamically
+  // Initialize and register OneSignal dynamically using official Capacitor Plugin
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    OneSignalGuncelBaslat();
+
+    // Push abonelik durumunu denetle (yalnızca yerel mobil ortamda)
+    if (Capacitor.isNativePlatform()) {
       try {
-        const win = window as any;
-        const activeAppId = oneSignalAppId || "f0a34e24-e5c9-423e-927f-399736f68a92";
-        const hostname = win.location?.hostname || "";
-        const protocol = win.location?.protocol || "";
-        const isSupportedOrigin =
-          hostname.includes("borctakipyonetimi.github.io") ||
-          hostname === "localhost" ||
-          hostname === "127.0.0.1" ||
-          protocol === "capacitor:" ||
-          protocol === "file:" ||
-          !!win.Capacitor?.isNativePlatform?.();
+        if (OneSignal?.User?.pushSubscription) {
+          OneSignal.User.pushSubscription.getOptedInAsync().then((optedIn: boolean) => {
+            setOneSignalSubscribed(optedIn);
+          }).catch(() => {});
 
-        // OneSignal'ı bana özel App ID ile başlatıyoruz
-        if (win.OneSignal && typeof win.OneSignal.initialize === "function") {
-          try {
-            win.OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
-          } catch (initErr) {
-            console.warn("[OneSignal] initialize notice:", initErr);
-          }
+          OneSignal.User.pushSubscription.addEventListener("change", (e: any) => {
+            if (e && e.current) {
+              setOneSignalSubscribed(!!e.current.optedIn);
+            }
+          });
         }
-
-        // Web Push / SDK v16 OneSignalDeferred desteği
-        win.OneSignalDeferred = win.OneSignalDeferred || [];
-        win.OneSignalDeferred.push(async function (OneSignalInstance: any) {
-          try {
-            if (OneSignalInstance && typeof OneSignalInstance.initialize === "function") {
-              try {
-                OneSignalInstance.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
-              } catch (initErr) {
-                console.warn("[OneSignal] Deferred initialize notice:", initErr);
-              }
-            }
-            if (OneSignalInstance && typeof OneSignalInstance.init === "function" && isSupportedOrigin) {
-              await OneSignalInstance.init({
-                appId: activeAppId,
-                allowLocalhostAsSecureOrigin: true,
-                notifyButton: {
-                  enable: false,
-                },
-              }).catch((initErr: any) => {
-                console.warn("[OneSignal] Deferred init origin or bypass notice:", initErr);
-              });
-            } else if (!isSupportedOrigin) {
-              console.info("[OneSignal] Canlı domain (borctakipyonetimi.github.io) dışındaki önizleme ortamında OneSignal başlatması bekletildi.");
-            }
-          } catch (deferredErr) {
-            console.warn("OneSignalDeferred setup notice:", deferredErr);
-          }
-        });
-
-        win.OneSignal = win.OneSignal || [];
-        win.OneSignal.push(async () => {
-          try {
-            // OneSignal'ı bana özel App ID ile başlatıyoruz
-            if (typeof win.OneSignal.initialize === "function") {
-              try {
-                win.OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
-              } catch (initErr) {
-                console.warn("[OneSignal] queue initialize notice:", initErr);
-              }
-            }
-
-            if (!isSupportedOrigin) {
-              return;
-            }
-
-            await win.OneSignal.init({
-              appId: activeAppId,
-              allowLocalhostAsSecureOrigin: true,
-              notifyButton: {
-                enable: false, // Custom styled trigger inside UI is much more premium
-              },
-            }).then(() => {
-              console.log("OneSignal verified & initialized with client App ID: f0a34e24-e5c9-423e-927f-399736f68a92");
-              
-              // Check subscription status
-              if (win.OneSignal.User && win.OneSignal.User.PushSubscription) {
-                setOneSignalSubscribed(!!win.OneSignal.User.PushSubscription.optedIn);
-                
-                // Event listener to monitor dynamic subscribe state changes
-                win.OneSignal.User.PushSubscription.addEventListener("change", (e: any) => {
-                  setOneSignalSubscribed(!!e.current.optedIn);
-                });
-              } else if (win.OneSignal.isPushNotificationsSupported && win.OneSignal.isPushNotificationsSupported()) {
-                win.OneSignal.isPushNotificationsEnabled().then((isEnabled: boolean) => {
-                  setOneSignalSubscribed(isEnabled);
-                });
-              }
-            }).catch((err: any) => {
-              console.warn("OneSignal Web client setup bypass/error:", err);
-            });
-          } catch (pushErr) {
-            console.warn("OneSignal push execution notice:", pushErr);
-          }
-        });
-      } catch (err) {
-        console.warn("OneSignal load exception handled safely:", err);
+      } catch (e) {
+        console.warn("OneSignal push subscription check notice:", e);
       }
     }
   }, [oneSignalAppId]);

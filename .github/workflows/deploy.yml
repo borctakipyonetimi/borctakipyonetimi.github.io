@@ -30,8 +30,10 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Proje Bagimliliklarini Kur
+      - name: Proje Bagimliliklarini Kur (Initialize Project Package)
         run: |
+          npm uninstall onesignal-cordova-plugin --legacy-peer-deps || true
+          npm install @onesignal/capacitor-plugin --legacy-peer-deps || npm install @onesignal/capacitor-plugin
           npm install --legacy-peer-deps || npm install
 
       - name: Guncel React Kodlarini Derle (Vite Build)
@@ -51,6 +53,11 @@ jobs:
       - name: Android Platformunu Ekle ve Senkronize Et
         run: |
           npx cap add android
+
+      - name: Firebase Google Services Dosyasini Android Projesine Kopyala
+        run: |
+          mkdir -p android/app
+          cp google-services.json android/app/google-services.json || true
 
       - name: Renkli Ana Logoyu Isle
         run: |
