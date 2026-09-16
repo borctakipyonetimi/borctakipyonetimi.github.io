@@ -87,6 +87,13 @@ jobs:
             cp notification-icon.png "$dir/ic_stat_notify.png" || true
           done
 
+          # Renkli logo.png dosyasını büyük resimli bildirimler (Big Picture & Large Icon) için drawable klasörlerine ekliyoruz
+          mkdir -p android/app/src/main/res/drawable
+          cp logo.png android/app/src/main/res/drawable/logo.png || true
+          for dir in android/app/src/main/res/drawable-*; do
+            cp logo.png "$dir/logo.png" || true
+          done
+
       - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
         run: |
           # Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle

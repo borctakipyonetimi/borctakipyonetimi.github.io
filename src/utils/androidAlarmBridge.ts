@@ -191,16 +191,41 @@ export async function scheduleCapacitorAlarm(
   id: number,
   title: string,
   triggerAtMillis: number,
-  message?: string
+  message?: string,
+  extraDetails?: {
+    borcAdi?: string;
+    miktar?: string | number;
+    tarih?: string;
+    durum?: string;
+    imageUrl?: string;
+  }
 ): Promise<boolean> {
   if (triggerAtMillis <= Date.now()) return false;
   try {
     // Android bildirim kanalını hazırla
     await initCapacitorNotificationChannel();
 
-    const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
-    const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
     const safeId = Math.abs(Number(id)) || Math.floor(Math.random() * 100000);
+    const safeTitle = title.trim() || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
+
+    // Zengin ve Açıklayıcı Format (Alt alta düzenli satırlar ve emojiler)
+    let safeMessage = message?.trim() || "";
+    if (!safeMessage || (!safeMessage.includes("💰") && !safeMessage.includes("📅"))) {
+      const borcAdi = extraDetails?.borcAdi || safeTitle.replace(/[🚨⏰🔔]/g, "").trim() || "Ödeme / Borç";
+      const miktar = extraDetails?.miktar ? `${extraDetails.miktar}` : "";
+      const tarih = extraDetails?.tarih || new Date(triggerAtMillis).toLocaleDateString("tr-TR");
+      const durum = extraDetails?.durum || "Gecikmemesi için lütfen kontrol edin!";
+
+      safeMessage = [
+        `💰 Borç: ${borcAdi}`,
+        miktar ? `💵 Miktar: ${miktar.includes("TL") || miktar.includes("₺") ? miktar : `${miktar} TL`}` : "",
+        `📅 Son Tarih: ${tarih}`,
+        `⚠️ Durum: ${durum}`
+      ].filter(Boolean).join("\n");
+    }
+
+    const summaryText = "Ödeme detaylarınızı kontrol etmeyi unutmayın.";
+    const imageAsset = extraDetails?.imageUrl || "logo.png";
 
     // İzin kontrolü ve otomatik talep
     try {
@@ -218,29 +243,44 @@ export async function scheduleCapacitorAlarm(
     } catch {}
 
     // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true
+    // Büyük Resimli Bildirim (Big Picture) ve Geniş Metin (Large Body)
     await LocalNotifications.schedule({
       notifications: [
         {
           id: safeId,
           title: safeTitle,
           body: safeMessage,
+          largeBody: safeMessage,
+          summaryText: summaryText,
           schedule: {
             at: new Date(triggerAtMillis),
             allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
           },
           channelId: "debt_reminders",
+          sound: "beep.wav",
           autoCancel: true,
           smallIcon: 'ic_stat_notify',
           iconColor: '#10B981',
+          largeIcon: 'logo',
+          attachments: [
+            { id: 'resim1', url: imageAsset }
+          ],
+          android: {
+            // Bildirim çekmecesi aşağı kaydırıldığında büyük resim olarak açılması için:
+            style: 'bigPicture',
+            bigPicture: imageAsset,
+            summaryText: summaryText
+          },
           extra: {
             id: safeId,
             title: safeTitle,
-            triggerAtMillis
+            triggerAtMillis,
+            body: safeMessage
           }
-        }
+        } as any
       ]
     });
-    console.log(`[Capacitor LocalNotifications] Alarm #${safeId} kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
+    console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
     return true;
   } catch (err) {
     console.warn("[Capacitor LocalNotifications] schedule error:", err);
@@ -403,11 +443,22 @@ export function syncAllDebtsAndAlarmsToAndroid(
         if (triggerMillis && triggerMillis > now) {
           const debtId = Math.abs(Number(debt.id)) || 1;
           const remaining = (Number(debt.amount || 0) - Number(debt.paid || 0)).toLocaleString("tr-TR");
+          const borcAdi = debt.name || "Borç";
+          const miktar = `${remaining} TL`;
+          const tarih = new Date(debt.dueDate).toLocaleDateString("tr-TR");
+          const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
           scheduleCapacitorAlarm(
             200000 + debtId,
-            `Borç Son Ödeme Günü: ${debt.name || "Borç"} ⏰`,
+            "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
             triggerMillis,
-            `Bugün son ödeme günü! Kalan tutar: ₺${remaining}`
+            richBody,
+            {
+              borcAdi,
+              miktar,
+              tarih,
+              durum: "Gecikmemesi için lütfen kontrol edin!"
+            }
           ).catch(() => {});
         }
       }
@@ -429,11 +480,23 @@ export function syncAllDebtsAndAlarmsToAndroid(
           const triggerMillis = nextDate.getTime();
           if (triggerMillis > now) {
             const instId = Math.abs(Number(inst.id)) || 1;
+            const perMonth = inst.installmentCount ? Math.round(Number(inst.totalAmount || 0) / Number(inst.installmentCount)) : 0;
+            const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
+            const borcAdi = `${inst.name || "Taksit"} (${nextIndex + 1}/${inst.installmentCount}. Taksit)`;
+            const tarih = nextDate.toLocaleDateString("tr-TR");
+            const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
             scheduleCapacitorAlarm(
               800000 + instId,
-              `Taksit Hatırlatması: ${inst.name || "Taksit"} ⏰`,
+              "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
               triggerMillis,
-              `${inst.name || "Taksit"} planınızın ${nextIndex + 1}. taksit ödeme günü geldi!`
+              richBody,
+              {
+                borcAdi,
+                miktar,
+                tarih,
+                durum: "Gecikmemesi için lütfen kontrol edin!"
+              }
             ).catch(() => {});
           }
         }
@@ -480,18 +543,27 @@ export function syncAllAlarmsToAndroid(
     const triggerMillis = parseAlarmDateToMillis(alarm.date, alarm.timestamp);
 
     if (triggerMillis && triggerMillis > now) {
+      const alarmTitle = alarm.title || "Ödeme Hatırlatması";
+      const tarih = alarm.date ? new Date(alarm.date).toLocaleString("tr-TR") : "Belirtilen Zaman";
+      const richBody = `💰 Borç: ${alarmTitle}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
       scheduleCapacitorAlarm(
         alarm.id,
-        alarm.title || "Ödeme Hatırlatması ⏰",
+        "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
         triggerMillis,
-        `Ödeme vadesi geldi: ${alarm.title || "Vadesi gelen ödemeniz var"}`
+        richBody,
+        {
+          borcAdi: alarmTitle,
+          tarih,
+          durum: "Gecikmemesi için lütfen kontrol edin!"
+        }
       ).catch(() => {});
 
       scheduleAndroidDebtAlarm(
         alarm.id,
-        alarm.title || "Ödeme Hatırlatması ⏰",
+        "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
         triggerMillis,
-        `Ödeme vadesi geldi: ${alarm.title || "Vadesi gelen ödemeniz var"}`
+        richBody
       );
       scheduledCount++;
     }
@@ -511,7 +583,8 @@ export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
       return true;
     }
     const trigger = Date.now() + (delaySeconds * 1000);
-    return scheduleAndroidDebtAlarm(777777, "🔔 Ekran Kapalı Bildirim Testi", trigger, "Test bildirimi kilit ekranına ulaştı!");
+    const testBody = `💰 Borç: Örnek Kira Ödemesi\n💵 Miktar: 15.000 TL\n📅 Son Tarih: Bugün\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+    return scheduleAndroidDebtAlarm(777777, "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", trigger, testBody);
   } catch (e) {
     console.warn("[AndroidAlarmBridge] testAndroidBackgroundAlarm hatası:", e);
     return false;

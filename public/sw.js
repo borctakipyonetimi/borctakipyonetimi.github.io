@@ -82,10 +82,11 @@ function rescheduleAlarms() {
     // 1. Check if Notification Triggers are natively supported (PWA offline scheduled notifications when closed)
     if (delay > 0 && 'showTrigger' in self.Notification.prototype && typeof self.TimestampTrigger !== 'undefined') {
       try {
-        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
-          body: alarm.title || "Planlanmış alarm zamanı!",
+        self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
+          body: alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
           icon: appIcon,
           badge: appBadge,
+          image: appIcon,
           vibrate: [200, 100, 200, 100, 300],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -105,10 +106,11 @@ function rescheduleAlarms() {
     // 2. Active background setTimeout fallback
     if (delay > 0) {
       const timerId = setTimeout(() => {
-        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
+        self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
           icon: appIcon,
           badge: appBadge,
+          image: appIcon,
           vibrate: [300, 100, 300, 100, 400],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
