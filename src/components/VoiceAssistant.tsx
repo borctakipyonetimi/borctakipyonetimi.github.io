@@ -353,31 +353,180 @@ export default function VoiceAssistant({
   const [errorMsg, setErrorMsg] = useState("");
   const [isSupported, setIsSupported] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [micVolume, setMicVolume] = useState<number>(0);
 
   const recognitionRef = useRef<any>(null);
   const isActiveRef = useRef(false);
+  const shouldRestartRef = useRef(false);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const accumulatedTranscriptRef = useRef<string>("");
 
+  const startMicVolumeMeter = async () => {
+    try {
+      // Clean previous stream if any
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch (_) {}
+      }
+
+      // Check support for mediaDevices
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn("navigator.mediaDevices.getUserMedia is not supported in this container.");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      audioContextRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64; // Small fftSize for fast tracking
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateVolume = () => {
+        if (!isActiveRef.current && !shouldRestartRef.current) {
+          setMicVolume(0);
+          return;
+        }
+
+        analyser.getByteFrequencyData(dataArray);
+        let total = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          total += dataArray[i];
+        }
+        const average = total / bufferLength;
+        // Map average volume smoothly (usually ranges 0-120 on voice input)
+        setMicVolume(average);
+
+        animationFrameRef.current = requestAnimationFrame(updateVolume);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(updateVolume);
+    } catch (e) {
+      console.warn("Mic Volume Meter failed to initialize (continuing with speech recognition only):", e);
+    }
+  };
+
+  const stopMicVolumeMeter = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch (_) {}
+      audioContextRef.current = null;
+    }
+    setMicVolume(0);
+  };
+
   useEffect(() => {
-    // Check SpeechRecognition cross-browser support on mount
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
+    try {
+      // Check SpeechRecognition cross-browser support
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setIsSupported(false);
+      } else {
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.lang = "tr-TR";
+        rec.interimResults = true; // Enabled interim results for live voice feedback!
+
+        rec.onstart = () => {
+          isActiveRef.current = true;
+          setIsListening(true);
+          setStatus("listening");
+          setErrorMsg("");
+          accumulatedTranscriptRef.current = "";
+        };
+
+        rec.onresult = (event: any) => {
+          let fullTranscript = "";
+          for (let i = 0; i < event.results.length; ++i) {
+            fullTranscript += event.results[i][0].transcript;
+          }
+
+          if (fullTranscript.trim()) {
+            setTranscript(fullTranscript);
+            setManualInput(fullTranscript);
+            accumulatedTranscriptRef.current = fullTranscript;
+          }
+        };
+
+        rec.onerror = (event: any) => {
+          console.warn("Speech recognition error:", event.error);
+          isActiveRef.current = false;
+          stopMicVolumeMeter();
+          
+          if (event.error === "not-allowed") {
+            setErrorMsg("Mikrofon izni verilmedi. Lütfen telefonunuzun Ayarlar > Uygulamalar > Bütçem > İzinler sayfasından mikrofon iznini etkinleştirin.");
+          } else if (event.error === "network") {
+            setErrorMsg("Ortamda internet bağlantısı bulunamadı veya kesik. Ses analizi için aktif internet bağlantısı zorunludur.");
+          } else if (event.error === "no-speech") {
+            setErrorMsg("Herhangi bir ses algılanamadı. Mikrofona biraz daha yakın durarak daha yüksek sesle konuşmayı deneyin.");
+          } else {
+            setErrorMsg(`Android ses servis hatası (${event.error || "bilinmiyor"}). Lütfen cihazınızda Google Asistan veya Speech Services by Google uygulamasının güncel olduğundan emin olun.`);
+          }
+          setStatus("error");
+          setIsListening(false);
+        };
+
+        rec.onend = () => {
+          isActiveRef.current = false;
+          setIsListening(false);
+          stopMicVolumeMeter();
+          
+          if (accumulatedTranscriptRef.current.trim()) {
+            handleProcessText(accumulatedTranscriptRef.current);
+            accumulatedTranscriptRef.current = "";
+          }
+
+          // Safe, controlled async restart if requested
+          if (shouldRestartRef.current) {
+            shouldRestartRef.current = false;
+            setTimeout(() => {
+              startListening();
+            }, 30);
+          }
+        };
+
+        recognitionRef.current = rec;
+      }
+    } catch (e) {
+      console.warn("SpeechRecognition initialization failed or blocked in this webview-container:", e);
       setIsSupported(false);
     }
 
     // Component unmount cleanup
     return () => {
+      shouldRestartRef.current = false;
+      stopMicVolumeMeter();
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.onstart = null;
-          recognitionRef.current.onresult = null;
-          recognitionRef.current.onerror = null;
-          recognitionRef.current.onend = null;
           recognitionRef.current.abort();
         } catch (e) {
           console.warn("Speech unmount cleanup ignored error:", e);
         }
-        recognitionRef.current = null;
       }
     };
   }, []);
@@ -412,119 +561,69 @@ export default function VoiceAssistant({
   };
 
   const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setErrorMsg("Cihazınızda ses tanıma servisi bulunamadı. Lütfen aşağıdaki kutuya komutunuzu yazarak girin.");
-      setStatus("error");
-      setIsListening(false);
+    if (!isSupported) {
+      triggerToast("Tarayıcınızda Ses Tanıma modu aktif değil, elle komut girebilirsiniz.");
       return;
     }
-
-    // Stop speaking if active
+    
+    // Stop speaking
     if ("speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch (_) {}
+      window.speechSynthesis.cancel();
     }
 
     setTranscript("");
     setErrorMsg("");
     setAiResponse(null);
 
-    // If an existing recognition instance is running, clean it up first
-    if (recognitionRef.current) {
+    // If the browser recognition is already active, request an abort first
+    // and flag a restart once 'onend' has clean up resources.
+    if (isActiveRef.current) {
+      shouldRestartRef.current = true;
       try {
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onend = null;
         recognitionRef.current.abort();
-      } catch (_) {}
-      recognitionRef.current = null;
+      } catch (e) {
+        console.warn("Speech abort error ignored during restart trigger:", e);
+      }
+      return;
     }
 
-    try {
-      const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.lang = "tr-TR";
-      rec.interimResults = true;
+    shouldRestartRef.current = false;
 
-      rec.onstart = () => {
+    // Start Raw mic meter for instant visual wave feedback
+    startMicVolumeMeter();
+
+    try {
+      setIsListening(true);
+      setStatus("listening");
+      recognitionRef.current.start();
+      isActiveRef.current = true;
+    } catch (e: any) {
+      if (e.message && e.message.includes("already started")) {
+        console.warn("Speech engine is already started state:", e.message);
         isActiveRef.current = true;
         setIsListening(true);
         setStatus("listening");
-        setErrorMsg("");
-        accumulatedTranscriptRef.current = "";
-      };
-
-      rec.onresult = (event: any) => {
-        let fullTranscript = "";
-        for (let i = 0; i < event.results.length; ++i) {
-          fullTranscript += event.results[i][0].transcript;
-        }
-
-        if (fullTranscript.trim()) {
-          setTranscript(fullTranscript);
-          setManualInput(fullTranscript);
-          accumulatedTranscriptRef.current = fullTranscript;
-        }
-      };
-
-      rec.onerror = (event: any) => {
-        console.warn("Speech recognition error:", event.error);
-        isActiveRef.current = false;
-        
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          setErrorMsg("Mikrofon izni verilmedi. Lütfen telefonunuzun Ayarlar > Uygulamalar > Bütçem Pro > İzinler sayfasından mikrofon iznini etkinleştirin.");
-        } else if (event.error === "network") {
-          setErrorMsg("Ses tanıma için internet bağlantısı zorunludur. Lütfen internet bağlantınızı kontrol edin.");
-        } else if (event.error === "no-speech") {
-          setErrorMsg("Herhangi bir ses algılanamadı. Mikrofona biraz daha yakın konuşmayı deneyin.");
-        } else if (event.error === "aborted") {
-          setStatus("idle");
-          setIsListening(false);
-          return;
-        } else {
-          setErrorMsg(`Android ses servis uyarısı (${event.error || "bilinmiyor"}). Lütfen tekrar deneyin veya komutunuzu metin olarak girin.`);
-        }
+      } else {
+        setErrorMsg("Mikrofon başlatılamadı.");
         setStatus("error");
         setIsListening(false);
-      };
-
-      rec.onend = () => {
         isActiveRef.current = false;
-        setIsListening(false);
-        
-        const finalText = accumulatedTranscriptRef.current.trim();
-        if (finalText) {
-          handleProcessText(finalText);
-          accumulatedTranscriptRef.current = "";
-        } else {
-          setStatus((prev) => (prev === "listening" ? "idle" : prev));
-        }
-      };
-
-      recognitionRef.current = rec;
-      rec.start();
-    } catch (e: any) {
-      console.warn("Speech recognition start failed:", e);
-      isActiveRef.current = false;
-      setIsListening(false);
-      setErrorMsg("Mikrofon başlatılamadı. Cihazınızda mikrofon iznini kontrol edebilir veya komutunuzu elle yazabilirsiniz.");
-      setStatus("error");
+      }
     }
   };
 
   const stopListening = () => {
+    shouldRestartRef.current = false;
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort(); // Use abort to force end instantly
       } catch (e) {
         console.warn("Speech stop warning ignored:", e);
       }
     }
     isActiveRef.current = false;
     setIsListening(false);
+    stopMicVolumeMeter();
   };
 
   const handleProcessText = async (textToProcess: string) => {
@@ -966,20 +1065,29 @@ export default function VoiceAssistant({
                       <div className="flex items-center gap-1.5 h-12">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((bar) => {
                           const delays = [0.1, 0.3, 0.5, 0.2, 0.4, 0.6, 0.15, 0.35, 0.45, 0.25];
+                          // Speak reactive scaling:
+                          const hasSignal = micVolume > 3;
+                          const calculatedHeight = hasSignal 
+                            ? Math.min(48, 10 + (micVolume * (delays[bar - 1] + 0.4)))
+                            : undefined;
+
                           return (
                             <motion.span
                               key={bar}
-                              animate={{ 
-                                height: ["10px", "36px", "14px", "44px", "10px"],
-                                backgroundColor: ["#6366f1", "#818cf8", "#4f46e5", "#6366f1"]
+                              style={calculatedHeight ? { height: `${calculatedHeight}px`, transition: "height 0.08s ease" } : {}}
+                              animate={!calculatedHeight ? { 
+                                height: ["12px", "24px", "12px"],
+                                backgroundColor: ["#6366f1", "#4f46e5", "#6366f1"]
+                              } : {
+                                backgroundColor: ["#a855f7", "#ec4899", "#6366f1"]
                               }}
                               transition={{ 
                                 repeat: Infinity, 
-                                duration: 1.1, 
+                                duration: 1.2, 
                                 delay: delays[bar - 1],
                                 ease: "easeInOut"
                               }}
-                              className="w-1.5 rounded-full shadow-sm shadow-indigo-500/30"
+                              className="w-1.5 rounded-full"
                             />
                           );
                         })}
@@ -989,10 +1097,16 @@ export default function VoiceAssistant({
                         <p className="text-xs text-indigo-300 font-extrabold animate-pulse tracking-wide uppercase">
                           Sizi dinliyorum, konuşun...
                         </p>
-                        <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5 animate-pulse">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
-                          CANLI DİNLENİYOR • KOMUTUNUZU SÖYLEYİN
-                        </span>
+                        {micVolume > 3 ? (
+                          <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1 animate-pulse">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
+                            SES SİNYALİ ALINIYOR: %{Math.min(100, Math.round(micVolume * 1.5))}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black tracking-widest text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+                            SES SİNYALİ BEKLENİYOR...
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : status === "processing" ? (

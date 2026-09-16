@@ -1127,30 +1127,30 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                               className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-12 pointer-events-none"
                             />
 
-                            <div className="flex items-center gap-3 sm:gap-4 relative z-10 min-w-0 flex-1 mr-2">
+                            <div className="flex items-center gap-3.5 sm:gap-4 relative z-10">
                               <motion.div
                                 animate={{
                                   y: [0, -2, 0],
                                   rotate: [0, 3, -3, 0]
                                 }}
                                 transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-400/40 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0 text-indigo-300"
+                                className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-400/40 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0 text-indigo-300"
                               >
-                                <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300 drop-shadow" />
+                                <Mail className="w-6 h-6 sm:w-7 h-7 text-indigo-300 drop-shadow" />
                               </motion.div>
 
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs sm:text-sm md:text-base font-black text-white flex items-center gap-1.5 whitespace-nowrap">
-                                  <span>E-Posta ile Giriş Yap</span>
+                              <div>
+                                <div className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                                  <span>E-Posta ile Giriş Yap / Kayıt Ol</span>
                                 </div>
-                                <p className="text-[11px] sm:text-xs text-indigo-200/80 font-medium mt-0.5 truncate">
-                                  Firebase bulut hesabınızla verilerinizi eşitleyin
+                                <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
+                                  Firebase bulut hesabınızla verilerinizi tüm cihazlarınızda eşitleyin
                                 </p>
                               </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-1 relative z-10 shrink-0">
-                              <span className="text-[9.5px] sm:text-[10px] font-black px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-md whitespace-nowrap">
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-md">
                                 Bulut Senk. ⚡
                               </span>
                               <motion.div

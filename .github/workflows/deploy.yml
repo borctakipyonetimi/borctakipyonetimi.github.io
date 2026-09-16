@@ -1,63 +1,85 @@
-name: Butcem Pro Kesin Cozum Uretici
+name: Butcem Pro Nihai Uretici
 on:
   push:
     branches:
       - main
       - master
+      - ana
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
+      - name: Kodlari Cek
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Node.js 22 Kur
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Setup Java 21
+      - name: Java 21 Kur
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Initialize Project Package
+      - name: Proje Bagimliliklarini Kur
         run: |
-          if [ ! -f package.json ]; then
-            echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json
-          fi
-          npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
-          npm run build || mkdir -p dist
+          npm install --legacy-peer-deps || npm install
 
-      - name: Clean Old Platform
+      - name: Guncel React Kodlarini Derle (Vite Build)
+        run: |
+          # En guncel kodlari dist klasorune derliyoruz
+          npm run build || npx vite build
+
+      - name: Eski Kalintilari Temizle
         run: |
           rm -rf android
           rm -f capacitor.config.json
 
-      - name: Create Capacitor Config
+      - name: Capacitor Ayarlarini Olustur (Guncel dist Paketi)
         run: |
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "server": {"url": "https://github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "dist", "plugins": {"LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}, "SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true, "splashFullScreen": true, "splashImmersive": true, "backgroundColor": "#020617", "showSpinner": false}}, "android": {"allowMixedContent": true, "backgroundColor": "#020617"}}' > capacitor.config.json
 
-      - name: Add Android Platform
+      - name: Android Platformunu Ekle ve Senkronize Et
         run: |
           npx cap add android
 
-      - name: Process Color Main Logo
+      - name: Renkli Ana Logoyu ve Siyah-Beyaz Bildirim Ikonunu Ayri Ayri Isle
         run: |
+          # İkon üretim aracını kuruyoruz
           npm install -g @capacitor/assets
-          mkdir -p assets
+          
+          # Geçici bir assets klasörü açıp ana ekrandaki renkli logomuzu kopyalıyoruz
+          rm -rf assets && mkdir -p assets
+          cp logo.png assets/icon.png || true
+          cp logo.png assets/logo.png || true
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
           cp logo.png assets/splash.png || true
           cp logo.png assets/splash-dark.png || true
-          npx capacitor-assets generate --android --icon || true
+          
+          # Sadece ana ekran için renkli logomuzu üretiyoruz (--icon parametresiyle)
+          npx @capacitor/assets generate --android --icon || npx capacitor-assets generate --android --icon || true
+          
+          # KESİN GARANTİ: logo.png dosyasını tüm mipmap klasörlerine doğrudan ic_launcher, ic_launcher_round ve ic_launcher_foreground olarak kopyalıyoruz
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ] && [ "$dir" != "android/app/src/main/res/mipmap-anydpi-v26" ]; then
+              cp logo.png "$dir/ic_launcher.png" || true
+              cp logo.png "$dir/ic_launcher_round.png" || true
+              cp logo.png "$dir/ic_launcher_foreground.png" || true
+            fi
+          done
 
-      - name: Inject Black and White Notification Icon
-        run: |
+          # Siyah-beyaz olan notification-icon.png dosyasını bildirim simgesi (ic_stat_notify) olarak sisteme kazıyoruz
           for dir in android/app/src/main/res/mipmap-*; do
             cp notification-icon.png "$dir/ic_stat_notify.png" || true
           done
@@ -65,34 +87,57 @@ jobs:
             cp notification-icon.png "$dir/ic_stat_notify.png" || true
           done
 
-      - name: Setup System Styles and Permissions
+      - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
         run: |
+          # Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle
+          COLORS_PATH="android/app/src/main/res/values/colors.xml"
+          if [ -f "$COLORS_PATH" ]; then
+            sed -i 's/<\/resources>/    <color name="default_notification_color">#10B981<\/color>\n<\/resources>/g' $COLORS_PATH || true
+          else
+            mkdir -p android/app/src/main/res/values
+            echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="default_notification_color">#10B981</color></resources>' > $COLORS_PATH
+          fi
+
+          # AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981) ve ag izinlerini ekle
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST_PATH" ]; then
+            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/default_notification_color" />' $MANIFEST_PATH
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST_PATH
+            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
+          fi
+
+      - name: Sistem Splash Ekranini Hatasiz Karart
+        run: |
+          # Değişiklik yapılacak Android XML dosya yollarını tanımlıyoruz
           STYLE_FILE="android/app/src/main/res/values/styles.xml"
           STYL_V31_FILE="android/app/src/main/res/values-v31/styles.xml"
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           
+          # 1. Normal styles.xml dosyasındaki splash arka planını ve ikonunu temizliyoruz
           if [ -f "$STYLE_FILE" ]; then
             sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_FILE || true
             sed -i 's/drawable\/splash/@android:color\/black/g' $STYLE_FILE || true
           fi
+          
+          # 2. Android 12+ için geçerli olan v31/styles.xml içindeki ikonları da tamamen temizliyoruz
           if [ -f "$STYL_V31_FILE" ]; then
             sed -i '/windowSplashScreenAnimatedIcon/d' $STYL_V31_FILE || true
             sed -i 's/drawable\/splash/@android:color\/black/g' $STYL_V31_FILE || true
           fi
-          if [ -f "$MANIFEST_PATH" ]; then
-            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:value="#10B981" />' $MANIFEST_PATH
-            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-feature android:name="android.hardware.microphone" android:required="false" />' $MANIFEST_PATH
-            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
-          fi
 
-      - name: Sync and Build APK
+      - name: Android APK Derle (Build)
         run: |
           npx cap sync android
           cd android
           ./gradlew assembleDebug
 
-      - name: Upload Final Butcem Pro APK
+      - name: Butcem Pro APK Yukle
         uses: actions/upload-artifact@v4
         with:
           name: butcem-pro-reklamsiz-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Guncel Web Sitesini (dist) GitHub Pages Icin Yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: butcem-pro-web-dist
+          path: dist/
