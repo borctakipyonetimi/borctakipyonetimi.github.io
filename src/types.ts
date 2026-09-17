@@ -12,6 +12,8 @@ export interface Debt {
   dueDate: string;
   date?: string;
   providerId?: string;
+  sonBildirimZamani?: number;
+  sonGecikmeBildirimZamani?: number;
 }
 
 export interface Income {
@@ -51,6 +53,8 @@ export interface InstallmentDebt {
   paidInstallmentCount: number;
   firstDueDate: string;
   providerId?: string;
+  sonBildirimZamani?: number;
+  sonGecikmeBildirimZamani?: number;
 }
 
 export interface PaymentLog {

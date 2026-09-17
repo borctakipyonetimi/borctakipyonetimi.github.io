@@ -117,8 +117,8 @@ export async function initCapacitorNotificationChannel(): Promise<void> {
       id: "debt_reminders",
       name: "Borç ve Ödeme Hatırlatıcıları",
       description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
-      importance: 4, // IMPORTANCE_HIGH (Heads-up banner)
-      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında tam göster)
+      importance: 5, // IMPORTANCE_HIGH / MAX (Heads-up banner ve ekranı uyandırma)
+      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında ve ekran kapalıyken tam göster)
       vibration: true,
       lights: true,
       lightColor: "#4F46E5"
@@ -245,7 +245,7 @@ export async function scheduleCapacitorAlarm(
       await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
     } catch {}
 
-    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true
+    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true, exact: true ve allowInExactlyDatatype: true
     // Büyük Resimli Bildirim (Big Picture) ve Geniş Metin (Large Body)
     await LocalNotifications.schedule({
       notifications: [
@@ -257,7 +257,9 @@ export async function scheduleCapacitorAlarm(
           summaryText: summaryText,
           schedule: {
             at: new Date(triggerAtMillis),
-            allowWhileIdle: true // Ekran kilitliyken ve Doze modunda uyandırma sağlar
+            allowWhileIdle: true, // Ekran kilitliyken ve Doze modunda uyandırma sağlar
+            exact: true, // Android derin uyku modunu (Doze) baypas eden kesin tetikleme
+            allowInExactlyDatatype: true // İşletim sistemi seviyesinde kesin uyanma parametresi
           },
           channelId: "debt_reminders",
           autoCancel: true,
@@ -271,7 +273,9 @@ export async function scheduleCapacitorAlarm(
             // Bildirim çekmecesi aşağı kaydırıldığında büyük resim olarak açılması için:
             style: 'bigPicture',
             bigPicture: imageAsset,
-            summaryText: summaryText
+            summaryText: summaryText,
+            priority: 'max',
+            visibility: 'public'
           },
           extra: {
             id: safeId,
@@ -282,10 +286,71 @@ export async function scheduleCapacitorAlarm(
         } as any
       ]
     });
-    console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} kuruldu (${new Date(triggerAtMillis).toLocaleString()})`);
+    console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} kuruldu (exact & allowWhileIdle) (${new Date(triggerAtMillis).toLocaleString()})`);
     return true;
   } catch (err) {
     console.warn("[Capacitor LocalNotifications] schedule error:", err);
+    return false;
+  }
+}
+
+/**
+ * Ekran kapalıyken veya uygulama arka plandayken işletim sistemi seviyesinde uyanma garantili anlık bildirim fırlatır.
+ * Android Doze Modu baypası için allowWhileIdle: true, exact: true ve allowInExactlyDatatype: true parametrelerini zorunlu uygular.
+ */
+export async function sendInstantCapacitorNotification(
+  title: string,
+  message: string,
+  id?: number
+): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  try {
+    const isCapacitorAvailable =
+      Capacitor.isPluginAvailable("LocalNotifications") ||
+      (window as any).Capacitor?.isPluginAvailable?.("LocalNotifications") ||
+      typeof (LocalNotifications as any)?.schedule === "function";
+
+    if (!isCapacitorAvailable) return false;
+
+    await initCapacitorNotificationChannel();
+    const safeId = id || Math.floor(Math.random() * 900000) + 100000;
+    const safeTitle = title.trim() || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
+    const safeMessage = message.trim() || "Planlanmış ödeme veya borç hatırlatması.";
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: safeId,
+          title: safeTitle,
+          body: safeMessage,
+          largeBody: safeMessage,
+          summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+          schedule: {
+            at: new Date(Date.now() + 100),
+            allowWhileIdle: true,
+            exact: true,
+            allowInExactlyDatatype: true
+          },
+          channelId: "debt_reminders",
+          autoCancel: true,
+          smallIcon: "ic_stat_notify",
+          iconColor: "#10B981",
+          largeIcon: "logo",
+          android: {
+            style: "bigPicture",
+            bigPicture: "logo.png",
+            summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+            priority: "max",
+            visibility: "public"
+          },
+          extra: { id: safeId, title: safeTitle, body: safeMessage }
+        } as any
+      ]
+    });
+    console.log(`[Capacitor LocalNotifications] Anlık Doze-baypas bildirimi #${safeId} fırlatıldı.`);
+    return true;
+  } catch (err) {
+    console.warn("[sendInstantCapacitorNotification] error:", err);
     return false;
   }
 }

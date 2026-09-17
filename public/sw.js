@@ -264,8 +264,13 @@ async function handleBackgroundSync(tag) {
   }
 
   // 3. Check standard debts
-  const overdueList = [];
+  const overdueMoreThanWeekList = [];
+  const recentOverdueList = [];
   const dueTodayList = [];
+
+  const nowMs = today.getTime();
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
   if (Array.isArray(activeDebts)) {
     activeDebts.forEach((debt) => {
@@ -277,10 +282,14 @@ async function handleBackgroundSync(tag) {
         const dueTime = parseDateRobust(debt.dueDate);
         if (!isNaN(dueTime)) {
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: debt.name || "Borç", amount: remaining });
+            dueTodayList.push({ name: debt.name || "Borç", amount: remaining, sonBildirimZamani: debt.sonBildirimZamani });
           } else if (dueTime < todayStart) {
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
-            overdueList.push({ name: debt.name || "Borç", amount: remaining, daysLate });
+            if (daysLate > 7) {
+              overdueMoreThanWeekList.push({ name: debt.name || "Borç", amount: remaining, daysLate, sonGecikmeBildirimZamani: debt.sonGecikmeBildirimZamani });
+            } else {
+              recentOverdueList.push({ name: debt.name || "Borç", amount: remaining, daysLate, sonBildirimZamani: debt.sonBildirimZamani });
+            }
           }
         }
       }
@@ -301,20 +310,24 @@ async function handleBackgroundSync(tag) {
         if (!isNaN(bDate.getTime())) {
           bDate.setMonth(bDate.getMonth() + paid);
           const dueTime = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate()).getTime();
-          const instTitle = `${inst.title || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+          const instTitle = `${inst.title || inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
 
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: instTitle, amount: perInst });
+            dueTodayList.push({ name: instTitle, amount: perInst, sonBildirimZamani: inst.sonBildirimZamani });
           } else if (dueTime < todayStart) {
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
-            overdueList.push({ name: instTitle, amount: perInst, daysLate });
+            if (daysLate > 7) {
+              overdueMoreThanWeekList.push({ name: instTitle, amount: perInst, daysLate, sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani });
+            } else {
+              recentOverdueList.push({ name: instTitle, amount: perInst, daysLate, sonBildirimZamani: inst.sonBildirimZamani });
+            }
           }
         }
       }
     });
   }
 
-  // 5. Trigger notifications for overdue / due-today debts
+  // 5. Trigger notifications according to frequency rules
   const hr = today.getHours();
   let currentSlot = "slot";
   if (pushSettings.frequency === "1") {
@@ -330,34 +343,52 @@ async function handleBackgroundSync(tag) {
   }
 
   const dateFormatted = today.toLocaleDateString("tr-TR");
-  if (overdueList.length > 0) {
-    const top = overdueList[0];
-    const totalOverdue = overdueList.reduce((s, d) => s + d.amount, 0);
-    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ GECİKMİŞ BORÇ UYARISI:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${top.daysLate} gün gecikti)\n- Toplam geciken borç tutarı: ₺${totalOverdue.toLocaleString("tr-TR")}\n- Gecikme faizlerinden korunmak için ödemenizi yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
 
-    self.registration.showNotification(`Bütçem Pro - Gecikmiş Borç Uyarısı ⚠️`, {
+  // A) 1 Haftayı Geçmiş Borçlar: 30 günde bir aylık özet
+  const eligibleOverdueWeek = overdueMoreThanWeekList.filter(d => {
+    const last = d.sonGecikmeBildirimZamani || 0;
+    return (nowMs - last) >= THIRTY_DAYS_MS;
+  });
+
+  if (eligibleOverdueWeek.length > 0) {
+    const top = eligibleOverdueWeek[0];
+    const totalOverdue = eligibleOverdueWeek.reduce((s, d) => s + d.amount, 0);
+    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ 1 HAFTAYI AŞAN GECİKMİŞ BORÇ ÖZETİ:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${top.daysLate} gün gecikti)\n- Toplam geciken borç tutarı: ₺${totalOverdue.toLocaleString("tr-TR")}\n- Gecikme faizlerinden korunmak için ödemenizi yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+
+    self.registration.showNotification(`Bütçem Pro - Gecikmiş Borç Özeti ⚠️`, {
       body: smsBody,
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-overdue-sync-" + todayStr + "-" + currentSlot,
+      tag: "sw-overdue-week-" + todayStr + "-" + currentSlot,
       renotify: true,
       requireInteraction: true,
       silent: false,
       actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
       data: { url: "/?tab=debts" }
     });
-  } else if (dueTodayList.length > 0) {
-    const top = dueTodayList[0];
-    const totalDueToday = dueTodayList.reduce((s, d) => s + d.amount, 0);
-    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ VADE HATIRLATMASI:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (Vadesi Bugün)\n- Toplam ödenecek tutar: ₺${totalDueToday.toLocaleString("tr-TR")}\n- Ödemenizi zamanında tamamlamanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+  }
 
-    self.registration.showNotification("Bütçem Pro - Vade Hatırlatması ⏰", {
+  // B) Günü Gelmiş ve Yakın Gecikmiş Borçlar: 2 saatte bir mükerrer kontrolü
+  const activeUpcoming = [...dueTodayList, ...recentOverdueList];
+  const eligibleUpcoming = pushSettings.frequency === "hourly"
+    ? activeUpcoming.filter(d => (nowMs - (d.sonBildirimZamani || 0)) >= TWO_HOURS_MS)
+    : activeUpcoming;
+
+  if (eligibleUpcoming.length > 0) {
+    const top = eligibleUpcoming[0];
+    const totalDue = eligibleUpcoming.reduce((s, d) => s + d.amount, 0);
+    const isToday = top.daysLate === undefined;
+    const titleText = isToday ? "Bütçem Pro - Vade Hatırlatması ⏰" : "Bütçem Pro - Ödeme Hatırlatması ⚠️";
+    const statusNote = isToday ? "Vadesi Bugün" : `${top.daysLate} gün gecikti`;
+    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ ÖDEME BİLGİLENDİRMESİ:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${statusNote})\n- Toplam tutar: ₺${totalDue.toLocaleString("tr-TR")}\n- Ödemenizi zamanında tamamlamanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+
+    self.registration.showNotification(titleText, {
       body: smsBody,
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-duetoday-sync-" + todayStr + "-" + currentSlot,
+      tag: "sw-upcoming-sync-" + todayStr + "-" + currentSlot,
       renotify: true,
       requireInteraction: true,
       silent: false,

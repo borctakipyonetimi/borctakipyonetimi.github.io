@@ -46,6 +46,7 @@ interface AIChatProps {
   expenseCategories?: { id: number; name: string; color?: string }[];
   language?: "tr" | "en";
   currentUser?: string | null;
+  onTriggerToast?: (msg: string) => void;
 }
 
 const TURKISH_MONTHS = [
@@ -242,10 +243,22 @@ export const AIChat: React.FC<AIChatProps> = ({
   expenseCategories = [],
   language = "tr",
   currentUser,
+  onTriggerToast,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   
   const { rates, isFetching: isRatesFetching, lastUpdated: ratesLastUpdated, updateRatesFromAPI } = useCurrency();
+
+  // Toast notification helper that avoids intrusive browser window.alert
+  const [chatToast, setChatToast] = useState<string | null>(null);
+  const notify = (msg: string) => {
+    if (onTriggerToast) {
+      onTriggerToast(msg);
+    } else {
+      setChatToast(msg);
+      setTimeout(() => setChatToast(null), 3500);
+    }
+  };
 
   // Contacts and Contact Transactions from LocalStorage
   const [contacts, setContacts] = useState<any[]>([]);
@@ -327,7 +340,7 @@ export const AIChat: React.FC<AIChatProps> = ({
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Tarayıcınız ses tanıma özelliğini desteklemiyor. Lütfen Google Chrome veya uyumlu bir mobil tarayıcı kullanın.");
+      notify("Tarayıcınız ses tanıma özelliğini desteklemiyor. Klavyeden yazabilirsiniz.");
       return;
     }
 
@@ -367,42 +380,73 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   // Handle Text-to-Speech (TTS)
   const toggleSpeakText = (text: string, idx: number) => {
-    if (!("speechSynthesis" in window)) {
-      alert("Tarayıcınız sesli okuma özelliğini desteklemiyor.");
+    const synth = typeof window !== "undefined" ? (window.speechSynthesis || (window as any).webkitSpeechSynthesis) : null;
+    if (!synth) {
+      notify("Cihazınızda sesli okuma motoru (TTS) bulunamadı.");
       return;
     }
 
     if (speakingIdx === idx) {
-      window.speechSynthesis.cancel();
+      try {
+        synth.cancel();
+      } catch {}
       setSpeakingIdx(null);
       return;
     }
 
-    window.speechSynthesis.cancel();
-    
-    // Clean markdown characters for pleasant speech audio
-    const cleanSpeech = text
-      .replace(/###/g, "")
-      .replace(/\*\*/g, "")
-      .replace(/•/g, "")
-      .replace(/\|/g, " ")
-      .replace(/-/g, " ")
-      .replace(/[📊🚀💡🎯💰📌⚠️🟢⚡💵💸📈📉🔍🏆🚨⚖️✨]/g, "");
+    try {
+      synth.cancel();
+      
+      // Clean markdown characters, emojis and format currencies for smooth Turkish speech
+      let cleanSpeech = text
+        .replace(/###/g, "")
+        .replace(/\*\*/g, "")
+        .replace(/•/g, "")
+        .replace(/\|/g, " ")
+        .replace(/-/g, " ")
+        .replace(/₺/g, " Türk Lirası ")
+        .replace(/\$/g, " Dolar ")
+        .replace(/€/g, " Euro ")
+        .replace(/%/g, " Yüzde ")
+        .replace(/[\u{1F300}-\u{1F9FF}\u{1F400}-\u{1F6FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}]/gu, "")
+        .replace(/[📊🚀💡🎯💰📌⚠️🟢🔴⚡💵💸📈📉🔍🏆🚨⚖️✨]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
-    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
-    utterance.lang = language === "tr" ? "tr-TR" : "en-US";
-    utterance.rate = 1.05;
+      if (!cleanSpeech) {
+        notify("Seslendirilecek metin bulunamadı.");
+        return;
+      }
 
-    utterance.onend = () => {
+      const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+      utterance.lang = language === "tr" ? "tr-TR" : "en-US";
+      utterance.rate = 1.0;
+
+      // Select Turkish voice if available
+      try {
+        const voices = synth.getVoices ? synth.getVoices() : [];
+        const trVoice = voices.find((v: any) => v.lang && (v.lang.startsWith("tr") || v.lang.includes("tr-TR")));
+        if (trVoice) {
+          utterance.voice = trVoice;
+        }
+      } catch {}
+
+      utterance.onend = () => {
+        setSpeakingIdx(null);
+      };
+
+      utterance.onerror = (e) => {
+        console.warn("[TTS Speech Error]:", e);
+        setSpeakingIdx(null);
+      };
+
+      setSpeakingIdx(idx);
+      synth.speak(utterance);
+    } catch (err) {
+      console.warn("[TTS Exception]:", err);
       setSpeakingIdx(null);
-    };
-
-    utterance.onerror = () => {
-      setSpeakingIdx(null);
-    };
-
-    setSpeakingIdx(idx);
-    window.speechSynthesis.speak(utterance);
+      notify("Sesli okuma başlatılamadı.");
+    }
   };
 
   const handleCopyMessage = (text: string, idx: number) => {
@@ -504,15 +548,52 @@ export const AIChat: React.FC<AIChatProps> = ({
       const totalLiabilities = stats?.remaining !== undefined ? stats.remaining : (totalDebtsRem + totalInstsRem + contactPayablesRem);
 
       reply += `### 💵 Aylık Mali Durum Özeti (${monthName} ${yNum})\n`;
-      reply += `• **Toplam Aylık Gelir**: ₺${tIncome.toLocaleString("tr-TR")}\n`;
-      reply += `• **Toplam Aylık Gider**: ₺${tExpense.toLocaleString("tr-TR")}\n`;
-      reply += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Bütçe Fazla Veriyor" : "🔴 Bütçe Açık Veriyor"})\n\n`;
+      reply += `• **Toplam Aylık Gelir**: ₺${Math.round(tIncome).toLocaleString("tr-TR")}\n`;
+      reply += `• **Toplam Aylık Gider**: ₺${Math.round(tExpense).toLocaleString("tr-TR")}\n`;
+      reply += `• **Kalan Net Bakiye**: ₺${Math.round(nIncome).toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Bütçe Fazla Veriyor" : "🔴 Bütçe Açık Veriyor"})\n\n`;
 
       reply += `### 💸 Bu Ayki Borç ve Yükümlülük Durumu\n`;
-      reply += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}\n`;
-      reply += `• **Bu Ay Ödenen Borç Tutarı**: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}\n`;
-      reply += `• **Bu Ayki Toplam Borç Yükü**: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}\n`;
-      reply += `• **Genel Toplam Kalan Borç Portföyü**: ₺${totalLiabilities.toLocaleString("tr-TR")}\n\n`;
+      reply += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${Math.round(thisMonthDebtDue).toLocaleString("tr-TR")}\n`;
+      reply += `• **Bu Ay Ödenen Borç Tutarı**: ₺${Math.round(thisMonthDebtPaid).toLocaleString("tr-TR")}\n`;
+      reply += `• **Bu Ayki Toplam Borç Yükü**: ₺${Math.round(thisMonthDebtTotal).toLocaleString("tr-TR")}\n`;
+      reply += `• **Genel Toplam Kalan Borç Portföyü**: ₺${Math.round(totalLiabilities).toLocaleString("tr-TR")}\n\n`;
+
+      // Group and deduplicate active debts (never list same debt 2-3 times)
+      const activeDebtsMap = new Map<string, { name: string; category: string; remaining: number }>();
+      let fullyPaidDebtsCount = 0;
+      let fullyPaidDebtsTotal = 0;
+      debts.forEach((d) => {
+        const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+        if (rem <= 0) {
+          fullyPaidDebtsCount++;
+          fullyPaidDebtsTotal += Number(d.paid) || Number(d.amount) || 0;
+          return;
+        }
+        const key = d.name.trim().toLowerCase();
+        if (!activeDebtsMap.has(key)) {
+          activeDebtsMap.set(key, { name: d.name.trim(), category: d.category || "Genel", remaining: rem });
+        } else {
+          activeDebtsMap.get(key)!.remaining += rem;
+        }
+      });
+      const sortedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
+
+      reply += `### 💳 Aktif Kalan Borç Portföyü\n`;
+      if (sortedActiveDebts.length > 0) {
+        sortedActiveDebts.slice(0, 8).forEach((d) => {
+          reply += `• **${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
+        });
+        if (sortedActiveDebts.length > 8) {
+          const restRem = sortedActiveDebts.slice(8).reduce((s, x) => s + x.remaining, 0);
+          reply += `• *Diğer ${sortedActiveDebts.length - 8} borç kalemi*: ₺${Math.round(restRem).toLocaleString("tr-TR")}\n`;
+        }
+      } else {
+        reply += `• Tebrikler! Kayıtlı açık standart borcunuz bulunmuyor.\n`;
+      }
+      if (fullyPaidDebtsCount > 0) {
+        reply += `• 🟢 **Kapatılan Borçlar**: ${fullyPaidDebtsCount} adet borcunuz tamamen ödenip sıfırlandı (Toplam: ₺${Math.round(fullyPaidDebtsTotal).toLocaleString("tr-TR")}).\n`;
+      }
+      reply += `\n`;
 
       if (mExpenses.length > 0) {
         reply += `### 📉 Kategori Karşılaştırma Analizi\n`;
@@ -539,12 +620,16 @@ export const AIChat: React.FC<AIChatProps> = ({
 
           reply += `| **${c.name}** | ₺${c.value.toLocaleString("tr-TR")} | %${c.pct.toFixed(1)} | ${recStatus} |\n`;
         });
-
-        reply += `\n### 💡 Tasarruf ve Optimizasyon Önerileri\n`;
-        reply += `1. **Gereksiz Abonelikleri İptal Edin**: Düzenli olarak kullanmadığınız dijital üyelikleri gözden geçirin.\n`;
-        reply += `2. **Otomatik Tasarruf Kuralı**: Maaş yatar yatmaz en az %10'unu ayrı bir birikim hesabına aktarın.\n`;
-        reply += `3. **Kartopu Borç Kapatma**: En küçük borcu kapatıp psikolojik ivme kazanın.\n`;
+        reply += `\n`;
+      } else {
+        reply += `### 📉 Harcama Dağılımı\n`;
+        reply += `• Bu ay için henüz harcama girişi yapılmamış görünüyor. Düzenli harcama girişi yaparak bütçe optimizasyonunuzu takip edebilirsiniz.\n\n`;
       }
+
+      reply += `### 💡 Stratejik Borç Kapatma ve Tasarruf Reçetesi\n`;
+      reply += `1. **Kartopu Yöntemi (Snowball)**: Psikolojik ivme kazanmak için en küçük kalan borcu ilk sıraya alıp sıfırlayın.\n`;
+      reply += `2. **50/30/20 Bütçe Kuralı**: Gelirinizin en fazla %50'sini zorunlu ihtiyaçlara, %30'unu kişisel harcamalara, en az %20'sini borç kapatma ve tasarrufa ayırın.\n`;
+      reply += `3. **Sabit Gider Disiplini**: Düzenli olarak kullanmadığınız dijital abonelik ve kart aidatlarını gözden geçirin.\n`;
       return reply;
     }
 
@@ -615,12 +700,13 @@ export const AIChat: React.FC<AIChatProps> = ({
     return reply;
   };
 
-  const handleSend = async (customText?: string) => {
+  const handleSend = async (customText?: string, displayText?: string) => {
     const question = customText || inputValue;
     if (!question.trim() || loading) return;
 
     const timeStr = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-    const newMsg: ChatMessage = { sender: "user", text: question, timestamp: timeStr };
+    const bubbleText = displayText || question;
+    const newMsg: ChatMessage = { sender: "user", text: bubbleText, timestamp: timeStr };
     setMessages((prev) => [...prev, newMsg]);
     setInputValue("");
     setLoading(true);
@@ -727,7 +813,7 @@ export const AIChat: React.FC<AIChatProps> = ({
     availableCategories.forEach((c) => {
       const amt = categoryMap[c.id] || 0;
       if (amt > 0) {
-        categoryDetailsStr += `- ${c.name}: ₺${amt.toLocaleString("tr-TR")}\n`;
+        categoryDetailsStr += `- ${c.name}: ₺${Math.round(amt).toLocaleString("tr-TR")}\n`;
       }
     });
 
@@ -747,51 +833,136 @@ export const AIChat: React.FC<AIChatProps> = ({
     const thisMonthDebtTotal = stats?.thisMonthTotalBorc ?? (thisMonthDebtDue + thisMonthDebtPaid);
     const overallRemainingDebt = stats?.remaining ?? 0;
 
-    let debtsDetailsStr = "";
+    // --- TEKİLLEŞTİRİLMİŞ AKTİF BORÇLAR (Aynı borcu 2-3 kez tekrar yazmayı ve 0 TL ödenmişleri engeller) ---
+    const activeDebtsMap = new Map<string, { name: string; category: string; totalAmount: number; totalPaid: number; remaining: number }>();
+    let paidDebtsCount = 0;
+    let paidDebtsTotal = 0;
+
     if (debts && debts.length > 0) {
       debts.forEach((d) => {
-        const rem = Math.max(0, d.amount - d.paid);
-        debtsDetailsStr += `- ${d.name} (${d.category}): Toplam ₺${d.amount.toLocaleString("tr-TR")}, Ödenen: ₺${d.paid.toLocaleString("tr-TR")}, Kalan: ₺${rem.toLocaleString("tr-TR")}\n`;
+        const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+        if (rem <= 0) {
+          paidDebtsCount++;
+          paidDebtsTotal += Number(d.paid) || Number(d.amount) || 0;
+          return;
+        }
+
+        const normalizedName = d.name.trim().toLowerCase();
+        if (!activeDebtsMap.has(normalizedName)) {
+          activeDebtsMap.set(normalizedName, {
+            name: d.name.trim(),
+            category: d.category || "Genel",
+            totalAmount: Number(d.amount) || 0,
+            totalPaid: Number(d.paid) || 0,
+            remaining: rem
+          });
+        } else {
+          const item = activeDebtsMap.get(normalizedName)!;
+          item.totalAmount += Number(d.amount) || 0;
+          item.totalPaid += Number(d.paid) || 0;
+          item.remaining += rem;
+        }
       });
+    }
+
+    const sortedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
+
+    let debtsDetailsStr = "";
+    if (sortedActiveDebts.length > 0) {
+      sortedActiveDebts.slice(0, 10).forEach((d) => {
+        debtsDetailsStr += `- ${d.name} (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")} (Toplam: ₺${Math.round(d.totalAmount).toLocaleString("tr-TR")}, Ödenen: ₺${Math.round(d.totalPaid).toLocaleString("tr-TR")})\n`;
+      });
+      if (sortedActiveDebts.length > 10) {
+        const otherCount = sortedActiveDebts.length - 10;
+        const otherRem = sortedActiveDebts.slice(10).reduce((sum, d) => sum + d.remaining, 0);
+        debtsDetailsStr += `- Diğer ${otherCount} adet aktif borç toplamı: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
+      }
     } else {
-      debtsDetailsStr = "- Kayıtlı standart borç bulunmamaktadır.\n";
+      debtsDetailsStr = "- Şu an ödenecek aktif standart borç bulunmuyor.\n";
+    }
+
+    if (paidDebtsCount > 0) {
+      debtsDetailsStr += `• Tamamen Kapatılmış/Ödenmiş Borçlar: ${paidDebtsCount} adet borç tamamen sıfırlandı (Toplam Kapatılan: ₺${Math.round(paidDebtsTotal).toLocaleString("tr-TR")})\n`;
+    }
+
+    // --- TEKİLLEŞTİRİLMİŞ TAKSİTLİ BORÇLAR ---
+    const activeInstMap = new Map<string, { name: string; totalAmount: number; perInst: number; remCount: number; remAmount: number; totalCount: number }>();
+    let paidInstCount = 0;
+
+    if (installmentDebts && installmentDebts.length > 0) {
+      installmentDebts.forEach((inst) => {
+        const total = Number(inst.totalAmount) || 0;
+        const count = Number(inst.installmentCount) || 1;
+        const paidCount = Number(inst.paidInstallmentCount) || 0;
+        const perInst = total / count;
+        const remCount = Math.max(0, count - paidCount);
+        const remAmount = Math.max(0, total - (paidCount * perInst));
+
+        if (remCount <= 0 || remAmount <= 0) {
+          paidInstCount++;
+          return;
+        }
+
+        const normalizedName = inst.name.trim().toLowerCase();
+        if (!activeInstMap.has(normalizedName)) {
+          activeInstMap.set(normalizedName, {
+            name: inst.name.trim(),
+            totalAmount: total,
+            perInst,
+            remCount,
+            remAmount,
+            totalCount: count
+          });
+        } else {
+          const item = activeInstMap.get(normalizedName)!;
+          item.totalAmount += total;
+          item.remAmount += remAmount;
+          item.remCount = Math.max(item.remCount, remCount);
+        }
+      });
     }
 
     let installmentDetailsStr = "";
-    if (installmentDebts && installmentDebts.length > 0) {
-      installmentDebts.forEach((inst) => {
-        const perInstallment = inst.totalAmount / (inst.installmentCount || 1);
-        const remCount = Math.max(0, inst.installmentCount - inst.paidInstallmentCount);
-        const remAmount = Math.max(0, inst.totalAmount - (inst.paidInstallmentCount * perInstallment));
-        installmentDetailsStr += `- ${inst.name}: Toplam ₺${inst.totalAmount.toLocaleString("tr-TR")}, Taksit: ${inst.installmentCount} ay x ₺${perInstallment.toLocaleString("tr-TR")}, Kalan Taksit: ${remCount} ay (Kalan: ₺${remAmount.toLocaleString("tr-TR")})\n`;
+    const sortedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remAmount - a.remAmount);
+    if (sortedActiveInsts.length > 0) {
+      sortedActiveInsts.slice(0, 8).forEach((inst) => {
+        installmentDetailsStr += `- ${inst.name}: Aylık ₺${Math.round(inst.perInst).toLocaleString("tr-TR")} (${inst.remCount} ay taksit kaldı, Kalan: ₺${Math.round(inst.remAmount).toLocaleString("tr-TR")})\n`;
       });
+      if (sortedActiveInsts.length > 8) {
+        const otherCount = sortedActiveInsts.length - 8;
+        const otherRem = sortedActiveInsts.slice(8).reduce((sum, inst) => sum + inst.remAmount, 0);
+        installmentDetailsStr += `- Diğer ${otherCount} taksitli plan toplamı: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
+      }
     } else {
-      installmentDetailsStr = "- Kayıtlı taksitli borç bulunmamaktadır.\n";
+      installmentDetailsStr = "- Kayıtlı aktif taksitli borç planı bulunmuyor.\n";
     }
 
-    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Analiz Raporu' oluştur. Bu aydaki gider kategorilerimi birbiriyle kıyasla ve bana bütçemi optimize edip birikim yapabilmem için somut tasarruf önerileri sun. Ayrıca, bütçeme ek olarak aşağıda detayları verilen tüm borçlarımı analiz et, borç durumumu ve borç erteleme/kapatma önceliklerimi (Kartopu veya Avalanche yöntemlerine göre) rapora dahil et.
+    const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Finansal Analiz Raporu' oluştur.
+Önemli Kurallar:
+1. Borçları asla 2-3 defa tekrar yazma! Aşağıda her borç tekilleştirilmiştir. Sıfırlanmış borçları tek tek sayma.
+2. Gelir, gider ve borç dengesini analiz et, tasarruf önerilerini net maddelerle sun.
+3. Borçları Kartopu veya Çığ yöntemine göre önceliklendir.
+4. Raporu mobil ekranda son derece ferah ve düzenli okunacak şekilde başlıklar ve maddelerle sun.
 
 Aylık Finansal Durum Özetim (${monthName} ${yNum}):
-- Toplam Aylık Gelir: ₺${totalMonthlyIncome.toLocaleString("tr-TR")}
-- Toplam Aylık Gider: ₺${totalMonthlyExpense.toLocaleString("tr-TR")}
-- Kalan Net Bakiye: ₺${totalMonthlyNet.toLocaleString("tr-TR")} (${totalMonthlyNet >= 0 ? "Bütçe Fazla Veriyor" : "Bütçe Açık Veriyor"})
-- Bu Ay Vadesi Gelen Kalan Borç: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}
-- Bu Ay Ödenen Borç Tutarı: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}
-- Bu Ay Toplam Borç Yükü: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}
-- Genel Toplam Kalan Borç Yükü: ₺${overallRemainingDebt.toLocaleString("tr-TR")}
+- Toplam Aylık Gelir: ₺${Math.round(totalMonthlyIncome).toLocaleString("tr-TR")}
+- Toplam Aylık Gider: ₺${Math.round(totalMonthlyExpense).toLocaleString("tr-TR")}
+- Kalan Net Bakiye: ₺${Math.round(totalMonthlyNet).toLocaleString("tr-TR")} (${totalMonthlyNet >= 0 ? "Bütçe Fazla Veriyor" : "Bütçe Açık Veriyor"})
+- Bu Ay Vadesi Gelen Kalan Borç: ₺${Math.round(thisMonthDebtDue).toLocaleString("tr-TR")}
+- Bu Ay Ödenen Borç Tutarı: ₺${Math.round(thisMonthDebtPaid).toLocaleString("tr-TR")}
+- Bu Ay Toplam Borç Yükü: ₺${Math.round(thisMonthDebtTotal).toLocaleString("tr-TR")}
+- Genel Toplam Kalan Borç Portföyü: ₺${Math.round(overallRemainingDebt).toLocaleString("tr-TR")}
 
-Kategori Bazlı Harcama Dağılımım (${monthName} ${yNum}):
+Kategori Bazlı Harcamalar:
 ${categoryDetailsStr}
 
-Mevcut Aktif Standart Borçlarım:
+Aktif Kalan Standart Borçlarım (Yalnızca ödenmesi gerekenler):
 ${debtsDetailsStr}
 
-Mevcut Taksitli Borçlarım:
-${installmentDetailsStr}
+Aktif Taksitli Borçlarım:
+${installmentDetailsStr}`;
 
-Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve net maddeler halinde düzenli bir analiz raporu sun.`;
-
-    handleSend(prompt);
+    handleSend(prompt, `📊 ${monthName} ${yNum} Aylık Finansal Analiz Raporu`);
   };
 
   return (
@@ -860,8 +1031,23 @@ Lütfen mobil ekranda kolay okunacak şekilde başlıklar, numaralı adımlar ve
       </div>
 
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}
-      <div className="border border-slate-200 dark:border-indigo-400/40 bg-white dark:bg-slate-950 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-indigo-950/30 overflow-hidden flex flex-col">
+      <div className="relative border border-slate-200 dark:border-indigo-400/40 bg-white dark:bg-slate-950 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-indigo-950/30 overflow-hidden flex flex-col">
         
+        {/* Floating in-chat notification if browser warning or toast is triggered */}
+        <AnimatePresence>
+          {chatToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.95 }}
+              className="absolute top-3 left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-slate-900/90 dark:bg-indigo-950/90 text-white text-xs font-semibold rounded-full shadow-lg border border-slate-700/50 backdrop-blur-md flex items-center gap-2"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span>{chatToast}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Messages Scroll Viewport */}
         <div
           ref={chatContainerRef}

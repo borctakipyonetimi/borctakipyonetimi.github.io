@@ -540,19 +540,54 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
     advice += `• **Kalan Net Bakiye**: ₺${nIncome.toLocaleString("tr-TR")} (${nIncome >= 0 ? "🟢 Bütçe Fazla Veriyor" : "🔴 Bütçe Açık Veriyor"})\n\n`;
 
     advice += `### 💸 Bu Ayki Borç ve Yükümlülük Durumu\n`;
-    advice += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${thisMonthDebtDue.toLocaleString("tr-TR")}\n`;
-    advice += `• **Bu Ay Ödenen Borç Tutarı**: ₺${thisMonthDebtPaid.toLocaleString("tr-TR")}\n`;
-    advice += `• **Bu Ayki Toplam Borç Yükü**: ₺${thisMonthDebtTotal.toLocaleString("tr-TR")}\n`;
-    advice += `• **Genel Toplam Kalan Borç Portföyü (Tüm Vadeler)**: ₺${overallTotalLiabilities.toLocaleString("tr-TR")}\n\n`;
+    advice += `• **Bu Ay Vadesi Gelen Kalan Borç**: ₺${Math.round(thisMonthDebtDue).toLocaleString("tr-TR")}\n`;
+    advice += `• **Bu Ay Ödenen Borç Tutarı**: ₺${Math.round(thisMonthDebtPaid).toLocaleString("tr-TR")}\n`;
+    advice += `• **Bu Ayki Toplam Borç Yükü**: ₺${Math.round(thisMonthDebtTotal).toLocaleString("tr-TR")}\n`;
+    advice += `• **Genel Toplam Kalan Borç Portföyü (Tüm Vadeler)**: ₺${Math.round(overallTotalLiabilities).toLocaleString("tr-TR")}\n\n`;
 
     advice += `### 📋 Borç Dağılımı Detayları\n`;
-    advice += `• **Nakit Borçlar (Kalan Toplam)**: ₺${totalDebtsRem.toLocaleString("tr-TR")}\n`;
-    advice += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${totalInstsRem.toLocaleString("tr-TR")}\n`;
-    advice += `• **Kişi Borçları (Verecek - Kalan)**: ₺${contactPayablesRem.toLocaleString("tr-TR")}\n`;
-    advice += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${contactReceivablesRem.toLocaleString("tr-TR")}\n\n`;
+    advice += `• **Nakit Borçlar (Kalan Toplam)**: ₺${Math.round(totalDebtsRem).toLocaleString("tr-TR")}\n`;
+    advice += `• **Taksitli Borçlar (Kalan Toplam)**: ₺${Math.round(totalInstsRem).toLocaleString("tr-TR")}\n`;
+    advice += `• **Kişi Borçları (Verecek - Kalan)**: ₺${Math.round(contactPayablesRem).toLocaleString("tr-TR")}\n`;
+    advice += `• **Kişi Alacakları (Alacak - Kalan)**: ₺${Math.round(contactReceivablesRem).toLocaleString("tr-TR")}\n\n`;
+
+    // Group and deduplicate active debts (never list same debt 2-3 times)
+    const activeDebtsMap = new Map<string, { name: string; category: string; remaining: number }>();
+    let paidDebtsCount = 0;
+    debts.forEach((d: any) => {
+      const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      if (rem <= 0) {
+        paidDebtsCount++;
+        return;
+      }
+      const key = (d.name || "").trim().toLowerCase();
+      if (!activeDebtsMap.has(key)) {
+        activeDebtsMap.set(key, { name: (d.name || "").trim(), category: d.category || "Genel", remaining: rem });
+      } else {
+        activeDebtsMap.get(key)!.remaining += rem;
+      }
+    });
+    const sortedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
+
+    advice += `### 💳 Aktif Borç Listesi (Öncelikli Kapatılacaklar)\n`;
+    if (sortedActiveDebts.length > 0) {
+      sortedActiveDebts.slice(0, 8).forEach((d) => {
+        advice += `• **${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
+      });
+      if (sortedActiveDebts.length > 8) {
+        const otherRem = sortedActiveDebts.slice(8).reduce((sum, d) => sum + d.remaining, 0);
+        advice += `• *Diğer ${sortedActiveDebts.length - 8} borç kalemi*: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
+      }
+    } else {
+      advice += `• Tebrikler! Kayıtlı açık standart borcunuz bulunmamaktadır.\n`;
+    }
+    if (paidDebtsCount > 0) {
+      advice += `• 🟢 **Kapatılan Borçlar**: ${paidDebtsCount} adet borç tamamen ödendi.\n`;
+    }
+    advice += `\n`;
 
     if (expenses.length === 0) {
-      advice += `🚨 **Harcama Uyarısı**: Bu seçili ay için kaydedilmiş herhangi bir harcama kalemi bulunamadı. Lütfen analiz için harcamalarınızı girin.\n`;
+      advice += `ℹ️ **Harcama Bilgisi**: Bu ay için henüz harcama kaydı girilmemiş. Giderlerinizi girdikçe kategori bazlı optimizasyon önerileriniz detaylanacaktır.\n\n`;
     } else {
       advice += `### 📉 Kategori Karşılaştırma Analizi\n`;
       advice += `Aşağıdaki tabloda bu ayın harcama kategorileri, tutarları ve toplam aylık gider içindeki yüzdesel ağırlıkları gösterilmiştir:\n\n`;
@@ -846,6 +881,66 @@ app.post("/api/chat", async (req, res) => {
     const goldCeyrek = cRates.GOLD_CEYREK || (goldGram * 1.635);
     const btcUsd = cRates.BTC_USD || 81588;
 
+    // Deduplicate active debts for Gemini prompt to eliminate repeated listings
+    const debtsArr = Array.isArray(context?.debts) ? context.debts : [];
+    const activeDebtsMap = new Map<string, any>();
+    let totalPaidDebtsCount = 0;
+    let totalPaidDebtsSum = 0;
+    debtsArr.forEach((d: any) => {
+      const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      if (rem <= 0) {
+        totalPaidDebtsCount++;
+        totalPaidDebtsSum += (Number(d.paid) || Number(d.amount) || 0);
+        return;
+      }
+      const key = (d.name || "").trim().toLowerCase();
+      if (!activeDebtsMap.has(key)) {
+        activeDebtsMap.set(key, {
+          name: (d.name || "").trim(),
+          category: d.category || "Genel",
+          remaining: Math.round(rem),
+          totalAmount: Math.round(Number(d.amount) || 0),
+          paid: Math.round(Number(d.paid) || 0)
+        });
+      } else {
+        const item = activeDebtsMap.get(key);
+        item.remaining += Math.round(rem);
+        item.totalAmount += Math.round(Number(d.amount) || 0);
+        item.paid += Math.round(Number(d.paid) || 0);
+      }
+    });
+    const sanitizedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
+
+    // Deduplicate installment debts
+    const instsArr = Array.isArray(context?.installmentDebts) ? context.installmentDebts : [];
+    const activeInstMap = new Map<string, any>();
+    let totalPaidInstCount = 0;
+    instsArr.forEach((inst: any) => {
+      const total = Number(inst.totalAmount) || 0;
+      const count = Number(inst.installmentCount) || 1;
+      const paidCount = Number(inst.paidInstallmentCount) || 0;
+      const remCount = Math.max(0, count - paidCount);
+      const remAmount = Math.max(0, total - (paidCount * (total / count)));
+      if (remCount <= 0 || remAmount <= 0) {
+        totalPaidInstCount++;
+        return;
+      }
+      const key = (inst.name || "").trim().toLowerCase();
+      if (!activeInstMap.has(key)) {
+        activeInstMap.set(key, {
+          name: (inst.name || "").trim(),
+          remainingAmount: Math.round(remAmount),
+          remainingMonths: remCount,
+          monthlyInstallment: Math.round(total / count)
+        });
+      } else {
+        const item = activeInstMap.get(key);
+        item.remainingAmount += Math.round(remAmount);
+        item.remainingMonths = Math.max(item.remainingMonths, remCount);
+      }
+    });
+    const sanitizedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remainingAmount - a.remainingAmount);
+
     const systemPrompt = `Sen "Bütçem Pro" bireysel finans yönetim ve borç takip uygulamasının en güncel "Gemini 3.7 Flash" yapay zeka finans koçu ve uzman analistisin. Türkçe konuşacaksın.
 Kullanıcının ${periodLabel} dönemi güncel bütçe durumu ve mali parametreleri şunlardır:
 - Seçili Dönem: ${periodLabel}
@@ -858,9 +953,9 @@ Kullanıcının ${periodLabel} dönemi güncel bütçe durumu ve mali parametrel
 - Genel Toplam Kalan Borç Portföyü (Tüm Vadeler): ₺${remaining}
 - Toplam Borç Kaydı: ₺${totalDebt}
 - Toplam Ödenen Borç: ₺${totalPaid}
-- Taksitli Borç Sayısı: ${context?.installmentDebts?.length || 0}
-- Taksitli Borç Detayı: ${JSON.stringify(context?.installmentDebts || [])}
-- Standart Borç Listesi Detayı: ${JSON.stringify(context?.debts || [])}
+- Tekilleştirilmiş Aktif Standart Borçlar (Yalnızca Ödenmesi Gerekenler): ${JSON.stringify(sanitizedActiveDebts)}
+- Tamamen Ödenmiş/Sıfırlanmış Standart Borç: ${totalPaidDebtsCount} adet (Toplam Kapatılan: ₺${Math.round(totalPaidDebtsSum)})
+- Tekilleştirilmiş Aktif Taksitli Borçlar: ${JSON.stringify(sanitizedActiveInsts)}
 - Giderler Listesi Detayı: ${JSON.stringify(context?.expenses || [])}
 - Rehber Kişi Borçları ve Alacakları: ${JSON.stringify(context?.contactTransactions || [])}
 - Rehber Kişileri Listesi: ${JSON.stringify(context?.contacts || [])}
@@ -887,7 +982,8 @@ Görevlerin ve Davranış Kuralların:
    - Önemli tutarları ve tavsiyeleri **kalın** vurgula.
    - Uzun ve karmaşık tek parça blok metinlerden kaçın, her bölüm arasına bir boş satır bırak.
 5. ÇEVRİMİÇİ (ONLINE) SORGULAR VE GÜNCEL BİLGİLER: Kullanıcı döviz kurlarını, güncel altın fiyatlarını, enflasyon veya diğer detayları sorduğunda yukarıdaki anlık canlı piyasa verilerini ve entegre Google Arama (googleSearch) aracını kullan. Kullanıcıya "Bilmiyorum" demek yerine kesin ve şeffaf yanıt ver.
-6. Tamamen profesyonel, yapıcı ve sıcakkanlı bir finans koçu gibi davran.`;
+6. Tamamen profesyonel, yapıcı ve sıcakkanlı bir finans koçu gibi davran.
+7. BORÇ TEKRARINI VE LİSTELEME KARMAŞASINI ÖNLEME KURALI: Borçları veya taksitleri analiz ederken aynı borç adını ASLA 2 veya 3 defa tekrar yazma! Her borç yukarıdaki listede tekilleştirilmiştir. Tamamen ödenmiş (0 TL kalan) borçları tek tek listelemek yerine 'Tamamen Kapatılan: X adet borç' şeklinde tek bir satırda özetle. Borçları kalan tutarlarına göre büyükten küçüğe veya Kartopu metoduna göre küçükten büyüğe sıralı ve temiz maddeler halinde listele.`;
 
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {
