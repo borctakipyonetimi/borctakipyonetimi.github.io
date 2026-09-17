@@ -943,7 +943,7 @@ export const DebtList: React.FC<DebtListProps> = ({
           installmentCount: count,
           paidInstallmentCount: paidCount,
           firstDueDate: dueDate || new Date().toISOString().slice(0, 10),
-          providerId,
+          providerId: providerId || null,
         });
       }
     } else {
@@ -958,7 +958,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         paid: parsedPaid,
         category,
         dueDate,
-        providerId,
+        providerId: providerId || null,
       }, createAlarm);
     }
 

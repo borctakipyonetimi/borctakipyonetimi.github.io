@@ -8,8 +8,41 @@ import {
   onAuthStateChanged,
   User
 } from "firebase/auth";
-import { getDatabase, ref, set, get, child, update, onValue, off, serverTimestamp, goOnline } from "firebase/database";
+import { 
+  getDatabase, 
+  ref, 
+  set as rawSet, 
+  get, 
+  child, 
+  update as rawUpdate, 
+  onValue, 
+  off, 
+  serverTimestamp, 
+  goOnline 
+} from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
+
+// Veritabanı çökmesini önleyen temizlik fonksiyonu
+export function veriyiTemizle<T>(obj: T): T {
+  if (obj === undefined || obj === null) return (null as unknown) as T;
+  try {
+    return JSON.parse(JSON.stringify(obj, (_k, v) => (v === undefined ? null : v)));
+  } catch (err) {
+    console.warn("veriyiTemizle dönüşüm uyarısı:", err);
+    return obj;
+  }
+}
+
+// Realtime Database set ve update işlemlerinde undefined değerlerini otomatik temizleyen koruyucular
+export const set = (r: any, val: any) => {
+  return rawSet(r, veriyiTemizle(val));
+};
+
+export const update = (r: any, val: any) => {
+  return rawUpdate(r, veriyiTemizle(val));
+};
+
+export { ref, get, child, onValue, off, serverTimestamp, goOnline, rawSet, rawUpdate };
 
 // Your web app's Firebase configuration
 // Proje ID: borc-takip-pro-f6936 - Realtime Database databaseURL ekli
@@ -37,8 +70,6 @@ try {
 } catch (rtdbErr) {
   console.warn("Realtime Database goOnline uyarısı:", rtdbErr);
 }
-
-export { ref, set, get, child, update, onValue, off, serverTimestamp, goOnline };
 
 export async function ensureDatabaseNetwork(): Promise<{ success: boolean; message: string }> {
   try {

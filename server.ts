@@ -569,20 +569,51 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
     });
     const sortedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
 
-    advice += `### 💳 Aktif Borç Listesi (Öncelikli Kapatılacaklar)\n`;
+    advice += `### 💳 Aktif Kalan Standart Borçlar (Tüm Liste)\n`;
     if (sortedActiveDebts.length > 0) {
-      sortedActiveDebts.slice(0, 8).forEach((d) => {
-        advice += `• **${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
+      sortedActiveDebts.forEach((d, idx) => {
+        advice += `• **${idx + 1}. ${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
       });
-      if (sortedActiveDebts.length > 8) {
-        const otherRem = sortedActiveDebts.slice(8).reduce((sum, d) => sum + d.remaining, 0);
-        advice += `• *Diğer ${sortedActiveDebts.length - 8} borç kalemi*: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
-      }
     } else {
       advice += `• Tebrikler! Kayıtlı açık standart borcunuz bulunmamaktadır.\n`;
     }
     if (paidDebtsCount > 0) {
       advice += `• 🟢 **Kapatılan Borçlar**: ${paidDebtsCount} adet borç tamamen ödendi.\n`;
+    }
+    advice += `\n`;
+
+    advice += `### 🗓️ Aktif Taksitli Borçlar ve Aylık Ödeme Planı\n`;
+    const instList: any[] = [];
+    let completedInstCount = 0;
+    installmentDebts.forEach((inst: any) => {
+      const totalAmt = Number(inst.totalAmount) || 0;
+      const count = Number(inst.installmentCount) || 1;
+      const paidCount = Number(inst.paidInstallmentCount) || 0;
+      const perInst = totalAmt / count;
+      const remCount = Math.max(0, count - paidCount);
+      const remAmt = Math.max(0, totalAmt - (paidCount * perInst));
+      if (remCount <= 0 || remAmt <= 0) {
+        completedInstCount++;
+      } else {
+        instList.push({
+          name: inst.name || "Taksitli Borç",
+          perInst,
+          remCount,
+          totalCount: count,
+          remAmt
+        });
+      }
+    });
+    instList.sort((a, b) => b.remAmt - a.remAmt);
+    if (instList.length > 0) {
+      instList.forEach((inst, idx) => {
+        advice += `• **${idx + 1}. ${inst.name}**: Aylık ₺${Math.round(inst.perInst).toLocaleString("tr-TR")} | Kalan: ${inst.remCount}/${inst.totalCount} Taksit | Kalan Borç: ₺${Math.round(inst.remAmt).toLocaleString("tr-TR")}\n`;
+      });
+    } else {
+      advice += `• Kayıtlı aktif taksitli borcunuz bulunmamaktadır.\n`;
+    }
+    if (completedInstCount > 0) {
+      advice += `• 🟢 **Tamamlanan Taksitler**: ${completedInstCount} adet taksitli borç tamamen ödendi.\n`;
     }
     advice += `\n`;
 
@@ -983,7 +1014,12 @@ Görevlerin ve Davranış Kuralların:
    - Uzun ve karmaşık tek parça blok metinlerden kaçın, her bölüm arasına bir boş satır bırak.
 5. ÇEVRİMİÇİ (ONLINE) SORGULAR VE GÜNCEL BİLGİLER: Kullanıcı döviz kurlarını, güncel altın fiyatlarını, enflasyon veya diğer detayları sorduğunda yukarıdaki anlık canlı piyasa verilerini ve entegre Google Arama (googleSearch) aracını kullan. Kullanıcıya "Bilmiyorum" demek yerine kesin ve şeffaf yanıt ver.
 6. Tamamen profesyonel, yapıcı ve sıcakkanlı bir finans koçu gibi davran.
-7. BORÇ TEKRARINI VE LİSTELEME KARMAŞASINI ÖNLEME KURALI: Borçları veya taksitleri analiz ederken aynı borç adını ASLA 2 veya 3 defa tekrar yazma! Her borç yukarıdaki listede tekilleştirilmiştir. Tamamen ödenmiş (0 TL kalan) borçları tek tek listelemek yerine 'Tamamen Kapatılan: X adet borç' şeklinde tek bir satırda özetle. Borçları kalan tutarlarına göre büyükten küçüğe veya Kartopu metoduna göre küçükten büyüğe sıralı ve temiz maddeler halinde listele.`;
+7. BORÇ VE TAKSİT LİSTELEME KURALLARI:
+   - Kullanıcı aylık finans/analiz raporu istediğinde veya borçlarını sorduğunda; hem aktif standart borçları hem de aktif taksitli borçları (kalan taksit adedi, aylık taksit tutarı ve toplam kalan borcuyla) EKSİKSİZ şekilde TEK TEK sırala.
+   - ASLA borçları 'Diğer borçlar' veya 've benzeri' adı altında gizleme veya topluca özetleme! Her bir borç ve taksit kalemini tek tek açık döküm olarak listele.
+   - Raporda mutlaka '### 💳 Aktif Standart Borçlar' ve '### 🗓️ Aktif Taksitli Borçlar ve Aylık Ödeme Planı' alt başlıklarını kullan.
+   - Aynı borç adını ASLA 2 veya 3 defa tekrar yazma (tekilleştirilmiş listeyi baz al).
+   - Tamamen ödenmiş (0 TL kalan) borçları tek bir satırda '🟢 Tamamen Kapatılan: X adet borç' şeklinde özetle. Borçları kalan tutarlarına göre büyükten küçüğe sıralı ve temiz maddeler halinde listele.`;
 
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {

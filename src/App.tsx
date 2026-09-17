@@ -5,8 +5,23 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
-import { ref, get, set, update, onValue, off } from "firebase/database";
-import { auth, db, handleDatabaseError, handleFirestoreError, OperationType, goOnline, enableNetwork } from "./utils/firebase";
+import { 
+  auth, 
+  db, 
+  ref, 
+  get, 
+  set, 
+  update, 
+  onValue, 
+  off, 
+  veriyiTemizle, 
+  handleDatabaseError, 
+  handleFirestoreError, 
+  OperationType, 
+  goOnline, 
+  enableNetwork 
+} from "./utils/firebase";
+import { compressAndResizeImage } from "./utils/imageUtils";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -301,12 +316,127 @@ export default function App() {
     return localStorage.getItem("currentUser") || null;
   });
 
+  // User Profile Name state (stored strictly under kullanicilar/UID/profil/isim in Realtime Database)
+  const [userProfileName, setUserProfileName] = useState<string>(() => {
+    return localStorage.getItem("user_profile_name") || "";
+  });
+
+  // Profil Düzenleme Modal Durumu (Tarayıcı / iFrame / Mobil uyumlu)
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [profileNameInput, setProfileNameInput] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Profil Güncelleme: Profil bilgileri veya kullanıcı adı güncellenirken, borçlar (debts)
+  // veya diğer alt veritabanı düğümleri kesinlikle mutasyona uğramaz ve silinmez.
+  // Kullanıcı adı sadece ve sadece kullanicilar/KULLANICI_UID/profil/isim düğümünü hedef alarak kaydedilir.
+  const handleUpdateProfileName = async (newName: string) => {
+    const cleanName = newName.trim();
+    setUserProfileName(cleanName);
+    localStorage.setItem("user_profile_name", cleanName);
+
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        const profilRef = ref(db, `kullanicilar/${fbUser.uid}/profil/isim`);
+        await set(profilRef, cleanName);
+
+        try {
+          await set(ref(db, `users/${fbUser.uid}/profil/isim`), cleanName);
+        } catch (_) {}
+
+        triggerToast(cleanName ? `Profil isminiz kaydedildi: ${cleanName} ✨` : "Profil ismi güncellendi ✨");
+      } catch (err: any) {
+        console.error("Profil ismi kayıt hatası:", err);
+        triggerToast(`Profil ismi kaydedilemedi: ${err?.message || err}`, 4000);
+      }
+    } else {
+      triggerToast(cleanName ? `İsminiz kaydedildi: ${cleanName} ✨` : "İsim kaydedildi ✨");
+    }
+  };
+
+  // Profil Resmi Kaydetme: Görseli 200x200 piksele sıkıştırıp kullanicilar/KULLANICI_UID/profil/resim düğümüne kaydeder
+  const handleSaveAvatar = async (rawImageBase64OrFile: string | File) => {
+    try {
+      // 1. Görseli tarayıcı tabanlı yüksek performanslı sıkıştır ve maksimum 200x200 piksele boyutlandır
+      const compressedBase64 = await compressAndResizeImage(rawImageBase64OrFile, 200, 200, 0.82);
+
+      // 2. React state ve yerel depolamayı anında güncelle
+      setUserAvatar(compressedBase64);
+      const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+      localStorage.setItem(`${spaceKey}_avatar`, compressedBase64);
+      localStorage.setItem("user_profile_avatar", compressedBase64);
+      setIsAvatarPickerOpen(false);
+
+      // 3. Güvenli profil odası altına (kullanicilar/KULLANICI_UID/profil/resim) kalıcı olarak yaz
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        const resimRef = ref(db, `kullanicilar/${fbUser.uid}/profil/resim`);
+        await set(resimRef, compressedBase64);
+
+        try {
+          await set(ref(db, `users/${fbUser.uid}/profil/resim`), compressedBase64);
+        } catch (_) {}
+
+        triggerToast("Profil resminiz başarıyla kaydedildi! 📸");
+      } else {
+        triggerToast("Profil resmi güncellendi! 📸");
+      }
+    } catch (err: any) {
+      console.error("Profil resmi işleme hatası:", err);
+      triggerToast("Görsel işlenirken bir sorun oluştu! ⚠️", 3000);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUserAvatar("");
+    const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+    localStorage.removeItem(`${spaceKey}_avatar`);
+    localStorage.removeItem("user_profile_avatar");
+    setIsAvatarPickerOpen(false);
+
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        await set(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`), null);
+        try {
+          await set(ref(db, `users/${fbUser.uid}/profil/resim`), null);
+        } catch (_) {}
+      } catch (err) {
+        console.warn("Avatar silme uyarısı:", err);
+      }
+    }
+    triggerToast("Profil resmi kaldırıldı");
+  };
+
+  const handleOpenEditProfileModal = () => {
+    setProfileNameInput(userProfileName || "");
+    setIsEditProfileModalOpen(true);
+  };
+
+  const handleSaveProfileModal = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingProfile(true);
+    try {
+      await handleUpdateProfileName(profileNameInput);
+      setIsEditProfileModalOpen(false);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePromptEditName = () => {
+    handleOpenEditProfileModal();
+  };
+
   const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
 
   // Automatically load the avatar linked to the new active user profile
   useEffect(() => {
     const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-    setUserAvatar(localStorage.getItem(`${spaceKey}_avatar`) || "");
+    const localAvatar = localStorage.getItem("user_profile_avatar") || localStorage.getItem(`${spaceKey}_avatar`) || "";
+    if (localAvatar) {
+      setUserAvatar(localAvatar);
+    }
     setIsAvatarPickerOpen(false);
   }, [currentUser]);
 
@@ -1770,23 +1900,15 @@ export default function App() {
     triggerToast("E-Posta Bulut Girişi Yapıldı! ☁️");
   };
 
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1.5 * 1024 * 1024) {
-        triggerToast("Fotoğraf boyutu 1.5MB'den küçük olmalıdır! ⚠️");
+      if (file.size > 5 * 1024 * 1024) {
+        triggerToast("Lütfen 5MB'den küçük bir görsel seçin! ⚠️");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64Data = reader.result as string;
-        setUserAvatar(base64Data);
-        const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-        localStorage.setItem(`${spaceKey}_avatar`, base64Data);
-        setIsAvatarPickerOpen(false);
-        triggerToast("Profil resminiz başarıyla güncellendi! 📸");
-      };
-      reader.readAsDataURL(file);
+      await handleSaveAvatar(file);
+      e.target.value = "";
     }
   };
 
@@ -1817,6 +1939,38 @@ export default function App() {
           : emailOrUid;
         setCurrentUser(displayName);
         localStorage.setItem("currentUser", displayName);
+
+        // Kullanıcının kayıtlı profil ismini kullanicilar/KULLANICI_UID/profil/isim düğümünden çek
+        get(ref(db, `kullanicilar/${user.uid}/profil/isim`))
+          .then((pSnap) => {
+            if (pSnap.exists() && pSnap.val()) {
+              const pName = String(pSnap.val()).trim();
+              if (pName) {
+                setUserProfileName(pName);
+                localStorage.setItem("user_profile_name", pName);
+              }
+            }
+          })
+          .catch((pErr) => {
+            console.warn("Profil ismi sorgulama uyarısı:", pErr);
+          });
+
+        // Kullanıcının kayıtlı profil resmini kullanicilar/KULLANICI_UID/profil/resim düğümünden çek
+        get(ref(db, `kullanicilar/${user.uid}/profil/resim`))
+          .then((imgSnap) => {
+            if (imgSnap.exists() && imgSnap.val()) {
+              const imgData = String(imgSnap.val()).trim();
+              if (imgData) {
+                setUserAvatar(imgData);
+                localStorage.setItem("user_profile_avatar", imgData);
+                const spaceKey = user.email ? `user_${user.email.toLowerCase()}` : `user_${user.uid}`;
+                localStorage.setItem(`${spaceKey}_avatar`, imgData);
+              }
+            }
+          })
+          .catch((imgErr) => {
+            console.warn("Profil resmi sorgulama uyarısı:", imgErr);
+          });
       } else {
         const savedUser = localStorage.getItem("currentUser");
         if (savedUser) {
@@ -1824,6 +1978,14 @@ export default function App() {
           setCurrentUser(savedUser);
         } else {
           setCurrentUser(null);
+        }
+        const savedProfileName = localStorage.getItem("user_profile_name");
+        if (savedProfileName) {
+          setUserProfileName(savedProfileName);
+        }
+        const savedAvatar = localStorage.getItem("user_profile_avatar");
+        if (savedAvatar) {
+          setUserAvatar(savedAvatar);
         }
       }
     });
@@ -2111,7 +2273,7 @@ export default function App() {
               try {
                 const parsed = JSON.parse(localDataStr);
                 applyDataPayload(parsed);
-                const payload = {
+                const payload = veriyiTemizle({
                   ...parsed,
                   email: cleanEmail || "",
                   emailLower: cleanEmail || "",
@@ -2119,7 +2281,7 @@ export default function App() {
                   isPremium: localStorage.getItem("is_premium") === "true",
                   premiumPlan: localStorage.getItem("premium_plan") || "yearly",
                   updatedAt: Date.now()
-                };
+                });
                 await Promise.all([
                   set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
                   set(ref(db, `users/${fbUser.uid}/veriler`), payload)
@@ -2138,6 +2300,36 @@ export default function App() {
             }
           }
 
+          // Profil ismini doğrudan ve sadece kullanicilar/KULLANICI_UID/profil/isim düğümünden oku
+          try {
+            const pSnap = await get(ref(db, `kullanicilar/${fbUser.uid}/profil/isim`));
+            if (pSnap.exists() && pSnap.val()) {
+              const pName = String(pSnap.val()).trim();
+              if (pName) {
+                setUserProfileName(pName);
+                localStorage.setItem("user_profile_name", pName);
+              }
+            }
+          } catch (pErr) {
+            console.warn("Profil ismi okuma uyarısı:", pErr);
+          }
+
+          // Profil resmini doğrudan ve sadece kullanicilar/KULLANICI_UID/profil/resim düğümünden oku
+          try {
+            const imgSnap = await get(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`));
+            if (imgSnap.exists() && imgSnap.val()) {
+              const imgData = String(imgSnap.val()).trim();
+              if (imgData) {
+                setUserAvatar(imgData);
+                localStorage.setItem("user_profile_avatar", imgData);
+                const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+                localStorage.setItem(`${spaceKey}_avatar`, imgData);
+              }
+            }
+          } catch (imgErr) {
+            console.warn("Profil resmi okuma uyarısı:", imgErr);
+          }
+
           // Realtime Database canlı senkronizasyon dinleyicisi (onValue)
           try {
             const rtdbUnsub = onValue(primaryVerilerRef, (snapshot) => {
@@ -2153,7 +2345,36 @@ export default function App() {
               console.warn("Realtime Database dinleyici hatası:", fullSnapErr);
               setFirestoreErrorMessage(`Database Dinleyici Hatası: ${fullSnapErr}`);
             });
-            unsubscribeSnapshot = rtdbUnsub;
+
+            // Profil ismini canlı dinleyici ile izle
+            const profilUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/isim`), (pSnapshot) => {
+              if (pSnapshot.exists() && active) {
+                const pName = String(pSnapshot.val() || "").trim();
+                if (pName) {
+                  setUserProfileName(pName);
+                  localStorage.setItem("user_profile_name", pName);
+                }
+              }
+            });
+
+            // Profil resmini canlı dinleyici ile izle
+            const profilResimUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`), (imgSnapshot) => {
+              if (imgSnapshot.exists() && active) {
+                const imgData = String(imgSnapshot.val() || "").trim();
+                if (imgData) {
+                  setUserAvatar(imgData);
+                  localStorage.setItem("user_profile_avatar", imgData);
+                  const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+                  localStorage.setItem(`${spaceKey}_avatar`, imgData);
+                }
+              }
+            });
+
+            unsubscribeSnapshot = () => {
+              rtdbUnsub();
+              profilUnsub();
+              profilResimUnsub();
+            };
           } catch (snapErr: any) {
             const snapSetupCode = snapErr?.code || "HATA";
             const snapSetupMsg = snapErr?.message || String(snapErr);
@@ -2570,7 +2791,7 @@ export default function App() {
       }
       
       if (fbUser) {
-        const payload = {
+        const payload = veriyiTemizle({
           ...dataBag,
           email: cleanEmail || "",
           emailLower: cleanEmail || "",
@@ -2578,7 +2799,7 @@ export default function App() {
           isPremium: localStorage.getItem("is_premium") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
           updatedAt: Date.now()
-        };
+        });
 
         // Realtime Database: verileri doğrudan kullanicilar/KULLANICI_UID/veriler düğümüne kaydet
         await Promise.all([
@@ -3162,6 +3383,8 @@ export default function App() {
           console.error("SignOut error:", err);
         }
         localStorage.removeItem("currentUser");
+        localStorage.removeItem("user_profile_name");
+        setUserProfileName("");
         setCurrentUser(null);
         setDebts([]);
         setIncomes([]);
@@ -3278,7 +3501,7 @@ export default function App() {
         paid: newPaid,
         category: debtData.category || "Diğer",
         dueDate: dueDate,
-        providerId: debtData.providerId
+        providerId: debtData.providerId || null
       };
       updated = [...debts, newD];
 
@@ -3607,7 +3830,7 @@ export default function App() {
         installmentCount: instData.installmentCount || 1,
         paidInstallmentCount: instData.paidInstallmentCount || 0,
         firstDueDate: instData.firstDueDate || new Date().toISOString().slice(0, 10),
-        providerId: instData.providerId
+        providerId: instData.providerId || null
       };
       updated = [...installmentDebts, newInst];
 
@@ -5646,7 +5869,7 @@ export default function App() {
           {/* User welcome message styled beautifully inside a glossy container with a custom editable name trigger */}
           {(() => {
             const rawUser = currentUser || "";
-            const cleanDisplayName = rawUser.includes("@") ? rawUser.split("@")[0] : rawUser;
+            const cleanDisplayName = userProfileName?.trim() || (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser);
             const displayGreeting = cleanDisplayName.trim() || (language === "tr" ? "İsim Girin" : "Add Name");
 
             const getWelcomeThemeStyles = () => {
@@ -5693,7 +5916,7 @@ export default function App() {
             const themeStyles = getWelcomeThemeStyles();
             return (
               <motion.div 
-                key={cleanDisplayName + colorTheme}
+                key={(userProfileName || cleanDisplayName) + colorTheme}
                 initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 whileHover={{ scale: 1.02 }}
@@ -5701,23 +5924,7 @@ export default function App() {
                 className="flex items-center shrink-0 max-w-[150px] xs:max-w-[180px] sm:max-w-none ml-1 sm:ml-2"
               >
                 <button 
-                  onClick={() => {
-                    const currentNameValue = currentUser || "";
-                    const newName = prompt(
-                      language === "tr" 
-                        ? "Ana ekrandaki karşılama isminizi yazın veya güncelleyin:" 
-                        : "Enter or update your display name:", 
-                      currentNameValue
-                    );
-                    if (newName !== null) {
-                      const clean = newName.trim();
-                      if (clean) {
-                        setCurrentUser(clean);
-                        localStorage.setItem("currentUser", clean);
-                        triggerToast(language === "tr" ? `İsminiz güncellendi: ${clean} ✨` : `Name updated to: ${clean} ✨`);
-                      }
-                    }
-                  }}
+                  onClick={handlePromptEditName}
                   title={language === "tr" ? "İsmini değiştirmek veya yazmak için tıkla" : "Click to change or write your name"}
                   className={`group flex items-center gap-1.5 sm:gap-2.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 sm:px-3 py-1.5 rounded-xl border ${themeStyles.border} ${themeStyles.glow} transition-all duration-300 cursor-pointer select-none shrink-0 w-full hover:brightness-110 active:scale-95`}
                 >
@@ -6544,7 +6751,7 @@ export default function App() {
                       />
                     ) : (
                       <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 text-white flex items-center justify-center text-md font-black shadow-md uppercase">
-                        {(currentUser || "G").substring(0, 2)}
+                        {(userProfileName?.trim() || currentUser || "G").substring(0, 2)}
                       </div>
                     )}
                     <button
@@ -6600,13 +6807,9 @@ export default function App() {
                                 ["#4f46e5", "#1e293b"]
                               ];
                               const selectedColor = colors[i];
-                              const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="g${i}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${selectedColor[0]}"/><stop offset="100%" stop-color="${selectedColor[1]}"/></linearGradient></defs><rect width="100" height="100" fill="url(#g${i})"/><text x="50" y="55" font-family="'Inter', system-ui, sans-serif" font-weight="900" font-size="42" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${(currentUser || "G").substring(0, 2).toUpperCase()}</text></svg>`;
+                              const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="g${i}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${selectedColor[0]}"/><stop offset="100%" stop-color="${selectedColor[1]}"/></linearGradient></defs><rect width="100" height="100" fill="url(#g${i})"/><text x="50" y="55" font-family="'Inter', system-ui, sans-serif" font-weight="900" font-size="42" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${(userProfileName?.trim() || currentUser || "G").substring(0, 2).toUpperCase()}</text></svg>`;
                               const base64Svg = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`;
-                              setUserAvatar(base64Svg);
-                              const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-                              localStorage.setItem(`${spaceKey}_avatar`, base64Svg);
-                              setIsAvatarPickerOpen(false);
-                              triggerToast("Yeni profil rengi uygulandı! 🎨");
+                              handleSaveAvatar(base64Svg);
                             }}
                             className={`w-3.5 h-3.5 rounded-full bg-gradient-to-tr ${grad} border border-white dark:border-slate-850 shadow-xs cursor-pointer active:scale-90 transition`}
                           />
@@ -6617,11 +6820,26 @@ export default function App() {
                 </AnimatePresence>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
-                  <div className="px-3 py-2 bg-indigo-50/70 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/20">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
+                    <button
+                      type="button"
+                      onClick={handlePromptEditName}
+                      className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition active:scale-95"
+                      title="İsmi Güncelle"
+                    >
+                      <Pencil className="w-2.5 h-2.5" />
+                      <span>{userProfileName?.trim() ? "İsmi Değiştir" : "İsim Ekle"}</span>
+                    </button>
+                  </div>
+                  <div 
+                    onClick={handlePromptEditName}
+                    className="px-3 py-2 bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-100/70 dark:hover:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900/20 cursor-pointer transition group"
+                    title="İsminizi güncellemek için tıklayın"
+                  >
                     <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-slate-200/60 dark:border-slate-800/85 mb-1">
                       <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
-                        {currentUser.includes("@") && !currentUser.endsWith("@borctakip.app") ? (
+                        {currentUser?.includes("@") && !currentUser.endsWith("@borctakip.app") ? (
                           <>
                             <Shield className="w-3 h-3 text-indigo-400 shrink-0" /> Bulut Hesap
                           </>
@@ -6631,7 +6849,7 @@ export default function App() {
                       </span>
                       {isPremium ? (
                         <span
-                          onClick={() => setIsUpgradeModalOpen(true)}
+                          onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
                           className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider animate-pulse cursor-pointer shadow-xs flex items-center gap-0.5"
                           title="Abonelik Yönetimi"
                         >
@@ -6639,7 +6857,7 @@ export default function App() {
                         </span>
                       ) : (
                         <span
-                          onClick={() => setIsUpgradeModalOpen(true)}
+                          onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
                           className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 dark:hover:text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer transition flex items-center gap-0.5"
                           title="Premium'a Geç"
                         >
@@ -6647,7 +6865,19 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[9px] font-mono font-bold text-slate-700 dark:text-slate-200 truncate text-left">{currentUser}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 text-left">
+                        <p className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                          {userProfileName?.trim() || currentUser || (auth.currentUser?.email ?? "Kullanıcı")}
+                        </p>
+                        {userProfileName?.trim() && currentUser && (
+                          <p className="text-[8.5px] font-mono text-slate-400 dark:text-slate-500 truncate">
+                            {currentUser}
+                          </p>
+                        )}
+                      </div>
+                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 shrink-0 transition" />
+                    </div>
                   </div>
                   <button
                     onClick={handleLogout}
@@ -8149,7 +8379,7 @@ export default function App() {
                   <div className="space-y-3 pt-2">
                     <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-left leading-relaxed">
                       <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">AKTİF OTURUM</p>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono truncate">{currentUser}</p>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono truncate">{userProfileName?.trim() ? `${userProfileName} (${currentUser})` : currentUser}</p>
                       <p className="text-[10px] text-slate-500 mt-1 font-semibold leading-relaxed">
                         Girişi onayladığınızda, APK uygulamanız otomatik olarak bu hesaba bağlanacaktır.
                       </p>
@@ -8664,6 +8894,145 @@ export default function App() {
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* Profil Düzenleme Modalı (İsim & Resim) */}
+      <AnimatePresence>
+        {isEditProfileModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2500] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative text-left"
+            >
+              {/* Header Gradient */}
+              <div className="h-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+              
+              <div className="p-6 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        {language === "tr" ? "Profil Bilgileri" : "Profile Details"}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        {language === "tr" ? "İsminizi ve profil fotoğrafınızı özelleştirin" : "Customize your name and avatar"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditProfileModalOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Profile Photo Management */}
+                <div className="flex flex-col items-center gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                  <div className="relative group/modalAvatar">
+                    {userAvatar ? (
+                      <img
+                        src={userAvatar}
+                        alt="Profil"
+                        referrerPolicy="no-referrer"
+                        className="w-20 h-20 rounded-full object-cover border-4 border-indigo-500/50 shadow-lg block"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 text-white flex items-center justify-center text-xl font-black shadow-lg uppercase">
+                        {(profileNameInput.trim() || userProfileName.trim() || currentUser || "G").substring(0, 2)}
+                      </div>
+                    )}
+                    <label 
+                      className="absolute -bottom-1 -right-1 p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full border-2 border-white dark:border-slate-900 shadow-md cursor-pointer active:scale-95 transition flex items-center justify-center"
+                      title="Fotoğraf Yükle"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black cursor-pointer shadow-xs transition flex items-center gap-1">
+                      <Camera className="w-3 h-3" />
+                      <span>{language === "tr" ? "Galeriden Seç" : "Choose Photo"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {userAvatar && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-xl text-[10px] font-black transition cursor-pointer border border-rose-200/60 dark:border-rose-800/40"
+                      >
+                        {language === "tr" ? "Kaldır" : "Remove"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Form Input for Name */}
+                <form onSubmit={handleSaveProfileModal} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                      {language === "tr" ? "Görüntülenen İsim" : "Display Name"}
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={profileNameInput}
+                      onChange={(e) => setProfileNameInput(e.target.value)}
+                      placeholder={language === "tr" ? "Örn: Ahmet Yılmaz" : "e.g. John Doe"}
+                      maxLength={40}
+                      className="w-full px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition"
+                    />
+                    <p className="text-[9.5px] text-slate-400 font-medium">
+                      {language === "tr"
+                        ? "Bu isim ana ekranda ve raporlarda görünecektir."
+                        : "This name will appear on the dashboard and exports."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditProfileModalOpen(false)}
+                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                    >
+                      {language === "tr" ? "İptal" : "Cancel"}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5"
+                    >
+                      {isSavingProfile ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5" />
+                      )}
+                      <span>{language === "tr" ? "Kaydet" : "Save"}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Premium Plan Upgrade / Subscription Management Modal */}

@@ -1,5 +1,4 @@
-import { auth, db } from "./firebase";
-import { ref, set, get, update } from "firebase/database";
+import { auth, db, ref, set, get, update } from "./firebase";
 
 // Product configuration requested by user
 export interface ProductInfo {

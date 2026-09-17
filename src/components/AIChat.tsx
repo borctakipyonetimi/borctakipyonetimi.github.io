@@ -149,7 +149,7 @@ const FormattedText: React.FC<{ text: string }> = ({ text }) => {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 bg-white dark:bg-slate-800/50">
+                <tbody className="divide-y divide-slate-200 dark:divide-indigo-500/20 bg-white dark:bg-[#070c1d]">
                   {dataRows.map((r, rIdx) => (
                     <tr key={rIdx} className="hover:bg-indigo-50/50 dark:hover:bg-indigo-500/10 transition">
                       {r.map((cell, cIdx) => (
@@ -198,7 +198,7 @@ const FormattedText: React.FC<{ text: string }> = ({ text }) => {
           return (
             <div 
               key={bIdx} 
-              className="flex items-start gap-2.5 p-2.5 rounded-xl bg-indigo-50/70 dark:bg-slate-800/80 border border-indigo-100 dark:border-slate-700/60 my-1.5 transition hover:border-indigo-300 dark:hover:border-indigo-500/30 shadow-2xs"
+              className="flex items-start gap-2.5 p-2.5 rounded-xl bg-indigo-50/70 dark:bg-[#070c1d] border border-indigo-100 dark:border-indigo-500/25 my-1.5 transition hover:border-indigo-300 dark:hover:border-indigo-500/40 shadow-2xs"
             >
               <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                 {stepNumber}
@@ -578,20 +578,51 @@ export const AIChat: React.FC<AIChatProps> = ({
       });
       const sortedActiveDebts = Array.from(activeDebtsMap.values()).sort((a, b) => b.remaining - a.remaining);
 
-      reply += `### 💳 Aktif Kalan Borç Portföyü\n`;
+      reply += `### 💳 Aktif Kalan Standart Borçlar (Tüm Liste)\n`;
       if (sortedActiveDebts.length > 0) {
-        sortedActiveDebts.slice(0, 8).forEach((d) => {
-          reply += `• **${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
+        sortedActiveDebts.forEach((d, idx) => {
+          reply += `• **${idx + 1}. ${d.name}** (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")}\n`;
         });
-        if (sortedActiveDebts.length > 8) {
-          const restRem = sortedActiveDebts.slice(8).reduce((s, x) => s + x.remaining, 0);
-          reply += `• *Diğer ${sortedActiveDebts.length - 8} borç kalemi*: ₺${Math.round(restRem).toLocaleString("tr-TR")}\n`;
-        }
       } else {
         reply += `• Tebrikler! Kayıtlı açık standart borcunuz bulunmuyor.\n`;
       }
       if (fullyPaidDebtsCount > 0) {
         reply += `• 🟢 **Kapatılan Borçlar**: ${fullyPaidDebtsCount} adet borcunuz tamamen ödenip sıfırlandı (Toplam: ₺${Math.round(fullyPaidDebtsTotal).toLocaleString("tr-TR")}).\n`;
+      }
+      reply += `\n`;
+
+      reply += `### 🗓️ Aktif Taksitli Borçlar ve Aylık Ödeme Planı\n`;
+      const activeInstList: { name: string; perInst: number; remCount: number; totalCount: number; remAmount: number }[] = [];
+      let completedInstCount = 0;
+      (installmentDebts || []).forEach((inst) => {
+        const total = Number(inst.totalAmount) || 0;
+        const count = Number(inst.installmentCount) || 1;
+        const paidCount = Number(inst.paidInstallmentCount) || 0;
+        const perInst = total / count;
+        const remCount = Math.max(0, count - paidCount);
+        const remAmount = Math.max(0, total - (paidCount * perInst));
+        if (remCount <= 0 || remAmount <= 0) {
+          completedInstCount++;
+        } else {
+          activeInstList.push({
+            name: inst.name,
+            perInst,
+            remCount,
+            totalCount: count,
+            remAmount
+          });
+        }
+      });
+      activeInstList.sort((a, b) => b.remAmount - a.remAmount);
+      if (activeInstList.length > 0) {
+        activeInstList.forEach((inst, idx) => {
+          reply += `• **${idx + 1}. ${inst.name}**: Aylık ₺${Math.round(inst.perInst).toLocaleString("tr-TR")} | Kalan: ${inst.remCount}/${inst.totalCount} Taksit | Kalan Borç: ₺${Math.round(inst.remAmount).toLocaleString("tr-TR")}\n`;
+        });
+      } else {
+        reply += `• Kayıtlı aktif taksitli borcunuz bulunmuyor.\n`;
+      }
+      if (completedInstCount > 0) {
+        reply += `• 🟢 **Tamamlanan Taksitler**: ${completedInstCount} adet taksitli borç tamamen ödendi.\n`;
       }
       reply += `\n`;
 
@@ -869,14 +900,9 @@ export const AIChat: React.FC<AIChatProps> = ({
 
     let debtsDetailsStr = "";
     if (sortedActiveDebts.length > 0) {
-      sortedActiveDebts.slice(0, 10).forEach((d) => {
-        debtsDetailsStr += `- ${d.name} (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")} (Toplam: ₺${Math.round(d.totalAmount).toLocaleString("tr-TR")}, Ödenen: ₺${Math.round(d.totalPaid).toLocaleString("tr-TR")})\n`;
+      sortedActiveDebts.forEach((d, idx) => {
+        debtsDetailsStr += `${idx + 1}. ${d.name} (${d.category}): Kalan ₺${Math.round(d.remaining).toLocaleString("tr-TR")} (Toplam: ₺${Math.round(d.totalAmount).toLocaleString("tr-TR")}, Ödenen: ₺${Math.round(d.totalPaid).toLocaleString("tr-TR")})\n`;
       });
-      if (sortedActiveDebts.length > 10) {
-        const otherCount = sortedActiveDebts.length - 10;
-        const otherRem = sortedActiveDebts.slice(10).reduce((sum, d) => sum + d.remaining, 0);
-        debtsDetailsStr += `- Diğer ${otherCount} adet aktif borç toplamı: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
-      }
     } else {
       debtsDetailsStr = "- Şu an ödenecek aktif standart borç bulunmuyor.\n";
     }
@@ -925,24 +951,25 @@ export const AIChat: React.FC<AIChatProps> = ({
     let installmentDetailsStr = "";
     const sortedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remAmount - a.remAmount);
     if (sortedActiveInsts.length > 0) {
-      sortedActiveInsts.slice(0, 8).forEach((inst) => {
-        installmentDetailsStr += `- ${inst.name}: Aylık ₺${Math.round(inst.perInst).toLocaleString("tr-TR")} (${inst.remCount} ay taksit kaldı, Kalan: ₺${Math.round(inst.remAmount).toLocaleString("tr-TR")})\n`;
+      sortedActiveInsts.forEach((inst, idx) => {
+        installmentDetailsStr += `${idx + 1}. ${inst.name}: Aylık Taksit ₺${Math.round(inst.perInst).toLocaleString("tr-TR")} (${inst.remCount}/${inst.totalCount} ay taksit kaldı, Toplam Kalan: ₺${Math.round(inst.remAmount).toLocaleString("tr-TR")})\n`;
       });
-      if (sortedActiveInsts.length > 8) {
-        const otherCount = sortedActiveInsts.length - 8;
-        const otherRem = sortedActiveInsts.slice(8).reduce((sum, inst) => sum + inst.remAmount, 0);
-        installmentDetailsStr += `- Diğer ${otherCount} taksitli plan toplamı: ₺${Math.round(otherRem).toLocaleString("tr-TR")}\n`;
-      }
     } else {
       installmentDetailsStr = "- Kayıtlı aktif taksitli borç planı bulunmuyor.\n";
     }
 
+    if (paidInstCount > 0) {
+      installmentDetailsStr += `• Tamamen Kapatılmış Taksitler: ${paidInstCount} adet taksitli borç tamamen ödendi.\n`;
+    }
+
     const prompt = `Lütfen benim için '${monthName} ${yNum} Aylık Finansal Analiz Raporu' oluştur.
-Önemli Kurallar:
-1. Borçları asla 2-3 defa tekrar yazma! Aşağıda her borç tekilleştirilmiştir. Sıfırlanmış borçları tek tek sayma.
-2. Gelir, gider ve borç dengesini analiz et, tasarruf önerilerini net maddelerle sun.
-3. Borçları Kartopu veya Çığ yöntemine göre önceliklendir.
-4. Raporu mobil ekranda son derece ferah ve düzenli okunacak şekilde başlıklar ve maddelerle sun.
+KRİTİK VE KESİN KURALLAR:
+1. TÜM BORÇLARI VE TAKSİTLERİ EKSİKSİZ TEK TEK SIRALA: Aşağıda verilen tüm standart borçları ve tüm taksitli borçları TEK TEK ayrı maddeler halinde döküm olarak listele. Asla 'Diğer borçlar', 've benzeri' adı altında gruplama yapma, hiçbir borcu gizleme!
+2. TAKSİTLİ BORÇLAR BÖLÜMÜ: Raporda mutlaka '### 🗓️ Aktif Taksitli Borçlar ve Aylık Ödeme Planı' başlığı aç ve tüm taksitli borçları aylık taksiti, kalan taksit sayısı ve toplam kalan borcuyla tek tek listele.
+3. STANDART BORÇLAR BÖLÜMÜ: '### 💳 Aktif Kalan Standart Borçlar' başlığı altında tüm standart borçları kalan tutarlarıyla tek tek listele.
+4. Gelir, gider ve borç dengesini analiz et, tasarruf önerilerini net maddelerle sun.
+5. Borçları Kartopu veya Çığ yöntemine göre önceliklendir.
+6. Raporu mobil ekranda son derece ferah ve düzenli okunacak şekilde başlıklar ve maddelerle sun.
 
 Aylık Finansal Durum Özetim (${monthName} ${yNum}):
 - Toplam Aylık Gelir: ₺${Math.round(totalMonthlyIncome).toLocaleString("tr-TR")}
@@ -966,7 +993,7 @@ ${installmentDetailsStr}`;
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fade-in w-full max-w-4xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in w-full max-w-3xl mx-auto px-0 flex flex-col items-stretch">
       
       {/* Modern AI Header with Gemini 3.7 Flash badge and actions */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg border border-indigo-500/30 relative overflow-hidden">
@@ -1031,7 +1058,7 @@ ${installmentDetailsStr}`;
       </div>
 
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}
-      <div className="relative border border-slate-200 dark:border-indigo-400/40 bg-white dark:bg-slate-950 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-indigo-950/30 overflow-hidden flex flex-col">
+      <div className="relative border border-slate-200/80 dark:border-indigo-500/25 bg-white dark:bg-[#070c1d] rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-2xl dark:shadow-indigo-950/40 overflow-hidden flex flex-col w-full mx-auto">
         
         {/* Floating in-chat notification if browser warning or toast is triggered */}
         <AnimatePresence>
@@ -1051,7 +1078,7 @@ ${installmentDetailsStr}`;
         {/* Messages Scroll Viewport */}
         <div
           ref={chatContainerRef}
-          className="h-[390px] sm:h-[460px] md:h-[500px] overflow-y-auto p-3.5 sm:p-5 space-y-4 scrollbar-thin scrollbar-thumb-indigo-400/40 dark:scrollbar-thumb-indigo-500/40 scroll-smooth bg-slate-50/70 dark:bg-gradient-to-b dark:from-slate-900/50 dark:via-slate-950/60 dark:to-slate-900/80"
+          className="h-[400px] sm:h-[460px] md:h-[500px] overflow-y-auto p-3.5 sm:p-5 space-y-4 scrollbar-thin scrollbar-thumb-indigo-400/40 dark:scrollbar-thumb-indigo-500/40 scroll-smooth bg-slate-50/60 dark:bg-gradient-to-b dark:from-[#091124] dark:via-[#060a18] dark:to-[#030611]"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => {
@@ -1062,7 +1089,7 @@ ${installmentDetailsStr}`;
                   initial={{ opacity: 0, y: 12, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.25, ease: "easeOut" }}
-                  className={`flex flex-col ${isUser ? "items-end" : "items-start"} w-full`}
+                  className={`flex flex-col ${isUser ? "items-end ml-auto" : "items-stretch"} w-full`}
                 >
                   {/* Sender Header Badge */}
                   <div className={`flex items-center gap-1.5 mb-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -1087,10 +1114,10 @@ ${installmentDetailsStr}`;
 
                   {/* Message Card Bubble */}
                   <div
-                    className={`max-w-[95%] sm:max-w-[85%] rounded-2xl sm:rounded-3xl p-4 sm:p-5 transition-all shadow-sm ${
+                    className={`rounded-2xl sm:rounded-3xl transition-all shadow-sm ${
                       isUser
-                        ? "bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-tr-xs border border-indigo-400/40 shadow-indigo-500/20"
-                        : "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-tl-xs border border-slate-200/90 dark:border-slate-800 shadow-slate-200/40 dark:shadow-slate-950/40"
+                        ? "max-w-[90%] sm:max-w-[80%] p-3.5 sm:p-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-tr-xs border border-indigo-400/40 shadow-md shadow-indigo-500/20"
+                        : "w-full p-4 sm:p-5 bg-white dark:bg-[#0c142b] text-slate-900 dark:text-slate-100 rounded-tl-xs border border-slate-200/90 dark:border-indigo-500/25 shadow-md dark:shadow-black/40"
                     }`}
                   >
                     {isUser ? (
@@ -1102,7 +1129,7 @@ ${installmentDetailsStr}`;
                         <FormattedText text={msg.text} />
                         
                         {/* Bot Action Bar (Copy & Voice Speak) */}
-                        <div className="pt-2.5 mt-2.5 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                        <div className="pt-2.5 mt-2.5 border-t border-slate-200 dark:border-indigo-500/20 flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                           <span className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
                             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             <span>Doğrulanmış Finansal Analiz</span>
@@ -1115,7 +1142,7 @@ ${installmentDetailsStr}`;
                               className={`p-1.5 rounded-xl border transition cursor-pointer active:scale-95 ${
                                 speakingIdx === idx
                                   ? "bg-indigo-600 text-white border-indigo-500 animate-pulse shadow-md shadow-indigo-500/30"
-                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700"
+                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-[#070c1d] dark:hover:bg-[#0e172e] dark:text-slate-200 dark:border-indigo-500/25"
                               }`}
                             >
                               {speakingIdx === idx ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -1124,7 +1151,7 @@ ${installmentDetailsStr}`;
                             <button
                               onClick={() => handleCopyMessage(msg.text, idx)}
                               title="Metni Kopyala"
-                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 transition cursor-pointer flex items-center gap-1 active:scale-95"
+                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-[#070c1d] dark:hover:bg-[#0e172e] dark:text-slate-200 dark:border-indigo-500/25 transition cursor-pointer flex items-center gap-1 active:scale-95"
                             >
                               {copiedIdx === idx ? (
                                 <>
@@ -1150,12 +1177,12 @@ ${installmentDetailsStr}`;
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-start gap-3 max-w-[85%]"
+              className="flex items-start gap-3 w-full"
             >
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-md animate-pulse shrink-0">
                 <Sparkles className="w-4 h-4 text-amber-300" />
               </div>
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-indigo-500/30 shadow-md space-y-2">
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#0c142b] border border-slate-200 dark:border-indigo-500/25 shadow-md space-y-2 w-full">
                 <div className="flex items-center gap-2 text-xs font-black text-indigo-700 dark:text-indigo-300">
                   <span>Gemini 3.7 Flash bütçenizi analiz ediyor</span>
                   <span className="flex items-center gap-0.5">
@@ -1185,7 +1212,7 @@ ${installmentDetailsStr}`;
         </div>
 
         {/* Quick Suggested Questions Bar */}
-        <div className="px-3.5 py-3 bg-white/90 dark:bg-slate-950/80 border-t border-slate-200 dark:border-indigo-500/20">
+        <div className="px-3.5 py-3 bg-white/95 dark:bg-[#070c1d] border-t border-slate-200/80 dark:border-indigo-500/20">
           <div className="flex items-center gap-1.5 text-[10.5px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider mb-2">
             <MessageSquareCode className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>Hızlı Finansal Sorular (Dokunarak Sorun):</span>
@@ -1219,7 +1246,7 @@ ${installmentDetailsStr}`;
                 whileTap={{ scale: 0.97 }}
                 onClick={() => handleQuickQuestion(qn.text)}
                 disabled={loading}
-                className="whitespace-nowrap px-3.5 py-2 bg-slate-50 hover:bg-indigo-50 text-slate-800 hover:text-indigo-700 text-xs font-bold rounded-xl border border-slate-200 hover:border-indigo-300 dark:bg-gradient-to-r dark:from-slate-900 dark:via-indigo-950/80 dark:to-slate-900 dark:text-indigo-200 dark:hover:text-white dark:border-indigo-500/30 dark:hover:border-indigo-400 dark:hover:from-indigo-600 dark:hover:to-purple-600 transition-all shadow-2xs cursor-pointer shrink-0 disabled:opacity-40"
+                className="whitespace-nowrap px-3.5 py-2 bg-slate-50 hover:bg-indigo-50 text-slate-800 hover:text-indigo-700 text-xs font-bold rounded-xl border border-slate-200 hover:border-indigo-300 dark:bg-gradient-to-r dark:from-[#091124] dark:via-[#0c142b] dark:to-[#091124] dark:text-indigo-200 dark:hover:text-white dark:border-indigo-500/30 dark:hover:border-indigo-400 dark:hover:from-indigo-600 dark:hover:to-purple-600 transition-all shadow-2xs cursor-pointer shrink-0 disabled:opacity-40"
               >
                 {qn.label}
               </motion.button>
@@ -1228,7 +1255,7 @@ ${installmentDetailsStr}`;
         </div>
 
         {/* High-Visibility Writing & Input Bar with Voice Mic and Send Button */}
-        <div className="p-3 sm:p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-indigo-500/30">
+        <div className="p-3 sm:p-4 bg-white dark:bg-[#070c1d] border-t border-slate-200/80 dark:border-indigo-500/25">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
               <input
@@ -1240,11 +1267,11 @@ ${installmentDetailsStr}`;
                 }}
                 disabled={loading}
                 placeholder={isListening ? "🎙️ Dinleniyor... Lütfen sorunuzu söyleyin..." : "Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"}
-                className={`w-full pl-4 pr-10 py-3.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white border-2 ${
+                className={`w-full pl-4 pr-10 py-3.5 bg-slate-50 dark:bg-[#0c142b] text-slate-900 dark:text-white border-2 ${
                   isListening 
                     ? "border-red-500 ring-4 ring-red-500/30 bg-red-50 dark:bg-red-950/20" 
-                    : "border-slate-200 hover:border-indigo-400 focus:border-indigo-500 dark:border-indigo-500/50 dark:hover:border-indigo-400 dark:focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20"
-                } rounded-2xl text-xs sm:text-sm focus:outline-none focus:bg-white dark:focus:bg-slate-900 placeholder-slate-400 dark:placeholder-slate-500 font-medium transition shadow-inner`}
+                    : "border-slate-200 hover:border-indigo-400 focus:border-indigo-500 dark:border-indigo-500/40 dark:hover:border-indigo-400 dark:focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20"
+                } rounded-2xl text-xs sm:text-sm focus:outline-none focus:bg-white dark:focus:bg-[#0c142b] placeholder-slate-400 dark:placeholder-slate-500 font-medium transition shadow-inner`}
               />
               
               {inputValue && (

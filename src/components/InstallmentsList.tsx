@@ -359,7 +359,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       installmentCount: parsedCount,
       paidInstallmentCount: parsedPaid,
       firstDueDate: firstDueDate || new Date().toISOString().slice(0, 10),
-      providerId,
+      providerId: providerId || null,
     });
     setIsModalOpen(false);
   };
