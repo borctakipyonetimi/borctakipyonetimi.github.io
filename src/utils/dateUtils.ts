@@ -93,3 +93,25 @@ export function isDateWithinRange(
   return true;
 }
 
+/**
+ * Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden hesaplar.
+ * Örneğin:
+ * - "hourly" veya "2" = 2 saat = 7.200.000 milisaniye
+ * - "4" = 3 saat = 10.800.000 milisaniye
+ * - "3" = 4 saat = 14.400.000 milisaniye
+ * - "1" = 24 saat = 86.400.000 milisaniye
+ */
+export function getNotificationPeriodMs(frequency: string | number | undefined | null): number {
+  if (!frequency) return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  const str = String(frequency).trim().toLowerCase();
+  if (str === "hourly" || str === "2") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  if (str === "4") return 3 * 60 * 60 * 1000; // 3 saat = 10.800.000 ms
+  if (str === "3") return 4 * 60 * 60 * 1000; // 4 saat = 14.400.000 ms
+  if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
+  const num = parseFloat(str);
+  if (!isNaN(num) && num > 0) {
+    return num * 60 * 60 * 1000;
+  }
+  return 2 * 60 * 60 * 1000; // 7.200.000 ms
+}
+

@@ -26,6 +26,7 @@ export interface Income {
 
 export interface Alarm {
   id: number;
+  debtId?: number;
   title: string;
   desc?: string;
   date?: string;

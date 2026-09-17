@@ -313,9 +313,15 @@ export async function sendInstantCapacitorNotification(
     if (!isCapacitorAvailable) return false;
 
     await initCapacitorNotificationChannel();
-    const safeId = id || Math.floor(Math.random() * 900000) + 100000;
+    // Borç ID'sini kapsayan benzersiz ve sabit id parametresi: Android aynı ID'ye sahip mükerrer alarmları ezer ve kesinlikle tek 1 bildirim gösterir
+    const safeId = id !== undefined && id !== null && !isNaN(Number(id)) ? Math.abs(Number(id)) : (Math.floor(Math.random() * 900000) + 100000);
     const safeTitle = title.trim() || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
     const safeMessage = message.trim() || "Planlanmış ödeme veya borç hatırlatması.";
+
+    // Aynı ID'ye sahip önceden var olan alarmı veya bildirimi temizle (Android'in çift basmasını kesin olarak engeller)
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
+    } catch {}
 
     await LocalNotifications.schedule({
       notifications: [

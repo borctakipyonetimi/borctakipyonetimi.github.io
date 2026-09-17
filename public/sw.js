@@ -213,6 +213,81 @@ async function loadCachedInstallments() {
   }
 }
 
+const SETTINGS_CACHE_NAME = "butcempro-settings-cache";
+const SETTINGS_URL = "/push-settings.json";
+const LAST_NOTIF_TIME_URL = "/last-general-notif-time.json";
+
+function getNotificationPeriodMs(frequency) {
+  if (!frequency) return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  const str = String(frequency).trim().toLowerCase();
+  if (str === "hourly" || str === "2") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  if (str === "4") return 3 * 60 * 60 * 1000; // 3 saat = 10.800.000 ms
+  if (str === "3") return 4 * 60 * 60 * 1000; // 4 saat = 14.400.000 ms
+  if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
+  const num = parseFloat(str);
+  if (!isNaN(num) && num > 0) {
+    return num * 60 * 60 * 1000;
+  }
+  return 2 * 60 * 60 * 1000; // 7.200.000 ms
+}
+
+async function savePushSettingsToCache(settings) {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    await cache.put(
+      SETTINGS_URL,
+      new Response(JSON.stringify(settings), {
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  } catch (err) {
+    console.error("Failed to save push settings to cache:", err);
+  }
+}
+
+async function loadPushSettingsFromCache() {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    const response = await cache.match(SETTINGS_URL);
+    if (response) {
+      const data = await response.json();
+      if (data) {
+        pushSettings = { ...pushSettings, ...data };
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load push settings from cache:", err);
+  }
+}
+
+async function saveCachedLastGeneralNotificationTime(timestamp) {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    await cache.put(
+      LAST_NOTIF_TIME_URL,
+      new Response(JSON.stringify({ timestamp }), {
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  } catch (err) {
+    console.error("Failed to save last general notif time to cache:", err);
+  }
+}
+
+async function getCachedLastGeneralNotificationTime() {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    const response = await cache.match(LAST_NOTIF_TIME_URL);
+    if (response) {
+      const data = await response.json();
+      return Number(data.timestamp || 0);
+    }
+  } catch (err) {
+    console.error("Failed to get last general notif time from cache:", err);
+  }
+  return 0;
+}
+
 // --- SYNCMANAGER API IMPLEMENTATION ---
 // Handles background sync and periodic sync events when application is in background or closed
 async function handleBackgroundSync(tag) {
@@ -224,53 +299,66 @@ async function handleBackgroundSync(tag) {
     return;
   }
 
-  // 1. Reload latest cached alarms, debts, and installments
+  // 1. Reload latest cached alarms, debts, installments, and settings
   await Promise.all([
     loadAndScheduleCachedAlarms(),
     loadCachedDebts(),
-    loadCachedInstallments()
+    loadCachedInstallments(),
+    loadPushSettingsFromCache()
   ]);
 
   const now = Date.now();
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-  const todayStr = today.toISOString().slice(0, 10);
   const appIcon = self.location.origin + "/logo.png";
   const appBadge = self.location.origin + "/logo.png";
 
-  // 2. Check for any active alarms due right now (within past 2 hours or due immediately)
+  // 2. Check for any active alarms due right now (Özel Alarmlar)
+  // Sabit ve benzersiz id parametresi verilir; mükerrer basımı engeller
   let triggeredAlarmCount = 0;
   if (Array.isArray(activeAlarms)) {
     activeAlarms.forEach((alarm) => {
       if (!alarm || !alarm.date) return;
       const alarmTime = parseDateRobust(alarm.date);
       if (!isNaN(alarmTime) && alarmTime <= now && (now - alarmTime < 2 * 60 * 60 * 1000)) {
+        const safeAlarmId = Math.abs(Number(alarm.debtId || alarm.id)) || 1;
         self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
           body: alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
           icon: appIcon,
           badge: appBadge,
           vibrate: [300, 100, 300, 100, 400],
-          tag: `alarm-${alarm.id || Date.now()}`,
-          renotify: true,
+          tag: `alarm-${safeAlarmId}`,
+          renotify: false, // Ekrana aynı anda 2 defa düşmesini engeller
           requireInteraction: true,
           silent: false,
           actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
-          data: { url: "/?tab=notifications" }
+          data: { url: "/?tab=notifications", alarmId: safeAlarmId }
         });
         triggeredAlarmCount++;
       }
     });
   }
 
-  // 3. Check standard debts
+  // --- 3. AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (15 Dk Engelini Aş) ---
+  // Kullanıcının seçtiği bildirim periyodu saatini (ör. 2 saat = 7.200.000 ms) milisaniye cinsinden oku
+  const selectedPeriodMs = getNotificationPeriodMs(pushSettings.frequency || "2");
+  const lastGeneralTime = await getCachedLastGeneralNotificationTime();
+
+  // Arka plan servisi Android yüzünden 15 dakikada bir uyandığında kontrol et:
+  // Şimdiki Zaman - sonGenelBildirimZamani.
+  // Eğer aradan geçen süre kullanıcının seçtiği saat periyodundan az ise
+  // bildirim fırlatma fonksiyonunu doğrudan İPTAL ET ve uykuya dön!
+  if (lastGeneralTime > 0 && (now - lastGeneralTime) < selectedPeriodMs) {
+    const remainingWaitMin = Math.ceil((selectedPeriodMs - (now - lastGeneralTime)) / 60000);
+    console.log(`[SW Akıllı Engel] Arka plan servisi 15 dk döngüsünde uyandı fakat seçilen periyot dolmadı (${remainingWaitMin} dk kaldı). Bildirim fırlatma İPTAL EDİLDİ ve uykuya dönüldü.`);
+    return;
+  }
+
+  // 4. Check standard debts
   const overdueMoreThanWeekList = [];
   const recentOverdueList = [];
   const dueTodayList = [];
-
-  const nowMs = today.getTime();
-  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
   if (Array.isArray(activeDebts)) {
     activeDebts.forEach((debt) => {
@@ -296,7 +384,7 @@ async function handleBackgroundSync(tag) {
     });
   }
 
-  // 4. Check installment debts (taksitli borçlar)
+  // 5. Check installment debts (taksitli borçlar)
   if (Array.isArray(activeInstallments)) {
     activeInstallments.forEach((inst) => {
       if (!inst) return;
@@ -327,79 +415,43 @@ async function handleBackgroundSync(tag) {
     });
   }
 
-  // 5. Trigger notifications according to frequency rules
-  const hr = today.getHours();
-  let currentSlot = "slot";
-  if (pushSettings.frequency === "1") {
-    currentSlot = "daily";
-  } else if (pushSettings.frequency === "2") {
-    currentSlot = hr >= 16 ? "evening" : "morning";
-  } else if (pushSettings.frequency === "3") {
-    currentSlot = hr >= 17 ? "evening" : hr >= 12 ? "noon" : "morning";
-  } else if (pushSettings.frequency === "4") {
-    currentSlot = hr >= 20 ? "night" : hr >= 16 ? "evening" : hr >= 12 ? "noon" : "morning";
-  } else if (pushSettings.frequency === "hourly") {
-    currentSlot = "h" + hr;
-  }
+  // 6. Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat
+  const allDueItems = [...dueTodayList, ...recentOverdueList, ...overdueMoreThanWeekList];
+  if (allDueItems.length > 0) {
+    const topItems = allDueItems.slice(0, 3);
+    const totalDue = allDueItems.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const dateFormatted = today.toLocaleDateString("tr-TR");
+    const summaryList = topItems
+      .map(d => `- ${d.name}: ₺${Number(d.amount).toLocaleString("tr-TR")}${d.daysLate ? ` (${d.daysLate} gün gecikti)` : " (Vadesi Bugün)"}`)
+      .join("\n");
+    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryList}${allDueItems.length > 3 ? `\n...ve ${allDueItems.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
 
-  const dateFormatted = today.toLocaleDateString("tr-TR");
-
-  // A) 1 Haftayı Geçmiş Borçlar: 30 günde bir aylık özet
-  const eligibleOverdueWeek = overdueMoreThanWeekList.filter(d => {
-    const last = d.sonGecikmeBildirimZamani || 0;
-    return (nowMs - last) >= THIRTY_DAYS_MS;
-  });
-
-  if (eligibleOverdueWeek.length > 0) {
-    const top = eligibleOverdueWeek[0];
-    const totalOverdue = eligibleOverdueWeek.reduce((s, d) => s + d.amount, 0);
-    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ 1 HAFTAYI AŞAN GECİKMİŞ BORÇ ÖZETİ:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${top.daysLate} gün gecikti)\n- Toplam geciken borç tutarı: ₺${totalOverdue.toLocaleString("tr-TR")}\n- Gecikme faizlerinden korunmak için ödemenizi yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
-
-    self.registration.showNotification(`Bütçem Pro - Gecikmiş Borç Özeti ⚠️`, {
+    await self.registration.showNotification("Bütçem Pro: Güncel Borç & Vade Özeti ⏰", {
       body: smsBody,
       icon: appIcon,
       badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-overdue-week-" + todayStr + "-" + currentSlot,
-      renotify: true,
+      tag: "butcempro-general-summary",
+      renotify: false,
       requireInteraction: true,
       silent: false,
       actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
       data: { url: "/?tab=debts" }
     });
-  }
 
-  // B) Günü Gelmiş ve Yakın Gecikmiş Borçlar: 2 saatte bir mükerrer kontrolü
-  const activeUpcoming = [...dueTodayList, ...recentOverdueList];
-  const eligibleUpcoming = pushSettings.frequency === "hourly"
-    ? activeUpcoming.filter(d => (nowMs - (d.sonBildirimZamani || 0)) >= TWO_HOURS_MS)
-    : activeUpcoming;
+    // Damgayı kaydet
+    await saveCachedLastGeneralNotificationTime(now);
 
-  if (eligibleUpcoming.length > 0) {
-    const top = eligibleUpcoming[0];
-    const totalDue = eligibleUpcoming.reduce((s, d) => s + d.amount, 0);
-    const isToday = top.daysLate === undefined;
-    const titleText = isToday ? "Bütçem Pro - Vade Hatırlatması ⏰" : "Bütçem Pro - Ödeme Hatırlatması ⚠️";
-    const statusNote = isToday ? "Vadesi Bugün" : `${top.daysLate} gün gecikti`;
-    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ ÖDEME BİLGİLENDİRMESİ:\n- ${top.name}: ₺${top.amount.toLocaleString("tr-TR")} (${statusNote})\n- Toplam tutar: ₺${totalDue.toLocaleString("tr-TR")}\n- Ödemenizi zamanında tamamlamanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
-
-    self.registration.showNotification(titleText, {
-      body: smsBody,
-      icon: appIcon,
-      badge: appBadge,
-      vibrate: [300, 100, 300, 100, 400],
-      tag: "sw-upcoming-sync-" + todayStr + "-" + currentSlot,
-      renotify: true,
-      requireInteraction: true,
-      silent: false,
-      actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
-      data: { url: "/?tab=debts" }
+    // İstemcileri bilgilendir
+    const allClients = await self.clients.matchAll();
+    allClients.forEach(c => {
+      c.postMessage({ type: "UPDATE_LAST_NOTIFICATION_TIME", timestamp: now });
     });
   }
 
-  // 6. Update App icon badge count
+  // 7. Update App icon badge count
   if (self.navigator && self.navigator.setAppBadge) {
-    const totalBadge = (triggeredAlarmCount > 0 ? triggeredAlarmCount : 0) + (overdueList.length > 0 ? overdueList.length : 0);
+    const totalBadge = (triggeredAlarmCount > 0 ? triggeredAlarmCount : 0) + (allDueItems.length > 0 ? allDueItems.length : 0);
     if (totalBadge > 0) {
       self.navigator.setAppBadge(totalBadge).catch(() => {});
     }
@@ -459,7 +511,17 @@ self.addEventListener("message", (event) => {
       enabled: event.data.enabled !== false,
       frequency: event.data.frequency || "2"
     };
-    console.log("[Service Worker] Push settings updated:", pushSettings);
+    savePushSettingsToCache(pushSettings);
+    if (event.data.sonGenelBildirimZamani) {
+      saveCachedLastGeneralNotificationTime(event.data.sonGenelBildirimZamani);
+    }
+    console.log("[Service Worker] Push settings updated & cached:", pushSettings);
+  }
+
+  if (event.data.type === "SYNC_LAST_NOTIFICATION_TIME") {
+    if (event.data.timestamp) {
+      saveCachedLastGeneralNotificationTime(event.data.timestamp);
+    }
   }
 
   if (event.data.type === "TRIGGER_MANUAL_SYNC" || event.data.type === "CHECK_NOW") {

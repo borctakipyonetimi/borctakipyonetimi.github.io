@@ -8,7 +8,7 @@ import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePass
 import { ref, get, set, update, onValue, off } from "firebase/database";
 import { auth, db, handleDatabaseError, handleFirestoreError, OperationType, goOnline, enableNetwork } from "./utils/firebase";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
-import { parseDateParts, isSameMonthYear, isDateWithinRange } from "./utils/dateUtils";
+import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Menu,
@@ -182,7 +182,18 @@ async function OneSignalGuncelBaslat() {
     if (OneSignal?.Notifications?.requestPermission) {
       await OneSignal.Notifications.requestPermission(true);
     }
-    console.log("OneSignal Başarıyla Aktif Edildi.");
+
+    // OneSignal Otomatik Tetikleyicilerini Kapat:
+    // OneSignal'ın arka planda kendi kendine bildirim üretmesini ve in-app popupları engelle.
+    // OneSignal sadece panelden manuel gönderilecek push mesajlarını dinler, cihaz içi alarmlara müdahale etmez.
+    try {
+      const inApp = OneSignal?.InAppMessages as any;
+      if (inApp && typeof inApp.paused === "function") {
+        inApp.paused(true);
+      }
+    } catch (_) {}
+
+    console.log("OneSignal Başarıyla Aktif Edildi (Otomatik tetikleyiciler kapalı, panel push mesajları dinleniyor).");
   } catch (error: any) {
     if (error?.message?.includes("not implemented on web") || String(error).includes("not implemented on web")) {
       console.info("[OneSignal] Web ortamı; mobil eklenti güvenle bekletildi.");
@@ -769,10 +780,21 @@ export default function App() {
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         const savedPushEnabled = localStorage.getItem("pushNotificationsEnabled") !== "false";
         const savedPushFreq = localStorage.getItem("pushNotificationFrequency") || "2";
+        const savedLastGenTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
         navigator.serviceWorker.controller.postMessage({
           type: "SYNC_PUSH_SETTINGS",
           enabled: savedPushEnabled,
-          frequency: savedPushFreq
+          frequency: savedPushFreq,
+          sonGenelBildirimZamani: savedLastGenTime
+        });
+      }
+
+      // Listen to messages from Service Worker
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data?.type === "UPDATE_LAST_NOTIFICATION_TIME" && event.data.timestamp) {
+            localStorage.setItem("sonGenelBildirimZamani", String(event.data.timestamp));
+          }
         });
       }
     }
@@ -1014,7 +1036,12 @@ export default function App() {
     }
   };
 
-  const sendSystemNotification = (title: string, body: string, persist = true) => {
+  const sendSystemNotification = (
+    title: string,
+    body: string,
+    persist = true,
+    alarmOrDebtId?: number
+  ) => {
     // Push bildirimleri kullanıcı tarafından kapatıldıysa cihaz uyarısı üretme
     if (!pushNotificationsEnabled) {
       console.log("Push bildirimleri kullanıcı tarafından kapatıldı.");
@@ -1043,13 +1070,18 @@ export default function App() {
     const safeUser = (currentUser && currentUser !== "Varsayılan Kullanıcı") ? currentUser.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
     const officialSmsMessage = `SN. ${safeUser}\n${todayStr} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n- ${title}${body ? `\n- ${body}` : ""}\n- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
 
+    // Sabit ve benzersiz borç / alarm ID'si (Android işletim sistemi aynı ID'ye sahip alarmları ezer, ekranda tek mesaj gösterir)
+    const fixedNotifId = alarmOrDebtId !== undefined && alarmOrDebtId !== null && !isNaN(Number(alarmOrDebtId))
+      ? Math.abs(Number(alarmOrDebtId))
+      : undefined;
+
     // 3a. Android Doze Modu ve Kilit Ekranı Kesin Uyandırma (Capacitor LocalNotifications)
-    sendInstantCapacitorNotification(title, officialSmsMessage).catch(() => {});
+    sendInstantCapacitorNotification(title, officialSmsMessage, fixedNotifId).catch(() => {});
 
     // 3b. Native Android WebView Bridge - Direct Drawer & Heads-Up Banner
     if (typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
       try {
-        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage);
+        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage, fixedNotifId);
       } catch (bridgeErr) {
         console.warn("AndroidAlarm.showNotification hatası:", bridgeErr);
       }
@@ -1066,7 +1098,8 @@ export default function App() {
 
         const systemNotifTitle = "Bütçem Pro ⏰";
         const systemNotifBody = officialSmsMessage;
-        const uniqueTag = "butcempro-alert-" + Date.now();
+        const uniqueTag = fixedNotifId ? `alarm-${fixedNotifId}` : ("butcempro-alert-" + Date.now());
+        const shouldRenotify = !fixedNotifId; // Özel alarmlarda renotify false yapılarak çift bildirim engellenir
 
         const triggerDirectNotificationFallback = () => {
           if (sentWithSW) return;
@@ -1079,7 +1112,7 @@ export default function App() {
                 badge: appIcon,
                 vibrate: [300, 100, 300, 100, 400],
                 tag: uniqueTag,
-                renotify: true,
+                renotify: shouldRenotify,
                 requireInteraction: true,
                 silent: false,
                 timestamp: Date.now()
@@ -1103,12 +1136,12 @@ export default function App() {
               badge: appIcon,
               vibrate: [300, 100, 300, 100, 400],
               tag: uniqueTag,
-              renotify: true,
+              renotify: shouldRenotify,
               requireInteraction: true,
               silent: false,
               timestamp: Date.now(),
               actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
-              data: { url: "/?tab=debts" }
+              data: { url: "/?tab=debts", alarmId: fixedNotifId }
             } as any).then(() => {
               sentWithSW = true;
               console.log("Notification sent successfully through active Service Worker registration.");
@@ -1426,11 +1459,15 @@ export default function App() {
           };
           currentNotifs = [newNotif, ...currentNotifs];
 
+          // Borç / alarm ID'sini kapsayan benzersiz ve sabit id parametresi ver (Android aynı ID'ye sahip alarmları ezer ve kesinlikle sadece 1 defa basar)
+          const fixedAlarmId = Math.abs(Number(a.debtId || a.id));
+
           // Trigger sound/vibe + general system overlay push notifications
           sendSystemNotification(
             "Ödeme Zamanı Geldi! ⏰",
             `${a.title}`,
-            false // skip extra manual disk commits inside sendSystemNotification since we do saveAllToUser below
+            false, // skip extra manual disk commits inside sendSystemNotification since we do saveAllToUser below
+            fixedAlarmId
           );
 
           // Force local app text toast prompt
@@ -2346,6 +2383,19 @@ export default function App() {
       // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
       if (currentHour < 8 || currentHour >= 23) return;
 
+      // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (15 Dk Engelini Aş) ---
+      // Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden oku (ör. 2 saat = 7.200.000 ms)
+      const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
+      const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+
+      // Arka plan servisi 15 dakikada bir uyandığında kontrol et: Şimdiki Zaman - sonGenelBildirimZamani.
+      // Eğer aradan geçen süre kullanıcının seçtiği saat periyodundan az ise bildirim fırlatmayı doğrudan İPTAL ET ve uykuya dön!
+      if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
+        const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
+        console.log(`[Akıllı Engel] Arka plan döngüsü periyodu henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim fırlatma İPTAL EDİLDİ ve uykuya dönüldü.`);
+        return;
+      }
+
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
       // --- 1. Adım: Tüm borçları ve taksitleri gün farkına göre tara ---
@@ -2405,204 +2455,74 @@ export default function App() {
       let updatedInstsCopy = [...currentInsts];
       let hasStateChanges = false;
 
-      // --- 2. Adım: 1 Haftayı Geçmiş Borçlar Bildirimi (30 günde bir tek seferlik aylık özet) ---
-      // Son ödeme tarihi 7 günden fazla geçmiş tüm taksitli ve taksitsiz borçlar (daysLeft < -7)
-      const overdueMoreThanWeek = scannedItems.filter((item) => item.daysLeft < -7);
-      const eligibleOverdueWeek = overdueMoreThanWeek.filter((item) => {
-        const lastNotif = item.sonGecikmeBildirimZamani || 0;
-        return (nowMs - lastNotif) >= THIRTY_DAYS_MS;
-      });
+      // --- 2. Adım: Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat ---
+      const overdueItems = scannedItems.filter((item) => item.daysLeft < 0);
+      const dueTodayItems = scannedItems.filter((item) => item.daysLeft === 0);
+      const upcomingItems = scannedItems.filter((item) => item.daysLeft > 0 && item.daysLeft <= 3);
+      const allActionable = [...dueTodayItems, ...overdueItems, ...upcomingItems];
 
-      if (eligibleOverdueWeek.length > 0) {
-        const topOverdue = eligibleOverdueWeek.slice(0, 3);
-        const totalOverdueSum = eligibleOverdueWeek.reduce((acc, cur) => acc + cur.amount, 0);
-        const summaryText = topOverdue
-          .map((d) => `- ${d.name}: ₺${d.amount.toLocaleString("tr-TR")} (${Math.abs(d.daysLeft)} gün gecikti)`)
+      if (allActionable.length > 0) {
+        const topItems = allActionable.slice(0, 3);
+        const totalDue = allActionable.reduce((acc, cur) => acc + cur.amount, 0);
+        const dateFormatted = now.toLocaleDateString("tr-TR");
+
+        const summaryLines = topItems
+          .map((item) => {
+            const statusText =
+              item.daysLeft === 0
+                ? "Vadesi BUGÜN"
+                : item.daysLeft < 0
+                ? `${Math.abs(item.daysLeft)} gün gecikti`
+                : `${item.daysLeft} gün kaldı`;
+            return `- ${item.name}: ₺${item.amount.toLocaleString("tr-TR")} (${statusText})`;
+          })
           .join("\n");
 
         sendSystemNotification(
-          `🚨 1 Haftayı Aşan Gecikmiş Borç Özeti (${eligibleOverdueWeek.length} Adet)`,
-          `Sayın Kullanıcımız, vadesi 7 günden fazla geciken borçlarınızın aylık özeti:\n${summaryText}${eligibleOverdueWeek.length > 3 ? `\n...ve ${eligibleOverdueWeek.length - 3} adet daha` : ""}\nToplam Geciken: ₺${totalOverdueSum.toLocaleString("tr-TR")}\nLütfen faiz ve yasal süreçleri önlemek için kontrollerinizi yapınız.`,
-          true
+          "Bütçem Pro: Güncel Borç & Vade Özeti ⏰",
+          `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryLines}${allActionable.length > 3 ? `\n...ve ${allActionable.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`,
+          false
         );
 
-        // Bu borçların veri nesnesine sonGecikmeBildirimZamani ve sonBildirimZamani bilgilerini (timestamp) kaydet
-        const notifiedDebtIds = new Set(eligibleOverdueWeek.filter((i) => i.itemType === "debt").map((i) => i.originalId));
-        const notifiedInstIds = new Set(eligibleOverdueWeek.filter((i) => i.itemType === "installment").map((i) => i.originalId));
+        // sonGenelBildirimZamani damgasını localStorage ve Firebase'e kaydet
+        localStorage.setItem("sonGenelBildirimZamani", String(nowMs));
+        if (auth.currentUser) {
+          try {
+            set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGenelBildirimZamani`), nowMs);
+          } catch (_) {}
+        }
+
+        // Service Worker'a da bildir
+        if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "SYNC_LAST_NOTIFICATION_TIME",
+            timestamp: nowMs
+          });
+        }
+
+        // Bildirim gönderildiği an o borcun veri nesnesine sonBildirimZamani bilgisini (timestamp) kaydet
+        const notifiedDebtIds = new Set(allActionable.filter((i) => i.itemType === "debt").map((i) => i.originalId));
+        const notifiedInstIds = new Set(allActionable.filter((i) => i.itemType === "installment").map((i) => i.originalId));
 
         updatedDebtsCopy = updatedDebtsCopy.map((d) => {
           if (notifiedDebtIds.has(d.id)) {
-            return { ...d, sonGecikmeBildirimZamani: nowMs, sonBildirimZamani: nowMs };
+            return {
+              ...d,
+              sonBildirimZamani: nowMs,
+              ...(d.dueDate && (new Date(d.dueDate).getTime() < today.getTime() - 7 * 24 * 60 * 60 * 1000) ? { sonGecikmeBildirimZamani: nowMs } : {})
+            };
           }
           return d;
         });
 
         updatedInstsCopy = updatedInstsCopy.map((inst) => {
           if (notifiedInstIds.has(inst.id)) {
-            return { ...inst, sonGecikmeBildirimZamani: nowMs, sonBildirimZamani: nowMs };
+            return { ...inst, sonBildirimZamani: nowMs, sonGecikmeBildirimZamani: nowMs };
           }
           return inst;
         });
 
         hasStateChanges = true;
-      }
-
-      // --- 3. Adım: Günü Gelmiş (daysLeft === 0) ve 3 Gün Kalmış (0 < daysLeft <= 3) ve Yakın Gecikenler (-7 <= daysLeft < 0) ---
-      const activeUpcomingItems = scannedItems.filter((item) => item.daysLeft >= -7 && item.daysLeft <= 3);
-
-      if (activeUpcomingItems.length > 0) {
-        if (pushFrequency === "hourly") {
-          // --- 2 SAATTE BİR (PERİYODİK MOD) DÖNGÜSÜ ---
-          // Kural: Kullanıcı 2 saatte bir modunu seçtiğinde, eğer aynı borç için son 2 saat içinde zaten bildirim gönderilmişse, döngü tekrar dönse bile mükerrer bildirimi kesinlikle fırlatma!
-          const eligibleFor2Hours = activeUpcomingItems.filter((item) => {
-            const lastNotif = item.sonBildirimZamani || 0;
-            return (nowMs - lastNotif) >= TWO_HOURS_MS;
-          });
-
-          if (eligibleFor2Hours.length > 0) {
-            const dueToday = eligibleFor2Hours.filter((i) => i.daysLeft === 0);
-            const urgent3Days = eligibleFor2Hours.filter((i) => i.daysLeft > 0 && i.daysLeft <= 3);
-            const recentOverdue = eligibleFor2Hours.filter((i) => i.daysLeft < 0);
-
-            let notifTitle = "⏰ Bütçem Pro: Yaklaşan Ödeme Hatırlatması";
-            if (dueToday.length > 0) {
-              notifTitle = `⏰ Bütçem Pro: ${dueToday.length} Borcunuzun Vadesi BUGÜN!`;
-            } else if (recentOverdue.length > 0) {
-              notifTitle = `⚠️ Bütçem Pro: ${recentOverdue.length} Gecikmiş Ödemeniz Bulunuyor!`;
-            }
-
-            const topItems = [...dueToday, ...recentOverdue, ...urgent3Days].slice(0, 3);
-            const notifBody = topItems
-              .map((item) => {
-                const statusText =
-                  item.daysLeft === 0
-                    ? "BUGÜN"
-                    : item.daysLeft < 0
-                    ? `${Math.abs(item.daysLeft)} gün gecikti`
-                    : `${item.daysLeft} gün kaldı`;
-                return `- ${item.name}: ₺${item.amount.toLocaleString("tr-TR")} (${statusText})`;
-              })
-              .join("\n");
-
-            sendSystemNotification(
-              notifTitle,
-              `2 Saatte Bir Periyodik Hatırlatma:\n${notifBody}`,
-              false
-            );
-
-            // Bildirim gönderildiği an o borcun veri nesnesine sonBildirimZamani bilgisini (timestamp) kaydet
-            const notifiedDebtIds = new Set(eligibleFor2Hours.filter((i) => i.itemType === "debt").map((i) => i.originalId));
-            const notifiedInstIds = new Set(eligibleFor2Hours.filter((i) => i.itemType === "installment").map((i) => i.originalId));
-
-            updatedDebtsCopy = updatedDebtsCopy.map((d) => {
-              if (notifiedDebtIds.has(d.id)) {
-                return { ...d, sonBildirimZamani: nowMs };
-              }
-              return d;
-            });
-
-            updatedInstsCopy = updatedInstsCopy.map((inst) => {
-              if (notifiedInstIds.has(inst.id)) {
-                return { ...inst, sonBildirimZamani: nowMs };
-              }
-              return inst;
-            });
-
-            hasStateChanges = true;
-          }
-        } else {
-          // --- GÜNLÜK SLOT MODLARI (1, 2, 3, 4 Kez) ---
-          const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-          const logKey = `push_reminder_log_${todayKey}`;
-          let logData: { slots: string[]; lastTimestamp?: number } = { slots: [] };
-          try {
-            const saved = localStorage.getItem(logKey);
-            if (saved) logData = JSON.parse(saved);
-          } catch {}
-
-          let activeSlot: string | null = null;
-          if (pushFrequency === "1" && currentHour >= 9 && !logData.slots.includes("morning")) {
-            activeSlot = "morning";
-          } else if (pushFrequency === "2") {
-            if (currentHour >= 9 && currentHour < 15 && !logData.slots.includes("morning")) {
-              activeSlot = "morning";
-            } else if (currentHour >= 17 && !logData.slots.includes("evening")) {
-              activeSlot = "evening";
-            }
-          } else if (pushFrequency === "3") {
-            if (currentHour >= 9 && currentHour < 13 && !logData.slots.includes("morning")) {
-              activeSlot = "morning";
-            } else if (currentHour >= 13 && currentHour < 18 && !logData.slots.includes("noon")) {
-              activeSlot = "noon";
-            } else if (currentHour >= 18 && !logData.slots.includes("evening")) {
-              activeSlot = "evening";
-            }
-          } else if (pushFrequency === "4") {
-            if (currentHour >= 9 && currentHour < 13 && !logData.slots.includes("morning")) {
-              activeSlot = "morning";
-            } else if (currentHour >= 13 && currentHour < 17 && !logData.slots.includes("noon")) {
-              activeSlot = "noon";
-            } else if (currentHour >= 17 && currentHour < 21 && !logData.slots.includes("evening")) {
-              activeSlot = "evening";
-            } else if (currentHour >= 21 && !logData.slots.includes("night")) {
-              activeSlot = "night";
-            }
-          }
-
-          if (activeSlot) {
-            // Son 2 saat içinde mükerrer bildirim gönderilmemiş borçlar
-            const eligibleForSlot = activeUpcomingItems.filter((item) => {
-              const lastNotif = item.sonBildirimZamani || 0;
-              return (nowMs - lastNotif) >= TWO_HOURS_MS;
-            });
-
-            if (eligibleForSlot.length > 0) {
-              logData.slots.push(activeSlot);
-              logData.lastTimestamp = nowMs;
-              localStorage.setItem(logKey, JSON.stringify(logData));
-
-              const dueToday = eligibleForSlot.filter((i) => i.daysLeft === 0);
-              const notifTitle =
-                dueToday.length > 0
-                  ? `⏰ Bütçem Pro: ${dueToday.length} Borcunuzun Vadesi BUGÜN!`
-                  : `⏰ Bütçem Pro: ${eligibleForSlot.length} Yaklaşan Ödeme Hatırlatması`;
-
-              const topItems = eligibleForSlot.slice(0, 3);
-              const notifBody = topItems
-                .map((item) => {
-                  const statusText =
-                    item.daysLeft === 0
-                      ? "BUGÜN"
-                      : item.daysLeft < 0
-                      ? `${Math.abs(item.daysLeft)} gün gecikti`
-                      : `${item.daysLeft} gün kaldı`;
-                  return `- ${item.name}: ₺${item.amount.toLocaleString("tr-TR")} (${statusText})`;
-                })
-                .join("\n");
-
-              sendSystemNotification(notifTitle, `Günlük Ödeme Hatırlatması:\n${notifBody}`, false);
-
-              const notifiedDebtIds = new Set(eligibleForSlot.filter((i) => i.itemType === "debt").map((i) => i.originalId));
-              const notifiedInstIds = new Set(eligibleForSlot.filter((i) => i.itemType === "installment").map((i) => i.originalId));
-
-              updatedDebtsCopy = updatedDebtsCopy.map((d) => {
-                if (notifiedDebtIds.has(d.id)) {
-                  return { ...d, sonBildirimZamani: nowMs };
-                }
-                return d;
-              });
-
-              updatedInstsCopy = updatedInstsCopy.map((inst) => {
-                if (notifiedInstIds.has(inst.id)) {
-                  return { ...inst, sonBildirimZamani: nowMs };
-                }
-                return inst;
-              });
-
-              hasStateChanges = true;
-            }
-          }
-        }
       }
 
       // --- 4. Adım: Eğer zaman damgası güncellendiyse Firebase Realtime Database ile tam senkronize et ---
@@ -3401,6 +3321,7 @@ export default function App() {
         targetAlarmId = updatedAlarms[existingIdx].id;
         updatedAlarms[existingIdx] = {
           ...updatedAlarms[existingIdx],
+          debtId: effectiveId || updatedAlarms[existingIdx].debtId,
           title: titleString,
           date: dueDate,
           timestamp: alarmDateObj.getTime()
@@ -3409,6 +3330,7 @@ export default function App() {
         targetAlarmId = effectiveId || generateId(updatedAlarms);
         const newA: Alarm = {
           id: targetAlarmId,
+          debtId: effectiveId || undefined,
           title: titleString,
           date: dueDate,
           timestamp: alarmDateObj.getTime()
@@ -3951,15 +3873,17 @@ export default function App() {
     );
   };
 
-  const handleAddAlarm = (titleString: string, dateString: string) => {
+  const handleAddAlarm = (titleString: string, dateString: string, debtIdParam?: number) => {
     // Proactively request browser/device notification permission if not yet granted
     if (typeof window !== "undefined" && "Notification" in window && (Notification as any).permission !== "granted") {
       requestNotificationPermission();
     }
 
     const alarmDateObj = parseLocalOrUTCString(dateString);
+    const targetAlarmId = debtIdParam ? Number(debtIdParam) : generateId(alarms);
     const newA: Alarm = {
-      id: generateId(alarms),
+      id: targetAlarmId,
+      debtId: debtIdParam ? Number(debtIdParam) : undefined,
       title: titleString,
       date: dateString,
       timestamp: alarmDateObj.getTime()
@@ -3980,6 +3904,7 @@ export default function App() {
 
     // Schedule alarm into Capacitor LocalNotifications (triggers when app is closed / phone locked)
     if (alarmDateObj.getTime() > Date.now()) {
+      const safeAlarmId = Math.abs(Number(newA.debtId || newA.id));
       try {
         initCapacitorNotificationChannel().catch(() => {});
         const dateFormatted = alarmDateObj.toLocaleString("tr-TR", {
@@ -3995,7 +3920,7 @@ export default function App() {
         LocalNotifications.schedule({
           notifications: [
             {
-              id: Math.abs(Number(newA.id)) || Math.floor(Math.random() * 100000),
+              id: safeAlarmId,
               title: richTitle,
               body: richBody,
               largeBody: richBody,
@@ -4022,11 +3947,11 @@ export default function App() {
                 priority: 'max',
                 visibility: 'public'
               },
-              extra: { id: newA.id, title: titleString, body: richBody }
+              extra: { id: safeAlarmId, debtId: newA.debtId, title: titleString, body: richBody }
             } as any
           ]
         }).then(() => {
-          console.log(`[Capacitor LocalNotifications] Alarm #${newA.id} zamanlandı.`);
+          console.log(`[Capacitor LocalNotifications] Alarm #${safeAlarmId} zamanlandı.`);
         }).catch((cErr) => {
           console.warn("[Capacitor LocalNotifications] schedule error:", cErr);
         });
@@ -4036,7 +3961,7 @@ export default function App() {
 
       // Also schedule alarm into native Android AlarmManager bridge
       scheduleAndroidDebtAlarm(
-        newA.id,
+        safeAlarmId,
         "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
         alarmDateObj.getTime(),
         `💰 Borç: ${titleString || "Ödeme"}\n📅 Son Tarih: ${alarmDateObj.toLocaleString("tr-TR")}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`
@@ -4116,6 +4041,21 @@ export default function App() {
     cancelCapacitorAlarm(200000 + id).catch(() => {});
     cancelCapacitorAlarm(800000 + id).catch(() => {});
     cancelAndroidDebtAlarm(id);
+
+    const target = alarms.find((a) => a.id === id);
+    const safeDebtId = target?.debtId ? Math.abs(Number(target.debtId)) : undefined;
+    if (safeDebtId && safeDebtId !== id) {
+      cancelCapacitorAlarm(safeDebtId).catch(() => {});
+      cancelAndroidDebtAlarm(safeDebtId);
+      if (typeof window !== "undefined") {
+        try {
+          LocalNotifications.cancel({
+            notifications: [{ id: safeDebtId }]
+          }).catch(() => {});
+        } catch (_) {}
+      }
+    }
+
     if (typeof window !== "undefined") {
       try {
         LocalNotifications.cancel({

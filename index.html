@@ -132,12 +132,26 @@
               await OneSignal.init({
                 appId: "f0a34e24-e5c9-423e-927f-399736f68a92",
                 allowLocalhostAsSecureOrigin: true,
+                autoResubscribe: false,
+                autoRegister: false,
                 notifyButton: {
                   enable: false,
                 },
+                promptOptions: {
+                  slidedown: {
+                    autoPrompt: false
+                  }
+                }
               }).catch(function(err) {
                 console.warn("[OneSignal] Web init bypassed or origin mismatch:", err);
               });
+
+              // OneSignal otomatik tetikleyicilerini kapat (Cihaz içi alarmlara karışmaz, sadece panel push mesajlarını dinler)
+              try {
+                if (OneSignal.InAppMessages && typeof OneSignal.InAppMessages.paused === "function") {
+                  OneSignal.InAppMessages.paused(true);
+                }
+              } catch (_) {}
             } else if (!isSupportedOrigin) {
               console.info("[OneSignal] Aktif alan adı borctakipyonetimi.github.io olmadığından dev ortamında OneSignal başlatması güvenle bekletildi.");
             }
