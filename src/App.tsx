@@ -334,6 +334,15 @@ export default function App() {
     setUserProfileName(cleanName);
     localStorage.setItem("user_profile_name", cleanName);
 
+    // Service Worker'a da yeni ismi anında bildir
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "SYNC_USER_PROFILE",
+        name: cleanName,
+        email: currentUser || ""
+      });
+    }
+
     const fbUser = auth.currentUser;
     if (fbUser) {
       try {
@@ -1195,9 +1204,12 @@ export default function App() {
       navigator.vibrate([250, 100, 250]);
     }
 
-    // 2. Official SMS-formatted Notification message
+    // 2. Official SMS-formatted Notification message - Firebase ve yerel profil ismine göre hitap
     const todayStr = new Date().toLocaleDateString("tr-TR");
-    const safeUser = (currentUser && currentUser !== "Varsayılan Kullanıcı") ? currentUser.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
+    const rawResolvedName = (userProfileName && userProfileName.trim())
+      || (localStorage.getItem("user_profile_name") || "").trim()
+      || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
+    const safeUser = rawResolvedName ? rawResolvedName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
     const officialSmsMessage = `SN. ${safeUser}\n${todayStr} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n- ${title}${body ? `\n- ${body}` : ""}\n- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
 
     // Sabit ve benzersiz borç / alarm ID'si (Android işletim sistemi aynı ID'ye sahip alarmları ezer, ekranda tek mesaj gösterir)
@@ -2699,9 +2711,14 @@ export default function App() {
           })
           .join("\n");
 
+        const rawPeriodicName = (userProfileName && userProfileName.trim())
+          || (localStorage.getItem("user_profile_name") || "").trim()
+          || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
+        const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
+
         sendSystemNotification(
           "Bütçem Pro: Güncel Borç & Vade Özeti ⏰",
-          `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryLines}${allActionable.length > 3 ? `\n...ve ${allActionable.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`,
+          `SN. ${safePeriodicUser}\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryLines}${allActionable.length > 3 ? `\n...ve ${allActionable.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`,
           false
         );
 
@@ -5529,19 +5546,20 @@ export default function App() {
                 {/* Main Bütçem Pro Logo Container */}
                 <motion.div
                   animate={{
-                    scale: [1, 1.05, 1],
+                    scale: [1, 1.04, 1],
                   }}
                   transition={{
                     duration: 3,
                     repeat: Infinity,
                     ease: "easeInOut"
                   }}
-                  className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-3xl p-1 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 shadow-2xl shadow-indigo-500/40 ring-4 ring-indigo-500/25 overflow-hidden flex items-center justify-center"
+                  className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-3xl p-1 bg-gradient-to-tr from-[#131b2e] via-[#1e293b] to-[#0f172a] shadow-2xl shadow-indigo-500/40 ring-2 ring-indigo-500/30 overflow-hidden flex items-center justify-center backdrop-blur-md"
                 >
                   <img
                     src="/logo.png"
                     alt="Bütçem Pro"
-                    className="w-full h-full object-contain rounded-2xl bg-slate-950/80 p-1"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover rounded-2xl"
                     onError={(e: any) => {
                       e.currentTarget.style.display = "none";
                     }}
@@ -6565,11 +6583,12 @@ export default function App() {
           {/* Workspace Title & Close Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-500 to-sky-500 p-0.5 shadow-md shadow-indigo-500/25 shrink-0 overflow-hidden flex items-center justify-center">
+              <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-slate-700/60 p-0.5 shadow-md shadow-indigo-500/20 shrink-0 overflow-hidden flex items-center justify-center">
                 <img
                   src="/logo.png"
                   alt="Bütçem Pro"
-                  className="w-full h-full object-contain rounded-xl"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover rounded-xl"
                   onError={(e: any) => {
                     e.currentTarget.style.display = "none";
                   }}
@@ -6997,8 +7016,8 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Central View Dashboard Grid content container */}
-      <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
+      {/* Central View Dashboard Grid content container - GPU Accelerated Page Transitions */}
+      <main className="max-w-3xl mx-auto px-4 py-6 pb-24 page-transition-container gpu-accelerated">
 
         {activeTab === "overview" && (
           <DashboardOverview

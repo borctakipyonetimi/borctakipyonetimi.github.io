@@ -1566,14 +1566,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
-            <ClipboardList className="w-3 h-3 text-indigo-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-200 uppercase tracking-wide">
+            <ClipboardList className="w-3 h-3 text-indigo-500 dark:text-indigo-300" />
             <span>GENEL TOPLAM</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.totalDebt ?? allTimeTotalAmount)}</p>
-          <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.totalDebt ?? allTimeTotalAmount)}</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-indigo-200/80 block">
             Aktif & Taksitli Borçlar
           </span>
         </motion.div>
@@ -1582,14 +1582,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
-            <Calendar className="w-3 h-3 text-amber-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
+            <Calendar className="w-3 h-3 text-amber-500 dark:text-amber-300" />
             <span>BU AY ÖDENECEK</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</p>
-          <span className="text-[8.5px] font-medium text-amber-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
             Vadesi Gelen Taksit & Borçlar
           </span>
         </motion.div>
@@ -1598,10 +1598,10 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-teal-50/60 to-slate-50/90 dark:from-teal-950 dark:to-slate-900 border border-teal-200/80 dark:border-teal-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
         >
-          <div className="flex items-center justify-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
-            <CheckCircle2 className="w-3 h-3 text-teal-300" />
+          <div className="flex items-center justify-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold text-teal-600 dark:text-teal-200 uppercase tracking-wide">
+            <CheckCircle2 className="w-3 h-3 text-teal-500 dark:text-teal-300" />
             <span>BU AY ÖDENEN</span>
             {onResetPayments && (
               <button
@@ -1610,14 +1610,14 @@ export const DebtList: React.FC<DebtListProps> = ({
                   setIsResetPaymentsModalOpen(true);
                 }}
                 title="Ödemeleri Sıfırla"
-                className="p-0.5 hover:bg-white/20 rounded-md transition text-white/80 hover:text-white cursor-pointer ml-0.5"
+                className="p-0.5 hover:bg-slate-200 dark:hover:bg-white/20 rounded-md transition text-slate-500 dark:text-white/80 hover:text-slate-800 dark:hover:text-white cursor-pointer ml-0.5"
               >
                 <RotateCcw className="w-3 h-3" />
               </button>
             )}
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</p>
-          <span className="text-[8.5px] font-medium text-teal-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-teal-200/80 block">
             Kapatılan Borç/Taksitler
           </span>
         </motion.div>
@@ -1626,14 +1626,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-rose-50/60 to-slate-50/90 dark:from-rose-950 dark:to-slate-900 border border-rose-200/80 dark:border-rose-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
-            <AlertCircle className="w-3 h-3 text-rose-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-200 uppercase tracking-wide">
+            <AlertCircle className="w-3 h-3 text-rose-500 dark:text-rose-300" />
             <span>KALAN BORÇ</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</p>
-          <span className="text-[8.5px] font-medium text-rose-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-rose-200/80 block">
             Ödenmesi Gereken Net Bakiye
           </span>
         </motion.div>
@@ -1733,103 +1733,103 @@ export const DebtList: React.FC<DebtListProps> = ({
             const DEBT_CARD_THEMES = [
               {
                 // 0. Sapphire / Indigo Blue
-                gradient: "from-indigo-600 via-indigo-700 to-indigo-950 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900",
-                border: "border-indigo-400/40",
-                glow: "shadow-indigo-500/20",
-                accent: "text-indigo-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-indigo-300 via-cyan-300 to-indigo-200",
-                tagBg: "bg-indigo-400/25 border-indigo-300/30",
+                gradient: "from-white/95 via-indigo-50/50 to-slate-50/90 dark:from-indigo-950/90 dark:via-indigo-900/80 dark:to-slate-900",
+                border: "border-indigo-200/80 dark:border-indigo-500/40",
+                glow: "shadow-md shadow-indigo-100/60 dark:shadow-indigo-500/20",
+                accent: "text-indigo-600 dark:text-indigo-200",
+                badge: "bg-indigo-50 text-indigo-700 border-indigo-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-indigo-500 via-indigo-600 to-indigo-400 dark:from-indigo-300 dark:via-cyan-300 dark:to-indigo-200",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 1. Ruby / Crimson Red
-                gradient: "from-rose-600 via-rose-700 to-pink-950 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900",
-                border: "border-rose-400/40",
-                glow: "shadow-rose-500/20",
-                accent: "text-rose-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-rose-300 via-amber-300 to-rose-200",
-                tagBg: "bg-rose-400/25 border-rose-300/30",
+                gradient: "from-white/95 via-rose-50/50 to-slate-50/90 dark:from-rose-950/90 dark:via-rose-900/80 dark:to-slate-900",
+                border: "border-rose-200/80 dark:border-rose-500/40",
+                glow: "shadow-md shadow-rose-100/60 dark:shadow-rose-500/20",
+                accent: "text-rose-600 dark:text-rose-200",
+                badge: "bg-rose-50 text-rose-700 border-rose-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-rose-500 via-rose-600 to-rose-400 dark:from-rose-300 dark:via-amber-300 dark:to-rose-200",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 2. Emerald / Forest Green
-                gradient: "from-emerald-600 via-emerald-700 to-teal-950 dark:from-emerald-950 dark:via-emerald-900 dark:to-slate-900",
-                border: "border-emerald-400/40",
-                glow: "shadow-emerald-500/20",
-                accent: "text-emerald-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-emerald-300 via-teal-200 to-emerald-300",
-                tagBg: "bg-emerald-400/25 border-emerald-300/30",
+                gradient: "from-white/95 via-emerald-50/50 to-slate-50/90 dark:from-emerald-950/90 dark:via-emerald-900/80 dark:to-slate-900",
+                border: "border-emerald-200/80 dark:border-emerald-500/40",
+                glow: "shadow-md shadow-emerald-100/60 dark:shadow-emerald-500/20",
+                accent: "text-emerald-600 dark:text-emerald-200",
+                badge: "bg-emerald-50 text-emerald-700 border-emerald-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-emerald-500 via-emerald-600 to-teal-400 dark:from-emerald-300 dark:via-teal-200 dark:to-emerald-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 3. Azure / Ocean Cyan
-                gradient: "from-blue-600 via-cyan-700 to-indigo-950 dark:from-blue-950 dark:via-cyan-950 dark:to-slate-900",
-                border: "border-blue-400/40",
-                glow: "shadow-blue-500/20",
-                accent: "text-cyan-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-cyan-300 via-blue-200 to-cyan-300",
-                tagBg: "bg-blue-400/25 border-blue-300/30",
+                gradient: "from-white/95 via-cyan-50/50 to-slate-50/90 dark:from-blue-950/90 dark:via-cyan-950/80 dark:to-slate-900",
+                border: "border-cyan-200/80 dark:border-cyan-500/40",
+                glow: "shadow-md shadow-cyan-100/60 dark:shadow-blue-500/20",
+                accent: "text-cyan-600 dark:text-cyan-200",
+                badge: "bg-cyan-50 text-cyan-700 border-cyan-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-cyan-500 via-blue-500 to-cyan-400 dark:from-cyan-300 dark:via-blue-200 dark:to-cyan-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 4. Amethyst / Royal Purple
-                gradient: "from-violet-600 via-violet-700 to-purple-950 dark:from-violet-950 dark:via-purple-900 dark:to-slate-900",
-                border: "border-violet-400/40",
-                glow: "shadow-violet-500/20",
-                accent: "text-violet-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-violet-300 via-fuchsia-300 to-violet-200",
-                tagBg: "bg-violet-400/25 border-violet-300/30",
+                gradient: "from-white/95 via-purple-50/50 to-slate-50/90 dark:from-violet-950/90 dark:via-purple-900/80 dark:to-slate-900",
+                border: "border-purple-200/80 dark:border-purple-500/40",
+                glow: "shadow-md shadow-purple-100/60 dark:shadow-violet-500/20",
+                accent: "text-purple-600 dark:text-violet-200",
+                badge: "bg-purple-50 text-purple-700 border-purple-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-purple-500 via-purple-600 to-violet-400 dark:from-violet-300 dark:via-fuchsia-300 dark:to-violet-200",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 5. Sunset Gold / Amber
-                gradient: "from-amber-600 via-amber-700 to-orange-950 dark:from-amber-950 dark:via-orange-900 dark:to-slate-900",
-                border: "border-amber-400/40",
-                glow: "shadow-amber-500/20",
-                accent: "text-amber-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-amber-300 via-yellow-200 to-orange-300",
-                tagBg: "bg-amber-400/25 border-amber-300/30",
+                gradient: "from-white/95 via-amber-50/50 to-slate-50/90 dark:from-amber-950/90 dark:via-orange-900/80 dark:to-slate-900",
+                border: "border-amber-200/80 dark:border-amber-500/40",
+                glow: "shadow-md shadow-amber-100/60 dark:shadow-amber-500/20",
+                accent: "text-amber-600 dark:text-amber-200",
+                badge: "bg-amber-50 text-amber-700 border-amber-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-amber-500 via-orange-500 to-amber-400 dark:from-amber-300 dark:via-yellow-200 dark:to-orange-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 6. Fuchsia / Hot Pink
-                gradient: "from-fuchsia-600 via-pink-700 to-rose-950 dark:from-fuchsia-950 dark:via-pink-900 dark:to-slate-900",
-                border: "border-fuchsia-400/40",
-                glow: "shadow-fuchsia-500/20",
-                accent: "text-pink-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-fuchsia-300 via-pink-200 to-rose-300",
-                tagBg: "bg-fuchsia-400/25 border-fuchsia-300/30",
+                gradient: "from-white/95 via-pink-50/50 to-slate-50/90 dark:from-fuchsia-950/90 dark:via-pink-900/80 dark:to-slate-900",
+                border: "border-pink-200/80 dark:border-pink-500/40",
+                glow: "shadow-md shadow-pink-100/60 dark:shadow-fuchsia-500/20",
+                accent: "text-pink-600 dark:text-pink-200",
+                badge: "bg-pink-50 text-pink-700 border-pink-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-pink-500 via-rose-500 to-pink-400 dark:from-fuchsia-300 dark:via-pink-200 dark:to-rose-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 7. Teal / Marine Turquoise
-                gradient: "from-teal-600 via-teal-700 to-slate-950 dark:from-teal-950 dark:via-teal-900 dark:to-slate-900",
-                border: "border-teal-400/40",
-                glow: "shadow-teal-500/20",
-                accent: "text-teal-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-teal-300 via-emerald-200 to-cyan-300",
-                tagBg: "bg-teal-400/25 border-teal-300/30",
+                gradient: "from-white/95 via-teal-50/50 to-slate-50/90 dark:from-teal-950/90 dark:via-teal-900/80 dark:to-slate-900",
+                border: "border-teal-200/80 dark:border-teal-500/40",
+                glow: "shadow-md shadow-teal-100/60 dark:shadow-teal-500/20",
+                accent: "text-teal-600 dark:text-teal-200",
+                badge: "bg-teal-50 text-teal-700 border-teal-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-teal-500 via-cyan-500 to-emerald-400 dark:from-teal-300 dark:via-emerald-200 dark:to-cyan-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 8. Scarlet / Warm Crimson
-                gradient: "from-red-600 via-rose-800 to-slate-950 dark:from-red-950 dark:via-rose-950 dark:to-slate-900",
-                border: "border-red-400/40",
-                glow: "shadow-red-500/20",
-                accent: "text-red-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-red-300 via-orange-300 to-rose-200",
-                tagBg: "bg-red-400/25 border-red-300/30",
+                gradient: "from-white/95 via-rose-50/50 to-slate-50/90 dark:from-red-950/90 dark:via-rose-950/80 dark:to-slate-900",
+                border: "border-red-200/80 dark:border-red-500/40",
+                glow: "shadow-md shadow-red-100/60 dark:shadow-red-500/20",
+                accent: "text-red-600 dark:text-red-200",
+                badge: "bg-red-50 text-red-700 border-red-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-red-500 via-rose-600 to-orange-400 dark:from-red-300 dark:via-orange-300 dark:to-rose-200",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               },
               {
                 // 9. Midnight Obsidian / Slate-Blue
-                gradient: "from-slate-700 via-slate-800 to-indigo-950 dark:from-slate-800 dark:via-slate-900 dark:to-slate-950",
-                border: "border-slate-400/40",
-                glow: "shadow-slate-500/20",
-                accent: "text-slate-200",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs",
-                progressGradient: "from-slate-300 via-indigo-200 to-cyan-300",
-                tagBg: "bg-slate-500/25 border-slate-300/30",
+                gradient: "from-white/95 via-slate-100/70 to-slate-50/90 dark:from-slate-800/90 dark:via-slate-900/80 dark:to-slate-950",
+                border: "border-slate-200/80 dark:border-slate-500/40",
+                glow: "shadow-md shadow-slate-100/60 dark:shadow-slate-500/20",
+                accent: "text-slate-700 dark:text-slate-200",
+                badge: "bg-slate-100 text-slate-800 border-slate-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
+                progressGradient: "from-slate-600 via-indigo-600 to-slate-500 dark:from-slate-300 dark:via-indigo-200 dark:to-cyan-300",
+                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
               }
             ];
 
@@ -1873,21 +1873,21 @@ export const DebtList: React.FC<DebtListProps> = ({
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ type: "spring", stiffness: 350, damping: 25 }}
                       whileHover={{ scale: 1.01, y: -2 }}
-                      className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} shadow-lg relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 text-white bg-gradient-to-br ${cardTheme.gradient}`}
+                      className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
                     >
                       {/* Ambient background decoration */}
-                      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/10 blur-xl pointer-events-none" />
-                      <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full bg-white/5 blur-xl pointer-events-none" />
+                      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-indigo-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
+                      <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full bg-slate-500/5 dark:bg-white/5 blur-xl pointer-events-none" />
 
                       {isNearDue && (
-                        <div className="absolute top-3 right-3 flex items-center justify-center p-1.5 rounded-full bg-white/20 border border-white/40 shadow-md animate-bounce z-10" title="Vadesine Az Kaldı veya Geçti! ⏰">
+                        <div className="absolute top-3 right-3 flex items-center justify-center p-1.5 rounded-full bg-amber-50 dark:bg-white/20 border border-amber-200 dark:border-white/40 shadow-md animate-bounce z-10" title="Vadesine Az Kaldı veya Geçti! ⏰">
                           <span className="absolute inset-0 rounded-full bg-amber-400/30 animate-ping" />
-                          <BellRing className="w-4 h-4 text-amber-300 animate-pulse" />
+                          <BellRing className="w-4 h-4 text-amber-500 dark:text-amber-300 animate-pulse" />
                         </div>
                       )}
 
                       <div className="space-y-2.5 flex-1 relative z-10">
-                        <div className="flex items-center flex-wrap gap-2 text-white">
+                        <div className="flex items-center flex-wrap gap-2">
                           {(() => {
                             const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
                             return (
@@ -1895,26 +1895,26 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 {provider && (
                                   <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
                                 )}
-                                <span className="font-black text-base sm:text-lg text-white tracking-tight drop-shadow-xs">
+                                <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
                                   {d.name}
                                 </span>
                                 {provider && (
-                                  <span className="text-[10px] font-bold text-white/90 bg-white/15 px-2 py-0.5 rounded-lg border border-white/20 backdrop-blur-xs">
+                                  <span className="text-[10px] font-bold text-slate-700 dark:text-white/90 bg-slate-100/90 dark:bg-white/15 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/20 backdrop-blur-xs">
                                     {provider.badgeLabel || provider.name}
                                   </span>
                                 )}
                               </>
                             );
                           })()}
-                          <span className="px-2.5 py-0.5 bg-white/15 text-white text-[10.5px] font-bold rounded-full border border-white/20 backdrop-blur-xs">
+                          <span className="px-2.5 py-0.5 bg-slate-100/90 dark:bg-white/15 text-slate-700 dark:text-white text-[10.5px] font-bold rounded-full border border-slate-200/80 dark:border-white/20 backdrop-blur-xs">
                             📁 {d.category}
                           </span>
                           {isPaid ? (
-                            <span className="px-2.5 py-0.5 bg-emerald-400/30 text-emerald-100 text-[10.5px] font-black rounded-full border border-emerald-300/40 backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-400/30 text-emerald-700 dark:text-emerald-100 text-[10.5px] font-black rounded-full border border-emerald-200 dark:border-emerald-300/40 backdrop-blur-xs flex items-center gap-1 shadow-xs">
                               🟢 Ödendi
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 bg-black/30 text-white/90 text-[10.5px] font-black rounded-full border border-white/20 backdrop-blur-xs flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 bg-slate-100/90 dark:bg-black/30 text-slate-700 dark:text-white/90 text-[10.5px] font-black rounded-full border border-slate-200/80 dark:border-white/20 backdrop-blur-xs flex items-center gap-1">
                               🔴 Ödenmedi
                             </span>
                           )}
@@ -1924,41 +1924,41 @@ export const DebtList: React.FC<DebtListProps> = ({
                             </span>
                           )}
                           {d.dueDate && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-white/85 bg-black/20 px-2 py-0.5 rounded-lg border border-white/10">
-                              <Calendar className="w-3.5 h-3.5 text-amber-300" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-white/85 bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/10">
+                              <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-300" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
                             </span>
                           )}
                         </div>
 
                         {/* Amount indicators stats grid */}
-                        <div className="flex items-center flex-wrap gap-2 text-xs text-white/90 font-medium">
-                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
-                            <span className="text-white/60 text-[10px] uppercase font-bold">Tutar:</span>
-                            <span className="font-black font-mono text-white text-xs sm:text-sm">{format(d.amount)}</span>
+                        <div className="flex items-center flex-wrap gap-2 text-xs font-medium">
+                          <div className="bg-slate-100/90 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
+                            <span className="text-slate-500 dark:text-white/60 text-[10px] uppercase font-bold">Tutar:</span>
+                            <span className="font-black font-mono text-slate-900 dark:text-white text-xs sm:text-sm">{format(d.amount)}</span>
                           </div>
-                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
-                            <span className="text-emerald-300 text-[10px] uppercase font-bold">Ödenen:</span>
-                            <span className="font-black text-emerald-300 font-mono text-xs sm:text-sm">{format(d.paid)}</span>
+                          <div className="bg-emerald-50 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-emerald-200/70 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
+                            <span className="text-emerald-700 dark:text-emerald-300 text-[10px] uppercase font-bold">Ödenen:</span>
+                            <span className="font-black text-emerald-700 dark:text-emerald-300 font-mono text-xs sm:text-sm">{format(d.paid)}</span>
                           </div>
-                          <div className="bg-black/20 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
-                            <span className="text-rose-300 text-[10px] uppercase font-bold">Kalan:</span>
-                            <span className="font-black text-rose-300 font-mono text-xs sm:text-sm">{format(d.amount - d.paid)}</span>
+                          <div className="bg-rose-50 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-rose-200/70 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
+                            <span className="text-rose-700 dark:text-rose-300 text-[10px] uppercase font-bold">Kalan:</span>
+                            <span className="font-black text-rose-700 dark:text-rose-300 font-mono text-xs sm:text-sm">{format(d.amount - d.paid)}</span>
                           </div>
                         </div>
 
                         {/* High tech progress bar */}
                         <div className="space-y-1 pt-1">
-                          <div className="flex justify-between text-[10px] text-white/70 font-mono font-bold">
+                          <div className="flex justify-between text-[10px] text-slate-500 dark:text-white/70 font-mono font-bold">
                             <span>Ödeme Oranı</span>
                             <span>%{percentage.toFixed(0)}</span>
                           </div>
-                          <div className="w-full bg-black/30 h-2 rounded-full overflow-hidden shadow-inner border border-white/10">
+                          <div className="w-full bg-slate-200/80 dark:bg-black/30 h-2 rounded-full overflow-hidden shadow-inner border border-slate-300/60 dark:border-white/10">
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${percentage}%` }}
                               transition={{ duration: 0.8, ease: "easeOut" }}
                               className={`h-full rounded-full transition-all ${
-                                isPaid ? "bg-emerald-300 shadow-sm shadow-emerald-400" : `bg-gradient-to-r ${cardTheme.progressGradient}`
+                                isPaid ? "bg-emerald-500 dark:bg-emerald-300 shadow-sm shadow-emerald-400" : `bg-gradient-to-r ${cardTheme.progressGradient}`
                               }`}
                             />
                           </div>
@@ -1969,14 +1969,14 @@ export const DebtList: React.FC<DebtListProps> = ({
                         <button
                           onClick={() => handleOpenEdit(d)}
                           title="Borcu Düzenle"
-                          className="p-2.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                          className="p-2.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDeleteDebt(d.id)}
                           title="Borcu Sil"
-                          className="p-2.5 text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                          className="p-2.5 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1984,10 +1984,10 @@ export const DebtList: React.FC<DebtListProps> = ({
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.96 }}
                           onClick={() => onToggleDebtPaid(d.id)}
-                          className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-md ${
+                          className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-sm ${
                             isPaid 
-                              ? "bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-xs" 
-                              : "bg-white text-slate-900 hover:bg-slate-100 shadow-lg shadow-black/20"
+                              ? "bg-emerald-100/90 text-emerald-800 border border-emerald-300/80 dark:bg-white/20 dark:hover:bg-white/30 dark:text-white dark:border-white/30 backdrop-blur-xs" 
+                              : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-md shadow-slate-300/50 dark:shadow-black/20"
                           }`}
                         >
                           <AnimatePresence mode="wait">
@@ -2000,7 +2000,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
                                 className="flex items-center justify-center"
                               >
-                                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
                               </motion.span>
                             ) : (
                               <motion.span
@@ -2010,7 +2010,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                                 exit={{ scale: 0.8 }}
                                 className="flex items-center justify-center"
                               >
-                                <Circle className="w-4 h-4 text-slate-600" />
+                                <Circle className="w-4 h-4 text-slate-400 dark:text-slate-600" />
                               </motion.span>
                             )}
                           </AnimatePresence>

@@ -531,14 +531,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
-                <Wallet className="w-3 h-3 text-indigo-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-200 uppercase tracking-wide">
+                <Wallet className="w-3 h-3 text-indigo-500 dark:text-indigo-300" />
                 <span>KALAN TAKSİT YÜKÜ</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalRemaining)}</p>
-              <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(totalRemaining)}</p>
+              <span className="text-[8.5px] font-medium text-slate-500 dark:text-indigo-200/80 block">
                 Tüm Planların Kalanı
               </span>
             </motion.div>
@@ -547,14 +547,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-violet-600 via-violet-700 to-purple-900 dark:from-violet-950 dark:to-slate-900 border border-violet-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-violet-50/60 to-slate-50/90 dark:from-violet-950 dark:to-slate-900 border border-violet-200/80 dark:border-violet-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-violet-100 uppercase tracking-wide">
-                <CalendarDays className="w-3 h-3 text-violet-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-violet-600 dark:text-violet-200 uppercase tracking-wide">
+                <CalendarDays className="w-3 h-3 text-violet-500 dark:text-violet-300" />
                 <span>BU AY TAKSİT</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(currentMonthDue)}</p>
-              <span className="text-[8.5px] font-medium text-violet-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(currentMonthDue)}</p>
+              <span className="text-[8.5px] font-medium text-slate-500 dark:text-violet-200/80 block">
                 Bu Ayki Taksit Tutarı
               </span>
             </motion.div>
@@ -563,14 +563,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-teal-50/60 to-slate-50/90 dark:from-teal-950 dark:to-slate-900 border border-teal-200/80 dark:border-teal-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
-                <CheckCircle2 className="w-3 h-3 text-teal-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-600 dark:text-teal-200 uppercase tracking-wide">
+                <CheckCircle2 className="w-3 h-3 text-teal-500 dark:text-teal-300" />
                 <span>ÖDENEN KISIM</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalPaid)}</p>
-              <span className="text-[8.5px] font-medium text-teal-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(totalPaid)}</p>
+              <span className="text-[8.5px] font-medium text-slate-500 dark:text-teal-200/80 block">
                 Şimdiye Kadar Kapatılan
               </span>
             </motion.div>
@@ -579,14 +579,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
-                <Calendar className="w-3 h-3 text-amber-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
+                <Calendar className="w-3 h-3 text-amber-500 dark:text-amber-300" />
                 <span>AKTİF PLANLAR</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight">{activeCount} / {installmentDebts.length} Plan</p>
-              <span className="text-[8.5px] font-medium text-amber-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{activeCount} / {installmentDebts.length} Plan</p>
+              <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
                 Devam Eden Taksitler
               </span>
             </motion.div>
@@ -606,55 +606,49 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             const percentage = (inst.paidInstallmentCount / inst.installmentCount) * 100;
             const isCompleted = inst.paidInstallmentCount === inst.installmentCount;
 
-            // Pick a vibrant color theme matching the Dashboard gradient cards
+            // Pick a vibrant color theme matching the modern glassmorphism design
             const CARD_THEMES = [
               {
-                gradient: "from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900",
-                glow: "shadow-indigo-500/25",
-                border: "border-indigo-400/30",
-                chip: "bg-amber-300 border-amber-200",
+                gradient: "from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950/90 dark:via-indigo-900/80 dark:to-slate-900",
+                glow: "shadow-indigo-100/60 dark:shadow-indigo-500/20",
+                border: "border-indigo-200/80 dark:border-indigo-400/30",
                 brand: "PREMIUM PLATINUM",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-indigo-50 text-indigo-700 border-indigo-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-blue-600 via-blue-700 to-indigo-950 dark:from-blue-950 dark:via-cyan-950 dark:to-slate-900",
-                glow: "shadow-blue-500/25",
-                border: "border-blue-400/30",
-                chip: "bg-amber-300 border-amber-200",
+                gradient: "from-white/95 via-blue-50/60 to-slate-50/90 dark:from-blue-950/90 dark:via-cyan-950/80 dark:to-slate-900",
+                glow: "shadow-blue-100/60 dark:shadow-blue-500/20",
+                border: "border-blue-200/80 dark:border-blue-400/30",
                 brand: "WORLD SIGNATURE",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-blue-50 text-blue-700 border-blue-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-rose-600 via-rose-700 to-pink-950 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900",
-                glow: "shadow-rose-500/25",
-                border: "border-rose-400/30",
-                chip: "bg-amber-300 border-amber-200",
+                gradient: "from-white/95 via-rose-50/60 to-slate-50/90 dark:from-rose-950/90 dark:via-rose-900/80 dark:to-slate-900",
+                glow: "shadow-rose-100/60 dark:shadow-rose-500/20",
+                border: "border-rose-200/80 dark:border-rose-400/30",
                 brand: "AMEX ULTIMATE",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-rose-50 text-rose-700 border-rose-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-emerald-600 via-emerald-700 to-teal-950 dark:from-emerald-950 dark:via-teal-900 dark:to-slate-900",
-                glow: "shadow-emerald-500/25",
-                border: "border-emerald-400/30",
-                chip: "bg-amber-300 border-amber-200",
+                gradient: "from-white/95 via-emerald-50/60 to-slate-50/90 dark:from-emerald-950/90 dark:via-teal-900/80 dark:to-slate-900",
+                glow: "shadow-emerald-100/60 dark:shadow-emerald-500/20",
+                border: "border-emerald-200/80 dark:border-emerald-400/30",
                 brand: "ECO CAPITAL",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-emerald-50 text-emerald-700 border-emerald-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-amber-600 via-amber-700 to-orange-950 dark:from-amber-950 dark:via-orange-900 dark:to-slate-900",
-                glow: "shadow-amber-500/25",
-                border: "border-amber-400/30",
-                chip: "bg-amber-200 border-amber-100",
+                gradient: "from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950/90 dark:via-orange-900/80 dark:to-slate-900",
+                glow: "shadow-amber-100/60 dark:shadow-amber-500/20",
+                border: "border-amber-200/80 dark:border-amber-400/30",
                 brand: "GOLD METALLIC",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-amber-50 text-amber-700 border-amber-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               },
               {
-                gradient: "from-violet-600 via-violet-700 to-purple-950 dark:from-violet-950 dark:via-purple-900 dark:to-slate-900",
-                glow: "shadow-violet-500/25",
-                border: "border-violet-400/30",
-                chip: "bg-amber-300 border-amber-200",
+                gradient: "from-white/95 via-purple-50/60 to-slate-50/90 dark:from-violet-950/90 dark:via-purple-900/80 dark:to-slate-900",
+                glow: "shadow-purple-100/60 dark:shadow-violet-500/20",
+                border: "border-purple-200/80 dark:border-violet-400/30",
                 brand: "TITANIUM BLACK",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
+                badge: "bg-purple-50 text-purple-700 border-purple-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs"
               }
             ];
 
@@ -682,25 +676,25 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                 id={`installment-card-${inst.id}`}
                 whileHover={{ scale: 1.02, y: -3 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className={`relative overflow-hidden rounded-3xl p-5 border ${cardTheme.border} text-white bg-gradient-to-br ${cardTheme.gradient} shadow-lg ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none`}
+                className={`relative overflow-hidden rounded-3xl p-5 border ${cardTheme.border} text-slate-800 dark:text-white bg-gradient-to-br ${cardTheme.gradient} shadow-md ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none backdrop-blur-md`}
               >
                 {/* Decorative intersecting circles context layout */}
-                <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
-                <div className="absolute -left-10 -bottom-10 w-36 h-36 rounded-full bg-white/5 blur-xl pointer-events-none" />
+                <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-indigo-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
+                <div className="absolute -left-10 -bottom-10 w-36 h-36 rounded-full bg-indigo-500/5 dark:bg-white/5 blur-xl pointer-events-none" />
 
                 {/* Upper Deck: Chip, Name, and Brand */}
                 <div className="relative z-10 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {/* Simulated golden SIM card chip */}
-                    <div className="w-8 h-6 rounded-md bg-amber-400/85 relative overflow-hidden border border-amber-300/40 shadow-inner shrink-0">
+                    <div className="w-8 h-6 rounded-md bg-amber-400/90 relative overflow-hidden border border-amber-300/60 shadow-xs shrink-0">
                       {/* Chip metal grid lines */}
                       <div className="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-px p-0.5 opacity-60">
-                        <div className="border border-amber-600/30 rounded-xs"></div>
-                        <div className="border border-amber-600/30 rounded-xs"></div>
-                        <div className="border border-amber-600/30 rounded-xs"></div>
-                        <div className="border border-amber-600/30 rounded-xs"></div>
-                        <div className="border border-amber-600/30 rounded-xs"></div>
-                        <div className="border border-amber-600/30 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
+                        <div className="border border-amber-600/40 rounded-xs"></div>
                       </div>
                     </div>
                     <div>
@@ -711,18 +705,18 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                             {provider && (
                               <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
                             )}
-                            <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[140px]" title={inst.name}>
+                            <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[140px] text-slate-900 dark:text-white" title={inst.name}>
                               {inst.name}
                             </h4>
                             {provider && (
-                              <span className="text-[9px] opacity-85 font-bold">
+                              <span className="text-[9px] text-slate-500 dark:text-white/80 font-bold">
                                 ({provider.badgeLabel || provider.name})
                               </span>
                             )}
                           </div>
                         );
                       })()}
-                      <p className="text-[8px] opacity-75 font-mono tracking-widest">{cardTheme.brand}</p>
+                      <p className="text-[8px] text-slate-400 dark:text-white/70 font-mono tracking-widest">{cardTheme.brand}</p>
                     </div>
                   </div>
 
@@ -733,14 +727,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
                 {/* Middle Deck: Large display of monthly payment amount */}
                 <div className="relative z-10 my-3">
-                  <span className="text-[9px] text-white/60 font-black uppercase tracking-widest block leading-none mb-1">
+                  <span className="text-[9px] text-slate-500 dark:text-white/60 font-black uppercase tracking-widest block leading-none mb-1">
                     AYLIK ÖDEME TUTARI
                   </span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white drop-shadow-xs">
+                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white drop-shadow-xs">
                       {format(singlePayment)}
                     </span>
-                    <span className="text-[10px] text-white/70 font-bold">/ ay</span>
+                    <span className="text-[10px] text-slate-500 dark:text-white/70 font-bold">/ ay</span>
                   </div>
                 </div>
 
@@ -748,48 +742,48 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                 <div className="relative z-10 space-y-3">
                   {/* Real-time slider progress line */}
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-white/70 font-bold font-mono">
+                    <div className="flex justify-between text-[10px] text-slate-600 dark:text-white/70 font-bold font-mono">
                       <span>Ödenen {inst.paidInstallmentCount} Taksit</span>
                       <span>%{percentage.toFixed(0)} pay</span>
                     </div>
-                    <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden shadow-inner flex">
+                    <div className="w-full bg-slate-200/80 dark:bg-white/10 h-1.5 rounded-full overflow-hidden shadow-inner flex">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${percentage}%` }}
                         transition={{ duration: 1, ease: "easeOut" }}
-                        className={`h-full rounded-full ${isCompleted ? 'bg-emerald-400' : 'bg-gradient-to-r from-teal-300 to-amber-300'}`}
+                        className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 to-teal-400 dark:from-teal-300 dark:to-amber-300'}`}
                       />
                     </div>
                   </div>
 
                   {/* Valid-thru, totals description and action buttons */}
-                  <div className="flex items-center justify-between text-white/85 text-[10px] font-semibold gap-2 border-t border-white/10 pt-2.5">
+                  <div className="flex items-center justify-between text-slate-700 dark:text-white/85 text-[10px] font-semibold gap-2 border-t border-slate-200/80 dark:border-white/10 pt-2.5">
                     <div className="flex gap-4 font-mono">
                       <div>
-                        <span className="text-[8px] text-white/50 block font-normal leading-none mb-0.5">TOPLAM</span>
-                        <span className="font-extrabold">{format(inst.totalAmount)}</span>
+                        <span className="text-[8px] text-slate-400 dark:text-white/50 block font-normal leading-none mb-0.5">TOPLAM</span>
+                        <span className="font-extrabold text-slate-800 dark:text-white">{format(inst.totalAmount)}</span>
                       </div>
                       <div>
-                        <span className="text-[8px] text-white/50 block font-normal leading-none mb-0.5">KALAN</span>
-                        <span className="font-extrabold text-[#fda4af]">{format(remaining)}</span>
+                        <span className="text-[8px] text-slate-400 dark:text-white/50 block font-normal leading-none mb-0.5">KALAN</span>
+                        <span className="font-extrabold text-rose-600 dark:text-[#fda4af]">{format(remaining)}</span>
                       </div>
                       <div>
-                        <span className="text-[8px] text-white/50 block font-normal leading-none mb-0.5">VALİD THRU</span>
-                        <span className="font-extrabold">{expiryText}</span>
+                        <span className="text-[8px] text-slate-400 dark:text-white/50 block font-normal leading-none mb-0.5">VALİD THRU</span>
+                        <span className="font-extrabold text-slate-800 dark:text-white">{expiryText}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleOpenEdit(inst)}
-                        className="p-1 px-1.5 bg-white/15 hover:bg-white/25 rounded-md transition text-white"
+                        className="p-1 px-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-700 dark:bg-white/15 dark:hover:bg-white/25 dark:border-white/10 dark:text-white rounded-md transition shadow-xs cursor-pointer"
                         title="Düzenle"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDeleteInstallment(inst.id)}
-                        className="p-1 px-1.5 bg-rose-500/30 hover:bg-rose-500/50 rounded-md transition text-rose-200"
+                        className="p-1 px-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 text-rose-600 dark:bg-rose-500/30 dark:hover:bg-rose-500/50 dark:border-rose-400/20 dark:text-rose-200 rounded-md transition shadow-xs cursor-pointer"
                         title="Sil"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -799,10 +793,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                           disabled={inst.paidInstallmentCount === 0}
                           onClick={() => onRevertPayment(inst.id)}
                           title="Taksiti Geri Al"
-                          className={`p-1 px-1.5 rounded-md transition ${
+                          className={`p-1 px-1.5 rounded-md transition shadow-xs cursor-pointer ${
                             inst.paidInstallmentCount === 0
-                              ? "opacity-35 cursor-not-allowed text-white/40"
-                              : "bg-white/15 hover:bg-white/25 text-white"
+                              ? "opacity-35 cursor-not-allowed text-slate-400 dark:text-white/40 border border-transparent"
+                              : "bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-700 dark:bg-white/15 dark:hover:bg-white/25 dark:border-white/10 dark:text-white"
                           }`}
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -811,9 +805,9 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                       {!isCompleted && (
                         <button
                           onClick={() => handleOpenPayModal(inst)}
-                          className="px-2.5 py-1 bg-white hover:bg-white/90 text-slate-900 font-extrabold text-[10px] rounded-md shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer"
+                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-white dark:hover:bg-white/90 dark:text-slate-900 font-extrabold text-[10px] rounded-md shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer"
                         >
-                          <Wallet className="w-3 h-3 text-slate-800" /> Taksit Öde
+                          <Wallet className="w-3 h-3 text-white dark:text-slate-800" /> Taksit Öde
                         </button>
                       )}
                     </div>

@@ -3,6 +3,53 @@
 /* Enable selector-based dark mode in Tailwind CSS v4 */
 @variant dark (&:where(.dark, .dark *));
 
+/* ==========================================================================
+   DONANIMSAL HIZLANDIRMA (GPU ACCELERATION) & JET HIZINDA SAYFA GEÇİŞLERİ
+   ========================================================================== */
+.gpu-accelerated,
+.page-transition-container,
+.tab-content-wrapper,
+.card-glass-light,
+.card-glass-dark,
+main,
+main > *,
+section,
+canvas,
+[data-framer-motion],
+.motion-container {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+}
+
+/* Sayfa geçişleri, sekmeler ve hareketli kartlar için donanımsal GPU hazırlığı */
+.page-transition-container,
+.tab-content-wrapper,
+.motion-container,
+main > div,
+[data-framer-motion] {
+  will-change: transform, opacity;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Konfeti Canvas Donanımsal Hızlandırma (GPU Render - 60/120 FPS Kesintisiz Akış) */
+canvas,
+canvas[style*="pointer-events"],
+canvas[style*="position: fixed"],
+body > canvas {
+  will-change: transform, opacity !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+}
+
 html {
   scroll-behavior: smooth;
   height: 100%;

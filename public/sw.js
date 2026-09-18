@@ -260,6 +260,35 @@ async function loadPushSettingsFromCache() {
   }
 }
 
+const USER_PROFILE_URL = "/_app_cache_user_profile";
+
+async function saveUserProfileToCache(profile) {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    await cache.put(
+      USER_PROFILE_URL,
+      new Response(JSON.stringify(profile || {}), {
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  } catch (err) {
+    console.error("Failed to save user profile to cache:", err);
+  }
+}
+
+async function loadCachedUserProfile() {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    const response = await cache.match(USER_PROFILE_URL);
+    if (response) {
+      return await response.json();
+    }
+  } catch (err) {
+    console.error("Failed to load user profile from cache:", err);
+  }
+  return null;
+}
+
 async function saveCachedLastGeneralNotificationTime(timestamp) {
   try {
     const cache = await caches.open(SETTINGS_CACHE_NAME);
@@ -424,7 +453,12 @@ async function handleBackgroundSync(tag) {
     const summaryList = topItems
       .map(d => `- ${d.name}: ₺${Number(d.amount).toLocaleString("tr-TR")}${d.daysLate ? ` (${d.daysLate} gün gecikti)` : " (Vadesi Bugün)"}`)
       .join("\n");
-    const smsBody = `SN. DEĞERLİ KULLANICIMIZ\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryList}${allDueItems.length > 3 ? `\n...ve ${allDueItems.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+    
+    // Kullanıcının kayıtlı ismi veya e-postasına göre hitap et
+    const userProfile = await loadCachedUserProfile();
+    const rawName = (userProfile && userProfile.name ? userProfile.name.trim() : "") || (userProfile && userProfile.email ? userProfile.email.trim() : "");
+    const safeUser = rawName ? rawName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
+    const smsBody = `SN. ${safeUser}\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryList}${allDueItems.length > 3 ? `\n...ve ${allDueItems.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
 
     await self.registration.showNotification("Bütçem Pro: Güncel Borç & Vade Özeti ⏰", {
       body: smsBody,
@@ -516,6 +550,15 @@ self.addEventListener("message", (event) => {
       saveCachedLastGeneralNotificationTime(event.data.sonGenelBildirimZamani);
     }
     console.log("[Service Worker] Push settings updated & cached:", pushSettings);
+  }
+
+  if (event.data.type === "SYNC_USER_PROFILE") {
+    const profile = {
+      name: event.data.name || "",
+      email: event.data.email || ""
+    };
+    saveUserProfileToCache(profile);
+    console.log("[Service Worker] User profile cached for personalized notifications:", profile);
   }
 
   if (event.data.type === "SYNC_LAST_NOTIFICATION_TIME") {

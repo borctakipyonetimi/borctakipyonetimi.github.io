@@ -1001,14 +1001,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-rose-50/60 to-slate-50/90 dark:from-rose-950 dark:to-slate-900 border border-rose-200/80 dark:border-rose-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
-            <ShoppingCart className="w-3 h-3 text-rose-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-200 uppercase tracking-wide">
+            <ShoppingCart className="w-3 h-3 text-rose-500 dark:text-rose-300" />
             <span>TOPLAM GİDER</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(totalExpenses)}</p>
-          <span className="text-[8.5px] font-medium text-rose-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(totalExpenses)}</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-rose-200/80 block">
             {selectedMonthStr === "all" ? "Tüm Harcamalar" : "Seçili Dönem Toplamı"}
           </span>
         </motion.div>
@@ -1017,16 +1017,16 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
-            <BarChart3 className="w-3 h-3 text-indigo-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-200 uppercase tracking-wide">
+            <BarChart3 className="w-3 h-3 text-indigo-500 dark:text-indigo-300" />
             <span>{budgetGoal > 0 ? "BÜTÇE HEDEFİ" : "HARCAMA SAYISI"}</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">
             {budgetGoal > 0 ? format(budgetGoal) : `${filteredExpenses.length} Adet`}
           </p>
-          <span className="text-[8.5px] font-medium text-indigo-200/80 block">
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-indigo-200/80 block">
             {budgetGoal > 0 ? `Kullanım: %${Math.min(100, Math.round((currentMonthExpensesTotal / budgetGoal) * 100))}` : "Kayıtlı Harcama"}
           </span>
         </motion.div>
@@ -1037,22 +1037,22 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className={`p-3.5 sm:p-4 ${
             netBalance !== undefined && netBalance < 0
-              ? "bg-gradient-to-br from-red-600 via-red-700 to-rose-950 dark:from-red-950 dark:to-slate-900 border-red-500/30"
-              : "bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 dark:from-blue-950 dark:to-slate-900 border-blue-500/30"
-          } border text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]`}
+              ? "bg-gradient-to-br from-white/95 via-red-50/60 to-slate-50/90 dark:from-red-950 dark:to-slate-900 border-red-200/80 dark:border-red-500/30"
+              : "bg-gradient-to-br from-white/95 via-blue-50/60 to-slate-50/90 dark:from-blue-950 dark:to-slate-900 border-blue-200/80 dark:border-blue-500/30"
+          } border text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]`}
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-200 uppercase tracking-wide">
             {netBalance !== undefined && netBalance < 0 ? (
-              <AlertTriangle className="w-3 h-3 text-red-300 animate-pulse" />
+              <AlertTriangle className="w-3 h-3 text-red-500 dark:text-red-300 animate-pulse" />
             ) : (
-              <TrendingUp className="w-3 h-3 text-blue-300" />
+              <TrendingUp className="w-3 h-3 text-blue-500 dark:text-blue-300" />
             )}
             <span>NET BAKİYE</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">
             {netBalance !== undefined ? format(netBalance) : format(0)}
           </p>
-          <span className="text-[8.5px] font-medium text-blue-200/80 block">
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-blue-200/80 block">
             {netBalance !== undefined && netBalance < 0 ? "Bütçe Aşımı Riski" : "Gelir - Gider Dengesi"}
           </span>
         </motion.div>
@@ -1061,14 +1061,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-600 via-amber-700 to-orange-900 dark:from-amber-950 dark:to-slate-900 border border-amber-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
-            <Sparkles className="w-3 h-3 text-amber-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
+            <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-300" />
             <span>KATEGORİLER</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{expenseCategories.length} Kategori</p>
-          <span className="text-[8.5px] font-medium text-amber-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{expenseCategories.length} Kategori</p>
+          <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
             Kişiselleştirilebilir
           </span>
         </motion.div>
@@ -1212,14 +1212,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : { type: "spring", stiffness: 350, damping: 25 }
                       }
                       whileHover={{ scale: 1.01, y: -2 }}
-                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-rose-600 via-red-700 to-indigo-950 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 text-white rounded-3xl border border-rose-500/40 shadow-lg shadow-rose-500/10 flex items-center justify-between gap-4 transition-all duration-300 ${
+                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-white/95 via-rose-50/50 to-slate-50/90 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 rounded-3xl border border-rose-200/80 dark:border-rose-500/40 shadow-md shadow-rose-100/50 dark:shadow-rose-500/10 flex items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md ${
                         isNew
                           ? "ring-2 ring-amber-400 border-amber-300 shadow-[0_0_25px_rgba(244,63,94,0.4)]"
                           : ""
                       }`}
                     >
                       {/* Ambient decoration */}
-                      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-xl pointer-events-none" />
+                      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-rose-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
 
                       {/* Premium Shimmering Shine Parıltı Effect */}
                       {isNew && (
@@ -1244,37 +1244,37 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       <div className="space-y-1.5 relative z-10 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className="px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider bg-white/20 text-white border border-white/30 backdrop-blur-xs shrink-0 shadow-xs"
+                            className="px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs shrink-0 shadow-xs"
                           >
                             {cat
                               ? `${cat.icon || "🛒"} ${cat.name}`
                               : "Kategorisiz"}
                           </span>
-                          <span className="text-xs sm:text-sm font-black text-white truncate tracking-tight">
+                          <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate tracking-tight">
                             {e.description || "Harcama açıklaması girmediniz"}
                           </span>
                         </div>
-                        <p className="text-[10px] text-white/80 flex items-center gap-1 font-semibold bg-black/20 px-2 py-0.5 rounded-md border border-white/10 w-fit">
-                          <Calendar className="w-3 h-3 text-rose-300" />{" "}
+                        <p className="text-[10px] text-slate-600 dark:text-white/80 flex items-center gap-1 font-semibold bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
+                          <Calendar className="w-3 h-3 text-rose-500 dark:text-rose-300" />{" "}
                           {new Date(e.date).toLocaleDateString("tr-TR")}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-3 relative z-10 shrink-0">
-                        <span className="font-black text-base sm:text-lg text-rose-200 font-mono tracking-tight drop-shadow-xs">
+                        <span className="font-black text-base sm:text-lg text-rose-600 dark:text-rose-200 font-mono tracking-tight drop-shadow-xs">
                           -{format(e.amount)}
                         </span>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleOpenEditExpense(e)}
-                            className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                            className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                             title="Düzenle"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeleteExpense(e.id)}
-                            className="p-2 text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs"
+                            className="p-2 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                             title="Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
