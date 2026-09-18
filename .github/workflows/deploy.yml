@@ -86,6 +86,19 @@ jobs:
             fi
           done
 
+          # Bildirim ikonu (ic_stat_notify ve OneSignal default) entegrasyonu
+          if [ -f "notification-icon.png" ]; then
+            mkdir -p android/app/src/main/res/drawable
+            cp notification-icon.png android/app/src/main/res/drawable/ic_stat_notify.png || true
+            cp notification-icon.png android/app/src/main/res/drawable/ic_stat_onesignal_default.png || true
+            for d in android/app/src/main/res/drawable-*; do
+              if [ -d "$d" ]; then
+                cp notification-icon.png "$d/ic_stat_notify.png" || true
+                cp notification-icon.png "$d/ic_stat_onesignal_default.png" || true
+              fi
+            done
+          fi
+
       - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
         run: |
           # Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle
