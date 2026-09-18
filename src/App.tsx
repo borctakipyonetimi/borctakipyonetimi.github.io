@@ -946,11 +946,6 @@ export default function App() {
     }
     return "default";
   });
-  const [isPhoneAlert, setIsPhoneAlert] = useState<{ visible: boolean; title: string; body: string }>({
-    visible: false,
-    title: "",
-    body: ""
-  });
   const [isAddingAlarmNew, setIsAddingAlarmNew] = useState(false);
   const [testPushStatus, setTestPushStatus] = useState<string>("");
   const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(false);
@@ -1310,9 +1305,6 @@ export default function App() {
         }
       }
     }
-
-    // 4. Fallback and visually reinforce with sliding phone-alert graphic
-    setIsPhoneAlert({ visible: true, title, body });
 
     // 4. Record to "Bildirim Paneli" feed if requested
     if (persist) {
@@ -4174,15 +4166,8 @@ export default function App() {
               channelId: "debt_reminders",
               smallIcon: 'ic_stat_notify',
               iconColor: '#10B981',
-              largeIcon: 'logo',
               autoCancel: true,
-              attachments: [
-                { id: 'resim1', url: 'logo.png' }
-              ],
               android: {
-                // Bildirim çekmecesi aşağı kaydırıldığında büyük resim olarak açılması için:
-                style: 'bigPicture',
-                bigPicture: 'logo.png',
                 summaryText: 'Ödeme detaylarınızı kontrol etmeyi unutmayın.',
                 priority: 'max',
                 visibility: 'public'
@@ -5744,39 +5729,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Real-time Simulated iOS/Android System Push Notification banner */}
-      {isPhoneAlert.visible && (
-        <div className="fixed top-4 inset-x-0 z-[9999] flex justify-center px-4 pointer-events-none">
-          <div 
-            className="w-full max-w-sm bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-white/15 flex items-start gap-3.5 animate-phone-alert cursor-pointer select-none pointer-events-auto"
-            onClick={() => setIsPhoneAlert({ visible: false, title: "", body: "" })}
-          >
-            <div className="w-10 h-10 bg-indigo-600 dark:bg-indigo-700 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20 animate-pulse">
-              <Bell className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-indigo-400 tracking-wider uppercase">BÜTÇEM PRO • SİSTEM</span>
-                <span className="text-[9px] text-slate-400 font-bold font-mono">ŞİMDİ</span>
-              </div>
-              <h4 className="text-xs font-black text-slate-100 truncate">{isPhoneAlert.title}</h4>
-              <p className="text-[10px] text-slate-300 font-medium leading-relaxed">{isPhoneAlert.body}</p>
-            </div>
-            <button 
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsPhoneAlert({ visible: false, title: "", body: "" });
-              }}
-              className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-white/10 transition shrink-0 cursor-pointer self-center"
-              title="Kapat"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs transition-all duration-300">
@@ -7016,8 +6968,8 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Central View Dashboard Grid content container - GPU Accelerated Page Transitions */}
-      <main className="max-w-3xl mx-auto px-4 py-6 pb-24 page-transition-container gpu-accelerated">
+      {/* Central View Dashboard Grid content container */}
+      <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
 
         {activeTab === "overview" && (
           <DashboardOverview

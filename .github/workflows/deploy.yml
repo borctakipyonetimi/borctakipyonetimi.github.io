@@ -86,30 +86,6 @@ jobs:
             fi
           done
 
-          # Renkli logo.png dosyasını büyük resimli bildirimler (Big Picture & Large Icon) için drawable klasörlerine ekliyoruz
-          mkdir -p android/app/src/main/res/drawable
-          cp logo.png android/app/src/main/res/drawable/logo.png || true
-          for dir in android/app/src/main/res/drawable-*; do
-            cp logo.png "$dir/logo.png" || true
-          done
-
-      - name: Inject Black and White Notification Icon
-        run: |
-          # İkonu Android standartlarında kırpıp tam boyuta getirmek için ImageMagick aracını kullanıyoruz
-          sudo apt-get install imagemagick -y || true
-          
-          # notification-icon.png görselinin etrafındaki gereksiz şeffaf boşlukları otomatik kırpıp tam boyuta büyüterek kaydediyoruz
-          convert notification-icon.png -trim +repage -resize 96x96 notification_final.png || true
-          if [ ! -f notification_final.png ]; then cp notification-icon.png notification_final.png || true; fi
-          
-          # Elde ettiğimiz bu tam boyutlu büyük ikonu tüm Android mipmap ve drawable klasörlerine zorla basıyoruz
-          for dir in android/app/src/main/res/mipmap-*; do
-            cp notification_final.png "$dir/ic_stat_notify.png" || true
-          done
-          for dir in android/app/src/main/res/drawable-*; do
-            cp notification_final.png "$dir/ic_stat_notify.png" || true
-          done
-
       - name: Bildirim Rengini ve Izinlerini Sisteme Kazi
         run: |
           # Canli Yesil (#10B981) bildirim vurgu rengini colors.xml dosyasina ekle
@@ -121,10 +97,10 @@ jobs:
             echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="default_notification_color">#10B981</color></resources>' > $COLORS_PATH
           fi
 
-          # AndroidManifest.xml icine bildirim ikonu (BP), yesil bildirim rengi (#10B981) ve ag izinlerini ekle
+          # AndroidManifest.xml icine yesil bildirim rengi (#10B981) ve ag izinlerini ekle
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
-            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/default_notification_color" />' $MANIFEST_PATH
+            sed -i '/<\/activity>/a \        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/default_notification_color" />' $MANIFEST_PATH
             sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST_PATH
             sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' $MANIFEST_PATH
           fi

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
@@ -1566,14 +1567,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-200 uppercase tracking-wide">
-            <ClipboardList className="w-3 h-3 text-indigo-500 dark:text-indigo-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+            <ClipboardList className="w-3 h-3 text-indigo-200" />
             <span>GENEL TOPLAM</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.totalDebt ?? allTimeTotalAmount)}</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-indigo-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats?.totalDebt ?? allTimeTotalAmount)}</p>
+          <span className="text-[8.5px] font-medium text-indigo-100/90 block">
             Aktif & Taksitli Borçlar
           </span>
         </motion.div>
@@ -1582,14 +1583,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/40 dark:border-amber-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
-            <Calendar className="w-3 h-3 text-amber-500 dark:text-amber-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+            <Calendar className="w-3 h-3 text-amber-200" />
             <span>BU AY ÖDENECEK</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats?.thisMonthTotalBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-amber-100/90 block">
             Vadesi Gelen Taksit & Borçlar
           </span>
         </motion.div>
@@ -1598,10 +1599,10 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-teal-50/60 to-slate-50/90 dark:from-teal-950 dark:to-slate-900 border border-teal-200/80 dark:border-teal-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-800 dark:from-teal-950 dark:via-emerald-950 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
         >
-          <div className="flex items-center justify-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold text-teal-600 dark:text-teal-200 uppercase tracking-wide">
-            <CheckCircle2 className="w-3 h-3 text-teal-500 dark:text-teal-300" />
+          <div className="flex items-center justify-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+            <CheckCircle2 className="w-3 h-3 text-teal-200" />
             <span>BU AY ÖDENEN</span>
             {onResetPayments && (
               <button
@@ -1610,14 +1611,14 @@ export const DebtList: React.FC<DebtListProps> = ({
                   setIsResetPaymentsModalOpen(true);
                 }}
                 title="Ödemeleri Sıfırla"
-                className="p-0.5 hover:bg-slate-200 dark:hover:bg-white/20 rounded-md transition text-slate-500 dark:text-white/80 hover:text-slate-800 dark:hover:text-white cursor-pointer ml-0.5"
+                className="p-0.5 hover:bg-white/20 rounded-md transition text-teal-100 hover:text-white cursor-pointer ml-0.5"
               >
                 <RotateCcw className="w-3 h-3" />
               </button>
             )}
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-teal-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats?.thisMonthPaidBorc ?? (stats !== undefined ? (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc) : allTimeTotalPaid))}</p>
+          <span className="text-[8.5px] font-medium text-teal-100/90 block">
             Kapatılan Borç/Taksitler
           </span>
         </motion.div>
@@ -1626,14 +1627,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-rose-50/60 to-slate-50/90 dark:from-rose-950 dark:to-slate-900 border border-rose-200/80 dark:border-rose-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-200 uppercase tracking-wide">
-            <AlertCircle className="w-3 h-3 text-rose-500 dark:text-rose-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+            <AlertCircle className="w-3 h-3 text-rose-200" />
             <span>KALAN BORÇ</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-rose-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats?.thisMonthKalanBorc ?? dueThisMonthAmount)}</p>
+          <span className="text-[8.5px] font-medium text-rose-100/90 block">
             Ödenmesi Gereken Net Bakiye
           </span>
         </motion.div>
@@ -2264,15 +2265,30 @@ export const DebtList: React.FC<DebtListProps> = ({
       </div>
 
       {/* Debt Add/Edit Dialog Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl">
-            <h4 className="text-base font-bold flex items-center gap-1.5 border-b pb-2 dark:border-slate-700">
-              <AlertCircle className="w-5 h-5 text-indigo-500" /> {modalTitle}
-            </h4>
+      {isModalOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md space-y-4 shadow-2xl border border-slate-200/60 dark:border-slate-700/60 max-h-[90vh] overflow-y-auto my-auto relative"
+          >
+            <div className="flex items-center justify-between border-b pb-2 dark:border-slate-700">
+              <h4 className="text-base font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-5 h-5 text-indigo-500" /> {modalTitle}
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             {/* Quick scanning action */}
             <button
+              type="button"
               onClick={() => {
                 if (!isPremium) {
                   onUpgradeClick?.();
@@ -2411,20 +2427,23 @@ export const DebtList: React.FC<DebtListProps> = ({
             </div>
             <div className="flex gap-2 pt-1">
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-bold text-xs"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-bold text-xs cursor-pointer transition"
               >
                 İptal
               </button>
               <button
+                type="button"
                 onClick={handleSave}
-                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs"
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs cursor-pointer transition active:scale-95 shadow-md shadow-indigo-600/20"
               >
                 Kaydet
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </div>,
+        document.body
       )}
 
       {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner (Only show when there is actual content) */}
@@ -2446,9 +2465,9 @@ export const DebtList: React.FC<DebtListProps> = ({
         </motion.div>
       )}
 
-      {isPrintModalOpen && (
-        <div id="print-preview-modal" className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200">
+      {isPrintModalOpen && typeof document !== "undefined" && createPortal(
+        <div id="print-preview-modal" className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200 my-auto relative">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 select-none">
               <div className="flex items-center gap-2">
@@ -2561,7 +2580,8 @@ export const DebtList: React.FC<DebtListProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {isScannerOpen && (
@@ -2573,12 +2593,12 @@ export const DebtList: React.FC<DebtListProps> = ({
       )}
 
       {/* Debt Template Save Modal */}
-      {isSaveTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      {isSaveTemplateModalOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-fade-in">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 my-auto relative"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2686,16 +2706,17 @@ export const DebtList: React.FC<DebtListProps> = ({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Debt Template Load / Manager Modal */}
-      {isTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      {isTemplateModalOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-fade-in">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col my-auto relative"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2817,18 +2838,19 @@ export const DebtList: React.FC<DebtListProps> = ({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Reset Payments Confirmation Modal */}
       <AnimatePresence>
-        {isResetPaymentsModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        {isResetPaymentsModalOpen && typeof document !== "undefined" && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-fade-in">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 my-auto relative"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
@@ -2905,7 +2927,8 @@ export const DebtList: React.FC<DebtListProps> = ({
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
     </div>

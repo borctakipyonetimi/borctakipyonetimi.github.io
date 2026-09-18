@@ -400,31 +400,31 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         const getActionStyle = () => {
           if (colorTheme === "green") {
             return {
-              debt: "bg-teal-500/10 hover:bg-teal-500/20 dark:bg-teal-500/15 dark:hover:bg-teal-500/25 text-teal-600 dark:text-teal-400 border-teal-500/20 dark:border-teal-500/30 hover:border-teal-500 dark:hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/10 dark:hover:shadow-teal-500/20",
-              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
-              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              badge: "bg-emerald-500 text-white"
+              debt: "bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-800 dark:from-teal-950 dark:via-emerald-950 dark:to-slate-900 border-2 border-teal-400/50 dark:border-teal-500/40 text-white shadow-lg shadow-teal-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
             };
           } else if (colorTheme === "purple") {
             return {
-              debt: "bg-purple-500/10 hover:bg-purple-500/20 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-600 dark:text-purple-400 border-purple-500/20 dark:border-purple-500/30 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/10 dark:hover:shadow-purple-500/20",
-              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
-              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              badge: "bg-purple-500 text-white"
+              debt: "bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-800 dark:from-purple-950 dark:via-indigo-950 dark:to-slate-900 border-2 border-purple-400/50 dark:border-purple-500/40 text-white shadow-lg shadow-purple-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
             };
           } else if (colorTheme === "orange") {
             return {
-              debt: "bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-lg hover:shadow-amber-500/10 dark:hover:shadow-amber-500/20",
-              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
-              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              badge: "bg-amber-500 text-white"
+              debt: "bg-gradient-to-br from-amber-500 via-amber-600 to-orange-800 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/50 dark:border-amber-500/40 text-white shadow-lg shadow-amber-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
             };
           } else { // default indigo
             return {
-              debt: "bg-indigo-500/10 hover:bg-indigo-500/20 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 dark:border-indigo-500/30 hover:border-indigo-500 dark:hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 dark:hover:shadow-indigo-500/20",
-              income: "bg-emerald-500/10 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/20",
-              expense: "bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/15 dark:hover:bg-red-500/25 text-red-600 dark:text-red-400 border-red-500/20 dark:border-red-500/30 hover:border-red-500 dark:hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 dark:hover:shadow-red-500/20",
-              badge: "bg-indigo-500 text-white"
+              debt: "bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-800 dark:from-indigo-950 dark:via-purple-950 dark:to-slate-900 border-2 border-indigo-400/50 dark:border-indigo-500/40 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
             };
           }
         };
@@ -442,7 +442,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               whileHover={{ 
                 scale: 1.03, 
                 y: -3,
-                boxShadow: "0 15px 20px -5px rgba(99, 102, 241, 0.18)",
+                boxShadow: "0 15px 20px -5px rgba(99, 102, 241, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -454,10 +454,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               id="quick-add-debt-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
-                  opacity: [0.35, 0.7, 0.35]
+                  opacity: [0.2, 0.5, 0.2]
                 }}
                 transition={{
                   duration: 2.8,
@@ -467,21 +467,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
 
               <motion.div 
-                className={`p-1.5 sm:p-2 rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
+                className={`p-1.5 sm:p-2 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
                 whileHover={{ 
                   scale: 1.12,
-                  boxShadow: "0 0 12px rgba(99, 102, 241, 0.5)"
+                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </motion.div>
 
               <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:opacity-100 transition-opacity duration-200 truncate">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "BORÇ EKLE" : "ADD DEBT"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Kredi & Kart" : "Loans & Credit"}
                 </span>
               </div>
@@ -496,7 +496,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               whileHover={{ 
                 scale: 1.03, 
                 y: -3,
-                boxShadow: "0 15px 20px -5px rgba(16, 185, 129, 0.18)",
+                boxShadow: "0 15px 20px -5px rgba(16, 185, 129, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -508,10 +508,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               id="quick-add-income-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
-                  opacity: [0.35, 0.7, 0.35]
+                  opacity: [0.2, 0.5, 0.2]
                 }}
                 transition={{
                   duration: 2.8,
@@ -522,22 +522,22 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
               
               <motion.div 
-                className="p-1.5 sm:p-2 bg-emerald-500 text-white rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300"
+                className="p-1.5 sm:p-2 bg-white/20 text-white border border-white/30 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
                 whileHover={{ 
                   rotate: 180, 
                   scale: 1.12,
-                  boxShadow: "0 0 12px rgba(16, 185, 129, 0.5)"
+                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </motion.div>
               
               <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:text-emerald-500 dark:group-hover:text-emerald-350 transition-colors duration-200 truncate">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "GELİR EKLE" : "ADD INCOME"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Maaş & Ek Kazanç" : "Salary & Earns"}
                 </span>
               </div>
@@ -552,7 +552,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               whileHover={{ 
                 scale: 1.03, 
                 y: -3,
-                boxShadow: "0 15px 20px -5px rgba(239, 68, 68, 0.18)",
+                boxShadow: "0 15px 20px -5px rgba(239, 68, 68, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -564,10 +564,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               id="quick-add-expense-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
-                  opacity: [0.35, 0.7, 0.35]
+                  opacity: [0.2, 0.5, 0.2]
                 }}
                 transition={{
                   duration: 2.8,
@@ -578,23 +578,23 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
 
               <motion.div 
-                className="p-1.5 sm:p-2 bg-red-500 text-white rounded-xl shadow-sm flex items-center justify-center shrink-0 transition-all duration-300"
+                className="p-1.5 sm:p-2 bg-white/20 text-white border border-white/30 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
                 whileHover={{ 
                   y: -2, 
                   x: 2,
                   scale: 1.12,
-                  boxShadow: "0 0 12px rgba(239, 68, 68, 0.5)"
+                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 rotate-90" />
+                <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 rotate-90 text-white" />
               </motion.div>
 
               <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider group-hover:text-red-500 dark:group-hover:text-red-350 transition-colors duration-200 truncate">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "GİDER EKLE" : "ADD EXPENSE"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold opacity-75 leading-none truncate block">
+                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Fatura & Market" : "Bills & Market"}
                 </span>
               </div>
@@ -906,66 +906,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </motion.div>
       )}
-
-      {/* Dynamic CTA Encouragement banner - Premium Animated Mesh Banner */}
-      <div className="banner-premium-gradient p-6 sm:p-8 rounded-3xl text-white space-y-5 relative overflow-hidden shadow-2xl border border-indigo-500/20 group hover:shadow-indigo-950/20 transition-all duration-500">
-        
-        {/* Animated Background Floating Bubble Orbs */}
-        <div className="absolute top-[-30px] right-[-10px] w-64 h-64 bg-indigo-500/15 rounded-full blur-3xl mix-blend-screen pointer-events-none animate-pulse duration-[6000ms]" />
-        <div className="absolute bottom-[-50px] left-[20%] w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl mix-blend-screen pointer-events-none animate-pulse duration-[8000ms]" />
-        
-        {/* Decorative dynamic diagonal shine beam */}
-        <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1500ms] pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2.5 max-w-lg">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-1 bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/15 rounded-full text-[10px] font-black tracking-widest text-[#f59e0b] uppercase flex items-center gap-1.5 animate-bounce">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" /> YENİ NESİL AI & CEP UYARILARI
-              </span>
-              <span className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-[9px] font-black tracking-widest text-emerald-300 uppercase">
-                %100 AKTİF VE GÜVENLİ
-              </span>
-            </div>
-            
-            <h3 className="text-xl sm:text-2xl font-black leading-tight tracking-tight text-white drop-shadow-sm">
-              Borçlarından Arın, Bütçeni <span className="bg-gradient-to-r from-teal-300 via-emerald-200 to-indigo-300 bg-clip-text text-transparent">Yapay Zeka</span> ile Yönet!
-            </h3>
-            
-            <p className="text-slate-200/90 text-xs font-semibold leading-relaxed">
-              Bütçem Pro akıllı borç kapatma simülasyonu, anlık telefon alarmı hatırlatıcıları ve cana yakın AI finans koçuyla sizi bekliyor.
-            </p>
-          </div>
-
-          <div className="flex sm:flex-col gap-2.5 shrink-0">
-            <button
-              onClick={() => onNavigate("aiStrategy")}
-              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-indigo-950 font-black text-[10px] rounded-2xl shadow-lg flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.03] active:scale-95 cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
-              <span>AI BAŞLAT</span>
-            </button>
-            <button
-              onClick={() => onNavigate("notifications")}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-extrabold text-[10px] rounded-2xl border border-white/15 flex items-center justify-center gap-2 backdrop-blur-xs transition duration-300 transform hover:scale-[1.03] active:scale-95 cursor-pointer"
-            >
-              <Bell className="w-3.5 h-3.5 text-indigo-300" />
-              <span>ALARMLAR</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Small Progress Tracker Pill inside the banner */}
-        <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300 relative z-10">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-            <span className="font-semibold text-[10px] tracking-wide uppercase">Finansal Sağlık Durumu: <span className="text-emerald-300 font-bold">Takip Ediliyor</span></span>
-          </div>
-          <p className="text-[10px] font-mono font-bold tracking-wider text-indigo-200">
-            Toplam Borç Ödeme İlerlemesi: %{paymentProgress.toFixed(1)}
-          </p>
-        </div>
-      </div>
 
       {/* Bütçe Hedefi Belirleme ve Kontrol Paneli */}
       {(() => {

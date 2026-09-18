@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   PlusCircle,
   ShoppingCart,
@@ -1001,14 +1002,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-rose-50/60 to-slate-50/90 dark:from-rose-950 dark:to-slate-900 border border-rose-200/80 dark:border-rose-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-200 uppercase tracking-wide">
-            <ShoppingCart className="w-3 h-3 text-rose-500 dark:text-rose-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+            <ShoppingCart className="w-3 h-3 text-rose-200" />
             <span>TOPLAM GİDER</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(totalExpenses)}</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-rose-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(totalExpenses)}</p>
+          <span className="text-[8.5px] font-medium text-rose-100/90 block">
             {selectedMonthStr === "all" ? "Tüm Harcamalar" : "Seçili Dönem Toplamı"}
           </span>
         </motion.div>
@@ -1017,16 +1018,16 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-indigo-50/60 to-slate-50/90 dark:from-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-200 uppercase tracking-wide">
-            <BarChart3 className="w-3 h-3 text-indigo-500 dark:text-indigo-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+            <BarChart3 className="w-3 h-3 text-indigo-200" />
             <span>{budgetGoal > 0 ? "BÜTÇE HEDEFİ" : "HARCAMA SAYISI"}</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
             {budgetGoal > 0 ? format(budgetGoal) : `${filteredExpenses.length} Adet`}
           </p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-indigo-200/80 block">
+          <span className="text-[8.5px] font-medium text-indigo-100/90 block">
             {budgetGoal > 0 ? `Kullanım: %${Math.min(100, Math.round((currentMonthExpensesTotal / budgetGoal) * 100))}` : "Kayıtlı Harcama"}
           </span>
         </motion.div>
@@ -1037,22 +1038,22 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className={`p-3.5 sm:p-4 ${
             netBalance !== undefined && netBalance < 0
-              ? "bg-gradient-to-br from-white/95 via-red-50/60 to-slate-50/90 dark:from-red-950 dark:to-slate-900 border-red-200/80 dark:border-red-500/30"
-              : "bg-gradient-to-br from-white/95 via-blue-50/60 to-slate-50/90 dark:from-blue-950 dark:to-slate-900 border-blue-200/80 dark:border-blue-500/30"
-          } border text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]`}
+              ? "bg-gradient-to-br from-red-500 via-red-600 to-rose-800 dark:from-red-950 dark:via-rose-950 dark:to-slate-900 border-2 border-red-400/40 shadow-red-500/20"
+              : "bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 dark:from-blue-950 dark:via-indigo-950 dark:to-slate-900 border-2 border-blue-400/40 shadow-blue-500/20"
+          } text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]`}
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-200 uppercase tracking-wide">
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
             {netBalance !== undefined && netBalance < 0 ? (
-              <AlertTriangle className="w-3 h-3 text-red-500 dark:text-red-300 animate-pulse" />
+              <AlertTriangle className="w-3 h-3 text-white animate-pulse" />
             ) : (
-              <TrendingUp className="w-3 h-3 text-blue-500 dark:text-blue-300" />
+              <TrendingUp className="w-3 h-3 text-blue-200" />
             )}
             <span>NET BAKİYE</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
             {netBalance !== undefined ? format(netBalance) : format(0)}
           </p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-blue-200/80 block">
+          <span className="text-[8.5px] font-medium text-blue-100/90 block">
             {netBalance !== undefined && netBalance < 0 ? "Bütçe Aşımı Riski" : "Gelir - Gider Dengesi"}
           </span>
         </motion.div>
@@ -1061,14 +1062,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         <motion.div
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/40 dark:border-amber-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
         >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
-            <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-300" />
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+            <Sparkles className="w-3 h-3 text-amber-200" />
             <span>KATEGORİLER</span>
           </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{expenseCategories.length} Kategori</p>
-          <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{expenseCategories.length} Kategori</p>
+          <span className="text-[8.5px] font-medium text-amber-100/90 block">
             Kişiselleştirilebilir
           </span>
         </motion.div>
@@ -1677,9 +1678,9 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       </div>
 
       {/* Expense Add/Edit Modal Dial */}
-      {isExpModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+      {isExpModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl my-auto">
             <h4 className="text-base font-bold flex items-center gap-1.5 border-b pb-2 dark:border-slate-700">
               <ShoppingCart className="w-5 h-5 text-rose-500" /> {expModalTitle}
             </h4>
@@ -1868,16 +1869,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Category Add/Edit Modal Dial */}
-      {isCatModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      {isCatModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-[99999] overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl border border-slate-200/50 dark:border-slate-800/80 relative"
+            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl border border-slate-200/50 dark:border-slate-800/80 relative my-auto"
           >
             {/* Header info */}
             <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
@@ -2081,13 +2083,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 💡 Yapay Zeka Tasarruf İpucu Popover Kutucuğu */}
-      {showTipCategory && (
+      {showTipCategory && createPortal(
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] overflow-y-auto animate-fade-in"
           onClick={() => setShowTipCategory(null)}
         >
           <motion.div
@@ -2149,7 +2152,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               Anladım, Kapat
             </button>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Harcama / Gider Sayfası Sponsorlu Reklamı */}

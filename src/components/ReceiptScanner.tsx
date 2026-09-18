@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Camera, Upload, AlertCircle, Loader2, RefreshCw, Sparkles, Check, CheckCircle, Image as ImageIcon, Download } from "lucide-react";
 import { getApiUrl } from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
@@ -198,9 +199,9 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl p-5 w-full max-w-md border border-slate-200/80 dark:border-slate-800/80 shadow-2xl space-y-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-[99999] overflow-y-auto animate-fade-in">
+      <div className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl p-5 w-full max-w-md border border-slate-200/80 dark:border-slate-800/80 shadow-2xl space-y-4 my-auto">
         <div className="flex items-center justify-between border-b pb-2 dark:border-slate-800">
           <div className="flex items-center gap-1.5 ">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
@@ -453,6 +454,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
           💡 Yapay zeka makbuz tutarlarını, unvanını ve tarihini tamamen otomatik okur. Girişlerinizi onaylamadan önce her zaman değiştirebilirsiniz.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

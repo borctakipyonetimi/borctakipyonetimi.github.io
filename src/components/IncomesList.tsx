@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   PlusCircle,
   Trash2,
@@ -487,14 +488,14 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-emerald-50/60 to-slate-50/90 dark:from-emerald-950 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-slate-900 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-emerald-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-200 uppercase tracking-wide">
-                <PlusCircle className="w-3 h-3 text-emerald-500 dark:text-emerald-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
+                <PlusCircle className="w-3 h-3 text-emerald-200" />
                 <span>TOPLAM GELİR</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(totalIncomes)}</p>
-              <span className="text-[8.5px] font-medium text-slate-500 dark:text-emerald-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(totalIncomes)}</p>
+              <span className="text-[8.5px] font-medium text-emerald-100/90 block">
                 {MONTH_NAMES[selectedMonthVal]} {selectedYearVal}
               </span>
             </motion.div>
@@ -503,14 +504,14 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-blue-50/60 to-slate-50/90 dark:from-blue-950 dark:to-slate-900 border border-blue-200/80 dark:border-blue-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 dark:from-blue-950 dark:via-indigo-950 dark:to-slate-900 border-2 border-blue-400/40 dark:border-blue-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-200 uppercase tracking-wide">
-                <Wallet className="w-3 h-3 text-blue-500 dark:text-blue-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
+                <Wallet className="w-3 h-3 text-blue-200" />
                 <span>SABİT GELİRLER</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(recurringTotal)}</p>
-              <span className="text-[8.5px] font-medium text-slate-500 dark:text-blue-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(recurringTotal)}</p>
+              <span className="text-[8.5px] font-medium text-blue-100/90 block">
                 Maaş & Düzenli Gelir
               </span>
             </motion.div>
@@ -519,14 +520,14 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-amber-50/60 to-slate-50/90 dark:from-amber-950 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/40 dark:border-amber-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-200 uppercase tracking-wide">
-                <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+                <Sparkles className="w-3 h-3 text-amber-200" />
                 <span>EK KAZANÇLAR</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{format(oneTimeTotal)}</p>
-              <span className="text-[8.5px] font-medium text-slate-500 dark:text-amber-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(oneTimeTotal)}</p>
+              <span className="text-[8.5px] font-medium text-amber-100/90 block">
                 Prim, Ek İş & Diğer
               </span>
             </motion.div>
@@ -535,14 +536,14 @@ export const IncomesList: React.FC<IncomesListProps> = ({
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-white/95 via-teal-50/60 to-slate-50/90 dark:from-teal-950 dark:to-slate-900 border border-teal-200/80 dark:border-teal-500/30 text-slate-800 dark:text-white rounded-2xl space-y-1 relative overflow-hidden shadow-sm hover:shadow-md backdrop-blur-md transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-800 dark:from-teal-950 dark:via-teal-900 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-600 dark:text-teal-200 uppercase tracking-wide">
-                <PiggyBank className="w-3 h-3 text-teal-500 dark:text-teal-300" />
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+                <PiggyBank className="w-3 h-3 text-teal-200" />
                 <span>KAYIT SAYISI</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-900 dark:text-white">{incomes.length} Adet</p>
-              <span className="text-[8.5px] font-medium text-slate-500 dark:text-teal-200/80 block">
+              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{incomes.length} Adet</p>
+              <span className="text-[8.5px] font-medium text-teal-100/90 block">
                 Aktif Gelir Kalemi
               </span>
             </motion.div>
@@ -710,9 +711,9 @@ export const IncomesList: React.FC<IncomesListProps> = ({
       )}
 
       {/* Income Add/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl my-auto">
             <h4 className="text-base font-bold flex items-center gap-1.5 border-b pb-2 dark:border-slate-700">
               <DollarSign className="w-5 h-5 text-emerald-500" /> {modalTitle}
             </h4>
@@ -800,16 +801,17 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Save Income Template Modal */}
-      {isSaveTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      {isSaveTemplateModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 my-auto"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -942,16 +944,17 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Income Load / Template Manager Modal */}
-      {isLoadTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      {isLoadTemplateModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col my-auto"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -1079,7 +1082,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

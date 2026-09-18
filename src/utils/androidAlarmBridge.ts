@@ -228,7 +228,6 @@ export async function scheduleCapacitorAlarm(
     }
 
     const summaryText = "Ödeme detaylarınızı kontrol etmeyi unutmayın.";
-    const imageAsset = extraDetails?.imageUrl || "logo.png";
 
     // İzin kontrolü ve otomatik talep
     try {
@@ -246,7 +245,6 @@ export async function scheduleCapacitorAlarm(
     } catch {}
 
     // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true, exact: true ve allowInExactlyDatatype: true
-    // Büyük Resimli Bildirim (Big Picture) ve Geniş Metin (Large Body)
     await LocalNotifications.schedule({
       notifications: [
         {
@@ -265,14 +263,7 @@ export async function scheduleCapacitorAlarm(
           autoCancel: true,
           smallIcon: 'ic_stat_notify',
           iconColor: '#10B981',
-          largeIcon: 'logo',
-          attachments: [
-            { id: 'resim1', url: imageAsset }
-          ],
           android: {
-            // Bildirim çekmecesi aşağı kaydırıldığında büyük resim olarak açılması için:
-            style: 'bigPicture',
-            bigPicture: imageAsset,
             summaryText: summaryText,
             priority: 'max',
             visibility: 'public'
@@ -341,10 +332,7 @@ export async function sendInstantCapacitorNotification(
           autoCancel: true,
           smallIcon: "ic_stat_notify",
           iconColor: "#10B981",
-          largeIcon: "logo",
           android: {
-            style: "bigPicture",
-            bigPicture: "logo.png",
             summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
             priority: "max",
             visibility: "public"

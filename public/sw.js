@@ -70,7 +70,6 @@ function rescheduleAlarms() {
 
   const now = Date.now();
   const appIcon = self.location.origin + "/logo.png";
-  const appBadge = self.location.origin + "/logo.png";
 
   activeAlarms.forEach((alarm) => {
     if (!alarm || !alarm.date) return;
@@ -86,8 +85,6 @@ function rescheduleAlarms() {
         self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
           icon: appIcon,
-          badge: appBadge,
-          image: appIcon,
           vibrate: [200, 100, 200, 100, 300],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -110,8 +107,6 @@ function rescheduleAlarms() {
         self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
           icon: appIcon,
-          badge: appBadge,
-          image: appIcon,
           vibrate: [300, 100, 300, 100, 400],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -341,7 +336,6 @@ async function handleBackgroundSync(tag) {
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const todayEnd = todayStart + 24 * 60 * 60 * 1000;
   const appIcon = self.location.origin + "/logo.png";
-  const appBadge = self.location.origin + "/logo.png";
 
   // 2. Check for any active alarms due right now (Özel Alarmlar)
   // Sabit ve benzersiz id parametresi verilir; mükerrer basımı engeller
@@ -355,7 +349,6 @@ async function handleBackgroundSync(tag) {
         self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
           body: alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
           icon: appIcon,
-          badge: appBadge,
           vibrate: [300, 100, 300, 100, 400],
           tag: `alarm-${safeAlarmId}`,
           renotify: false, // Ekrana aynı anda 2 defa düşmesini engeller
@@ -463,7 +456,6 @@ async function handleBackgroundSync(tag) {
     await self.registration.showNotification("Bütçem Pro: Güncel Borç & Vade Özeti ⏰", {
       body: smsBody,
       icon: appIcon,
-      badge: appBadge,
       vibrate: [300, 100, 300, 100, 400],
       tag: "butcempro-general-summary",
       renotify: false,
@@ -593,14 +585,12 @@ self.addEventListener("push", (event) => {
   }
 
   const appIcon = self.location.origin + "/logo.png";
-  const appBadge = self.location.origin + "/logo.png";
   const targetUrl = data.url || "/?tab=notifications";
 
   // Build high-urgency lockscreen notification options
   const notifOptions = {
     body: data.body || "Planlanmış alarm / ödeme hatırlatması! ⏰",
     icon: data.icon || appIcon,
-    badge: data.badge || appBadge,
     vibrate: data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500],
     tag: data.tag || `alarm-${data.alarmId || Date.now()}`,
     renotify: true,
