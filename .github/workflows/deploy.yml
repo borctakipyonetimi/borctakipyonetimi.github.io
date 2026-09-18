@@ -136,34 +136,17 @@ jobs:
             sed -i 's/drawable\/splash/@android:color\/black/g' $STYL_V31_FILE || true
           fi
 
-      - name: Yeni Nesil Dijital Imza Anahtari (.p12) Olustur
-        run: |
-          # Google standartlarına uygun PKCS12 (.p12) formatında dijital anahtar üretiyoruz
-          keytool -genkeypair \
-            -alias butcempro_alias \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storetype PKCS12 \
-            -keystore butcempro_keystore.p12 \
-            -storepass "ButcemPro2026!" \
-            -keypass "ButcemPro2026!" \
-            -dname "CN=Butcem Pro, OU=Finans, O=ButcemPro, L=Istanbul, S=Turkey, C=TR"
-
-      - name: Google Play Icin Imzali AAB Paketi Uret
+      - name: Sync and Build APK
         run: |
           npx cap sync android
           cd android
-          # Google Play'in zorunlu kıldığı .aab çıktısını Gradle ile tetikliyoruz
-          ./gradlew bundleDebug
+          ./gradlew assembleDebug
 
-      - name: Google Play Yukleme Dosyalarini Bize Teslim Et
+      - name: Upload Final Butcem Pro APK
         uses: actions/upload-artifact@v4
         with:
-          name: google-play-magaza-paketleri
-          path: |
-            android/app/build/outputs/bundle/debug/app-debug.aab
-            butcempro_keystore.p12
+          name: butcem-pro-reklamsiz-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Guncel Web Sitesini (dist) GitHub Pages Icin Yukle
         uses: actions/upload-artifact@v4
