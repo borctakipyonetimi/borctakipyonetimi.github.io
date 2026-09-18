@@ -603,233 +603,286 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         );
       })()}
 
-      {/* Grid Stats Cards: 6 Temel Finansal Gösterge Kartı (2 sütun mobilde, 3 sütun tablette, 6 sütun geniş ekranda) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        {/* 1. TOPLAM BORÇ */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 dark:from-indigo-950 dark:to-slate-900 border border-indigo-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-200 uppercase tracking-wide">
-            <Coins className="w-3 h-3 text-indigo-300" />
-            <span>{language === "tr" ? "TOPLAM BORÇ" : "TOTAL DEBT"}</span>
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalDebt)}</p>
-        </motion.div>
-
-        {/* 2. KİŞİ BORÇLARI TOPLAMI */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          onClick={() => onNavigate("contacts")}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-purple-600 via-purple-700 to-purple-900 dark:from-purple-950 dark:to-slate-900 border border-purple-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer"
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-purple-200 uppercase tracking-wide">
-            <Users className="w-3 h-3 text-purple-300" />
-            <span>{language === "tr" ? "KİŞİ BORÇLARI" : "CONTACTS"}</span>
-            <ArrowUpRight className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
-            {format(stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0)}
-          </p>
-          {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
-            <span className="text-[8.5px] font-medium text-purple-200/90 block truncate max-w-full">
-              {language === "tr" ? "Alacak: " : "Recv: "}{format(stats.contactReceivablesRemaining)}
-            </span>
-          )}
-        </motion.div>
-
-        {/* 3. AYLIK GELİR */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 dark:from-emerald-950 dark:to-slate-900 border border-emerald-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
-            <PlusCircle className="w-3 h-3 text-emerald-300" />
-            <span>{language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}</span>
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalIncome)}</p>
-        </motion.div>
-
-        {/* 4. AYLIK GİDER */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 dark:from-rose-950 dark:to-slate-900 border border-rose-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
-            <ArrowUpRight className="w-3 h-3 text-rose-300" />
-            <span>{language === "tr" ? "AYLIK GİDER" : "MONTHLY EXPENSE"}</span>
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.totalExpense)}</p>
-        </motion.div>
-
-        {/* 5. BU AY ÖDENEN KISIM */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-900 dark:from-teal-950 dark:to-slate-900 border border-teal-500/30 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
-            <CheckCircle2 className="w-3 h-3 text-teal-300" />
-            <span>
-              {language === "tr"
-                ? (selectedMonth !== null ? "BU AY ÖDENEN" : "ÖDENEN KISIM")
-                : (selectedMonth !== null ? "REPAID MONTH" : "TOTAL REPAID")}
-            </span>
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">
-            {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid)}
-          </p>
-        </motion.div>
-
-        {/* 6. NET KALAN REZERV */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className={`p-3.5 sm:p-4 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] ${
-            stats.netIncome >= 0 
-              ? "bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 dark:from-blue-950 dark:to-slate-900 border border-blue-500/30" 
-              : "bg-gradient-to-br from-amber-600 via-red-700 to-rose-900 dark:from-rose-950 dark:to-slate-900 border border-red-500/30"
-          }`}
-        >
-          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
-            <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
-            <span>{language === "tr" ? "NET KALAN" : "NET SURPLUS"}</span>
-          </div>
-          <p className="text-sm sm:text-base font-black font-mono tracking-tight">{format(stats.netIncome)}</p>
-        </motion.div>
-      </div>
-
-      {/* Cari Ay Detay & Yükümlülük Kartları: 3 Dengeli Sütun */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1 items-stretch">
-        {/* Card 1: Bu Ayki Borç & Kalan Durumu */}
+      {/* 1. CARİ AY BORÇ DURUMU KARTI (ÖNCELİKLİ & BELİRGİN GÖSTERİM) */}
+      <div className="pt-1">
         <motion.div
           whileHover={{ 
-            scale: 1.02, 
+            scale: 1.01, 
             y: -2, 
-            boxShadow: "0 12px 25px -10px rgba(99, 102, 241, 0.2)",
-            borderColor: "rgba(99, 102, 241, 0.4)" 
+            boxShadow: "0 20px 35px -10px rgba(99, 102, 241, 0.35)",
+            borderColor: "rgba(129, 140, 248, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-slate-500/5 to-purple-500/10 dark:from-indigo-950/30 dark:to-slate-900/40 border border-indigo-500/20 dark:border-indigo-500/30 shadow-xs transition-colors duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 dark:from-indigo-950 dark:via-purple-950/80 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white shadow-xl shadow-indigo-500/20 transition-all duration-300"
         >
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-indigo-500/15">
-            <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{language === "tr" ? "Cari Ay Borç Durumu" : "Current Month Loan Wrap"}</span>
-            </span>
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
-              {selectedMonth !== null ? "Ay Filtreli" : "Genel Durum"}
+          {/* Ambient luminous glow accents */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-purple-400/15 rounded-full blur-2xl pointer-events-none" />
+
+          {/* Top header row */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/20 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-2xl bg-white/20 text-white border border-white/30 shadow-md flex items-center justify-center">
+                <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-black tracking-tight text-white uppercase">
+                    {language === "tr" ? "Cari Ay Borç Durumu" : "Current Month Debt Overview"}
+                  </h3>
+                  <span className="text-[9px] font-black px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 shadow-xs">
+                    {selectedMonth !== null && selectedYear !== null
+                      ? `${["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"][selectedMonth]} ${selectedYear}`
+                      : (language === "tr" ? "Cari Ay / Dönem" : "Current Period")}
+                  </span>
+                </div>
+                <p className="text-[10px] text-indigo-100/90 font-medium">
+                  {language === "tr"
+                    ? "Vadesi gelen borçlar, taksit yükümlülüğü ve tahsilat/ödeme tamamlama oranı"
+                    : "Due loans, monthly installment pressure and settlement progress"}
+                </p>
+              </div>
+            </div>
+            <span className="text-[9px] font-black px-2.5 py-0.5 rounded-full bg-indigo-400/30 text-white border border-indigo-300/40">
+              {selectedMonth !== null ? (language === "tr" ? "Filtrelenmiş Ay" : "Month Filtered") : (language === "tr" ? "Bu Ayın Özeti" : "Current Month")}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 pt-3">
-            <div className="p-2.5 bg-white/70 dark:bg-slate-800/80 rounded-2xl border border-indigo-100 dark:border-indigo-950/60 flex flex-col items-center justify-center text-center">
-              <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                {language === "tr" ? "Bu Ayki Toplam" : "Monthly Total"}
+          {/* 2 Primary Stats Blocks: Bu Ayki Toplam & Bu Ay Kalan */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-3.5 relative z-10">
+            <div className="p-3.5 sm:p-4 bg-white/15 dark:bg-white/10 backdrop-blur-md rounded-2xl border border-white/25 shadow-inner flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] sm:text-[11px] font-black text-indigo-100 uppercase tracking-wide">
+                {language === "tr" ? "Bu Ayki Toplam Borç" : "Monthly Total Debt"}
               </span>
-              <p className="text-xs sm:text-sm font-black font-mono text-indigo-950 dark:text-indigo-200 mt-0.5">
+              <p className="text-base sm:text-2xl font-black font-mono text-white mt-1 tracking-tight drop-shadow-xs">
                 {format(stats.thisMonthTotalBorc)}
               </p>
             </div>
 
-            <div className="p-2.5 bg-rose-500/15 dark:bg-rose-950/40 rounded-2xl border border-rose-500/25 flex flex-col items-center justify-center text-center">
-              <span className="text-[8.5px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">
-                {language === "tr" ? "Bu Ay Kalan" : "Month Remaining"}
+            <div className="p-3.5 sm:p-4 bg-rose-500/30 dark:bg-rose-500/25 backdrop-blur-md rounded-2xl border-2 border-rose-300/50 dark:border-rose-400/40 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[10px] sm:text-[11px] font-black text-rose-200 uppercase tracking-wide">
+                {language === "tr" ? "Bu Ay Kalan Borç" : "Month Remaining"}
               </span>
-              <p className="text-xs sm:text-sm font-black font-mono text-rose-700 dark:text-rose-300 mt-0.5">
+              <p className="text-base sm:text-2xl font-black font-mono text-rose-100 mt-1 tracking-tight drop-shadow-xs">
                 {format(stats.thisMonthKalanBorc)}
               </p>
             </div>
           </div>
           
-          <p className="text-[9.5px] font-medium text-slate-500 dark:text-slate-400 mt-2.5 text-center">
-            {language === "tr" ? "Cari aya ait vadesi gelen borç ve kapatılan bakiye" : "Due loans and settlement balance for this period"}
-          </p>
+          {/* Bottom details row */}
+          <div className="flex flex-wrap items-center justify-between text-[10px] sm:text-[11px] font-semibold text-indigo-100 mt-3.5 pt-3 border-t border-white/15 gap-2 relative z-10">
+            <div className="flex items-center gap-1.5">
+              <span>{language === "tr" ? "Bu Ay Kapatılan:" : "Settled this month:"}</span>
+              <span className="font-bold font-mono text-emerald-300 bg-emerald-400/20 border border-emerald-300/30 px-2 py-0.5 rounded-full">
+                {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc))}
+              </span>
+            </div>
+            <span className="text-[9.5px] sm:text-[10.5px] text-indigo-200/90 font-medium">
+              {language === "tr" ? "Cari aya ait vadesi gelen borç ve kapatılan bakiye" : "Current month maturing debt and settled balance"}
+            </span>
+          </div>
         </motion.div>
+      </div>
 
-        {/* Card 2: Bu Ay Ödenecek Taksit */}
+      {/* 2. GENEL FİNANSAL GÖSTERGELER (Cari Ay Borç Durumu Kartının Doğrudan Altına Taşındı) */}
+      <div className="space-y-2.5 pt-1">
+        <div className="flex items-center gap-2 px-1">
+          <div className="p-1.5 rounded-xl bg-indigo-600 text-white shadow-sm flex items-center justify-center">
+            <TrendingUp className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-[11px] font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase">
+            {language === "tr" ? "Genel Finansal Göstergeler" : "General Financial Balances"}
+          </span>
+          <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+        </div>
+
+        {/* 6 Temel Finansal Gösterge Kartı: Gündüz ve Gece Modunda Parlak Renkli Gösterim */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+          {/* 1. TOPLAM BORÇ */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+              <Coins className="w-3 h-3 text-indigo-200" />
+              <span>{language === "tr" ? "TOPLAM BORÇ" : "TOTAL DEBT"}</span>
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalDebt)}</p>
+          </motion.div>
+
+          {/* 2. KİŞİ BORÇLARI TOPLAMI */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            onClick={() => onNavigate("contacts")}
+            className="p-3.5 sm:p-4 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-800 dark:from-purple-950 dark:via-purple-900 dark:to-slate-900 border-2 border-purple-400/40 dark:border-purple-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer"
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-purple-100 uppercase tracking-wide">
+              <Users className="w-3 h-3 text-purple-200" />
+              <span>{language === "tr" ? "KİŞİ BORÇLARI" : "CONTACTS"}</span>
+              <ArrowUpRight className="w-2.5 h-2.5 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              {format(stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0)}
+            </p>
+            {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
+              <span className="text-[8.5px] font-medium text-purple-200 block truncate max-w-full">
+                {language === "tr" ? "Alacak: " : "Recv: "}{format(stats.contactReceivablesRemaining)}
+              </span>
+            )}
+          </motion.div>
+
+          {/* 3. AYLIK GELİR */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-slate-900 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-emerald-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
+              <PlusCircle className="w-3 h-3 text-emerald-200" />
+              <span>{language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}</span>
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalIncome)}</p>
+          </motion.div>
+
+          {/* 4. AYLIK GİDER */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
+              <ArrowUpRight className="w-3 h-3 text-rose-200" />
+              <span>{language === "tr" ? "AYLIK GİDER" : "MONTHLY EXPENSE"}</span>
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalExpense)}</p>
+          </motion.div>
+
+          {/* 5. BU AY ÖDENEN KISIM */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-800 dark:from-teal-950 dark:via-teal-900 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+              <CheckCircle2 className="w-3 h-3 text-teal-200" />
+              <span>
+                {language === "tr"
+                  ? (selectedMonth !== null ? "BU AY ÖDENEN" : "ÖDENEN KISIM")
+                  : (selectedMonth !== null ? "REPAID MONTH" : "TOTAL REPAID")}
+              </span>
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid)}
+            </p>
+          </motion.div>
+
+          {/* 6. NET KALAN REZERV */}
+          <motion.div 
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className={`p-3.5 sm:p-4 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] ${
+              stats.netIncome >= 0 
+                ? "bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-900 border-2 border-blue-400/40 shadow-blue-500/20" 
+                : "bg-gradient-to-br from-amber-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 shadow-rose-500/20"
+            }`}
+          >
+            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
+              <Sparkles className="w-3 h-3 text-amber-200 animate-pulse" />
+              <span>{language === "tr" ? "NET KALAN" : "NET SURPLUS"}</span>
+            </div>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.netIncome)}</p>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* 3. CARİ TAKSİT & ÖDEME İLERLEMESİ KARTLARI: GÜNDÜZ VE GECE MODUNDA PARLAK RENKLİ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1 items-stretch">
+        {/* Card: Bu Ay Ödenecek Taksit */}
         <motion.div
           whileHover={{ 
-            scale: 1.02, 
+            scale: 1.015, 
             y: -2, 
-            boxShadow: "0 12px 25px -10px rgba(139, 92, 246, 0.2)",
-            borderColor: "rgba(139, 92, 246, 0.4)" 
+            boxShadow: "0 18px 34px -10px rgba(139, 92, 246, 0.35)",
+            borderColor: "rgba(167, 139, 250, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-violet-500/10 to-indigo-500/5 dark:from-violet-950/30 dark:to-indigo-950/20 border border-violet-500/20 dark:border-violet-500/30 shadow-xs transition-colors duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-900 dark:from-violet-950 dark:via-slate-900 dark:to-purple-950 border-2 border-violet-400/40 dark:border-violet-500/40 text-white shadow-xl shadow-purple-500/20 transition-all duration-300"
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 bg-violet-500/15 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="p-3 bg-white/20 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-inner border border-white/30">
               <CalendarDays className="w-5 h-5 animate-pulse" />
             </div>
             
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-violet-600 dark:text-violet-400 uppercase block mb-0.5">
+              <span className="text-[11px] font-black tracking-wider text-violet-100 uppercase block mb-0.5">
                 {translate("Bu Ay Ödenecek Taksit")}
               </span>
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-lg sm:text-xl font-black font-mono text-violet-800 dark:text-violet-200 tracking-tight leading-none">
+                <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight leading-none drop-shadow-xs">
                   {format(monthlyInstallmentsDue)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-violet-500/15 flex items-center justify-between text-[9.5px] font-semibold text-slate-600 dark:text-slate-300">
+          <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[10px] font-semibold text-violet-100 relative z-10">
             <span>{translate("Aktif Ödeme Planları")}</span>
-            <span className="font-bold text-violet-600 dark:text-violet-400">Cari Taksit Yükümlülüğü</span>
+            <span className="font-bold text-white bg-white/20 border border-white/30 px-2.5 py-0.5 rounded-full shadow-xs">
+              Cari Taksit Yükümlülüğü
+            </span>
           </div>
         </motion.div>
 
-        {/* Card 3: Ödeme İlerlemesi & Bu Ay Yapılan Ödeme Adedi */}
+        {/* Card: Ödeme İlerlemesi & Bu Ay Yapılan Ödeme Adedi */}
         <motion.div
           whileHover={{ 
-            scale: 1.02, 
+            scale: 1.015, 
             y: -2, 
-            boxShadow: "0 12px 25px -10px rgba(16, 185, 129, 0.2)",
-            borderColor: "rgba(16, 185, 129, 0.4)" 
+            boxShadow: "0 18px 34px -10px rgba(16, 185, 129, 0.35)",
+            borderColor: "rgba(52, 211, 153, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-500/5 dark:from-emerald-950/30 dark:to-slate-900/40 border border-emerald-500/20 dark:border-emerald-500/30 shadow-xs transition-colors duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-700 to-cyan-900 dark:from-emerald-950 dark:via-slate-900 dark:to-teal-950 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white shadow-xl shadow-emerald-500/20 transition-all duration-300"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
-                <ClipboardCheck className="w-4 h-4" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="flex items-center justify-between gap-2 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-white/20 text-white rounded-2xl flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                <ClipboardCheck className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-emerald-600 dark:text-emerald-400 uppercase block leading-none">
+                <span className="text-[11px] font-black tracking-wider text-emerald-100 uppercase block leading-none">
                   {translate("Ödeme İlerlemesi")}
                 </span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 block">
+                <span className="text-[9.5px] font-bold text-emerald-200 mt-1 block">
                   {monthlyPaymentsCount} {translate("Adet Ödeme Belgelendi")}
                 </span>
               </div>
             </div>
             
-            <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded-lg font-mono">
+            <span className="px-2.5 py-1 bg-white/20 border border-white/30 text-white text-xs font-black rounded-xl font-mono shadow-xs">
               %{paymentProgress.toFixed(1)}
             </span>
           </div>
 
-          <div className="mt-2.5 space-y-1.5">
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden flex shadow-inner relative">
+          <div className="mt-4 space-y-1.5 relative z-10">
+            <div className="w-full bg-black/25 dark:bg-slate-900/70 h-3 rounded-full overflow-hidden flex shadow-inner relative border border-white/15">
               <motion.div
-                className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full"
+                className="h-full bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 rounded-full shadow-sm"
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(paymentProgress, 100)}%` }}
                 transition={{ duration: 1.5, ease: "easeOut" }}
               />
             </div>
-            <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate text-center">
-              {format(stats.totalPaid)} / {format(stats.totalDebt)} {language === "tr" ? "kapatıldı" : "settled"}
-            </p>
+            <div className="flex items-center justify-between text-[9.5px] text-emerald-100 font-medium">
+              <span>{format(stats.totalPaid)} {language === "tr" ? "kapatıldı" : "settled"}</span>
+              <span className="font-bold text-white drop-shadow-xs">Hedef: {format(stats.totalDebt)}</span>
+            </div>
           </div>
         </motion.div>
       </div>

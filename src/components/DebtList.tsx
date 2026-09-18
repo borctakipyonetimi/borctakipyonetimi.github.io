@@ -2370,7 +2370,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                       {createAlarm && <CheckCircle2 className="w-3.5 h-3.5" />}
                     </div>
                     <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                      ÖDEME HATIRLATICI ALARMI KUR (EKRAN KAPALIYKEN ÇALAR ⏰)
+                      ÖDEME HATIRLATICI ALARMI KUR ⏰
                     </span>
                   </div>
                   

@@ -1393,7 +1393,7 @@ export default function App() {
         })
       });
       console.log("[Push Client] Handshake with background push database successful.");
-      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı! Telefon kapalıyken de alarmlar kilit ekranına gelecektir.");
+      triggerToast("🔔 Telefon Bildirim Sistemi Başarıyla Bağlandı!");
       return subscription;
     } catch (err: any) {
       console.warn("[Push Client] Web Push subscription workflow error:", err);
@@ -4224,7 +4224,7 @@ export default function App() {
     // Trigger OS alert sounds/visuals (persist is false here because we saved it already in the line above)
     sendSystemNotification(
       "Ödeme Hatırlatıcısı Kuruldu! ⏰",
-      `"${titleString}" başlıklı alarmınız kuruldu. Telefonunuz kapalıyken de kilit ekranına bildirim gelecektir.`,
+      `"${titleString}" başlıklı alarmınız kuruldu.`,
       false
     );
   };
@@ -4362,7 +4362,7 @@ export default function App() {
       if (isAndroidAlarmBridgeAvailable()) {
         const ok = testAndroidBackgroundAlarm(5);
         if (ok) {
-          triggerToast("⏰ 5 Saniyelik Donanım Testi Kuruldu! Lütfen HEMEN telefonunuzu kilitleyin veya uygulamayı kapatın.");
+          triggerToast("⏰ 5 Saniyelik Test Alarmı Kuruldu.");
           return;
         }
       }
@@ -4372,7 +4372,7 @@ export default function App() {
           const reg = await navigator.serviceWorker.ready;
           const sub = await reg.pushManager.getSubscription();
           if (sub) {
-            triggerToast("⏰ 5 Saniye Sonra Kilit Ekranı Bildirimi Gönderilecek! Lütfen HEMEN ekranı kilitleyin.");
+            triggerToast("⏰ 5 Saniye Sonra Test Bildirimi Gönderilecek.");
             await fetch(getApiUrl("/api/send-test-push"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -4385,11 +4385,11 @@ export default function App() {
         }
       }
 
-      triggerToast("⏰ 5 Saniye Sonra Test Bildirimi Gönderilecek. Ekranınızı kilitleyebilir veya uygulamadan çıkabilirsiniz.");
+      triggerToast("⏰ 5 Saniye Sonra Test Bildirimi Gönderilecek.");
       setTimeout(() => {
         sendSystemNotification(
-          "🔔 Kilit Ekranı / Arka Plan Bildirim Testi",
-          "Tebrikler! Bildirim motoru başarıyla çalışıyor. Uygulama kapalıyken veya ekran kilitliyken borç ve alarmlarınız eksiksiz gelecektir."
+          "🔔 Bildirim Testi",
+          "Tebrikler! Bildirim motoru başarıyla çalışıyor. Borç ve alarmlarınız eksiksiz gelecektir."
         );
       }, 5000);
     } catch (err) {
@@ -7259,7 +7259,7 @@ export default function App() {
                     <span className={`w-2.5 h-2.5 rounded-full ${isPushSubscribed ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
                     <span className="font-bold text-slate-700 dark:text-slate-200 text-[11px]">
                       {isPushSubscribed
-                        ? "Web Push & Arka Plan Alarmı: Aktif (Telefon kapalıyken de kilit ekranına bildirim gelir)"
+                        ? "Web Push & Arka Plan Alarmı: Aktif"
                         : "Arka Plan Alarm Servisi: Bağlantı kuruluyor..."}
                     </span>
                   </div>
@@ -7314,7 +7314,7 @@ export default function App() {
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <span>🛡️</span>
-                      <span>Web Push ve Service Worker entegrasyonu sayesinde bu alarm telefonunuz kapalıyken veya kilitliyken de çalacaktır.</span>
+                      <span>Web Push ve Service Worker entegrasyonu sayesinde alarmlarınız zamanında bildirilecektir.</span>
                     </p>
                     <div className="flex gap-2 justify-end pt-2">
                       <button
