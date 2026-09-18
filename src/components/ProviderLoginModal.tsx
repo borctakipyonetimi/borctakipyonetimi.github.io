@@ -208,9 +208,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             </button>
           </div>
 
-          <div className="p-5 sm:p-6 space-y-4">
+          <div className="p-5 sm:p-6 flex flex-col items-center text-center space-y-4 w-full">
             {/* Mode Switcher Tabs */}
-            <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-[320px] mx-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -246,7 +246,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             </div>
 
             {/* Info Badge */}
-            <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 border border-indigo-500/20 rounded-2xl flex items-start gap-2.5 text-left">
+            <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 border border-indigo-500/20 rounded-2xl flex items-start gap-2.5 text-left w-full max-w-[320px] mx-auto">
               <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                 {mode === "register"
@@ -259,12 +259,12 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
             {/* Loading / Connecting Status Overlay */}
             {isLoading && syncLogs.length > 0 ? (
-              <div className="py-6 space-y-4 text-center">
+              <div className="py-6 space-y-4 text-center w-full max-w-[320px] mx-auto flex flex-col items-center">
                 <div className="relative inline-block">
                   <span className="w-12 h-12 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin inline-block" />
                   <Server className="w-5 h-5 text-indigo-500 absolute top-[14px] left-[14px] animate-pulse" />
                 </div>
-                <div className="p-3.5 bg-slate-950 text-slate-300 rounded-2xl border border-slate-800 font-mono text-[10px] space-y-1.5 max-h-36 overflow-y-auto text-left shadow-inner">
+                <div className="p-3.5 bg-slate-950 text-slate-300 rounded-2xl border border-slate-800 font-mono text-[10px] space-y-1.5 max-h-36 overflow-y-auto text-left shadow-inner w-full">
                   {syncLogs.map((log, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span className="text-emerald-400">➜</span>
@@ -275,20 +275,20 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               </div>
             ) : (
               /* Auth Form */
-              <form onSubmit={handleSubmit} className="space-y-3.5 text-left">
+              <form onSubmit={handleSubmit} className="flex flex-col items-center w-full max-w-[320px] space-y-3.5 mx-auto text-left">
                 {/* Email Field */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                <div className="w-full max-w-[320px] space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block text-left">
                     E-Posta Adresi
                   </label>
-                  <div className="relative">
+                  <div className="relative w-full">
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="ornek@gmail.com"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                      className="w-full max-w-[320px] pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium box-border"
                     />
                     <div className="absolute left-3.5 top-3 text-slate-400">
                       <Mail className="w-4 h-4" />
@@ -298,8 +298,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
                 {/* Password Field */}
                 {mode !== "forgot" && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                  <div className="w-full max-w-[320px] space-y-1">
+                    <div className="flex items-center justify-between w-full">
                       <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
                         Şifre
                       </label>
@@ -317,7 +317,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         </button>
                       )}
                     </div>
-                    <div className="relative">
+                    <div className="relative w-full">
                       <input
                         type={showPassword ? "text" : "password"}
                         required
@@ -325,7 +325,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                        className="w-full max-w-[320px] pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium box-border"
                       />
                       <div className="absolute left-3.5 top-3 text-slate-400">
                         <Lock className="w-4 h-4" />
@@ -343,11 +343,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
                 {/* Confirm Password (Only on Register) */}
                 {mode === "register" && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                  <div className="w-full max-w-[320px] space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block text-left">
                       Şifre Tekrarı
                     </label>
-                    <div className="relative">
+                    <div className="relative w-full">
                       <input
                         type={showPassword ? "text" : "password"}
                         required
@@ -355,7 +355,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
+                        className="w-full max-w-[320px] pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium box-border"
                       />
                       <div className="absolute left-3.5 top-3 text-slate-400">
                         <Lock className="w-4 h-4" />
@@ -369,7 +369,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs"
+                    className="w-full max-w-[320px] p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left"
                   >
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{error}</span>
@@ -381,7 +381,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start gap-2 text-emerald-600 dark:text-emerald-400 text-xs"
+                    className="w-full max-w-[320px] p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start gap-2 text-emerald-600 dark:text-emerald-400 text-xs text-left"
                   >
                     <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{successMsg}</span>
@@ -389,11 +389,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 )}
 
                 {/* Submit Button */}
-                <div className="pt-2">
+                <div className="pt-2 w-full max-w-[320px]">
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className={`w-full py-3 px-4 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] disabled:opacity-50 ${
+                    className={`w-full max-w-[320px] py-3 px-4 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] disabled:opacity-50 mx-auto ${
                       mode === "register"
                         ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20"
                         : mode === "forgot"
@@ -421,7 +421,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 </div>
 
                 {mode === "forgot" && (
-                  <div className="text-center pt-1">
+                  <div className="text-center pt-1 w-full max-w-[320px]">
                     <button
                       type="button"
                       onClick={() => {

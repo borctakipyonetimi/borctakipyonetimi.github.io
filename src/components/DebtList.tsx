@@ -2266,12 +2266,12 @@ export const DebtList: React.FC<DebtListProps> = ({
 
       {/* Debt Add/Edit Dialog Modal */}
       {isModalOpen && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in">
+        <div className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md space-y-4 shadow-2xl border border-slate-200/60 dark:border-slate-700/60 max-h-[90vh] overflow-y-auto my-auto relative"
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            className="relative w-full max-w-sm sm:max-w-md bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-slate-200/60 dark:border-slate-700/60 max-h-[90vh] overflow-y-auto m-auto"
           >
             <div className="flex items-center justify-between border-b pb-2 dark:border-slate-700">
               <h4 className="text-base font-bold flex items-center gap-1.5">

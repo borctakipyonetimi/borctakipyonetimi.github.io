@@ -7979,7 +7979,7 @@ export default function App() {
               </div>
 
               {/* 'Haberdar Ol' Bülten Kayıt Alanı */}
-              <div className="w-full max-w-sm pt-2">
+              <div className="w-full max-w-[320px] pt-2 mx-auto flex flex-col items-center text-center">
                 <span className="text-[10px] font-extrabold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider block mb-2 text-center">
                   🔔 HABERDAR OL (BÜLTEN)
                 </span>
@@ -7992,7 +7992,7 @@ export default function App() {
                     setNewsletterEmail("");
                     setTimeout(() => setIsNewsletterSubscribed(false), 5500);
                   }}
-                  className="relative flex items-center bg-white/70 dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-full p-1 focus-within:ring-4 focus-within:ring-indigo-500/15 focus-within:border-indigo-550 transition-all shadow-2xs header-glass"
+                  className="relative flex items-center w-full max-w-[320px] bg-white/70 dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-full p-1 focus-within:ring-4 focus-within:ring-indigo-500/15 focus-within:border-indigo-550 transition-all shadow-2xs header-glass box-border"
                 >
                   <input
                     type="email"
@@ -8000,7 +8000,7 @@ export default function App() {
                     value={newsletterEmail}
                     onChange={(e) => setNewsletterEmail(e.target.value)}
                     placeholder="E-posta adresiniz..."
-                    className="w-full pl-4 pr-24 py-2 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 font-medium"
+                    className="w-full pl-4 pr-24 py-2 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 font-medium box-border"
                   />
                   <motion.button
                     type="submit"
