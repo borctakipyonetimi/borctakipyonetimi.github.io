@@ -1,6 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ * Bütçem Pro - Kişisel Finans & Borç Takip Yönetimi
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";

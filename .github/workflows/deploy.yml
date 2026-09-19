@@ -1,3 +1,5 @@
+# Bütçem Pro - GitHub Actions Deployment & Build Workflow
+# Otomatik APK üretimi ve GitHub Pages (borctakipyonetimi.github.io) canlı yayını
 name: Butcem Pro Nihai Uretici
 on:
   push:
