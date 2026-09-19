@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta name="theme-color" content="#4f46e5" />
+    <link rel="canonical" href="https://borctakipyonetimi.github.io/" />
+    <link rel="manifest" href="./manifest.json" />
+    
+    <!-- Third-Party Cross-Origin Error Suppressor (Crucial for sandbox/iframe environment stability) -->
+    <script>
+      window.addEventListener('error', function(e) {
+        var msg = e.message || '';
+        var src = e.filename || '';
+        if (msg.indexOf('Script error.') !== -1 || src.indexOf('histats') !== -1 || src.indexOf('onesignal') !== -1 || src.indexOf('googlesyndication') !== -1 || src.indexOf('doubleclick') !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          return true;
+        }
+      }, true);
+      window.onerror = function(message, url, line, col, error) {
+        var msg = message || '';
+        var src = url || '';
+        if (msg.indexOf('Script error.') !== -1 || src.indexOf('histats') !== -1 || src.indexOf('onesignal') !== -1 || src.indexOf('googlesyndication') !== -1 || src.indexOf('doubleclick') !== -1) {
+          return true;
+        }
+      };
+    </script>
+    
+    <!-- SEO & Google Arama Motoru Optimizasyonu (Meta Tags) -->
+    <title>Bütçem Pro | Akıllı Bütçe, Borç Takibi ve Finansal Analiz</title>
+    <meta name="description" content="Yapay zeka asistanlı Bütçem Pro ile kişisel bütçe yönetimi, borç takibi ve gelir-gider analizlerinizi profesyonelce yapın. Finansal özgürlüğe ilk adımı atın." />
+    <meta name="keywords" content="bütçe takip uygulaması, borç takip sistemi, gelir gider takip, kişisel finans yönetimi, para biriktirme yöntemleri, finansal asistan" />
+    <meta name="author" content="Bütçem Pro Team" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Schema.org JSON-LD Yapılandırılmış Veri (SEO Rich Snippets) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Bütçem Pro",
+      "operatingSystem": "Android, Web, iOS, Windows",
+      "applicationCategory": "FinanceApplication",
+      "genre": "Personal Finance & Debt Management",
+      "offers": {
+        "@type": "Offer",
+        "price": "0.00",
+        "priceCurrency": "TRY"
+      },
+      "description": "Yapay zeka asistanlı Bütçem Pro ile kişisel bütçe yönetimi, borç takibi ve gelir-gider analizlerinizi profesyonelce yapın. Finansal özgürlüğe ilk adımı atın.",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "reviewCount": "1840"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "Bütçem Pro Team",
+        "url": "https://borctakipyonetimi.github.io/"
+      }
+    }
+    </script>
+    
+    <!-- Google AdSense Entegrasyon Modülü -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4449700232321088" crossorigin="anonymous"></script>
+    <meta name="google-adsense-account" content="ca-pub-4449700232321088">
+    
+    <!-- Sosyal Medya Paylaşım Optimizasyonları (Open Graph / Facebook & Twitter) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://borctakipyonetimi.github.io/" />
+    <meta property="og:title" content="Bütçem Pro - Akıllı Bütçe ve Borç Takip Platformu" />
+    <meta property="og:description" content="Kategorize edilmiş harcamalar, otomatik borç hesaplamaları ve yapay zeka destekli tasarruf önerileri ile finansal durumunuzu kontrol altına alın." />
+    <meta property="og:image" content="https://borctakipyonetimi.github.io/logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Bütçem Pro | Finansal Asistanınız" />
+    <meta name="twitter:description" content="Kişisel bütçe ve borç yönetiminde yeni nesil çözüm." />
+    <meta name="twitter:image" content="https://borctakipyonetimi.github.io/logo.png" />
+    
+    <!-- İkonlar & Tasarım Uyumları -->
+    <link rel="icon" type="image/png" href="./logo.png" />
+    <link rel="apple-touch-icon" href="./logo.png" />
+    
+    <!-- Global OneSignal Domain & Error Shield -->
+    <script>
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event && event.reason && (
+          String(event.reason).includes('borctakipyonetimi.github.io') ||
+          String(event.reason).includes('Can only be used on') ||
+          String(event.reason).includes('OneSignal')
+        )) {
+          event.preventDefault();
+          console.info('[OneSignal] Domain notice handled safely in preview environment:', event.reason);
+        }
+      });
+      window.addEventListener('error', function(event) {
+        if (event && event.message && (
+          String(event.message).includes('borctakipyonetimi.github.io') ||
+          String(event.message).includes('Can only be used on') ||
+          String(event.message).includes('OneSignal')
+        )) {
+          event.preventDefault();
+          console.info('[OneSignal] Origin error handled safely:', event.message);
+        }
+      });
+    </script>
+    
+    <!-- OneSignal Notification SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      (function() {
+        var isSupportedOrigin = typeof window !== 'undefined' && (
+          window.location.hostname.indexOf('borctakipyonetimi.github.io') !== -1 ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.protocol === 'capacitor:' ||
+          window.location.protocol === 'file:'
+        );
+
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        window.OneSignalDeferred.push(async function(OneSignal) {
+          try {
+            // OneSignal'ı bana özel App ID ile başlatıyoruz
+            if (typeof OneSignal.initialize === "function") {
+              try {
+                OneSignal.initialize("f0a34e24-e5c9-423e-927f-399736f68a92");
+              } catch (initErr) {
+                console.warn("[OneSignal] initialize notice:", initErr);
+              }
+            }
+            if (typeof OneSignal.init === "function" && isSupportedOrigin) {
+              await OneSignal.init({
+                appId: "f0a34e24-e5c9-423e-927f-399736f68a92",
+                allowLocalhostAsSecureOrigin: true,
+                autoResubscribe: false,
+                autoRegister: false,
+                notifyButton: {
+                  enable: false,
+                },
+                promptOptions: {
+                  slidedown: {
+                    autoPrompt: false
+                  }
+                }
+              }).catch(function(err) {
+                console.warn("[OneSignal] Web init bypassed or origin mismatch:", err);
+              });
+
+              // OneSignal otomatik tetikleyicilerini kapat (Cihaz içi alarmlara karışmaz, sadece panel push mesajlarını dinler)
+              try {
+                if (OneSignal.InAppMessages && typeof OneSignal.InAppMessages.paused === "function") {
+                  OneSignal.InAppMessages.paused(true);
+                }
+              } catch (_) {}
+            } else if (!isSupportedOrigin) {
+              console.info("[OneSignal] Aktif alan adı borctakipyonetimi.github.io olmadığından dev ortamında OneSignal başlatması güvenle bekletildi.");
+            }
+          } catch (deferredErr) {
+            console.warn("[OneSignal] Deferred execution caught:", deferredErr);
+          }
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-BTM3QNVe.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-C8Odjm1I.css">
+  </head>
+  <body style="background-color: #020617; margin: 0; padding: 0;">
+    <div id="root"></div>
+
+    <!-- Histats.com  (div with counter) --><div id="histats_counter"></div>
+    <!-- Histats.com  START  (aync)-->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.startgif', '1,5036465,4,10043,"div#histatsC {position: absolute;top:0px;left:0px;}body>div#histatsC {position: fixed;}"']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_gif_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" alt="" target="_blank" ><div id="histatsC"><img border="0" src="//s4is.histats.com/stats/i/5036465.gif?5036465&103"></div></a>
+    </noscript>
+    <!-- Histats.com  END  -->
+  </body>
+</html>
