@@ -1170,6 +1170,30 @@ export default function App() {
     }
   };
 
+  /**
+   * Borç adı ve kategorisine göre profesyonel simge (emoji) belirler
+   */
+  const getDebtCategoryEmoji = (name = "", category = ""): string => {
+    const combined = `${name || ""} ${category || ""}`.toLocaleLowerCase("tr-TR");
+    if (combined.includes("internet") || combined.includes("wifi") || combined.includes("superonline") || combined.includes("ttnet") || combined.includes("telekom") || combined.includes("modem") || combined.includes("turknet") || combined.includes("fiber")) return "🛜";
+    if (combined.includes("su ") || combined.includes("su fatur") || combined.includes("iski") || combined.includes("aski") || combined.includes("izsu") || combined.includes("buski") || combined.includes("koski") || combined.includes("şebeke")) return "💧";
+    if (combined.includes("elektrik") || combined.includes("enerji") || combined.includes("tedaş") || combined.includes("gediz") || combined.includes("akım") || combined.includes("ck boğaziçi") || combined.includes("aydem") || combined.includes("limak")) return "⚡";
+    if (combined.includes("doğalgaz") || combined.includes("dogalgaz") || combined.includes("igdaş") || combined.includes("gaz") || combined.includes("kombi") || combined.includes("başkentgaz") || combined.includes("enerya")) return "🔥";
+    if (combined.includes("telefon") || combined.includes("gsm") || combined.includes("turkcell") || combined.includes("vodafone") || combined.includes("mobil") || combined.includes("hat")) return "📱";
+    if (combined.includes("kart") || combined.includes("kredi") || combined.includes("banka") || combined.includes("avans") || combined.includes("ek hesap") || combined.includes("kmh") || combined.includes("bonus") || combined.includes("world") || combined.includes("maximum") || combined.includes("axess") || combined.includes("paraf")) return "💳";
+    if (combined.includes("kira") || combined.includes("ev") || combined.includes("konut") || combined.includes("daire") || combined.includes("dükkan") || combined.includes("dukkan") || combined.includes("ofis")) return "🏠";
+    if (combined.includes("aidat") || combined.includes("apartman") || combined.includes("site") || combined.includes("bina")) return "🏢";
+    if (combined.includes("market") || combined.includes("gıda") || combined.includes("alisveris") || combined.includes("alışveriş") || combined.includes("bakkal") || combined.includes("migros") || combined.includes("bim") || combined.includes("a101") || combined.includes("şok")) return "🛒";
+    if (combined.includes("araç") || combined.includes("araba") || combined.includes("taşıt") || combined.includes("tasit") || combined.includes("yakıt") || combined.includes("benzin") || combined.includes("mazot") || combined.includes("kasko") || combined.includes("sigorta") || combined.includes("hgs") || combined.includes("ogs") || combined.includes("mtv")) return "🚗";
+    if (combined.includes("hastane") || combined.includes("sağlık") || combined.includes("saglik") || combined.includes("eczane") || combined.includes("doktor") || combined.includes("ilaç") || combined.includes("ilac") || combined.includes("diş")) return "🏥";
+    if (combined.includes("okul") || combined.includes("eğitim") || combined.includes("egitim") || combined.includes("kurs") || combined.includes("harç") || combined.includes("servis") || combined.includes("kreş") || combined.includes("üniversite")) return "🎓";
+    if (combined.includes("taksit")) return "📦";
+    if (combined.includes("netflix") || combined.includes("spotify") || combined.includes("youtube") || combined.includes("prime") || combined.includes("disney") || combined.includes("abonelik")) return "📺";
+    if (combined.includes("vergi") || combined.includes("ceza") || combined.includes("haciz") || combined.includes("icra")) return "⚖️";
+    if (combined.includes("fatura")) return "🧾";
+    return "💳";
+  };
+
   const sendSystemNotification = (
     title: string,
     body: string,
@@ -1199,13 +1223,26 @@ export default function App() {
       navigator.vibrate([250, 100, 250]);
     }
 
-    // 2. Official SMS-formatted Notification message - Firebase ve yerel profil ismine göre hitap
+    // 2. Net, profesyonel bildirim metni - Çiftleme ve başlık tekrarlarını engelliyoruz
     const todayStr = new Date().toLocaleDateString("tr-TR");
     const rawResolvedName = (userProfileName && userProfileName.trim())
       || (localStorage.getItem("user_profile_name") || "").trim()
       || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
-    const safeUser = rawResolvedName ? rawResolvedName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
-    const officialSmsMessage = `SN. ${safeUser}\n${todayStr} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n- ${title}${body ? `\n- ${body}` : ""}\n- VADE GECİKME FAİZLERİNDEN KORUNMAK İÇİN ÖDEMENİZİ ZAMANINDA YAPMANIZI RİCA EDERİZ.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+    const safeUser = rawResolvedName ? rawResolvedName.toUpperCase() : "SERKAN SAĞLAM";
+
+    // Eğer body zaten özel formatlanmışsa (👤 SN. ile başlıyorsa veya AKTİF BORÇ LİSTENİZ içeriyorsa) tekrara girmeden doğrudan kullan
+    const isAlreadyFormatted = Boolean(
+      body && (
+        body.startsWith("👤") ||
+        body.startsWith("SN.") ||
+        body.includes("AKTİF BORÇ LİSTENİZ") ||
+        body.includes("B001")
+      )
+    );
+
+    const officialSmsMessage = isAlreadyFormatted
+      ? body
+      : `👤 SN. ${safeUser}\n📅 Rapor Tarihi: ${todayStr}\n\n${body ? `${body}\n\n` : ""}⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
 
     // Sabit ve benzersiz borç / alarm ID'si (Android işletim sistemi aynı ID'ye sahip alarmları ezer, ekranda tek mesaj gösterir)
     const fixedNotifId = alarmOrDebtId !== undefined && alarmOrDebtId !== null && !isNaN(Number(alarmOrDebtId))
@@ -1233,7 +1270,7 @@ export default function App() {
         const appIcon = window.location.origin + "/logo.png";
         let sentWithSW = false;
 
-        const systemNotifTitle = "Bütçem Pro ⏰";
+        const systemNotifTitle = title || "📊 Bütçem Pro: Güncel Vade Özeti";
         const systemNotifBody = officialSmsMessage;
         const uniqueTag = fixedNotifId ? `alarm-${fixedNotifId}` : ("butcempro-alert-" + Date.now());
         const shouldRenotify = !fixedNotifId; // Özel alarmlarda renotify false yapılarak çift bildirim engellenir
@@ -2628,6 +2665,7 @@ export default function App() {
         itemType: "debt" | "installment";
         originalId: number;
         name: string;
+        category?: string;
         amount: number;
         daysLeft: number;
         sonBildirimZamani?: number;
@@ -2647,6 +2685,7 @@ export default function App() {
             itemType: "debt",
             originalId: d.id,
             name: d.name || "Borç",
+            category: d.category || "",
             amount: (Number(d.amount) || 0) - (Number(d.paid) || 0),
             daysLeft: diffDays,
             sonBildirimZamani: d.sonBildirimZamani,
@@ -2668,6 +2707,7 @@ export default function App() {
             itemType: "installment",
             originalId: inst.id,
             name: `${inst.name || "Taksit"} (${(Number(inst.paidInstallmentCount) || 0) + 1}/${inst.installmentCount}. Taksit)`,
+            category: "taksit",
             amount: perInst,
             daysLeft: diffDays,
             sonBildirimZamani: inst.sonBildirimZamani,
@@ -2687,30 +2727,44 @@ export default function App() {
       const allActionable = [...dueTodayItems, ...overdueItems, ...upcomingItems];
 
       if (allActionable.length > 0) {
-        const topItems = allActionable.slice(0, 3);
+        const topItems = allActionable.slice(0, 4);
         const totalDue = allActionable.reduce((acc, cur) => acc + cur.amount, 0);
+        const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
         const dateFormatted = now.toLocaleDateString("tr-TR");
 
-        const summaryLines = topItems
+        const rawPeriodicName = (userProfileName && userProfileName.trim())
+          || (localStorage.getItem("user_profile_name") || "").trim()
+          || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
+        const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
+
+        const borcListesiMetni = topItems
           .map((item) => {
+            const emoji = getDebtCategoryEmoji(item.name, item.category);
             const statusText =
               item.daysLeft === 0
                 ? "Vadesi BUGÜN"
                 : item.daysLeft < 0
                 ? `${Math.abs(item.daysLeft)} gün gecikti`
                 : `${item.daysLeft} gün kaldı`;
-            return `- ${item.name}: ₺${item.amount.toLocaleString("tr-TR")} (${statusText})`;
+            return `${emoji} ${item.name}: ${Math.round(item.amount).toLocaleString("tr-TR")} TL (${statusText})`;
           })
+          .concat(allActionable.length > topItems.length ? [`...ve ${allActionable.length - topItems.length} adet daha`] : [])
           .join("\n");
 
-        const rawPeriodicName = (userProfileName && userProfileName.trim())
-          || (localStorage.getItem("user_profile_name") || "").trim()
-          || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
-        const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
+        // Başlık alanını net ve tek bir defa tanımlıyoruz
+        const bildirimBasligi = "📊 Bütçem Pro: Güncel Vade Özeti";
+
+        // İçerik alanını jilet gibi alt alta emojilerle grupluyoruz
+        const bildirimIcerigi = `👤 SN. ${safePeriodicUser}\n` +
+          `📅 Rapor Tarihi: ${dateFormatted}\n\n` +
+          `📌 AKTİF BORÇ LİSTENİZ:\n` +
+          `${borcListesiMetni}\n\n` +
+          `💰 Toplam Geciken/Vadesi Gelen: ${toplamMiktar} TL\n\n` +
+          `⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
 
         sendSystemNotification(
-          "Bütçem Pro: Güncel Borç & Vade Özeti ⏰",
-          `SN. ${safePeriodicUser}\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryLines}${allActionable.length > 3 ? `\n...ve ${allActionable.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`,
+          bildirimBasligi,
+          bildirimIcerigi,
           false
         );
 

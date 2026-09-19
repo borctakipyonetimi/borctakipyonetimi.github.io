@@ -63,6 +63,28 @@ function parseDateRobust(dateStr) {
   }
 }
 
+// Helper to determine category emoji for debt notification
+function getDebtCategoryEmoji(name = "", category = "") {
+  const combined = `${name || ""} ${category || ""}`.toLowerCase();
+  if (combined.includes("internet") || combined.includes("wifi") || combined.includes("superonline") || combined.includes("ttnet") || combined.includes("telekom") || combined.includes("modem") || combined.includes("turknet") || combined.includes("fiber")) return "🛜";
+  if (combined.includes("su ") || combined.includes("su fatur") || combined.includes("iski") || combined.includes("aski") || combined.includes("izsu") || combined.includes("buski") || combined.includes("koski") || combined.includes("şebeke")) return "💧";
+  if (combined.includes("elektrik") || combined.includes("enerji") || combined.includes("tedaş") || combined.includes("gediz") || combined.includes("akım") || combined.includes("ck boğaziçi") || combined.includes("aydem") || combined.includes("limak")) return "⚡";
+  if (combined.includes("doğalgaz") || combined.includes("dogalgaz") || combined.includes("igdaş") || combined.includes("gaz") || combined.includes("kombi") || combined.includes("başkentgaz") || combined.includes("enerya")) return "🔥";
+  if (combined.includes("telefon") || combined.includes("gsm") || combined.includes("turkcell") || combined.includes("vodafone") || combined.includes("mobil") || combined.includes("hat")) return "📱";
+  if (combined.includes("kart") || combined.includes("kredi") || combined.includes("banka") || combined.includes("avans") || combined.includes("ek hesap") || combined.includes("kmh") || combined.includes("bonus") || combined.includes("world") || combined.includes("maximum") || combined.includes("axess") || combined.includes("paraf")) return "💳";
+  if (combined.includes("kira") || combined.includes("ev") || combined.includes("konut") || combined.includes("daire") || combined.includes("dükkan") || combined.includes("dukkan") || combined.includes("ofis")) return "🏠";
+  if (combined.includes("aidat") || combined.includes("apartman") || combined.includes("site") || combined.includes("bina")) return "🏢";
+  if (combined.includes("market") || combined.includes("gıda") || combined.includes("alisveris") || combined.includes("alışveriş") || combined.includes("bakkal") || combined.includes("migros") || combined.includes("bim") || combined.includes("a101") || combined.includes("şok")) return "🛒";
+  if (combined.includes("araç") || combined.includes("araba") || combined.includes("taşıt") || combined.includes("tasit") || combined.includes("yakıt") || combined.includes("benzin") || combined.includes("mazot") || combined.includes("kasko") || combined.includes("sigorta") || combined.includes("hgs") || combined.includes("ogs") || combined.includes("mtv")) return "🚗";
+  if (combined.includes("hastane") || combined.includes("sağlık") || combined.includes("saglik") || combined.includes("eczane") || combined.includes("doktor") || combined.includes("ilaç") || combined.includes("ilac") || combined.includes("diş")) return "🏥";
+  if (combined.includes("okul") || combined.includes("eğitim") || combined.includes("egitim") || combined.includes("kurs") || combined.includes("harç") || combined.includes("servis") || combined.includes("kreş") || combined.includes("üniversite")) return "🎓";
+  if (combined.includes("taksit")) return "📦";
+  if (combined.includes("netflix") || combined.includes("spotify") || combined.includes("youtube") || combined.includes("prime") || combined.includes("disney") || combined.includes("abonelik")) return "📺";
+  if (combined.includes("vergi") || combined.includes("ceza") || combined.includes("haciz") || combined.includes("icra")) return "⚖️";
+  if (combined.includes("fatura")) return "🧾";
+  return "💳";
+}
+
 // Reschedule the scheduled alarms inside the Service Worker thread
 function rescheduleAlarms() {
   alarmTimers.forEach(t => clearTimeout(t));
@@ -392,13 +414,13 @@ async function handleBackgroundSync(tag) {
         const dueTime = parseDateRobust(debt.dueDate);
         if (!isNaN(dueTime)) {
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: debt.name || "Borç", amount: remaining, sonBildirimZamani: debt.sonBildirimZamani });
+            dueTodayList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, sonBildirimZamani: debt.sonBildirimZamani });
           } else if (dueTime < todayStart) {
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
             if (daysLate > 7) {
-              overdueMoreThanWeekList.push({ name: debt.name || "Borç", amount: remaining, daysLate, sonGecikmeBildirimZamani: debt.sonGecikmeBildirimZamani });
+              overdueMoreThanWeekList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLate, sonGecikmeBildirimZamani: debt.sonGecikmeBildirimZamani });
             } else {
-              recentOverdueList.push({ name: debt.name || "Borç", amount: remaining, daysLate, sonBildirimZamani: debt.sonBildirimZamani });
+              recentOverdueList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLate, sonBildirimZamani: debt.sonBildirimZamani });
             }
           }
         }
@@ -423,13 +445,13 @@ async function handleBackgroundSync(tag) {
           const instTitle = `${inst.title || inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
 
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: instTitle, amount: perInst, sonBildirimZamani: inst.sonBildirimZamani });
+            dueTodayList.push({ name: instTitle, category: "taksit", amount: perInst, sonBildirimZamani: inst.sonBildirimZamani });
           } else if (dueTime < todayStart) {
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
             if (daysLate > 7) {
-              overdueMoreThanWeekList.push({ name: instTitle, amount: perInst, daysLate, sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani });
+              overdueMoreThanWeekList.push({ name: instTitle, category: "taksit", amount: perInst, daysLate, sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani });
             } else {
-              recentOverdueList.push({ name: instTitle, amount: perInst, daysLate, sonBildirimZamani: inst.sonBildirimZamani });
+              recentOverdueList.push({ name: instTitle, category: "taksit", amount: perInst, daysLate, sonBildirimZamani: inst.sonBildirimZamani });
             }
           }
         }
@@ -440,21 +462,38 @@ async function handleBackgroundSync(tag) {
   // 6. Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat
   const allDueItems = [...dueTodayList, ...recentOverdueList, ...overdueMoreThanWeekList];
   if (allDueItems.length > 0) {
-    const topItems = allDueItems.slice(0, 3);
+    const topItems = allDueItems.slice(0, 4);
     const totalDue = allDueItems.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
     const dateFormatted = today.toLocaleDateString("tr-TR");
-    const summaryList = topItems
-      .map(d => `- ${d.name}: ₺${Number(d.amount).toLocaleString("tr-TR")}${d.daysLate ? ` (${d.daysLate} gün gecikti)` : " (Vadesi Bugün)"}`)
-      .join("\n");
     
     // Kullanıcının kayıtlı ismi veya e-postasına göre hitap et
     const userProfile = await loadCachedUserProfile();
     const rawName = (userProfile && userProfile.name ? userProfile.name.trim() : "") || (userProfile && userProfile.email ? userProfile.email.trim() : "");
-    const safeUser = rawName ? rawName.toUpperCase() : "DEĞERLİ KULLANICIMIZ";
-    const smsBody = `SN. ${safeUser}\n${dateFormatted} TARİHLİ BORÇ / VADE BİLGİLENDİRMENİZ:\n${summaryList}${allDueItems.length > 3 ? `\n...ve ${allDueItems.length - 3} adet daha` : ""}\n- Toplam: ₺${totalDue.toLocaleString("tr-TR")}\n- Vade gecikme faizlerinden korunmak için ödemenizi zamanında yapmanızı rica ederiz.\nBÜTÇEM PRO - İYİ GÜNLER DİLERİZ B001`;
+    const safeUser = rawName ? rawName.toUpperCase() : "SERKAN SAĞLAM";
 
-    await self.registration.showNotification("Bütçem Pro: Güncel Borç & Vade Özeti ⏰", {
-      body: smsBody,
+    const borcListesiMetni = topItems
+      .map((d) => {
+        const emoji = getDebtCategoryEmoji(d.name, d.category);
+        const statusText = d.daysLate ? `${d.daysLate} gün gecikti` : "Vadesi BUGÜN";
+        return `${emoji} ${d.name}: ${Math.round(Number(d.amount)).toLocaleString("tr-TR")} TL (${statusText})`;
+      })
+      .concat(allDueItems.length > topItems.length ? [`...ve ${allDueItems.length - topItems.length} adet daha`] : [])
+      .join("\n");
+
+    // Başlık alanını net ve tek bir defa tanımlıyoruz
+    const bildirimBasligi = "📊 Bütçem Pro: Güncel Vade Özeti";
+
+    // İçerik alanını jilet gibi alt alta emojilerle grupluyoruz
+    const bildirimIcerigi = `👤 SN. ${safeUser}\n` +
+      `📅 Rapor Tarihi: ${dateFormatted}\n\n` +
+      `📌 AKTİF BORÇ LİSTENİZ:\n` +
+      `${borcListesiMetni}\n\n` +
+      `💰 Toplam Geciken/Vadesi Gelen: ${toplamMiktar} TL\n\n` +
+      `⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
+
+    await self.registration.showNotification(bildirimBasligi, {
+      body: bildirimIcerigi,
       icon: appIcon,
       vibrate: [300, 100, 300, 100, 400],
       tag: "butcempro-general-summary",
