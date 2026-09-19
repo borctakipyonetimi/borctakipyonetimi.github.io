@@ -95,23 +95,29 @@ export function isDateWithinRange(
 
 /**
  * Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden hesaplar.
- * Örneğin:
- * - "hourly" veya "2" = 2 saat = 7.200.000 milisaniye
- * - "4" = 3 saat = 10.800.000 milisaniye
- * - "3" = 4 saat = 14.400.000 milisaniye
- * - "1" = 24 saat = 86.400.000 milisaniye
+ * - "2" (Günde 2 Kez) = 12 saat = 43.200.000 milisaniye (12 Saat Kilidi)
+ * - "1" (Günde 1 Kez) = 24 saat = 86.400.000 milisaniye
+ * - "3" (Günde 3 Kez) = 8 saat = 28.800.000 milisaniye
+ * - "4" (Günde 4 Kez) = 6 saat = 21.600.000 milisaniye
+ * - "hourly" (2 Saatte Bir) = 2 saat = 7.200.000 milisaniye
  */
 export function getNotificationPeriodMs(frequency: string | number | undefined | null): number {
-  if (!frequency) return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  if (!frequency) return 12 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez = 12 saat = 43.200.000 ms
   const str = String(frequency).trim().toLowerCase();
-  if (str === "hourly" || str === "2") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
-  if (str === "4") return 3 * 60 * 60 * 1000; // 3 saat = 10.800.000 ms
-  if (str === "3") return 4 * 60 * 60 * 1000; // 4 saat = 14.400.000 ms
+  if (str === "2") return 12 * 60 * 60 * 1000; // 12 saat = 43.200.000 ms (12 Saat Kilidi)
   if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
+  if (str === "3") return 8 * 60 * 60 * 1000;  // 8 saat = 28.800.000 ms
+  if (str === "4") return 6 * 60 * 60 * 1000;  // 6 saat = 21.600.000 ms
+  if (str === "hourly") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+
   const num = parseFloat(str);
   if (!isNaN(num) && num > 0) {
+    if (num === 2) return 12 * 60 * 60 * 1000;
+    if (num === 1) return 24 * 60 * 60 * 1000;
+    if (num === 3) return 8 * 60 * 60 * 1000;
+    if (num === 4) return 6 * 60 * 60 * 1000;
     return num * 60 * 60 * 1000;
   }
-  return 2 * 60 * 60 * 1000; // 7.200.000 ms
+  return 12 * 60 * 60 * 1000; // Varsayılan 12 saat
 }
 

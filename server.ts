@@ -3565,6 +3565,85 @@ app.post("/api/notifications/email/send-direct", async (req, res) => {
   }
 });
 
+// Haber Bülteni Kayıt ve Onay E-postası Uç Noktası (Newsletter Subscription & Confirmation)
+app.post("/api/newsletter/subscribe", async (req, res) => {
+  try {
+    const { email, subject, message } = req.body || {};
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ success: false, error: "Geçerli bir e-posta adresi belirtiniz." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const finalSubject = subject || "Bütçem Pro - Bülten Üyeliğiniz Onaylandı! 🎉";
+    const finalMessage = message || "Merhaba, Bütçem Pro bültenine başarıyla kayıt oldunuz. Artık en güncel finansal ipuçları, bütçe yönetim taktikleri ve yeni uygulama güncellemeleri anında e-posta kutunuza gelecek. Aramıza hoş geldiniz! İyi günler dileriz.";
+
+    const htmlCard = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Bütçem Pro</h1>
+          <p style="color: #e0e7ff; margin: 8px 0 0 0; font-size: 13px; font-weight: 500;">Kişisel Bütçe ve Borç Takip Asistanınız</p>
+        </div>
+        <div style="padding: 32px 28px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 50%; width: 56px; height: 56px; line-height: 56px; font-size: 26px;">🎉</div>
+            <h2 style="color: #1e293b; margin: 16px 0 8px 0; font-size: 18px; font-weight: 700;">Bülten Üyeliğiniz Onaylandı!</h2>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${cleanEmail}</p>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; font-size: 14px; line-height: 1.65; color: #334155;">
+            ${finalMessage}
+          </div>
+          <div style="text-align: center; margin-top: 28px;">
+            <a href="https://borctakipyonetimi.github.io" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);">Uygulamaya Git →</a>
+          </div>
+        </div>
+        <div style="background: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+          Bu e-posta, Bütçem Pro bültenine kaydolduğunuz için gönderilmiştir. &copy; ${new Date().getFullYear()} Bütçem Pro. Tüm hakları saklıdır.
+        </div>
+      </div>
+    `;
+
+    // 1. EmailJS REST API sunucu tarafı çağrısı (eğer tanımlıysa)
+    if (process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID && process.env.EMAILJS_PUBLIC_KEY) {
+      try {
+        await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            service_id: process.env.EMAILJS_SERVICE_ID,
+            template_id: process.env.EMAILJS_TEMPLATE_ID,
+            user_id: process.env.EMAILJS_PUBLIC_KEY,
+            template_params: {
+              to_email: cleanEmail,
+              subject: finalSubject,
+              message: finalMessage
+            }
+          })
+        });
+        console.log(`[Newsletter] EmailJS server dispatch succeeded for ${cleanEmail}`);
+      } catch (eJsErr: any) {
+        console.warn(`[Newsletter] EmailJS server dispatch error:`, eJsErr?.message || eJsErr);
+      }
+    }
+
+    // 2. SMTP veya simüle e-posta gönderimi
+    const mailResult = await sendMailHelper({
+      to: cleanEmail,
+      subject: finalSubject,
+      text: finalMessage,
+      html: htmlCard
+    });
+
+    return res.json({
+      success: true,
+      simulated: mailResult.simulated,
+      message: "Bülten üyeliğiniz onaylandı! Onay e-postası başarıyla iletildi."
+    });
+  } catch (err: any) {
+    console.error("[Newsletter Subscribe Error]:", err);
+    return res.status(500).json({ success: false, error: err.message || "Sunucu hatası oluştu." });
+  }
+});
+
 // 3. Get subscriber status by email
 app.get("/api/notifications/email/status", (req, res) => {
   const email = (req.query.email as string)?.trim().toLowerCase();

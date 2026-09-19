@@ -233,19 +233,53 @@ async function loadCachedInstallments() {
 const SETTINGS_CACHE_NAME = "butcempro-settings-cache";
 const SETTINGS_URL = "/push-settings.json";
 const LAST_NOTIF_TIME_URL = "/last-general-notif-time.json";
+const LAST_TWICE_DAILY_NOTIF_TIME_URL = "/last-twice-daily-notif-time.json";
 
 function getNotificationPeriodMs(frequency) {
-  if (!frequency) return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  if (!frequency) return 12 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez = 12 saat = 43.200.000 ms
   const str = String(frequency).trim().toLowerCase();
-  if (str === "hourly" || str === "2") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
-  if (str === "4") return 3 * 60 * 60 * 1000; // 3 saat = 10.800.000 ms
-  if (str === "3") return 4 * 60 * 60 * 1000; // 4 saat = 14.400.000 ms
+  if (str === "2") return 12 * 60 * 60 * 1000; // 12 saat = 43.200.000 ms (12 Saat Kilidi)
   if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
+  if (str === "3") return 8 * 60 * 60 * 1000;  // 8 saat = 28.800.000 ms
+  if (str === "4") return 6 * 60 * 60 * 1000;  // 6 saat = 21.600.000 ms
+  if (str === "hourly") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
   const num = parseFloat(str);
   if (!isNaN(num) && num > 0) {
+    if (num === 2) return 12 * 60 * 60 * 1000;
+    if (num === 1) return 24 * 60 * 60 * 1000;
+    if (num === 3) return 8 * 60 * 60 * 1000;
+    if (num === 4) return 6 * 60 * 60 * 1000;
     return num * 60 * 60 * 1000;
   }
-  return 2 * 60 * 60 * 1000; // 7.200.000 ms
+  return 12 * 60 * 60 * 1000; // 43.200.000 ms
+}
+
+async function saveCachedLastTwiceDailyNotificationTime(timestamp) {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    await cache.put(
+      LAST_TWICE_DAILY_NOTIF_TIME_URL,
+      new Response(JSON.stringify({ timestamp }), {
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  } catch (err) {
+    console.error("Failed to save last twice daily notif time to cache:", err);
+  }
+}
+
+async function getCachedLastTwiceDailyNotificationTime() {
+  try {
+    const cache = await caches.open(SETTINGS_CACHE_NAME);
+    const response = await cache.match(LAST_TWICE_DAILY_NOTIF_TIME_URL);
+    if (response) {
+      const data = await response.json();
+      return Number(data.timestamp || 0);
+    }
+  } catch (err) {
+    console.error("Failed to get last twice daily notif time from cache:", err);
+  }
+  return 0;
 }
 
 async function savePushSettingsToCache(settings) {
@@ -384,8 +418,18 @@ async function handleBackgroundSync(tag) {
     });
   }
 
-  // --- 3. AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (15 Dk Engelini Aş) ---
-  // Kullanıcının seçtiği bildirim periyodu saatini (ör. 2 saat = 7.200.000 ms) milisaniye cinsinden oku
+  // --- 3. AKILLI ENGEL & 12 SAAT KİLİDİ: 'Günde 2 Kez' Seçeneğinde Kesin 12 Saat Engelini Uygula ---
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 ms
+  const isTwiceDaily = !pushSettings.frequency || pushSettings.frequency === "2";
+  const lastTwiceDailyTime = await getCachedLastTwiceDailyNotificationTime();
+
+  if (isTwiceDaily && lastTwiceDailyTime > 0 && (now - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
+    const remainingWaitMin = Math.ceil((TWELVE_HOURS_MS - (now - lastTwiceDailyTime)) / 60000);
+    console.log(`[SW 12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingWaitMin} dk / ${(remainingWaitMin / 60).toFixed(1)} saat kaldı). Bildirim gönderme KESİNLİKLE İPTAL EDİLDİ ve uykuya dönüldü.`);
+    return;
+  }
+
+  // Kullanıcının seçtiği bildirim periyodu saatini (ör. Günde 2 Kez = 12 saat = 43.200.000 ms) milisaniye cinsinden oku
   const selectedPeriodMs = getNotificationPeriodMs(pushSettings.frequency || "2");
   const lastGeneralTime = await getCachedLastGeneralNotificationTime();
 
@@ -506,11 +550,12 @@ async function handleBackgroundSync(tag) {
 
     // Damgayı kaydet
     await saveCachedLastGeneralNotificationTime(now);
+    await saveCachedLastTwiceDailyNotificationTime(now);
 
     // İstemcileri bilgilendir
     const allClients = await self.clients.matchAll();
     allClients.forEach(c => {
-      c.postMessage({ type: "UPDATE_LAST_NOTIFICATION_TIME", timestamp: now });
+      c.postMessage({ type: "UPDATE_LAST_NOTIFICATION_TIME", timestamp: now, isTwiceDaily: true });
     });
   }
 
@@ -580,6 +625,9 @@ self.addEventListener("message", (event) => {
     if (event.data.sonGenelBildirimZamani) {
       saveCachedLastGeneralNotificationTime(event.data.sonGenelBildirimZamani);
     }
+    if (event.data.sonGundeIkiBildirimZamani) {
+      saveCachedLastTwiceDailyNotificationTime(event.data.sonGundeIkiBildirimZamani);
+    }
     console.log("[Service Worker] Push settings updated & cached:", pushSettings);
   }
 
@@ -595,6 +643,7 @@ self.addEventListener("message", (event) => {
   if (event.data.type === "SYNC_LAST_NOTIFICATION_TIME") {
     if (event.data.timestamp) {
       saveCachedLastGeneralNotificationTime(event.data.timestamp);
+      saveCachedLastTwiceDailyNotificationTime(event.data.timestamp);
     }
   }
 

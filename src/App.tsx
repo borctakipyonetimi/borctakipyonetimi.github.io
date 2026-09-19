@@ -24,6 +24,7 @@ import {
 import { compressAndResizeImage } from "./utils/imageUtils";
 import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
+import { subscribeToNewsletter } from "./utils/newsletterService";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Menu,
@@ -837,6 +838,8 @@ export default function App() {
   // Newsletter Subscription State
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [isNewsletterSubscribed, setIsNewsletterSubscribed] = useState(false);
+  const [isSubscribingNewsletter, setIsSubscribingNewsletter] = useState(false);
+  const [newsletterFeedback, setNewsletterFeedback] = useState("");
 
   // Initialize and register OneSignal dynamically using official Capacitor Plugin
   useEffect(() => {
@@ -920,11 +923,13 @@ export default function App() {
         const savedPushEnabled = localStorage.getItem("pushNotificationsEnabled") !== "false";
         const savedPushFreq = localStorage.getItem("pushNotificationFrequency") || "2";
         const savedLastGenTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+        const savedTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
         navigator.serviceWorker.controller.postMessage({
           type: "SYNC_PUSH_SETTINGS",
           enabled: savedPushEnabled,
           frequency: savedPushFreq,
-          sonGenelBildirimZamani: savedLastGenTime
+          sonGenelBildirimZamani: savedLastGenTime,
+          sonGundeIkiBildirimZamani: savedTwiceDailyTime
         });
       }
 
@@ -933,6 +938,7 @@ export default function App() {
         navigator.serviceWorker.addEventListener("message", (event) => {
           if (event.data?.type === "UPDATE_LAST_NOTIFICATION_TIME" && event.data.timestamp) {
             localStorage.setItem("sonGenelBildirimZamani", String(event.data.timestamp));
+            localStorage.setItem("sonGundeIkiBildirimZamani", String(event.data.timestamp));
           }
         });
       }
@@ -2645,8 +2651,21 @@ export default function App() {
       // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
       if (currentHour < 8 || currentHour >= 23) return;
 
+      // --- 12 SAAT KİLİDİ: 'Günde 2 kez' Bildirim Ayarı İçin Kesin Zaman Damgası Engeli ---
+      const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 milisaniye
+      const isTwiceDaily = !pushFrequency || pushFrequency === "2";
+      const lastTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
+
+      // Arka plan servisi Android yüzünden her 15 dakikada bir uyandığında kontrol et: Şimdiki Zaman - sonGundeIkiBildirimZamani.
+      // Eğer aradan geçen süre tam 12 saatten (43.200.000 milisaniye) az ise bildirim gönderme fonksiyonunu kesinlikle İPTAL ET ve uykuya dön!
+      if (isTwiceDaily && lastTwiceDailyTime > 0 && (nowMs - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
+        const remainingMinutes = Math.ceil((TWELVE_HOURS_MS - (nowMs - lastTwiceDailyTime)) / 60000);
+        console.log(`[12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingMinutes} dk / ${(remainingMinutes / 60).toFixed(1)} saat kaldı). Bildirim gönderme KESİNLİKLE İPTAL EDİLDİ ve uykuya dönüldü.`);
+        return;
+      }
+
       // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (15 Dk Engelini Aş) ---
-      // Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden oku (ör. 2 saat = 7.200.000 ms)
+      // Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden oku (ör. Günde 2 Kez = 12 saat = 43.200.000 ms)
       const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
       const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
 
@@ -2768,10 +2787,12 @@ export default function App() {
           false
         );
 
-        // sonGenelBildirimZamani damgasını localStorage ve Firebase'e kaydet
+        // sonGundeIkiBildirimZamani ve sonGenelBildirimZamani damgalarını kaydet
+        localStorage.setItem("sonGundeIkiBildirimZamani", String(nowMs));
         localStorage.setItem("sonGenelBildirimZamani", String(nowMs));
         if (auth.currentUser) {
           try {
+            set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGundeIkiBildirimZamani`), nowMs);
             set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGenelBildirimZamani`), nowMs);
           } catch (_) {}
         }
@@ -8038,31 +8059,46 @@ export default function App() {
                   🔔 HABERDAR OL (BÜLTEN)
                 </span>
                 <form 
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    if (!newsletterEmail.trim()) return;
-                    setIsNewsletterSubscribed(true);
-                    triggerToast("Bültene başarıyla abone oldunuz! Kampanyalar ve yeni finansal tüyolar anında e-postanıza gelecek. 🔔");
-                    setNewsletterEmail("");
-                    setTimeout(() => setIsNewsletterSubscribed(false), 5500);
+                    if (!newsletterEmail.trim() || isSubscribingNewsletter) return;
+                    setIsSubscribingNewsletter(true);
+                    const emailToRegister = newsletterEmail.trim();
+                    try {
+                      const res = await subscribeToNewsletter(emailToRegister);
+                      setIsNewsletterSubscribed(true);
+                      setNewsletterFeedback(res.message || "✓ Bültene başarıyla kaydoldunuz! Onay e-postası adresinize gönderildi. 🎉");
+                      triggerToast("Bültene başarıyla abone oldunuz! Onay e-postası adresinize iletildi. 🔔");
+                      setNewsletterEmail("");
+                      setTimeout(() => {
+                        setIsNewsletterSubscribed(false);
+                        setNewsletterFeedback("");
+                      }, 7000);
+                    } catch (err: any) {
+                      triggerToast("Bülten kaydı yapılırken bir hata oluştu: " + (err?.message || "Lütfen tekrar deneyin"));
+                    } finally {
+                      setIsSubscribingNewsletter(false);
+                    }
                   }}
                   className="relative flex items-center w-full max-w-[320px] bg-white/70 dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-full p-1 focus-within:ring-4 focus-within:ring-indigo-500/15 focus-within:border-indigo-550 transition-all shadow-2xs header-glass box-border"
                 >
                   <input
                     type="email"
                     required
+                    disabled={isSubscribingNewsletter}
                     value={newsletterEmail}
                     onChange={(e) => setNewsletterEmail(e.target.value)}
                     placeholder="E-posta adresiniz..."
-                    className="w-full pl-4 pr-24 py-2 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 font-medium box-border"
+                    className="w-full pl-4 pr-24 py-2 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 font-medium box-border disabled:opacity-50"
                   />
                   <motion.button
                     type="submit"
-                    whileHover={{ scale: 1.05, filter: "brightness(1.1)" }}
-                    whileTap={{ scale: 0.94 }}
-                    className="absolute right-1 px-4 py-1.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white text-[10px] font-black uppercase tracking-wider rounded-full shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                    disabled={isSubscribingNewsletter}
+                    whileHover={{ scale: isSubscribingNewsletter ? 1 : 1.05, filter: "brightness(1.1)" }}
+                    whileTap={{ scale: isSubscribingNewsletter ? 1 : 0.94 }}
+                    className="absolute right-1 px-4 py-1.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white text-[10px] font-black uppercase tracking-wider rounded-full shadow-xs transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
                   >
-                    Katıl <Bell className="w-3 h-3 text-white" />
+                    {isSubscribingNewsletter ? "Gönderiliyor..." : "Katıl"} <Bell className="w-3 h-3 text-white" />
                   </motion.button>
                 </form>
                 {isNewsletterSubscribed && (
@@ -8071,7 +8107,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-[11px] text-emerald-600 dark:text-emerald-400 font-black mt-2 text-center"
                   >
-                    ✓ Bültene başarıyla kaydoldunuz! Topluluğumuza hoş geldiniz. 🎉
+                    {newsletterFeedback || "✓ Bültene başarıyla kaydoldunuz! Onay e-postası adresinize gönderildi. 🎉"}
                   </motion.p>
                 )}
               </div>
