@@ -32,12 +32,12 @@ jobs:
           npm install --legacy-peer-deps || npm install
           npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
 
-      - name: Clean and Create Config
+      - name: Clean and Create Config (Yerel Moda Geri Donus)
         run: |
           rm -rf android
           rm -f capacitor.config.json
-          # Çıktı klasörünü kesin olarak www yapıyoruz
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "server": {"url": "https://github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
+          # server URL kısmını tamamen kaldırıp yerel dosya yollarını güvenli hale getiriyoruz
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
 
       - name: Web Kodlarini Hazirla (Output to www)
         run: |
