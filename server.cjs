@@ -77,7 +77,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     service: "butcem-pro-backend",
     time: (/* @__PURE__ */ new Date()).toISOString(),
-    smtpConfigured: !!(currentCustomSmtp?.user || process.env.SMTP_HOST || process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.GMAIL_USER || process.env.EMAIL_USER || process.env.MAIL_USER)
+    smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass)
   });
 });
 var tempWebviewBackups = /* @__PURE__ */ new Map();
@@ -1751,21 +1751,58 @@ app.get("/api/rates", async (req, res) => {
   } catch (e) {
     console.warn("[Rates] Gold-api fetch error:", e.message);
   }
+  let cryptos = {
+    BTC: { usd: 79614, change: 0.85 },
+    ETH: { usd: 2680, change: 1.42 },
+    SOL: { usd: 185.5, change: 2.8 },
+    BNB: { usd: 645, change: 0.95 },
+    XRP: { usd: 2.15, change: -1.1 },
+    AVAX: { usd: 28.5, change: 3.25 },
+    DOGE: { usd: 0.22, change: -0.65 },
+    ADA: { usd: 0.78, change: 1.15 },
+    TON: { usd: 5.4, change: 0.5 },
+    USDT: { usd: 1, change: 0.02 }
+  };
   try {
-    const btcCtrl = new AbortController();
-    const btcTimeout = setTimeout(() => btcCtrl.abort(), 2500);
-    const btcRes = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", { signal: btcCtrl.signal });
-    clearTimeout(btcTimeout);
-    if (btcRes.ok) {
-      const bData = await btcRes.json();
-      if (bData && bData.lastPrice) {
-        btcUsd = Number(bData.lastPrice);
-        const btcChange = Number(bData.priceChangePercent) || 0;
-        details.BTC = { buying: btcUsd, selling: btcUsd, change: btcChange };
+    const cryptoCtrl = new AbortController();
+    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 3500);
+    const symbolsParam = JSON.stringify([
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "AVAXUSDT",
+      "DOGEUSDT",
+      "ADAUSDT"
+    ]);
+    const cryptoRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`, {
+      signal: cryptoCtrl.signal
+    });
+    clearTimeout(cryptoTimeout);
+    if (cryptoRes.ok) {
+      const cryptoData = await cryptoRes.json();
+      if (Array.isArray(cryptoData)) {
+        for (const item of cryptoData) {
+          const sym = item.symbol.replace("USDT", "");
+          const price = Number(item.lastPrice);
+          const chg = Number(item.priceChangePercent) || 0;
+          if (price > 0 && cryptos[sym]) {
+            cryptos[sym] = { usd: price, change: chg };
+          }
+        }
       }
     }
   } catch (e) {
-    console.warn("[Rates] Binance BTC fetch error:", e.message);
+    console.warn("[Rates] Binance multi-crypto fetch error:", e.message);
+  }
+  btcUsd = cryptos.BTC.usd;
+  for (const [sym, data] of Object.entries(cryptos)) {
+    details[sym] = {
+      buying: data.usd,
+      selling: data.usd,
+      change: data.change
+    };
   }
   if (!loadedSource) {
     const apis = [
@@ -1815,8 +1852,26 @@ app.get("/api/rates", async (req, res) => {
       GOLD_YARIM: Number(goldYarim.toFixed(2)),
       GOLD_TAM: Number(goldTam.toFixed(2)),
       GOLD_CUMHURIYET: Number(goldCumhuriyet.toFixed(2)),
-      BTC_USD: Number(btcUsd.toFixed(2)),
-      BTC_TRY: Number(btcTry.toFixed(2))
+      BTC_USD: Number(cryptos.BTC.usd.toFixed(2)),
+      BTC_TRY: Number((cryptos.BTC.usd * usdRate).toFixed(2)),
+      ETH_USD: Number(cryptos.ETH.usd.toFixed(2)),
+      ETH_TRY: Number((cryptos.ETH.usd * usdRate).toFixed(2)),
+      SOL_USD: Number(cryptos.SOL.usd.toFixed(2)),
+      SOL_TRY: Number((cryptos.SOL.usd * usdRate).toFixed(2)),
+      BNB_USD: Number(cryptos.BNB.usd.toFixed(2)),
+      BNB_TRY: Number((cryptos.BNB.usd * usdRate).toFixed(2)),
+      XRP_USD: Number(cryptos.XRP.usd.toFixed(4)),
+      XRP_TRY: Number((cryptos.XRP.usd * usdRate).toFixed(2)),
+      AVAX_USD: Number(cryptos.AVAX.usd.toFixed(2)),
+      AVAX_TRY: Number((cryptos.AVAX.usd * usdRate).toFixed(2)),
+      DOGE_USD: Number(cryptos.DOGE.usd.toFixed(4)),
+      DOGE_TRY: Number((cryptos.DOGE.usd * usdRate).toFixed(2)),
+      ADA_USD: Number(cryptos.ADA.usd.toFixed(4)),
+      ADA_TRY: Number((cryptos.ADA.usd * usdRate).toFixed(2)),
+      TON_USD: Number(cryptos.TON.usd.toFixed(2)),
+      TON_TRY: Number((cryptos.TON.usd * usdRate).toFixed(2)),
+      USDT_USD: Number(cryptos.USDT.usd.toFixed(4)),
+      USDT_TRY: Number((cryptos.USDT.usd * usdRate).toFixed(2))
     },
     details,
     lastUpdated: stamp,
@@ -2825,16 +2880,12 @@ function cleanCredential(val) {
 }
 function getMailTransporter(customOverride) {
   const activeConfig = customOverride || currentCustomSmtp;
-  const user = cleanCredential(
-    activeConfig?.user || process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.EMAIL_USER || process.env.MAIL_USER || process.env.MAIL_USERNAME || process.env.GMAIL_USER || process.env.EMAIL_FROM || process.env.SMTP_FROM
-  );
-  const pass = cleanCredential(
-    activeConfig?.pass || process.env.SMTP_PASS || process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.MAIL_PASS || process.env.MAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.GMAIL_PASSWORD
-  ).replace(/\s+/g, "");
+  const user = cleanCredential(activeConfig?.user);
+  const pass = cleanCredential(activeConfig?.pass).replace(/\s+/g, "");
   if (!user || !pass) {
     return null;
   }
-  const rawHost = activeConfig?.host || process.env.SMTP_HOST || process.env.MAIL_HOST || process.env.EMAIL_HOST || process.env.GMAIL_HOST;
+  const rawHost = activeConfig?.host;
   let host = cleanHost(rawHost);
   if (!host) {
     const domain = user.includes("@") ? user.split("@")[1].toLowerCase() : "";
@@ -2852,12 +2903,9 @@ function getMailTransporter(customOverride) {
       host = "smtp.gmail.com";
     }
   }
-  const rawPort = Number(
-    activeConfig?.port || process.env.SMTP_PORT || process.env.MAIL_PORT || process.env.EMAIL_PORT
-  );
+  const rawPort = Number(activeConfig?.port);
   const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
-  const secureEnv = process.env.SMTP_SECURE || process.env.MAIL_SECURE;
-  const secure = activeConfig?.secure ?? (secureEnv === "true" || secureEnv === "ssl" || port === 465);
+  const secure = activeConfig?.secure ?? port === 465;
   return import_nodemailer.default.createTransport({
     host,
     port,
@@ -2925,11 +2973,11 @@ async function sendMailHelper(options) {
   try {
     const transporter = getMailTransporter(options.customConfig);
     const activeConfig = options.customConfig || currentCustomSmtp;
-    const user = cleanCredential(activeConfig?.user || process.env.SMTP_USER || process.env.GMAIL_USER);
-    const authEmail = user || (process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : "bildirim@butcempro.app");
+    const user = cleanCredential(activeConfig?.user);
+    const authEmail = user || "bildirim@butcempro.app";
     const senderName = activeConfig?.fromName || "B\xFCt\xE7em Pro";
     const fromAddress = `"${senderName}" <${authEmail}>`;
-    const replyTo = process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : authEmail;
+    const replyTo = authEmail;
     if (transporter) {
       const info = await transporter.sendMail({
         from: fromAddress,
@@ -3163,26 +3211,27 @@ app.post("/api/newsletter/subscribe", async (req, res) => {
         </div>
       </div>
     `;
-    if (process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID && process.env.EMAILJS_PUBLIC_KEY) {
-      try {
-        await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            service_id: process.env.EMAILJS_SERVICE_ID,
-            template_id: process.env.EMAILJS_TEMPLATE_ID,
-            user_id: process.env.EMAILJS_PUBLIC_KEY,
-            template_params: {
-              to_email: cleanEmail,
-              subject: finalSubject,
-              message: finalMessage
-            }
-          })
-        });
-        console.log(`[Newsletter] EmailJS server dispatch succeeded for ${cleanEmail}`);
-      } catch (eJsErr) {
-        console.warn(`[Newsletter] EmailJS server dispatch error:`, eJsErr?.message || eJsErr);
-      }
+    const EMAILJS_SERVICE_ID = "service_osnjc54";
+    const EMAILJS_TEMPLATE_ID = "template_ydyje4e";
+    const EMAILJS_PUBLIC_KEY = "KNh4u8my4-19aJZMn";
+    try {
+      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: EMAILJS_SERVICE_ID,
+          template_id: EMAILJS_TEMPLATE_ID,
+          user_id: EMAILJS_PUBLIC_KEY,
+          template_params: {
+            to_email: cleanEmail,
+            subject: finalSubject,
+            message: finalMessage
+          }
+        })
+      });
+      console.log(`[Newsletter] EmailJS server dispatch succeeded for ${cleanEmail}`);
+    } catch (eJsErr) {
+      console.warn(`[Newsletter] EmailJS server dispatch error:`, eJsErr?.message || eJsErr);
     }
     const mailResult = await sendMailHelper({
       to: cleanEmail,
@@ -3320,7 +3369,7 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     html,
     text
   });
-  const hasSmtp = !!(currentCustomSmtp.user && currentCustomSmtp.pass) || !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
+  const hasSmtp = !!(currentCustomSmtp.user && currentCustomSmtp.pass);
   console.log(`[Email Alert Engine] Sent test email to: ${normalizedEmail} (Delivered: ${!sendResult.simulated && sendResult.success}, HasSMTP: ${hasSmtp}, TotalDebt: \u20BA${reportAnalysis.totalActiveDebt})`);
   res.json({
     success: sendResult.success,
@@ -3399,10 +3448,9 @@ app.post("/api/notifications/email/reset-smtp-config", (req, res) => {
 });
 app.get("/api/notifications/email/smtp-status", (req, res) => {
   const hasCustom = !!(currentCustomSmtp.user && currentCustomSmtp.pass);
-  const hasEnv = !!(process.env.SMTP_USER || process.env.GMAIL_USER);
-  const activeUser = currentCustomSmtp.user || process.env.SMTP_USER || process.env.GMAIL_USER || "";
-  const activeHost = currentCustomSmtp.host || cleanHost(process.env.SMTP_HOST) || (activeUser.includes("@gmail.com") ? "smtp.gmail.com" : "");
-  const activePort = currentCustomSmtp.port || Number(process.env.SMTP_PORT) || (activeHost === "smtp.gmail.com" ? 465 : 587);
+  const activeUser = currentCustomSmtp.user || "";
+  const activeHost = currentCustomSmtp.host || (activeUser.includes("@gmail.com") ? "smtp.gmail.com" : "");
+  const activePort = currentCustomSmtp.port || (activeHost === "smtp.gmail.com" ? 465 : 587);
   let maskedUser = "";
   if (activeUser.includes("@")) {
     const [name, domain] = activeUser.split("@");
@@ -3412,8 +3460,8 @@ app.get("/api/notifications/email/smtp-status", (req, res) => {
     maskedUser = `${activeUser.substring(0, 2)}***`;
   }
   res.json({
-    configured: hasCustom || hasEnv,
-    source: hasCustom ? "in_app" : hasEnv ? "env" : "none",
+    configured: hasCustom,
+    source: hasCustom ? "in_app" : "none",
     host: activeHost || null,
     port: activePort,
     user: maskedUser || null,
