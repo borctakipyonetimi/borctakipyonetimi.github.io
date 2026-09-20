@@ -40,8 +40,13 @@ jobs:
 
       - name: Guncel React Kodlarini Derle (Vite Build)
         run: |
-          # En guncel kodlari dist klasorune derliyoruz
+          # En guncel kodlari derliyoruz
           npm run build || npx vite build
+          # Hem dist hem www klasorlerini tam senkronize hazirliyoruz
+          rm -rf www && mkdir -p www
+          cp -r dist/* www/ || true
+          touch dist/.nojekyll
+          touch www/.nojekyll
 
       - name: Eski Kalintilari Temizle
         run: |
@@ -150,19 +155,22 @@ jobs:
           name: butcem-pro-reklamsiz-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Guncel Web Sitesini (dist) GitHub Pages Icin Yukle
+      - name: Guncel Web Sitesini (www) GitHub Pages Icin Yukle
         uses: actions/upload-artifact@v4
         with:
-          name: butcem-pro-web-dist
-          path: dist/
+          name: butcem-pro-web-www
+          path: www/
 
-      - name: GitHub Pages Icin .nojekyll Hazirla
+      - name: GitHub Pages Icin www ve .nojekyll Hazirla
         run: |
+          mkdir -p www
+          cp -r dist/* www/ || true
+          touch www/.nojekyll
           touch dist/.nojekyll
 
       - name: Web Sitemizi Otomatik Yayinla (JamesIves GitHub Pages Deploy)
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist
+          folder: www
           branch: gh-pages
           clean: true

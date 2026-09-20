@@ -5584,47 +5584,81 @@ export default function App() {
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-emerald-500/10 blur-[130px] pointer-events-none animate-pulse [animation-delay:2s]" />
 
             <div className="text-center space-y-6 max-w-sm w-full relative z-10">
-              {/* Premium Animated 4-Quadrant Logo Loader (Matching user's reference exactly) */}
-              {/* Genuine Bütçem Pro Logo (from logo.png) with Glowing Ambient Lighting and Orbital Rings */}
-              <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-8">
+              {/* Premium Animated 4-Quadrant Logo Loader (Matching user's reference screenshot exactly) */}
+              <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-6">
                 {/* Ambient glowing back shadow */}
-                <div className="absolute inset-0 bg-indigo-500/25 rounded-full blur-3xl scale-150 animate-pulse pointer-events-none" />
+                <div className="absolute inset-0 bg-indigo-500/30 rounded-full blur-3xl scale-150 animate-pulse pointer-events-none" />
+                <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-2xl scale-125 pointer-events-none" />
                 
-                {/* Outer spinning dashed ring (Clockwise) */}
+                {/* Outer spinning dashed ring (Clockwise) with glowing orbit satellite dot */}
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 16, ease: "linear" }}
-                  className="w-36 h-36 border border-dashed border-indigo-500/35 rounded-full absolute"
-                />
+                  transition={{ repeat: Infinity, duration: 18, ease: "linear" }}
+                  className="w-44 h-44 border border-dashed border-cyan-400/40 rounded-full absolute flex items-start justify-center"
+                >
+                  <div className="w-2.5 h-2.5 -mt-1 rounded-full bg-cyan-400 shadow-[0_0_12px_#22d3ee] animate-pulse" />
+                </motion.div>
 
                 {/* Middle fast counter-spinning dotted ring */}
                 <motion.div
                   animate={{ rotate: -360 }}
-                  transition={{ repeat: Infinity, duration: 22, ease: "linear" }}
-                  className="w-32 h-32 border-2 border-dotted border-emerald-500/30 rounded-full absolute"
+                  transition={{ repeat: Infinity, duration: 24, ease: "linear" }}
+                  className="w-38 h-38 border-2 border-dotted border-emerald-400/35 rounded-full absolute flex items-end justify-center"
+                >
+                  <div className="w-2 h-2 -mb-1 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+                </motion.div>
+
+                {/* Outer glowing pulse border ring */}
+                <motion.div
+                  animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.85, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                  className="w-34 h-34 rounded-full border border-indigo-400/30 absolute pointer-events-none"
                 />
 
-                {/* Main Bütçem Pro Logo Container */}
+                {/* Main 4-Quadrant Circular Animated Logo */}
                 <motion.div
                   animate={{
-                    scale: [1, 1.04, 1],
+                    scale: [1, 1.03, 1],
+                    y: [0, -3, 0]
                   }}
                   transition={{
-                    duration: 3,
+                    duration: 3.5,
                     repeat: Infinity,
                     ease: "easeInOut"
                   }}
-                  className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-3xl p-1 bg-gradient-to-tr from-[#131b2e] via-[#1e293b] to-[#0f172a] shadow-2xl shadow-indigo-500/40 ring-2 ring-indigo-500/30 overflow-hidden flex items-center justify-center backdrop-blur-md"
+                  className="relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full shadow-[0_0_35px_rgba(14,165,233,0.45)] overflow-hidden flex items-center justify-center p-0.5 bg-slate-900 border-2 border-slate-700/80"
                 >
-                  <img
-                    src="/logo.png"
-                    alt="Bütçem Pro"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover rounded-2xl"
-                    onError={(e: any) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
+                  {/* The 4 Colored Quadrants (Pie Segments) */}
+                  <div className="w-full h-full rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 relative">
+                    {/* 1. Top-Left: Cyan / Blue (Shopping Cart) */}
+                    <div className="bg-[#00b4d8] flex items-center justify-center relative p-2 shadow-inner">
+                      <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
+                    </div>
+
+                    {/* 2. Top-Right: Magenta / Rose (Fuel Pump) */}
+                    <div className="bg-[#e63973] flex items-center justify-center relative p-2 shadow-inner">
+                      <Fuel className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
+                    </div>
+
+                    {/* 3. Bottom-Left: Emerald / Green (Utensils / Food) */}
+                    <div className="bg-[#10b981] flex items-center justify-center relative p-2 shadow-inner">
+                      <Utensils className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
+                    </div>
+
+                    {/* 4. Bottom-Right: Amber / Golden (Coffee / Cafe) */}
+                    <div className="bg-[#eab308] flex items-center justify-center relative p-2 shadow-inner">
+                      <Coffee className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
+                    </div>
+
+                    {/* Center Dark Circular Disc / Hub with Glowing Border */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1e293b] border-2 border-slate-900 shadow-lg flex items-center justify-center z-20">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#090d16] border border-slate-700" />
+                    </div>
+
+                    {/* Subtle division lines between quadrants */}
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-slate-950/60 pointer-events-none z-10" />
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-slate-950/60 pointer-events-none z-10" />
+                  </div>
                 </motion.div>
               </div>
               
@@ -5641,69 +5675,38 @@ export default function App() {
                 }}
                 className="space-y-3 select-none"
               >
-                <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-black text-3xl sm:text-4xl tracking-tight drop-shadow-[0_0_15px_rgba(99,102,241,0.55)]">
-                  {"BÜTÇEM".split("").map((char, index) => (
-                    <motion.span
-                      key={`butcem-${index}`}
-                      variants={{
-                        hidden: { opacity: 0, y: -25, rotateY: 90, scale: 0.5 },
-                        visible: { opacity: 1, y: 0, rotateY: 0, scale: 1 }
-                      }}
-                      transition={{ type: "spring", stiffness: 220, damping: 11 }}
-                      className="bg-gradient-to-b from-white via-slate-100 to-indigo-250 bg-clip-text text-transparent inline-block font-black"
-                    >
-                      {char}
-                    </motion.span>
-                  ))}
+                <div className="flex items-center justify-center gap-2 font-black text-3xl sm:text-4xl tracking-tight drop-shadow-[0_0_20px_rgba(99,102,241,0.55)]">
+                  <motion.span
+                    variants={{
+                      hidden: { opacity: 0, y: -20, scale: 0.8 },
+                      visible: { opacity: 1, y: 0, scale: 1 }
+                    }}
+                    transition={{ type: "spring", stiffness: 220, damping: 11 }}
+                    className="text-white inline-block font-black tracking-wider"
+                  >
+                    BÜTÇEM
+                  </motion.span>
                   
-                  <span className="w-2" />
-
-                  {"PRO".split("").map((char, index) => (
-                    <motion.span
-                      key={`pro-${index}`}
-                      variants={{
-                        hidden: { opacity: 0, y: 25, scale: 1.4, filter: "blur(4px)" },
-                        visible: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }
-                      }}
-                      transition={{ type: "spring", stiffness: 280, damping: 9, delay: 0.4 }}
-                      style={{ textShadow: "0 0 12px rgba(52,211,153,0.75)" }}
-                      className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent inline-block font-black"
-                    >
-                      {char}
-                    </motion.span>
-                  ))}
+                  <motion.span
+                    variants={{
+                      hidden: { opacity: 0, y: 20, scale: 1.3, filter: "blur(4px)" },
+                      visible: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }
+                    }}
+                    transition={{ type: "spring", stiffness: 280, damping: 9, delay: 0.2 }}
+                    style={{ textShadow: "0 0 16px rgba(34,211,238,0.85)" }}
+                    className="bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent inline-block font-black tracking-wider"
+                  >
+                    PRO
+                  </motion.span>
                 </div>
 
                 <motion.div
                   initial={{ scaleX: 0, opacity: 0 }}
                   animate={{ scaleX: 1, opacity: 1 }}
-                  transition={{ delay: 0.7, duration: 0.5, ease: "easeOut" }}
-                  className="w-44 h-[1.5px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent mx-auto relative"
+                  transition={{ delay: 0.5, duration: 0.5, ease: "easeOut" }}
+                  className="w-44 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent mx-auto relative"
                 >
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-emerald-300 rounded-full blur-[2px] animate-ping" />
-                </motion.div>
-
-                {/* Animated and highly professional Bütçe Takip Sub-heading */}
-                <motion.div
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8, duration: 0.5, type: "spring" }}
-                  className="space-y-1 flex flex-col items-center justify-center"
-                >
-                  <p className="text-[11px] sm:text-xs font-black tracking-[0.25em] text-emerald-400 uppercase drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">
-                    PROFESYONEL BÜTÇE TAKİBİ
-                  </p>
-                  
-                  <motion.p
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.9, duration: 0.4 }}
-                    className="text-[9px] text-slate-400 font-extrabold uppercase tracking-[0.2em] flex items-center justify-center gap-1.5"
-                  >
-                    <span>💡 LİMİTSİZ YÖNETİM</span>
-                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>AI DESTEKLİ MOTOR</span>
-                  </motion.p>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-cyan-300 rounded-full blur-[2px] animate-ping" />
                 </motion.div>
               </motion.div>
 
@@ -5719,7 +5722,7 @@ export default function App() {
                     animate={{ width: `${Math.max(4, splashProgress)}%` }}
                     transition={{ type: "tween", ease: "linear", duration: 0.05 }}
                     style={{ 
-                      background: "linear-gradient(90deg, #4f46e5 0%, #a855f7 50%, #10b981 100%)"
+                      background: "linear-gradient(90deg, #8b5cf6 0%, #6366f1 40%, #06b6d4 100%)"
                     }}
                   >
                     {/* Glowing front lead cursor tip */}
@@ -5780,8 +5783,8 @@ export default function App() {
               {/* Fast forward skip button for super fast launch */}
               <motion.button
                 type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
                 onClick={() => {
                   setSplashProgress(100);
                   setSplashStatus("Sistemler Kısayolla Başlatıldı!");
@@ -5789,10 +5792,10 @@ export default function App() {
                     setSplashVisible(false);
                   }, 80);
                 }}
-                className="px-4 py-2 rounded-xl bg-white border border-indigo-100 text-[10px] font-black uppercase text-indigo-600 tracking-wider shadow-xs hover:bg-slate-50 cursor-pointer select-none transition-all flex items-center gap-1.5 mx-auto"
+                className="px-6 py-2.5 rounded-full bg-white border border-indigo-100 text-xs font-black uppercase text-indigo-950 tracking-wider shadow-lg hover:bg-slate-100 cursor-pointer select-none transition-all flex items-center gap-2 mx-auto"
               >
-                <span>Hemen Başla</span>
-                <span>⚡</span>
+                <span>HEMEN BAŞLA</span>
+                <span className="text-amber-500 text-sm">⚡</span>
               </motion.button>
             </div>
 
