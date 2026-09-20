@@ -453,21 +453,21 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
     {
       id: "cloud_sync",
       icon: Cloud,
-      title: "6. PRO E-Posta ile Giriş & Otomatik Firebase Bulut Yedekleme",
-      subtitle: "Tüm Kayıtlarınız Gerçek Zamanlı Bulutta Şifrelenir",
-      description: "Bütçem PRO ayrıcalığıyla e-posta ile giriş yaparak tüm borç, gelir-gider ve taksit verilerinizi Firebase Firestore bulutunda şifreli olarak gerçek zamanlı yedekleyin; telefon, tablet ve bilgisayarınız arasında anında eşitleyin.",
+      title: "6. Bulut Yedekleme & Google Drive / Firebase Senkronizasyonu",
+      subtitle: "Cihazınız Sıfırlansa Bile Verileriniz Güvende",
+      description: "Telefonunuzu yenilediğinizde veya sıfırladığınızda verileriniz kaybolmaz. Google hesabınızla tek tıkla şifreli bulut yedeklemesi yapın, APK veya diğer cihazlarınızla senkronize edin ve dilediğiniz an geri yükleyin.",
       category: "tools",
       highlights: [
-        "E-Posta İle Güvenli Giriş & Otomatik Firebase Firestore Depolama",
-        "Tüm Cihazlar Arasında Anında ve Kesintisiz Eşitleme",
-        "Cihaz Değişikliğinde Sıfır Veri Kaybı ve %100 Güvence"
+        "Google ve Firebase Hesabı İle Şifreli Bulut Depolama",
+        "Anında Cihazlar Arası Otomatik Senkronizasyon",
+        "Sınırsız Geri Yükleme ve %100 Veri Güvencesi"
       ],
-      actionText: "PRO Bulut Senkronizasyonunu Aç",
+      actionText: "Bulut Senkronizasyonunu Aç",
       actionTab: "cloud_sync",
-      badge: "PRO BULUT 👑",
-      badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
-      iconColor: "text-amber-500"
+      badge: "BULUT KORUMA",
+      badgeColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30",
+      iconBg: "bg-sky-500/10 dark:bg-sky-500/20",
+      iconColor: "text-sky-500"
     },
     {
       id: "financial_reports",
