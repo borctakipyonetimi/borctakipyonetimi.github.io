@@ -61,6 +61,8 @@ import { ProviderLoginModal } from "./ProviderLoginModal";
 interface OnboardingWalkthroughProps {
   onComplete: () => void;
   language?: "tr" | "en";
+  isPremium?: boolean;
+  onOpenUpgradeModal?: () => void;
 }
 
 interface SlideItem {
@@ -80,7 +82,9 @@ interface SlideItem {
 
 export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   onComplete,
-  language = "tr"
+  language = "tr",
+  isPremium = false,
+  onOpenUpgradeModal
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
@@ -1117,14 +1121,20 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                             disabled={authLoading}
                             whileHover={{ scale: 1.02, y: -2 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => setShowEmailLoginModal(true)}
-                            className="relative w-full p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-indigo-400/60 hover:border-indigo-300 active:scale-[0.98] text-white font-black shadow-2xl transition-all duration-200 flex items-center justify-between cursor-pointer disabled:opacity-50 overflow-hidden text-left"
+                            onClick={() => {
+                              if (!isPremium && onOpenUpgradeModal) {
+                                onOpenUpgradeModal();
+                              } else {
+                                setShowEmailLoginModal(true);
+                              }
+                            }}
+                            className="relative w-full p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-amber-400/60 hover:border-amber-300 active:scale-[0.98] text-white font-black shadow-2xl transition-all duration-200 flex items-center justify-between cursor-pointer disabled:opacity-50 overflow-hidden text-left"
                           >
                             {/* Sürekli Kayan Işık Hüzmesi */}
                             <motion.div
                               animate={{ x: ["-120%", "240%"] }}
                               transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
-                              className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-12 pointer-events-none"
+                              className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-amber-300/15 to-transparent skew-x-12 pointer-events-none"
                             />
 
                             <div className="flex items-center gap-3.5 sm:gap-4 relative z-10">
@@ -1134,30 +1144,30 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                                   rotate: [0, 3, -3, 0]
                                 }}
                                 transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                                className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-400/40 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0 text-indigo-300"
+                                className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/25 to-amber-600/30 border border-amber-400/50 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0 text-amber-300"
                               >
-                                <Mail className="w-6 h-6 sm:w-7 h-7 text-indigo-300 drop-shadow" />
+                                <Mail className="w-6 h-6 sm:w-7 h-7 text-amber-300 drop-shadow" />
                               </motion.div>
 
                               <div>
                                 <div className="text-sm sm:text-base font-black text-white flex items-center gap-2">
                                   <span>E-Posta ile Giriş Yap / Kayıt Ol</span>
                                 </div>
-                                <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
-                                  Firebase bulut hesabınızla verilerinizi tüm cihazlarınızda eşitleyin
+                                <p className="text-xs text-amber-200/90 font-medium mt-0.5">
+                                  👑 Sadece Premium üyelere özel bulut eşitleme ve yedekleme
                                 </p>
                               </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-1 relative z-10 shrink-0">
-                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-md">
-                                Bulut Senk. ⚡
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md flex items-center gap-1">
+                                <span>👑</span> PREMİUM
                               </span>
                               <motion.div
                                 animate={{ x: [0, 4, 0] }}
                                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                               >
-                                <ArrowRight className="w-4 h-4 text-indigo-300" />
+                                <ArrowRight className="w-4 h-4 text-amber-300" />
                               </motion.div>
                             </div>
                           </motion.button>
@@ -1421,6 +1431,8 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
       <ProviderLoginModal
         isOpen={showEmailLoginModal}
         provider="google"
+        isPremium={isPremium}
+        onOpenUpgradeModal={onOpenUpgradeModal}
         onClose={() => setShowEmailLoginModal(false)}
         onLoginSuccess={(email) => {
           localStorage.setItem("currentUser", email.trim().toLowerCase());

@@ -816,9 +816,14 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                     onClick={() => {
                       if (onOpenGoogleLogin) onOpenGoogleLogin();
                     }}
-                    className="w-full mt-2 py-2 px-3 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 border border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-300 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    className="w-full mt-2 py-2 px-3 bg-gradient-to-r from-amber-500/10 via-amber-500/20 to-amber-500/10 hover:from-amber-500/20 hover:to-amber-500/30 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-between cursor-pointer shadow-xs"
                   >
-                    <span>🔑 Google İle Giriş Yap & Bağla</span>
+                    <span className="flex items-center gap-1.5">
+                      <span>🔑 E-Posta / Google Bulut Girişi</span>
+                    </span>
+                    <span className="text-[9px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded shadow-xs">
+                      👑 PREMİUM
+                    </span>
                   </button>
                 )}
               </div>

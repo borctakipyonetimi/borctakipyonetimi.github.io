@@ -162,7 +162,7 @@ app.get(["/api/download-temp", "/api/download-temp/:filename"], (req, res) => {
   res.send(item.content);
 });
 
-// 15-day Free Trial IP Tracking Endpoints
+// 7-day Free Trial IP Tracking Endpoints
 const TRIALS_FILE = path.join(process.cwd(), "trials.json");
 
 function readTrials(): Record<string, string> {
@@ -199,7 +199,7 @@ app.get("/api/trial/status", (req, res) => {
       hasTrial: false,
       isActive: false,
       isExpired: false,
-      daysRemaining: 15,
+      daysRemaining: 7,
       startDate: null,
       endDate: null,
     });
@@ -209,10 +209,10 @@ app.get("/api/trial/status", (req, res) => {
   const now = new Date();
   const diffTime = now.getTime() - startDate.getTime();
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
-  const isExpired = diffDays >= 15;
+  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+  const isExpired = diffDays >= 7;
 
-  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   res.json({
     hasTrial: true,
@@ -232,7 +232,7 @@ app.post("/api/trial/activate", (req, res) => {
               (deviceId && typeof deviceId === "string" && deviceId.trim()) || 
               ip;
 
-  // If forceReset is requested or no trial exists, activate fresh 15-day trial
+  // If forceReset is requested or no trial exists, activate fresh 7-day trial
   if (forceReset || !trials[key]) {
     const nowIso = new Date().toISOString();
     trials[key] = nowIso;
@@ -246,9 +246,9 @@ app.post("/api/trial/activate", (req, res) => {
   const now = new Date();
   const diffTime = now.getTime() - startDate.getTime();
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
-  const isExpired = diffDays >= 15;
-  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+  const isExpired = diffDays >= 7;
+  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   res.json({
     hasTrial: true,

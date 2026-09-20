@@ -539,7 +539,7 @@ export default function App() {
               localStorage.setItem("is_premium", "false");
               localStorage.removeItem("premium_source");
               
-              const expMsg = "⏳ 15 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
+              const expMsg = "⏳ 7 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
               triggerToast(expMsg);
               
               setNotifications(prev => {
@@ -626,9 +626,9 @@ export default function App() {
         setIsPremium(true);
         localStorage.setItem("is_premium", "true");
         localStorage.setItem("premium_source", "trial");
-        const trialEndDate = data.endDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+        const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("trial_end_date", trialEndDate);
-        triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+        triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
         return;
       }
     } catch (e) {
@@ -636,7 +636,7 @@ export default function App() {
     }
 
     // Local activation fallback
-    const trialEndDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+    const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     localStorage.setItem("is_premium", "true");
     localStorage.setItem("premium_source", "trial");
     localStorage.setItem("trial_end_date", trialEndDate);
@@ -645,11 +645,11 @@ export default function App() {
       hasTrial: true,
       isActive: true,
       isExpired: false,
-      daysRemaining: 15,
+      daysRemaining: 7,
       startDate: new Date().toISOString(),
       endDate: trialEndDate
     });
-    triggerToast("🎉 15 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
+    triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
   };
 
   useEffect(() => {
@@ -1831,6 +1831,11 @@ export default function App() {
   };
 
   const handleGoogleAuthForSync = () => {
+    if (!isPremium) {
+      triggerToast("👑 E-posta ile giriş ve bulut eşitleme sadece Premium üyelere özeldir!");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     setSelectedProvider("google");
     setProviderLoginOpen(true);
   };
@@ -1925,16 +1930,31 @@ export default function App() {
   };
 
   const handleQuickLogin = (provider: "google") => {
+    if (!isPremium) {
+      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     setSelectedProvider(provider);
     setProviderLoginOpen(true);
   };
 
   const handleSidebarGoogleLogin = () => {
+    if (!isPremium) {
+      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     setSelectedProvider("google");
     setProviderLoginOpen(true);
   };
 
   const handleSidebarDeviceLogin = () => {
+    if (!isPremium) {
+      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     setSelectedProvider("google");
     setProviderLoginOpen(true);
   };
@@ -5538,6 +5558,8 @@ export default function App() {
             key="onboarding-walkthrough-modal"
             onComplete={handleCompleteOnboarding}
             language={language}
+            isPremium={isPremium}
+            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
           />
         )}
         {splashVisible && (
@@ -5855,6 +5877,8 @@ export default function App() {
       <ProviderLoginModal
         isOpen={providerLoginOpen}
         provider={selectedProvider}
+        isPremium={isPremium}
+        onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
         onClose={() => {
           setProviderLoginOpen(false);
           setSelectedProvider(null);
@@ -6753,7 +6777,7 @@ export default function App() {
                       opacity: [0.4, 0.7, 0.4]
                     }}
                     transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 rounded-xl blur-xs pointer-events-none"
+                    className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 rounded-xl blur-xs pointer-events-none"
                   />
 
                   <motion.button
@@ -6761,27 +6785,29 @@ export default function App() {
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSidebarDeviceLogin}
-                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-850 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-indigo-400/60 shadow-lg shadow-indigo-600/25 transition-all cursor-pointer overflow-hidden text-left"
+                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-850 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-amber-400/70 shadow-lg shadow-amber-600/20 transition-all cursor-pointer overflow-hidden text-left"
                   >
                     <motion.div
                       animate={{ x: ["-100%", "240%"] }}
                       transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
-                      className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-12 pointer-events-none"
+                      className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-amber-300/20 to-transparent skew-x-12 pointer-events-none"
                     />
 
                     <div className="flex items-center gap-2.5 relative z-10">
-                      <div className="w-6 h-6 rounded-lg bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-xs text-indigo-300">
-                        <Mail className="w-3.5 h-3.5 text-indigo-300" />
+                      <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-xs text-amber-300">
+                        <Mail className="w-3.5 h-3.5 text-amber-300" />
                       </div>
                       <div>
-                        <div className="text-[11px] font-black text-white leading-tight">E-Posta ile Giriş / Kayıt</div>
-                        <div className="text-[8.5px] text-indigo-200/80 font-medium">Firebase Bulut Senkronizasyonu</div>
+                        <div className="text-[11px] font-black text-white leading-tight flex items-center gap-1.5">
+                          <span>E-Posta ile Giriş / Kayıt</span>
+                        </div>
+                        <div className="text-[8.5px] text-amber-200/90 font-semibold">👑 Premium Üyelere Özel</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 relative z-10 shrink-0">
-                      <span className="text-[8px] font-black text-emerald-300 bg-emerald-400/20 border border-emerald-400/30 px-1.5 py-0.5 rounded">
-                        Bulut ⚡
+                      <span className="text-[8px] font-black text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                        <span>👑</span> PREMİUM
                       </span>
                     </div>
                   </motion.button>
@@ -9436,10 +9462,10 @@ export default function App() {
                         </div>
 
                         <div className="space-y-3 pt-1">
-                          {/* 15 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
+                          {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
                           <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 15 GÜNLÜK ÜCRETSİZ DENEME</span>
+                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
                               <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
                             </div>
                             
@@ -9460,37 +9486,37 @@ export default function App() {
                                     onClick={handleActivateTrial}
                                     className="w-full mt-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
                                   >
-                                    🔄 15 GÜNLÜK DENEMEYİ SIFIRLA / YENİLE
+                                    🔄 7 GÜNLÜK DENEMEYİ SIFIRLA / YENİLE
                                   </button>
                                 </div>
                               ) : (
                                 <div className="space-y-2 text-center bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
                                   <p className="text-[11px] font-black text-rose-700 dark:text-rose-450 uppercase leading-none">
-                                    ⏳ DENEME SÜRENİZ SONA ERDİ
+                                    ⏳ DENEME SÜRÜNÜZ SONA ERDİ
                                   </p>
                                   <p className="text-[10px] text-rose-600 dark:text-rose-450 font-bold leading-normal">
-                                    15 günlük deneme süreniz dolmuştur. Yeniden denemek veya Pro'ya geçmek için butona tıklayabilirsiniz.
+                                    7 günlük deneme süreniz dolmuştur. Yeniden denemek veya Pro'ya geçmek için butona tıklayabilirsiniz.
                                   </p>
                                   <button
                                     type="button"
                                     onClick={handleActivateTrial}
                                     className="w-full mt-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
                                   >
-                                    🚀 15 GÜNLÜK DENEMEYİ TEKRAR BAŞLAT
+                                    🚀 7 GÜNLÜK DENEMEYİ TEKRAR BAŞLAT
                                   </button>
                                 </div>
                               )
                             ) : (
                               <div className="space-y-2">
                                 <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                                  Kredi kartı gerekmeden 15 gün boyunca Bütçem Pro Premium'un tüm ayrıcalıklı özelliklerini ücretsiz kullanabilirsiniz.
+                                  Kredi kartı gerekmeden 7 gün boyunca Bütçem Pro Premium'un tüm ayrıcalıklı özelliklerini ücretsiz kullanabilirsiniz.
                                 </p>
                                 <button
                                   type="button"
                                   onClick={handleActivateTrial}
                                   className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
                                 >
-                                  🚀 15 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
+                                  🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
                                 </button>
                               </div>
                             )}
@@ -9504,7 +9530,7 @@ export default function App() {
                                 </span>
                                 <span className="text-[10px] bg-emerald-500/10 px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
                                   {localStorage.getItem("premium_source") === "trial" 
-                                    ? `Kalan Süre: ${trialStatus?.daysRemaining || 15} Gün` 
+                                    ? `Kalan Süre: ${trialStatus?.daysRemaining || 7} Gün` 
                                     : `Paket: ${selectedPlan === "monthly" ? "Aylık Paket" : selectedPlan === "yearly" ? "Yıllık Paket" : "Limitsiz Ömür Boyu"}`}
                                 </span>
                               </div>
