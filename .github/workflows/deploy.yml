@@ -1,4 +1,4 @@
-name: Butcem Pro Canli Site ve APK Uretici
+name: Butcem Pro Siyah Ekran Cozum Motoru
 on:
   push:
     branches:
@@ -26,29 +26,34 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Initialize Project
+      - name: Initialize Project Dependencies
         run: |
           if [ ! -f package.json ]; then echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json; fi
-          npm install --legacy-peer-deps || npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
 
       - name: Clean and Create Config
         run: |
           rm -rf android
           rm -f capacitor.config.json
-          # Çıktı klasörünü kesin olarak www yapıyoruz
-          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "server": {"url": "https://github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
+          # webDir değerini hem web sitesi hem android için kesin olarak www yapıyoruz
+          echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
 
-      - name: Web Kodlarini Hazirla (Output to www)
+      - name: Web Kodlarini Derle ve www Klasorunu Garantiye Al
         run: |
-          # Web kodlarını Vite ile derleyip www klasörünün içine eksiksiz aktarıyoruz
-          npm run build || npx vite build || true
+          # Önce projenin kendi derleme komutunu tetikliyoruz (dist üretebilir)
+          npm run build || true
+          
+          # www klasörünü sıfırdan oluşturuyoruz
           mkdir -p www
-          cp -r dist/* www/ || true
+          
+          # Eğer derleyici çıktıları dist veya başka klasöre attıysa, hepsini zorla www içine kopyalıyoruz
+          if [ -d "dist" ] && [ "$(ls -A dist)" ]; then cp -r dist/* www/; fi
+          if [ -d "build" ] && [ "$(ls -A build)" ]; then cp -r build/* www/; fi
+          
+          # Ana dizindeki tüm web kaynaklarını (html, js, css) yedek olarak www içine topluyoruz
           shopt -s extglob
-          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png) www/ || true
-          touch www/.nojekyll
-          touch dist/.nojekyll
+          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png|dist|build) www/ || true
 
       - name: Add Android Platform
         run: |
@@ -70,7 +75,7 @@ jobs:
           for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
           for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
 
-      - name: Setup System Styles
+      - name: Setup System Styles and Permissions
         run: |
           STYLE_FILE="android/app/src/main/res/values/styles.xml"
           STYL_V31_FILE="android/app/src/main/res/values-v31/styles.xml"
@@ -98,5 +103,5 @@ jobs:
       - name: Deploy to GitHub Pages 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: www # Çıktıları ürettiğimiz www klasörünü canlı siteye fırlatıyoruz
+          folder: www
           branch: gh-pages
