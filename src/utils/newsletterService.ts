@@ -1,8 +1,9 @@
 /**
  * Bütçem Pro - Haber Bülteni Servisi (Newsletter Service)
- * Firebase veritabanı kaydı, EmailJS REST API ve SMTP e-posta onay köprüsü
+ * Firebase veritabanı kaydı, doğrudan sabit EmailJS API anahtarları ve onay e-postası
  */
 
+import emailjs from "@emailjs/browser";
 import { db, ref, set } from "./firebase";
 
 export interface NewsletterResult {
@@ -11,7 +12,10 @@ export interface NewsletterResult {
   email: string;
 }
 
-const EMAILJS_CONFIG_KEY = "butcempro_emailjs_config";
+// EmailJS bağlantısını doğrudan bana özel güncel anahtarlarla kilitliyoruz:
+export const EMAILJS_SERVICE_ID = "service_osnjc54";
+export const EMAILJS_TEMPLATE_ID = "template_ydyje4e";
+export const EMAILJS_PUBLIC_KEY = "KNh4u8my4-19aJZMn";
 
 export interface EmailJSConfig {
   serviceId: string;
@@ -20,32 +24,18 @@ export interface EmailJSConfig {
 }
 
 export function getEmailJSConfig(): EmailJSConfig {
-  let savedConfig: Partial<EmailJSConfig> = {};
-  try {
-    const raw = localStorage.getItem(EMAILJS_CONFIG_KEY);
-    if (raw) savedConfig = JSON.parse(raw);
-  } catch (_) {}
-
   return {
-    serviceId: savedConfig.serviceId || (import.meta as any).env?.VITE_EMAILJS_SERVICE_ID || "service_butcempro",
-    templateId: savedConfig.templateId || (import.meta as any).env?.VITE_EMAILJS_TEMPLATE_ID || "template_bulten",
-    publicKey: savedConfig.publicKey || (import.meta as any).env?.VITE_EMAILJS_PUBLIC_KEY || "public_key_butcempro"
+    serviceId: EMAILJS_SERVICE_ID,
+    templateId: EMAILJS_TEMPLATE_ID,
+    publicKey: EMAILJS_PUBLIC_KEY
   };
-}
-
-export function saveEmailJSConfig(config: Partial<EmailJSConfig>) {
-  try {
-    const current = getEmailJSConfig();
-    const updated = { ...current, ...config };
-    localStorage.setItem(EMAILJS_CONFIG_KEY, JSON.stringify(updated));
-  } catch (_) {}
 }
 
 /**
  * Kullanıcı bültene kaydolduğunda:
  * 1. Firebase Realtime Database 'bulten_aboneleri' tablosuna kaydeder.
  * 2. Yerel tarayıcı hafızasına (localStorage) aboneliği işler.
- * 3. EmailJS REST API altyapısına onay e-postası fırlatır.
+ * 3. Doğrudan sabit anahtarlarla kilitlenmiş EmailJS üzerinden onay e-postası fırlatır.
  * 4. Sunucu SMTP köprüsüne (/api/newsletter/subscribe) onay e-postasını iletir.
  */
 export async function subscribeToNewsletter(emailInput: string): Promise<NewsletterResult> {
@@ -81,37 +71,43 @@ export async function subscribeToNewsletter(emailInput: string): Promise<Newslet
     }
   } catch (_) {}
 
-  // 3. EmailJS REST API ile onay e-postası gönderimi
-  let emailJsSent = false;
-  try {
-    const config = getEmailJSConfig();
-    const emailJsResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: config.serviceId,
-        template_id: config.templateId,
-        user_id: config.publicKey,
-        template_params: {
-          to_email: email,
-          email: email,
-          user_email: email,
-          to_name: email.split("@")[0],
-          subject: subject,
-          title: subject,
-          message: bodyText,
-          content: bodyText,
-          date: new Date().toLocaleDateString("tr-TR")
-        }
-      })
-    });
+  // 3. EmailJS ile onay e-postası gönderimi (Sabit anahtarlarla doğrudan)
+  const templateParams = {
+    to_email: email,
+    email: email,
+    user_email: email,
+    to_name: email.split("@")[0],
+    subject: subject,
+    title: subject,
+    message: bodyText,
+    content: bodyText,
+    date: new Date().toLocaleDateString("tr-TR")
+  };
 
-    if (emailJsResponse.ok) {
-      emailJsSent = true;
-      console.log("[Newsletter] EmailJS REST API ile onay e-postası başarıyla gönderildi.");
+  try {
+    // E-posta gönderim fonksiyonunu bu sabit anahtarları kullanacak şekilde güncelle
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY)
+      .then(function(response) {
+        console.log('E-posta başarıyla gönderildi!', response.status, response.text);
+      }, function(error) {
+        console.error('E-posta gönderim hatası:', error);
+      });
+  } catch (sdkErr) {
+    console.warn("[Newsletter] EmailJS SDK çağrısı sonrası REST fallback deneniyor:", sdkErr);
+    try {
+      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: EMAILJS_SERVICE_ID,
+          template_id: EMAILJS_TEMPLATE_ID,
+          user_id: EMAILJS_PUBLIC_KEY,
+          template_params: templateParams
+        })
+      });
+    } catch (restErr) {
+      console.warn("[Newsletter] EmailJS REST fallback uyarısı:", restErr);
     }
-  } catch (emailJsErr) {
-    console.warn("[Newsletter] EmailJS REST API çağrısı:", emailJsErr);
   }
 
   // 4. Sunucu e-posta köprüsü (/api/newsletter/subscribe) üzerinden gönderim
