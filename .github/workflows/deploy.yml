@@ -29,31 +29,34 @@ jobs:
       - name: Initialize Project Dependencies
         run: |
           if [ ! -f package.json ]; then echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json; fi
-          npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
+          npm install --legacy-peer-deps || npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
 
       - name: Clean and Create Config
         run: |
           rm -rf android
           rm -f capacitor.config.json
-          # webDir değerini hem web sitesi hem android için kesin olarak www yapıyoruz
+          # webDir degerini hem web sitesi hem android icin kesin olarak www yapiyoruz
           echo '{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}' > capacitor.config.json
 
-      - name: Web Kodlarini Derle ve www Klasorunu Garantiye Al
+      - name: Web Kodlarini Derle ve www Klasorunu Hazirla
         run: |
-          # Önce projenin kendi derleme komutunu tetikliyoruz (dist üretebilir)
-          npm run build || true
+          # 1. Vite ile uretim kodlarini derle (dist klasorune bundle olusturur)
+          npm run build || npx vite build
           
-          # www klasörünü sıfırdan oluşturuyoruz
+          # 2. www klasorunu sifirdan olusturup derlenmis dosyalari icine aktariyoruz
+          rm -rf www
           mkdir -p www
+          cp -r dist/* www/
           
-          # Eğer derleyici çıktıları dist veya başka klasöre attıysa, hepsini zorla www içine kopyalıyoruz
-          if [ -d "dist" ] && [ "$(ls -A dist)" ]; then cp -r dist/* www/; fi
-          if [ -d "build" ] && [ "$(ls -A build)" ]; then cp -r build/* www/; fi
+          # 3. GitHub Pages ve statik sunucu icin .nojekyll ekle
+          touch www/.nojekyll
+          touch dist/.nojekyll
           
-          # Ana dizindeki tüm web kaynaklarını (html, js, css) yedek olarak www içine topluyoruz
-          shopt -s extglob
-          cp -r !(www|android|.github|node_modules|package.json|package-lock.json|logo.png|notification-icon.png|dist|build) www/ || true
+          # 4. www/ icindeki index.html dosyasinin derlenmis JS dosyasini referans ettigini dogrula
+          echo "=== Derlenmis Web Ciktilari ==="
+          ls -la www/
+          ls -la www/assets/
 
       - name: Add Android Platform
         run: |
