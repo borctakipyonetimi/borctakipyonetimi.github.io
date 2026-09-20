@@ -63,6 +63,7 @@ interface OnboardingWalkthroughProps {
   language?: "tr" | "en";
   isPremium?: boolean;
   onOpenUpgradeModal?: () => void;
+  onDirectLoginClick?: () => void;
 }
 
 interface SlideItem {
@@ -84,10 +85,12 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   onComplete,
   language = "tr",
   isPremium = false,
-  onOpenUpgradeModal
+  onOpenUpgradeModal,
+  onDirectLoginClick
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
+  const [isDismissed, setIsDismissed] = useState(false);
 
   // 1 Hoş Geldiniz/Vizyon (Slide 0) + 5 Özellik Tanıtım Sayfası (Slides 1-5) + 1 Firebase Giriş Bölümü (Slide 6)
   const totalSlides = 7;
@@ -97,6 +100,37 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   const [authError, setAuthError] = useState("");
   const [authSuccess, setAuthSuccess] = useState("");
   const [showEmailLoginModal, setShowEmailLoginModal] = useState(false);
+
+  const handleEmailLoginClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // 1. Tanıtım ekranını DOM üzerinde kesinlikle anında gizle (display: none)
+    const container = document.getElementById("onboarding-walkthrough-container");
+    if (container) {
+      container.style.display = "none";
+    }
+    setIsDismissed(true);
+
+    // 2. Tanıtım durumunu localStorage'a kaydet (bir daha gereksiz açılmasın)
+    try {
+      localStorage.setItem("butcem_onboarding_welcome_v6", "true");
+      localStorage.setItem("butcem_onboarding_completed", "true");
+    } catch (err) {
+      console.warn("Storage write error:", err);
+    }
+
+    // 3. Doğrudan Premium satın alma veya e-posta giriş paneline şak diye yönlendir
+    if (onDirectLoginClick) {
+      onDirectLoginClick();
+    } else {
+      onComplete();
+      if (!isPremium && onOpenUpgradeModal) {
+        onOpenUpgradeModal();
+      }
+    }
+  };
 
   const handleContinueWithoutLogin = () => {
     onComplete();
@@ -810,8 +844,16 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     })
   };
 
+  if (isDismissed) {
+    return null;
+  }
+
   return (
-    <div className="fixed inset-0 z-[999990] flex flex-col bg-slate-950 text-white select-none overflow-hidden font-sans">
+    <div
+      id="onboarding-walkthrough-container"
+      style={isDismissed ? { display: "none" } : undefined}
+      className="fixed inset-0 z-[999990] flex flex-col bg-slate-950 text-white select-none overflow-hidden font-sans"
+    >
       {/* Dynamic Background Ambient Gradients */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20" style={{ contain: "strict" }}>
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/25 rounded-full blur-2xl" />
@@ -1118,16 +1160,11 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
 
                           <motion.button
                             type="button"
+                            id="onboarding-email-login-button"
                             disabled={authLoading}
                             whileHover={{ scale: 1.02, y: -2 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => {
-                              if (!isPremium && onOpenUpgradeModal) {
-                                onOpenUpgradeModal();
-                              } else {
-                                setShowEmailLoginModal(true);
-                              }
-                            }}
+                            onClick={handleEmailLoginClick}
                             className="relative w-full p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-amber-400/60 hover:border-amber-300 active:scale-[0.98] text-white font-black shadow-2xl transition-all duration-200 flex items-center justify-between cursor-pointer disabled:opacity-50 overflow-hidden text-left"
                           >
                             {/* Sürekli Kayan Işık Hüzmesi */}

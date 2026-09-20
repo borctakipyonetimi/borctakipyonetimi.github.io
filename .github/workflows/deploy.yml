@@ -64,14 +64,20 @@ jobs:
 
       - name: Process Color Main Logo
         run: |
+          # İkon üretim aracını ve gerekli Linux grafik kütüphanelerini kuruyoruz
+          sudo apt-get install imagemagick -y || true
           npm install -g @capacitor/assets
+          
+          # Klasörleri garantiye alıp logoları yerleştiriyoruz
           mkdir -p assets
           cp logo.png assets/icon-only.png || true
           cp logo.png assets/icon-foreground.png || true
           cp logo.png assets/icon-background.png || true
           cp logo.png assets/splash.png || true
           cp logo.png assets/splash-dark.png || true
-          npx capacitor-assets generate --android --icon || true
+          
+          # İkonları tam uyumlu üretiyoruz
+          npx capacitor-assets generate --android || true
 
       - name: Inject Black and White Notification Icon
         run: |

@@ -1929,6 +1929,28 @@ export default function App() {
     startSplashAnimation();
   };
 
+  const handleOnboardingDirectLogin = () => {
+    try {
+      localStorage.setItem("butcem_onboarding_welcome_v6", "true");
+      localStorage.setItem("butcem_onboarding_completed", "true");
+    } catch (e) {
+      console.warn("Could not write onboarding status to localStorage:", e);
+    }
+    setShowOnboarding(false);
+    setSplashVisible(false);
+    if (splashTimerRef.current) {
+      clearInterval(splashTimerRef.current);
+      splashTimerRef.current = null;
+    }
+
+    if (!isPremium) {
+      setIsUpgradeModalOpen(true);
+    } else {
+      setSelectedProvider("google");
+      setProviderLoginOpen(true);
+    }
+  };
+
   const handleQuickLogin = (provider: "google") => {
     if (!isPremium) {
       triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
@@ -5560,6 +5582,7 @@ export default function App() {
             language={language}
             isPremium={isPremium}
             onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onDirectLoginClick={handleOnboardingDirectLogin}
           />
         )}
         {splashVisible && (
@@ -9561,6 +9584,21 @@ export default function App() {
                               </span>
                             </button>
                           )}
+
+                          {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUpgradeModalOpen(false);
+                              setIsRestoring(false);
+                              setRestoreStep("method");
+                              setSelectedProvider("google");
+                              setProviderLoginOpen(true);
+                            }}
+                            className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                          >
+                            🔑 Zaten Hesabım Var (E-Posta / Bulut Girişi)
+                          </button>
 
                           {/* GOOGLE PLAY RESTORE BUTTON */}
                           <button
