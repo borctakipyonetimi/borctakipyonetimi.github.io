@@ -191,14 +191,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 {mode === "register" ? <UserPlus className="w-5 h-5" /> : mode === "forgot" ? <KeyRound className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                    Firebase Bulut Hesabı
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-indigo-600 text-white text-[8.5px] font-black tracking-wider shadow-xs uppercase">
-                    PRO ÖZELLİK 👑
-                  </span>
-                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
+                  Firebase Bulut Hesabı
+                </span>
                 <h2 className="text-base font-black text-slate-900 dark:text-slate-100">
                   {mode === "register" ? "Yeni Hesap Oluştur" : mode === "forgot" ? "Şifremi Sıfırla" : "E-Posta ile Giriş Yap"}
                 </h2>
@@ -255,10 +250,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                 {mode === "register"
-                  ? "⭐ PRO Özellik: Kayıt olduğunuzda tüm borç, gelir-gider ve taksit verileriniz Firebase Firestore bulutunda şifrelenerek otomatik yedeklenir."
+                  ? "Kayıt olduğunuzda tüm borç ve bütçe verileriniz Firebase Firestore veritabanında sizin benzersiz kimliğinizle şifrelenerek yedeklenir."
                   : mode === "forgot"
                   ? "E-posta adresinizi girin; şifrenizi sıfırlamanız için size bir kurtarma bağlantısı göndereceğiz."
-                  : "⭐ PRO Özellik: Giriş yaptığınızda diğer telefon, tablet veya bilgisayardan girdiğiniz tüm kayıtlarınız anında karşınıza gelir ve otomatik eşitlenir."}
+                  : "Giriş yaptığınızda başka bir telefondan veya bilgisayardan girdiğiniz tüm kayıtlarınız anında karşınıza gelir."}
               </p>
             </div>
 
