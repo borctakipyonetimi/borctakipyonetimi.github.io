@@ -626,7 +626,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
       badge: "SAYFA 5 / 5 • GÜVENLİK & PRO SÜRÜM",
       badgeColor: "bg-teal-500/20 text-teal-300 border-teal-500/30",
       title: "Güvenli Senkronizasyon, Android APK & PRO Sürüm",
-      subtitle: "İster çevrimdışı, ister bulutta; PRO sürüm satın alındığında %100 sıfır reklam ve VIP ayrıcalıklar.",
+      subtitle: "İster çevrimdışı, ister bulutta; PRO sürüm ile E-Posta girişli otomatik Firebase bulut yedekleme ve sıfır reklam ayrıcalığı.",
       features: [
         {
           icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
@@ -636,9 +636,9 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
         },
         {
           icon: <Cloud className="w-4 h-4 text-sky-400" />,
-          title: "Firebase Bulut Senkronizasyonu",
-          desc: "E-posta ve şifrenizle giriş yaparak verilerinizi telefon, tablet ve bilgisayarınız arasında anında eşitleyin.",
-          tag: "Çoklu Cihaz"
+          title: "PRO Sürüm: Firebase Otomatik Bulut Senkronizasyonu",
+          desc: "E-posta ve şifrenizle giriş yaparak tüm borç, taksit ve bütçe kayıtlarınızı Firebase bulutuna anında otomatik yedekleyin ve cihazlarınız arasında eşitleyin.",
+          tag: "PRO Bulut 👑"
         },
         {
           icon: <Smartphone className="w-4 h-4 text-indigo-400" />,
@@ -649,7 +649,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
         {
           icon: <Award className="w-4 h-4 text-amber-400" />,
           title: "Bütçem PRO Sürüm: %100 Sıfır Reklam",
-          desc: "Pro sürüm satın alındığında tüm AdMob reklamları kalıcı olarak kaldırılır; kesintisiz, odaklanmış ve hızlı kullanım sağlanır.",
+          desc: "Pro sürüm satın alındığında tüm reklamlar kalıcı olarak kaldırılır; kesintisiz, odaklanmış ve hızlı kullanım sağlanır.",
           tag: "Sıfır Reklam 👑"
         }
       ],
@@ -752,16 +752,16 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     // -------------------------------------------------------------
     {
       id: 6,
-      badge: "SON ADIM • E-POSTA & FIREBASE BULUT HESABI",
+      badge: "SON ADIM • PRO BULUT & E-POSTA İLE GİRİŞ",
       badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-      title: "Hesabınızı Bağlayın veya Hemen Başlayın",
-      subtitle: "Verilerinizin bulutta güvende kalması ve tüm cihazlarınızdan erişebilmeniz için E-Posta ve Şifrenizle giriş yapın ya da yeni hesap açın. Dilerseniz hiçbir hesap açmadan uygulamayı doğrudan çevrimdışı kullanabilirsiniz.",
+      title: "PRO Bulut Hesabınızı Bağlayın veya Çevrimdışı Başlayın",
+      subtitle: "Bütçem PRO ayrıcalığıyla tüm borç ve bütçe kayıtlarınız Firebase bulutunda güvenle saklanır ve cihazlarınız arasında anında senkronize olur. Dilerseniz hiçbir hesap açmadan uygulamayı doğrudan çevrimdışı olarak da kullanabilirsiniz.",
       features: [
         {
           icon: <Cloud className="w-4 h-4 text-sky-400" />,
-          title: "Firebase Firestore Bulut Güvencesi",
-          desc: "Verileriniz 256-Bit SSL şifrelemeyle bulut veritabanında saklanır ve cihazlar arası otomatik eşitlenir.",
-          tag: "Bulut"
+          title: "PRO: Firebase Firestore Otomatik Yedekleme",
+          desc: "Tüm kayıtlarınız 256-Bit SSL şifrelemeyle güvenli bulut veritabanına otomatik yedeklenir ve telefon, tablet, bilgisayarınız arasında anında eşitlenir.",
+          tag: "PRO Ayrıcalığı 👑"
         },
         {
           icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
@@ -1142,6 +1142,9 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                               <div>
                                 <div className="text-sm sm:text-base font-black text-white flex items-center gap-2">
                                   <span>E-Posta ile Giriş Yap / Kayıt Ol</span>
+                                  <span className="px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[9px] font-black tracking-wider uppercase shadow-xs">
+                                    PRO 👑
+                                  </span>
                                 </div>
                                 <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
                                   Firebase bulut hesabınızla verilerinizi tüm cihazlarınızda eşitleyin

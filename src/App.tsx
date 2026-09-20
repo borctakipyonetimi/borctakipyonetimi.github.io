@@ -1945,7 +1945,7 @@ export default function App() {
     localStorage.setItem("currentUser", cleanEmail);
     setProviderLoginOpen(false);
     setSelectedProvider(null);
-    triggerToast("E-Posta Bulut Girişi Yapıldı! ☁️");
+    triggerToast("👑 PRO E-Posta Girişi Yapıldı! Verileriniz Firebase Bulutuna Otomatik Yedekleniyor ☁️✨");
   };
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -75,7 +75,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
     },
     {
       q: "Uygulamayı kullanmak için kayıt veya şifre zorunlu mu? Verilerim nerede saklanıyor?",
-      a: "Kesinlikle zorunlu değildir! Bütçem çevrimdışı öncelikli (offline-first) bir felsefeyle çalışır. Verileriniz tamamen cihazınızın güvenli yerel tarayıcı belleğinde (localStorage) saklanır ve hiçbir sunucuya izniniz olmaksızın aktarılmaz. Dilerseniz güvenli e-posta veya Google bulut giriş seçeneklerini aktif ederek, verilerinizi bulutta da yedekleyebilirsiniz."
+      a: "Kesinlikle zorunlu değildir! Bütçem Pro çevrimdışı öncelikli (offline-first) bir felsefeyle çalışır. Verileriniz varsayılan olarak cihazınızın güvenli yerel tarayıcı belleğinde (localStorage) saklanır. Dilediğinizde PRO sürümün sunduğu E-Posta ile Giriş ve Firebase Firestore otomatik bulut yedekleme özelliğini kullanarak tüm verilerinizi şifreli olarak bulutta yedekleyebilir ve telefon, tablet veya bilgisayarınız arasında anında eşitleyebilirsiniz."
     },
     {
       q: "Kartopu (Snowball) ve Çığ (Avalanche) borç ödeme yöntemleri nedir?",
@@ -86,12 +86,19 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
       a: "Aktif bulunduğunuz aya ait tüm harcamaları, gelirleri ve taksit oranlarını yapay zeka analiz motoruna göndererek tek tuşla detaylı bir tasarruf raporu alabilirsiniz. Yapay zeka bütçenizi en çok sarsan kategoriyi tespit eder, 15% tasarruf yaptığınızda cebinizde kalacak net kazancı hesaplar ve o kategoriye özel akıllı tasarruf ipuçları üretir."
     },
     {
-      q: "Premium sürümün avantajları nelerdir ve ek ücret gerekir mi?",
-      a: "Temel kişisel bütçe yönetimi tamamen ücretsiz ve reklamsızdır! Premium yükseltmesi ile yapay zekalı asistanla sınırsız bütçe analizi, döviz kurlarının merkez bankasından otomatik çekilmesi, sınırsız döviz kur çevirici, limitsiz taksit ömür boyu planlaması, gelişmiş yedekleme ve sıfır sponsorlu reklam deneyimine sahip olursunuz."
+      q: "Bütçem PRO sürümünün avantajları nelerdir ve neler içerir?",
+      a: "Bütçem PRO yükseltmesi ile; E-Posta ile Güvenli Giriş & Tüm Kayıtların Otomatik Firebase Bulutuna Gerçek Zamanlı Yedeklenmesi, Sınırsız Yapay Zeka Finans Analizleri, Akıllı Sesli Asistan ile Hızlı Kayıt, TCMB Otomatik Döviz Kuru Çekme, Limitsiz Çoklu Cihaz Senkronizasyonu, Yıllık VIP A4 PDF Raporlama ve Ömür Boyu %100 Sıfır Reklam deneyimine sahip olursunuz."
     }
   ];
 
   const featuredBlogs = [
+    {
+      id: "pro-firebase-cloud-sync",
+      title: "Bütçem PRO: E-Posta ile Güvenli Giriş & Otomatik Firebase Bulut Yedekleme",
+      excerpt: "Tüm kayıtlarınızı şifreli bulut veritabanında saklayın ve tüm cihazlarınızda eşitleyin...",
+      category: "PRO Özellikler",
+      icon: "👑"
+    },
     {
       id: "snowball-avalanche",
       title: "Kartopu vs Çığ Metodu: Hangi Borç Kapatma Stratejisi Sizin İçin Uygun?",
@@ -105,13 +112,6 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
       excerpt: "Zorlanmadan her ay gelirinizin %20'sini birikime ayırma formülü...",
       category: "Kişisel Bütçe",
       icon: "📊"
-    },
-    {
-      id: "credit-score",
-      title: "Kredi Notu Nedir? Kısa Sürede 1500+ Seviyesine Çıkarmanın Yolları",
-      excerpt: "Bankaların gözünde finansal güvenilirliğinizi hızla artıracak gizli taktikler...",
-      category: "Kredi Yönetimi",
-      icon: "📈"
     }
   ];
 
@@ -610,12 +610,12 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               <p className="text-xs text-slate-500">Limitsiz yapay zeka analiz raporları, otomatik döviz kurları, güvenli e-posta bulut yedekleme ve sıfır reklam garantisi.</p>
               
               <ul className="text-left text-xs font-semibold text-slate-600 dark:text-slate-400 space-y-2 pt-4">
-                <li className="flex items-center gap-2 font-bold text-indigo-600 dark:text-indigo-400"><Check className="w-4 h-4 text-indigo-500 shrink-0" /> ★ Sınırsız Yapay Zeka Finans Analizleri</li>
+                <li className="flex items-center gap-2 font-bold text-indigo-600 dark:text-indigo-400"><Check className="w-4 h-4 text-indigo-500 shrink-0" /> ★ E-Posta ile Giriş &amp; Otomatik Firebase Bulut Yedekleme</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Çoklu Cihaz (Telefon / Tablet / PC) Anında Eşitleme</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Sınırsız Yapay Zeka Finans &amp; Tasarruf Analizleri</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Akıllı Sesli Asistan ile Saniyeler İçi Kayıt</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> TCMB Otomatik Döviz Kur Güncellemesi</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> E-posta ile Çoklu Cihaz Bulut Eşitleme</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Sınırsız Kişi &amp; Taksitli Borç Planlayıcı</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Reklamları Ömür Boyu Kaldırma</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> %100 Sıfır Reklam Deneyimi (Ömür Boyu)</li>
               </ul>
             </div>
 

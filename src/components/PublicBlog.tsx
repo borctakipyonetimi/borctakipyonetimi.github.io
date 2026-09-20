@@ -28,6 +28,36 @@ interface PublicBlogProps {
 
 export const blogPosts: BlogPost[] = [
   {
+    id: "pro-firebase-cloud-sync",
+    category: "PRO Özellikler",
+    title: "Bütçem PRO: E-Posta ile Güvenli Giriş ve Otomatik Firebase Bulut Yedekleme Rehberi",
+    readTime: "4 dk okuma",
+    introduction: "Bütçem PRO sürümüyle finansal verilerinizi cihaz bağımlılığından kurtarın! E-posta ile güvenli hesap oluşturma, tüm borç ve bütçe kayıtlarınızın Firebase Firestore bulutunda şifrelenerek gerçek zamanlı otomatik yedeklenmesi ve çoklu cihaz senkronizasyonu hakkında bilinmesi gereken tüm ayrıntılar.",
+    icon: "👑",
+    tagColor: "text-amber-600 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/30",
+    bgColor: "bg-amber-500/[0.02] dark:bg-amber-500/[0.01]",
+    borderColor: "border-amber-200/50 dark:border-amber-900/40",
+    tips: [
+      {
+        title: "E-Posta ile Giriş ve Şifre Güvenliği",
+        desc: "Bütçem PRO'da hesabınızı oluştururken kişisel e-posta (Gmail vb.) şifrenizi değil, uygulamamıza özel belirleyeceğiniz şifreyi kullanırsınız. 'Kayıt Ol' sekmesinden e-posta ve şifrenizi tanımlayarak tek tıkla hesabınızı aktive edebilirsiniz."
+      },
+      {
+        title: "Tüm Kayıtların Firebase Firestore'a Otomatik Yedeklenmesi",
+        desc: "Gelir, gider, taksitli borç, kişi defteri ve bütçe hedeflerinize girdiğiniz her yeni işlem, Google'ın kurumsal Firebase Firestore bulut veritabanında sizin benzersiz kullanıcı kimliğiniz (UID) altında 256-Bit SSL şifreleme ile anında otomatik yedeklenir. Manuel yedek alma zahmetine son verir."
+      },
+      {
+        title: "Çoklu Cihaz (Telefon, Tablet, PC) Gerçek Zamanlı Eşitleme",
+        desc: "Telefonunuzdan girdiğiniz bir borç veya fatura ödemesi, aynı anda bilgisayarınızda veya tabletinizde açık olan Bütçem Pro ekranına yansır. Cihazınızı değiştirseniz veya kaybetseniz dahi hiçbir veriniz kaybolmaz."
+      },
+      {
+        title: "Çevrimdışı ve Bulut Hibrit Çalışma Garantisi",
+        desc: "İnternet bağlantınız kopsa bile işlemlerinizi kaydetmeye devam edebilirsiniz. İnternete tekrar bağlandığınızda çevrimdışı yapılan tüm değişiklikler arka planda Firebase bulutuna pürüzsüzce eşitlenir."
+      }
+    ],
+    conclusion: "Bütçem PRO ile finansal verileriniz hem %100 güvende hem de her an her cihazınızda elinizin altında. Şimdi PRO sürüme geçerek otomatik bulut yedekleme ve sıfır reklam ayrıcalıklarının tadını çıkarın."
+  },
+  {
     id: "snowball-avalanche",
     category: "Borç Stratejisi",
     title: "Kartopu (Snowball) vs Çığ (Avalanche) Hangi Metot Sizin İçin Doğru?",

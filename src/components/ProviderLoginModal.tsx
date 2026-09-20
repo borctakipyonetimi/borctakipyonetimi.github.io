@@ -78,7 +78,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         return "Bu e-posta adresi ile kayıtlı bir hesap bulunamadı. Lütfen 'Kayıt Ol' sekmesinden yeni hesap açın.";
       case "auth/wrong-password":
       case "auth/invalid-credential":
-        return "E-posta veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.";
+        return "E-posta veya şifre hatalı. Lütfen kişisel Gmail şifrenizi değil, Bütçem Pro için belirlediğiniz şifreyi girin. İlk kez kullanıyorsanız 'Kayıt Ol' sekmesinden yeni hesap oluşturun.";
       case "auth/email-already-in-use":
         return "Bu e-posta adresiyle zaten kayıtlı bir hesap var. Lütfen 'Giriş Yap' sekmesinden şifrenizle giriş yapın.";
       case "auth/weak-password":
@@ -191,9 +191,14 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 {mode === "register" ? <UserPlus className="w-5 h-5" /> : mode === "forgot" ? <KeyRound className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
               </div>
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
-                  Firebase Bulut Hesabı
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                    Firebase Bulut Hesabı
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-indigo-600 text-white text-[8.5px] font-black tracking-wider shadow-xs uppercase">
+                    PRO ÖZELLİK 👑
+                  </span>
+                </div>
                 <h2 className="text-base font-black text-slate-900 dark:text-slate-100">
                   {mode === "register" ? "Yeni Hesap Oluştur" : mode === "forgot" ? "Şifremi Sıfırla" : "E-Posta ile Giriş Yap"}
                 </h2>
@@ -250,10 +255,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                 {mode === "register"
-                  ? "Kayıt olduğunuzda tüm borç ve bütçe verileriniz Firebase Firestore veritabanında sizin benzersiz kimliğinizle şifrelenerek yedeklenir."
+                  ? "⭐ PRO Özellik: Kayıt olduğunuzda tüm borç, gelir-gider ve taksit verileriniz Firebase Firestore bulutunda şifrelenerek otomatik yedeklenir."
                   : mode === "forgot"
                   ? "E-posta adresinizi girin; şifrenizi sıfırlamanız için size bir kurtarma bağlantısı göndereceğiz."
-                  : "Giriş yaptığınızda başka bir telefondan veya bilgisayardan girdiğiniz tüm kayıtlarınız anında karşınıza gelir."}
+                  : "⭐ PRO Özellik: Giriş yaptığınızda diğer telefon, tablet veya bilgisayardan girdiğiniz tüm kayıtlarınız anında karşınıza gelir ve otomatik eşitlenir."}
               </p>
             </div>
 
@@ -276,6 +281,17 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             ) : (
               /* Auth Form */
               <form onSubmit={handleSubmit} className="flex flex-col items-center w-full max-w-[320px] space-y-3.5 mx-auto text-left">
+                {/* Önemli Güvenlik ve Şifre Bilgilendirme Kutusu */}
+                <div className="w-full p-3.5 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 dark:border-amber-500/40 rounded-2xl text-left shadow-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-black text-xs">
+                    <span>⚠️</span>
+                    <span className="tracking-tight">Önemli Not:</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-200/90 font-medium">
+                    Güvenliğiniz için kişisel e-posta (Gmail) şifrenizi buraya yazmayın. Eğer uygulamamızı ilk kez kullanıyorsanız, lütfen önce <strong className="font-bold underline cursor-pointer text-amber-950 dark:text-white" onClick={() => { setMode("register"); setError(""); setSuccessMsg(""); }}>"Kayıt Ol"</strong> butonuna basarak Bütçem Pro'ya özel yepyeni bir şifre belirleyin ve hesabınızı oluşturun. Ardından bu belirlediğiniz şifreyle giriş yapabilirsiniz.
+                  </p>
+                </div>
+
                 {/* Email Field */}
                 <div className="w-full max-w-[320px] space-y-1">
                   <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block text-left">
