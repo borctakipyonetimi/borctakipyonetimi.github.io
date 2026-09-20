@@ -1161,17 +1161,6 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                               </motion.div>
                             </div>
                           </motion.button>
-
-                          {/* Önemli Güvenlik ve Şifre Bilgilendirme Notu */}
-                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left shadow-xs space-y-1">
-                            <div className="flex items-center gap-1.5 text-amber-400 font-black text-[11px]">
-                              <span>⚠️</span>
-                              <span>Önemli Not:</span>
-                            </div>
-                            <p className="text-[10.5px] leading-relaxed text-amber-200/90 font-medium">
-                              Güvenliğiniz için kişisel e-posta (Gmail) şifrenizi buraya yazmayın. Eğer uygulamamızı ilk kez kullanıyorsanız, lütfen önce <strong>"Kayıt Ol"</strong> butonuna basarak Bütçem Pro'ya özel yepyeni bir şifre belirleyin ve hesabınızı oluşturun. Ardından bu belirlediğiniz şifreyle giriş yapabilirsiniz.
-                            </p>
-                          </div>
                         </div>
 
                         {/* Hata & Başarı Bildirimleri */}
