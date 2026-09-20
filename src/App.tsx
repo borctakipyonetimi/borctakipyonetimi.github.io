@@ -1943,40 +1943,21 @@ export default function App() {
       splashTimerRef.current = null;
     }
 
-    if (!isPremium) {
-      setIsUpgradeModalOpen(true);
-    } else {
-      setSelectedProvider("google");
-      setProviderLoginOpen(true);
-    }
+    setSelectedProvider("google");
+    setProviderLoginOpen(true);
   };
 
   const handleQuickLogin = (provider: "google") => {
-    if (!isPremium) {
-      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
-      setIsUpgradeModalOpen(true);
-      return;
-    }
     setSelectedProvider(provider);
     setProviderLoginOpen(true);
   };
 
   const handleSidebarGoogleLogin = () => {
-    if (!isPremium) {
-      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
-      setIsUpgradeModalOpen(true);
-      return;
-    }
     setSelectedProvider("google");
     setProviderLoginOpen(true);
   };
 
   const handleSidebarDeviceLogin = () => {
-    if (!isPremium) {
-      triggerToast("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir!");
-      setIsUpgradeModalOpen(true);
-      return;
-    }
     setSelectedProvider("google");
     setProviderLoginOpen(true);
   };
@@ -8441,6 +8422,33 @@ export default function App() {
                   onSuccessToast={(msg) => {
                     triggerToast(msg);
                   }} 
+                  currentUser={currentUser}
+                  onOpenGoogleLogin={() => handleQuickLogin("google")}
+                  onManualSyncAll={async () => {
+                    await saveAllToUser(
+                      debts,
+                      incomes,
+                      alarms,
+                      notifications,
+                      installmentDebts,
+                      payments,
+                      expenses,
+                      expenseCategories
+                    );
+                  }}
+                  debts={debts}
+                  installmentDebts={installmentDebts}
+                  incomes={incomes}
+                  expenses={expenses}
+                  alarms={alarms}
+                  notifications={notifications}
+                  payments={payments}
+                  expenseCategories={expenseCategories}
+                  onRestoreBackup={handleRestoreBackup}
+                  onExecuteExportBackup={executeExportBackup}
+                  onProcessBackupJSON={processBackupJSON}
+                  isOfflineMode={isOfflineMode}
+                  initialTab="cloud"
                 />
               </div>
             </motion.div>

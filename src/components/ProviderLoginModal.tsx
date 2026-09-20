@@ -101,18 +101,6 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
     setError("");
     setSuccessMsg("");
 
-    // E-posta ile giriş ve kayıt Premium üyelere özel kısıtlama kontrolü
-    if (!isPremium) {
-      setError("👑 E-posta ile giriş ve bulut hesabı sadece Premium üyelere özeldir. Satın alma sayfasına yönlendiriliyorsunuz...");
-      setTimeout(() => {
-        handleClose();
-        if (onOpenUpgradeModal) {
-          onOpenUpgradeModal();
-        }
-      }, 700);
-      return;
-    }
-
     const targetEmail = email.trim().toLowerCase();
     if (!targetEmail || !targetEmail.includes("@")) {
       setError("Lütfen geçerli bir e-posta adresi girin (örn: ornek@gmail.com).");

@@ -35,14 +35,36 @@ const DEFAULT_RATES: Record<string, number> = {
   EUR: 56.25,
   GBP: 65.45,
   CHF: 59.72,
+  CAD: 35.80,
+  AUD: 31.90,
+  JPY: 0.32,
   GOLD_ONS: 4431.10,
   GOLD_GRAM: 6898.85,
   GOLD_CEYREK: 11165.67,
   GOLD_YARIM: 22331.33,
   GOLD_TAM: 44526.08,
   GOLD_CUMHURIYET: 45961.00,
+  SILVER_GRAM: 84.50,
   BTC_USD: 79614.00,
-  BTC_TRY: 3855000.00
+  BTC_TRY: 3855000.00,
+  ETH_USD: 2680.00,
+  ETH_TRY: 129765.00,
+  SOL_USD: 185.50,
+  SOL_TRY: 8981.00,
+  BNB_USD: 645.00,
+  BNB_TRY: 31230.00,
+  XRP_USD: 2.15,
+  XRP_TRY: 104.10,
+  AVAX_USD: 28.50,
+  AVAX_TRY: 1380.00,
+  DOGE_USD: 0.22,
+  DOGE_TRY: 10.65,
+  ADA_USD: 0.78,
+  ADA_TRY: 37.76,
+  TON_USD: 5.40,
+  TON_TRY: 261.47,
+  USDT_USD: 1.00,
+  USDT_TRY: 48.45
 };
 
 const DEFAULT_DETAILS: Record<string, RateDetail> = {
@@ -50,13 +72,26 @@ const DEFAULT_DETAILS: Record<string, RateDetail> = {
   EUR: { buying: 56.12, selling: 56.36, change: -0.25 },
   GBP: { buying: 65.43, selling: 65.48, change: -0.22 },
   CHF: { buying: 59.72, selling: 59.76, change: 0.18 },
+  CAD: { buying: 35.75, selling: 35.85, change: 0.12 },
+  AUD: { buying: 31.85, selling: 31.95, change: -0.08 },
+  JPY: { buying: 0.318, selling: 0.322, change: 0.05 },
   GOLD_GRAM: { buying: 6898.04, selling: 6898.85, change: -0.74 },
   GOLD_CEYREK: { buying: 10908.86, selling: 11165.67, change: -1.14 },
   GOLD_YARIM: { buying: 21749.55, selling: 22331.33, change: -1.14 },
   GOLD_TAM: { buying: 43635.46, selling: 44526.08, change: -1.14 },
   GOLD_CUMHURIYET: { buying: 45276.00, selling: 45961.00, change: -1.43 },
   GOLD_ONS: { buying: 4431.10, selling: 4431.10, change: 0.15 },
-  BTC: { buying: 79614, selling: 79614, change: 0.85 }
+  SILVER_GRAM: { buying: 83.80, selling: 84.50, change: 0.45 },
+  BTC: { buying: 79614, selling: 79614, change: 0.85 },
+  ETH: { buying: 2680, selling: 2680, change: 1.42 },
+  SOL: { buying: 185.50, selling: 185.50, change: 2.80 },
+  BNB: { buying: 645, selling: 645, change: 0.95 },
+  XRP: { buying: 2.15, selling: 2.15, change: -1.10 },
+  AVAX: { buying: 28.50, selling: 28.50, change: 3.25 },
+  DOGE: { buying: 0.22, selling: 0.22, change: -0.65 },
+  ADA: { buying: 0.78, selling: 0.78, change: 1.15 },
+  TON: { buying: 5.40, selling: 5.40, change: 0.50 },
+  USDT: { buying: 1.00, selling: 1.00, change: 0.02 }
 };
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -134,19 +169,9 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (serverData && serverData.success && serverData.rates) {
           const r = serverData.rates;
           const updatedRates: Record<string, number> = {
-            TRY: 1,
-            USD: Number(r.USD) || 48.42,
-            EUR: Number(r.EUR) || 56.25,
-            GBP: Number(r.GBP) || 65.45,
-            CHF: Number(r.CHF) || 59.72,
-            GOLD_ONS: Number(r.GOLD_ONS) || 4431.10,
-            GOLD_GRAM: Number(r.GOLD_GRAM) || 6898.85,
-            GOLD_CEYREK: Number(r.GOLD_CEYREK) || 11165.67,
-            GOLD_YARIM: Number(r.GOLD_YARIM) || 22331.33,
-            GOLD_TAM: Number(r.GOLD_TAM) || 44526.08,
-            GOLD_CUMHURIYET: Number(r.GOLD_CUMHURIYET) || 45961.00,
-            BTC_USD: Number(r.BTC_USD) || 79614.00,
-            BTC_TRY: Number(r.BTC_TRY) || (79614.00 * (Number(r.USD) || 48.42))
+            ...DEFAULT_RATES,
+            ...r,
+            TRY: 1
           };
 
           setRates(updatedRates);
@@ -154,11 +179,12 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           localStorage.setItem("exchangeRatesTimestamp", now.toString());
 
           if (serverData.details) {
-            setRateDetails(serverData.details);
-            localStorage.setItem("exchangeRateDetails", JSON.stringify(serverData.details));
+            const mergedDetails = { ...DEFAULT_DETAILS, ...serverData.details };
+            setRateDetails(mergedDetails);
+            localStorage.setItem("exchangeRateDetails", JSON.stringify(mergedDetails));
             const changes: Record<string, number> = {};
-            for (const k of Object.keys(serverData.details)) {
-              changes[k] = serverData.details[k].change || 0;
+            for (const k of Object.keys(mergedDetails)) {
+              changes[k] = mergedDetails[k]?.change || 0;
             }
             setRateChanges(changes);
           }
@@ -207,17 +233,43 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
           } catch (e) {}
 
-          // Fetch live BTC
-          let btcUsd = 79614.00;
+          // Fetch live diversified cryptos from Binance
+          let cryptosData: Record<string, { usd: number; change: number }> = {
+            BTC: { usd: 79614.00, change: 0.85 },
+            ETH: { usd: 2680.00, change: 1.42 },
+            SOL: { usd: 185.50, change: 2.80 },
+            BNB: { usd: 645.00, change: 0.95 },
+            XRP: { usd: 2.15, change: -1.10 },
+            AVAX: { usd: 28.50, change: 3.25 },
+            DOGE: { usd: 0.22, change: -0.65 },
+            ADA: { usd: 0.78, change: 1.15 },
+            TON: { usd: 5.40, change: 0.50 },
+            USDT: { usd: 1.00, change: 0.02 }
+          };
+
           try {
-            const btcRes = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", { cache: "no-store" });
-            if (btcRes.ok) {
-              const bData = await btcRes.json();
-              if (bData && bData.lastPrice) btcUsd = Number(bData.lastPrice);
+            const symbolsParam = JSON.stringify([
+              "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT",
+              "XRPUSDT", "AVAXUSDT", "DOGEUSDT", "ADAUSDT"
+            ]);
+            const cryptoRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`, { cache: "no-store" });
+            if (cryptoRes.ok) {
+              const bList = await cryptoRes.json();
+              if (Array.isArray(bList)) {
+                for (const item of bList) {
+                  const sym = item.symbol.replace("USDT", "");
+                  const p = Number(item.lastPrice);
+                  const c = Number(item.priceChangePercent) || 0;
+                  if (p > 0 && cryptosData[sym]) {
+                    cryptosData[sym] = { usd: p, change: c };
+                  }
+                }
+              }
             }
           } catch (e) {}
 
-          const updatedRates = {
+          const updatedRates: Record<string, number> = {
+            ...DEFAULT_RATES,
             TRY: 1,
             USD: usd,
             EUR: eur,
@@ -229,11 +281,30 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             GOLD_YARIM: yarim,
             GOLD_TAM: tam,
             GOLD_CUMHURIYET: cumhuriyet,
-            BTC_USD: btcUsd,
-            BTC_TRY: btcUsd * usd
+            BTC_USD: cryptosData.BTC.usd,
+            BTC_TRY: cryptosData.BTC.usd * usd,
+            ETH_USD: cryptosData.ETH.usd,
+            ETH_TRY: cryptosData.ETH.usd * usd,
+            SOL_USD: cryptosData.SOL.usd,
+            SOL_TRY: cryptosData.SOL.usd * usd,
+            BNB_USD: cryptosData.BNB.usd,
+            BNB_TRY: cryptosData.BNB.usd * usd,
+            XRP_USD: cryptosData.XRP.usd,
+            XRP_TRY: cryptosData.XRP.usd * usd,
+            AVAX_USD: cryptosData.AVAX.usd,
+            AVAX_TRY: cryptosData.AVAX.usd * usd,
+            DOGE_USD: cryptosData.DOGE.usd,
+            DOGE_TRY: cryptosData.DOGE.usd * usd,
+            ADA_USD: cryptosData.ADA.usd,
+            ADA_TRY: cryptosData.ADA.usd * usd,
+            TON_USD: cryptosData.TON.usd,
+            TON_TRY: cryptosData.TON.usd * usd,
+            USDT_USD: cryptosData.USDT.usd,
+            USDT_TRY: cryptosData.USDT.usd * usd
           };
 
           const newDetails: Record<string, RateDetail> = {
+            ...DEFAULT_DETAILS,
             USD: { buying: Number(tData.USD?.Buying) || usd, selling: usd, change: Number(tData.USD?.Change) || 0 },
             EUR: { buying: Number(tData.EUR?.Buying) || eur, selling: eur, change: Number(tData.EUR?.Change) || 0 },
             GBP: { buying: Number(tData.GBP?.Buying) || gbp, selling: gbp, change: Number(tData.GBP?.Change) || 0 },
@@ -244,7 +315,16 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             GOLD_TAM: { buying: Number(tData.TAMALTIN?.Buying) || tam, selling: tam, change: Number(tData.TAMALTIN?.Change) || 0 },
             GOLD_CUMHURIYET: { buying: Number(tData.CUMHURIYETALTINI?.Buying) || cumhuriyet, selling: cumhuriyet, change: Number(tData.CUMHURIYETALTINI?.Change) || 0 },
             GOLD_ONS: { buying: ons, selling: ons, change: 0.15 },
-            BTC: { buying: btcUsd, selling: btcUsd, change: 0.85 }
+            BTC: { buying: cryptosData.BTC.usd, selling: cryptosData.BTC.usd, change: cryptosData.BTC.change },
+            ETH: { buying: cryptosData.ETH.usd, selling: cryptosData.ETH.usd, change: cryptosData.ETH.change },
+            SOL: { buying: cryptosData.SOL.usd, selling: cryptosData.SOL.usd, change: cryptosData.SOL.change },
+            BNB: { buying: cryptosData.BNB.usd, selling: cryptosData.BNB.usd, change: cryptosData.BNB.change },
+            XRP: { buying: cryptosData.XRP.usd, selling: cryptosData.XRP.usd, change: cryptosData.XRP.change },
+            AVAX: { buying: cryptosData.AVAX.usd, selling: cryptosData.AVAX.usd, change: cryptosData.AVAX.change },
+            DOGE: { buying: cryptosData.DOGE.usd, selling: cryptosData.DOGE.usd, change: cryptosData.DOGE.change },
+            ADA: { buying: cryptosData.ADA.usd, selling: cryptosData.ADA.usd, change: cryptosData.ADA.change },
+            TON: { buying: cryptosData.TON.usd, selling: cryptosData.TON.usd, change: cryptosData.TON.change },
+            USDT: { buying: cryptosData.USDT.usd, selling: cryptosData.USDT.usd, change: cryptosData.USDT.change }
           };
 
           setRates(updatedRates);

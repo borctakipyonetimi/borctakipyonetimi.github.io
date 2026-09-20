@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Gauge,
@@ -20,13 +20,21 @@ import {
   HelpCircle,
   Activity,
   ArrowRight,
-  BadgePercent
+  BadgePercent,
+  Filter,
+  CheckCircle2,
+  Download,
+  Sparkles,
+  Clock,
+  ShieldCheck
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, PaymentLog } from "../types";
 import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
 import { useCurrency } from "../utils/CurrencyContext";
-import { generateAnnualPdfReport } from "../utils/annualPdfReport";
+import { generateAnnualPdfReport, safePdfText } from "../utils/annualPdfReport";
+import { Capacitor } from "@capacitor/core";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -97,6 +105,76 @@ export function FinancialTools({
     }
   }, [spaceKey]);
 
+  // --- DEDUPLICATION & CONSOLIDATION OF DEBTS & TRANSACTIONS ---
+  // Eliminate repeated, confusing, or cross-listed debt records
+  const cleanInstallments = useMemo(() => {
+    const seenIds = new Set<any>();
+    const seenKeys = new Set<string>();
+    return (installmentDebts || []).filter((inst) => {
+      if (!inst || !inst.name) return false;
+      if (inst.id !== undefined && inst.id !== null) {
+        if (seenIds.has(inst.id)) return false;
+        seenIds.add(inst.id);
+      }
+      const normName = inst.name.trim().toLowerCase();
+      const key = `${normName}_${inst.totalAmount}_${inst.installmentCount}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+  }, [installmentDebts]);
+
+  const cleanDebts = useMemo(() => {
+    const seenIds = new Set<any>();
+    const seenKeys = new Set<string>();
+    const installmentNames = new Set(
+      cleanInstallments.map((inst) => inst.name.trim().toLowerCase())
+    );
+
+    return (debts || []).filter((d) => {
+      if (!d || !d.name) return false;
+      if (d.id !== undefined && d.id !== null) {
+        if (seenIds.has(d.id)) return false;
+        seenIds.add(d.id);
+      }
+      const normName = d.name.trim().toLowerCase();
+      // If debt matches an installment debt by name and amount, exclude the duplicate simple debt record
+      if (installmentNames.has(normName)) {
+        const matchInst = cleanInstallments.find(
+          (i) => i.name.trim().toLowerCase() === normName && Math.abs(i.totalAmount - d.amount) < 1
+        );
+        if (matchInst) return false;
+      }
+      const key = `${normName}_${d.amount}_${(d.category || "").toLowerCase()}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+  }, [debts, cleanInstallments]);
+
+  const cleanContactTxs = useMemo(() => {
+    const seen = new Set<string>();
+    return (contactTxs || []).filter((tx) => {
+      if (!tx || !tx.contactName) return false;
+      const key = tx.id ? String(tx.id) : `${tx.contactName.trim().toLowerCase()}_${tx.type}_${tx.amount}_${tx.isPaid}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [contactTxs]);
+
+  // Report filter and status message state
+  const [reportDebtFilter, setReportDebtFilter] = useState<"all" | "active" | "paid">("all");
+  const [reportStatusMessage, setReportStatusMessage] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  useEffect(() => {
+    if (reportStatusMessage) {
+      const timer = setTimeout(() => setReportStatusMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [reportStatusMessage]);
+
   // Savings inputs
   const [newGoalName, setNewGoalName] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
@@ -120,27 +198,27 @@ export function FinancialTools({
     });
   }, [pegCalculatorInput, usdRate, eurRate, goldRate]);
 
-  // Financial metrics calculations
+  // Financial metrics calculations based on clean deduplicated data
   const totalIncomesSum = incomes.reduce((sum, inc) => sum + inc.amount, 0);
   const totalExpensesSum = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   
   // Calculate remaining debt
-  const simpleUnpaidDebt = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
-  const installmentUnpaidDebt = installmentDebts.reduce((sum, inst) => {
-    const monthly = inst.totalAmount / inst.installmentCount;
-    const paidValue = inst.paidInstallmentCount * monthly;
-    return sum + (inst.totalAmount - paidValue);
+  const simpleUnpaidDebt = cleanDebts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+  const installmentUnpaidDebt = cleanInstallments.reduce((sum, inst) => {
+    const monthly = inst.totalAmount / (inst.installmentCount || 1);
+    const paidValue = (inst.paidInstallmentCount || 0) * monthly;
+    return sum + Math.max(0, inst.totalAmount - paidValue);
   }, 0);
   const bankAndInstallmentDebt = simpleUnpaidDebt + installmentUnpaidDebt;
 
   // Person debts
-  const contactPayablesRemaining = contactTxs.reduce((sum, tx) => {
+  const contactPayablesRemaining = cleanContactTxs.reduce((sum, tx) => {
     if (!tx.isPaid && tx.type === "payable") {
       return sum + tx.amount;
     }
     return sum;
   }, 0);
-  const contactReceivablesRemaining = contactTxs.reduce((sum, tx) => {
+  const contactReceivablesRemaining = cleanContactTxs.reduce((sum, tx) => {
     if (!tx.isPaid && tx.type === "receivable") {
       return sum + tx.amount;
     }
@@ -836,7 +914,7 @@ export function FinancialTools({
             {/* Elegant Print Style Override specifically for printing the target report beautifully */}
             <style dangerouslySetInnerHTML={{ __html: `
               @media print {
-                /* Hide everything by default on the printed page */
+                /* Hide non-report elements */
                 body * {
                   visibility: hidden !important;
                 }
@@ -852,7 +930,7 @@ export function FinancialTools({
                   width: 100% !important;
                   max-width: 100% !important;
                   margin: 0 !important;
-                  padding: 1.5rem !important;
+                  padding: 1rem !important;
                   border: none !important;
                   box-shadow: none !important;
                   background: white !important;
@@ -866,366 +944,480 @@ export function FinancialTools({
                   box-shadow: none !important;
                   text-shadow: none !important;
                 }
+                .print-hidden, .print\\:hidden {
+                  display: none !important;
+                }
               }
             ` }} />
+
+            {/* Notification / Feedback Banner */}
+            {reportStatusMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-3 shadow-sm print:hidden ${
+                  reportStatusMessage.type === "success"
+                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                    : reportStatusMessage.type === "error"
+                    ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                    : "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {reportStatusMessage.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : reportStatusMessage.type === "error" ? (
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 animate-spin" />
+                  )}
+                  <span>{reportStatusMessage.text}</span>
+                </div>
+                <button
+                  onClick={() => setReportStatusMessage(null)}
+                  className="text-slate-400 hover:text-slate-600 text-xs px-2 py-0.5 rounded cursor-pointer"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
 
             {/* Control Panel Block */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
               <div className="space-y-1">
-                <h4 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">
-                  RAPOR HAZIRLAYICI VE DENETİM PANELİ
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                    RAPOR HAZIRLAYICI VE DENETİM PANELİ
+                  </h4>
+                  <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-md">
+                    v2.5 DÜZENLİ
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                  Finansal kayıtlarınızı temiz, şablonlu, resmi bir özet rapor haline getirerek yazdırabilir ya da PDF formatında kaydedebilirsiniz.
+                  Finansal borçlarınızı tekrarlardan arındırılmış, şablonlu, resmi bir özet denetim raporu haline getirebilir, anında PDF olarak indirebilir veya yazdırabilirsiniz.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                {/* 1. PDF Olarak İndir Butonu */}
                 <button
-                  onClick={() => {
-                    const doc = new jsPDF();
-                    
-                    // safe Turkish text converter for standard fonts
-                    const safeText = (text: string) => {
-                      if (!text) return "";
-                      const map: { [key: string]: string } = {
-                        'ç': 'c', 'Ç': 'C',
-                        'ğ': 'g', 'Ğ': 'G',
-                        'ı': 'i', 'İ': 'I',
-                        'ö': 'o', 'Ö': 'O',
-                        'ş': 's', 'Ş': 'S',
-                        'ü': 'u', 'Ü': 'U'
-                      };
-                      return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (match) => map[match] || match);
-                    };
+                  disabled={isGeneratingPdf}
+                  onClick={async () => {
+                    setIsGeneratingPdf(true);
+                    setReportStatusMessage({ type: "info", text: "PDF Denetim Raporu hazırlanıyor..." });
 
-                    // Header Background Banner
-                    doc.setFillColor(30, 41, 59); // slate-800
-                    doc.rect(0, 0, 210, 35, "F");
+                    try {
+                      const doc = new jsPDF({
+                        orientation: "portrait",
+                        unit: "mm",
+                        format: "a4"
+                      });
 
-                    // Header Text
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(16);
-                    doc.text("Butcem Pro - Resmi Finansal Denetim Raporu", 15, 18);
+                      const docId = `BP-${Date.now().toString().slice(-6)}`;
+                      const formatPdf = (val: number) => safePdfText(format(val));
 
-                    doc.setFont("Helvetica", "normal");
-                    doc.setFontSize(8);
-                    doc.setTextColor(226, 232, 240);
-                    const docId = `BP-${Date.now().toString().slice(-6)}`;
-                    doc.text(`Belge Seri No: ${docId} | Olusturma Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}`, 15, 27);
+                      // Header Background Banner
+                      doc.setFillColor(30, 41, 59); // slate-800
+                      doc.rect(0, 0, 210, 36, "F");
 
-                    // Section 1: Summary Cards
-                    doc.setFontSize(11);
-                    doc.setFont("Helvetica", "bold");
-                    doc.setTextColor(15, 23, 42); // slate-900
-                    doc.text(safeText("1. GÖSTERGE VE DETAYLI FİNANSAL ÖZET"), 15, 50);
-
-                    // separator
-                    doc.setDrawColor(203, 213, 225);
-                    doc.setLineWidth(0.5);
-                    doc.line(15, 53, 195, 53);
-
-                    // KPI Blocks
-                    let blockY = 58;
-                    // Left Box
-                    doc.setFillColor(248, 250, 252); // slate-50
-                    doc.rect(15, blockY, 85, 25, "F");
-                    doc.setDrawColor(226, 232, 240);
-                    doc.rect(15, blockY, 85, 25, "S");
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(8);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(safeText("TOPLAM GELİR AKIŞI"), 20, blockY + 8);
-                    doc.setFontSize(11);
-                    doc.setTextColor(16, 185, 129); // emerald-500
-                    doc.text(format(totalIncomesSum), 20, blockY + 18);
-
-                    // Right Box
-                    doc.setFillColor(248, 250, 252); // slate-50
-                    doc.rect(110, blockY, 85, 25, "F");
-                    doc.rect(110, blockY, 85, 25, "S");
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(8);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(safeText("TOPLAM HARCAMALAR"), 115, blockY + 8);
-                    doc.setFontSize(11);
-                    doc.setTextColor(244, 63, 94); // rose-500
-                    doc.text(format(totalExpensesSum), 115, blockY + 18);
-
-                    blockY += 30;
-
-                    // Left Box 2
-                    doc.setFillColor(248, 250, 252); // slate-50
-                    doc.rect(15, blockY, 85, 25, "F");
-                    doc.rect(15, blockY, 85, 25, "S");
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(8);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(safeText("KALAN BORÇ PORTFÖYÜ"), 20, blockY + 8);
-                    doc.setFontSize(11);
-                    doc.setTextColor(249, 115, 22); // orange-500
-                    doc.text(format(grandTotalRemainingDebt), 20, blockY + 18);
-
-                    // Right Box 2
-                    doc.setFillColor(248, 250, 252); // slate-50
-                    doc.rect(110, blockY, 85, 25, "F");
-                    doc.rect(110, blockY, 85, 25, "S");
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(8);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(safeText("BÜTÇE SAĞLIK SKORU"), 115, blockY + 8);
-                    doc.setFontSize(11);
-                    doc.setTextColor(79, 70, 229); // indigo-600
-                    doc.text(`${healthScore} / 100`, 115, blockY + 18);
-
-                    // Section 2: Bank & Credit Card Debts
-                    let tableY = blockY + 38;
-                    doc.setFontSize(11);
-                    doc.setFont("Helvetica", "bold");
-                    doc.setTextColor(15, 23, 42); // slate-900
-                    doc.text(safeText("2. BANKA VEYA KREDİ KARTI BORÇLARI"), 15, tableY);
-
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(15, tableY + 3, 195, tableY + 3);
-                    tableY += 10;
-                    
-                    if (debts.length === 0) {
-                      doc.setFont("Helvetica", "italic");
-                      doc.setFontSize(9);
-                      doc.setTextColor(100, 116, 139);
-                      doc.text(safeText("Kayitli aktif banka borcu bulunmuyor."), 15, tableY);
-                      tableY += 8;
-                    } else {
+                      // Header Text
+                      doc.setTextColor(255, 255, 255);
                       doc.setFont("Helvetica", "bold");
+                      doc.setFontSize(15);
+                      doc.text("BUTCEM PRO - RESMI FINANSAL DENETIM RAPORU", 15, 16);
+
+                      doc.setFont("Helvetica", "normal");
                       doc.setFontSize(8);
-                      doc.setFillColor(241, 245, 249);
-                      doc.rect(15, tableY - 4, 180, 7, "F");
-                      doc.setTextColor(71, 85, 105);
-                      doc.text(safeText("Borc Adı / Kategori"), 18, tableY + 1);
-                      doc.text(safeText("Kalan / Toplam Tutar"), 120, tableY + 1);
-                      tableY += 10;
+                      doc.setTextColor(203, 213, 225);
+                      doc.text(
+                        safePdfText(`Belge Seri No: ${docId} | Olusturma Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}`),
+                        15,
+                        25
+                      );
+                      doc.text(
+                        safePdfText(`Kullanici: ${currentUser || "Yerel Profil"} | Durum: ONAYLI FINANSAL DOSYA`),
+                        15,
+                        31
+                      );
 
-                      debts.forEach(d => {
-                        if (tableY > 265) {
-                          doc.addPage();
-                          tableY = 25;
+                      // Section 1: Summary Cards
+                      doc.setFontSize(11);
+                      doc.setFont("Helvetica", "bold");
+                      doc.setTextColor(15, 23, 42); // slate-900
+                      doc.text(safePdfText("1. GENEL GOSTERGELER VE DETAYLI FINANSAL OZET"), 15, 48);
+
+                      doc.setDrawColor(203, 213, 225);
+                      doc.setLineWidth(0.4);
+                      doc.line(15, 51, 195, 51);
+
+                      // KPI Blocks (3 columns, 2 rows)
+                      const kpis = [
+                        { label: "TOPLAM GELIR", val: formatPdf(totalIncomesSum), color: [16, 185, 129] },
+                        { label: "TOPLAM GIDER", val: formatPdf(totalExpensesSum), color: [244, 63, 94] },
+                        { label: "NET BAKIYE", val: formatPdf(totalIncomesSum - totalExpensesSum), color: [14, 165, 233] },
+                        { label: "BANKA & TAKSIT BORCU", val: formatPdf(bankAndInstallmentDebt), color: [245, 158, 11] },
+                        { label: "KISI BORCLARI (CARI)", val: formatPdf(contactPayablesRemaining), color: [239, 68, 68] },
+                        { label: "SAGLIK SKORU", val: `${healthScore} / 100`, color: [99, 102, 241] }
+                      ];
+
+                      let currentY = 56;
+                      for (let row = 0; row < 2; row++) {
+                        for (let col = 0; col < 3; col++) {
+                          const idx = row * 3 + col;
+                          const item = kpis[idx];
+                          const x = 15 + col * 62;
+                          const y = currentY;
+
+                          doc.setFillColor(248, 250, 252);
+                          doc.rect(x, y, 58, 18, "F");
+                          doc.setDrawColor(226, 232, 240);
+                          doc.rect(x, y, 58, 18, "S");
+
+                          doc.setFont("Helvetica", "bold");
+                          doc.setFontSize(7);
+                          doc.setTextColor(100, 116, 139);
+                          doc.text(safePdfText(item.label), x + 4, y + 6);
+
+                          doc.setFontSize(10);
+                          doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+                          doc.text(item.val, x + 4, y + 13);
                         }
-                        doc.setFont("Helvetica", "bold");
-                        doc.setFontSize(9);
-                        doc.setTextColor(30, 41, 59);
-                        doc.text(safeText(`${d.name} (${d.category})`), 18, tableY);
-                        doc.setFont("Helvetica", "normal");
-                        doc.text(`Kalan: ${format(d.amount - d.paid)} / Toplam: ${format(d.amount)}`, 120, tableY);
-                        doc.setDrawColor(241, 245, 249);
-                        doc.line(15, tableY + 3, 195, tableY + 3);
+                        currentY += 22;
+                      }
+
+                      // Section 2: Banka veya Kredi Kartı Borçları
+                      let tableY = currentY + 6;
+                      doc.setFontSize(11);
+                      doc.setFont("Helvetica", "bold");
+                      doc.setTextColor(15, 23, 42);
+                      doc.text(safePdfText(`2. BANKA VEYA KREDI KARTI BORCLARI (${cleanDebts.length} Kalem)`), 15, tableY);
+                      doc.setDrawColor(203, 213, 225);
+                      doc.line(15, tableY + 3, 195, tableY + 3);
+                      tableY += 9;
+
+                      if (cleanDebts.length === 0) {
+                        doc.setFont("Helvetica", "italic");
+                        doc.setFontSize(8.5);
+                        doc.setTextColor(100, 116, 139);
+                        doc.text(safePdfText("Kayitli aktif banka borcu bulunmuyor."), 15, tableY);
                         tableY += 8;
-                      });
-                    }
+                      } else {
+                        doc.setFont("Helvetica", "bold");
+                        doc.setFontSize(7.5);
+                        doc.setFillColor(241, 245, 249);
+                        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
+                        doc.setTextColor(71, 85, 105);
+                        doc.text(safePdfText("Borc Adi / Kategori"), 18, tableY + 1);
+                        doc.text(safePdfText("Durum"), 105, tableY + 1);
+                        doc.text(safePdfText("Odenen / Kalan / Toplam"), 135, tableY + 1);
+                        tableY += 8;
 
-                    // Section 3: Installment Debts
-                    tableY += 4;
-                    if (tableY > 250) { doc.addPage(); tableY = 25; }
-                    doc.setFontSize(11);
-                    doc.setFont("Helvetica", "bold");
-                    doc.setTextColor(15, 23, 42);
-                    doc.text(safeText("3. TAKSİTLİ BORÇLAR VE KREDİLER"), 15, tableY);
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(15, tableY + 3, 195, tableY + 3);
-                    tableY += 10;
+                        cleanDebts.forEach((d) => {
+                          if (tableY > 265) {
+                            doc.addPage();
+                            tableY = 22;
+                          }
+                          const rem = Math.max(0, d.amount - d.paid);
+                          const isPaid = rem === 0;
 
-                    if (installmentDebts.length === 0) {
-                      doc.setFont("Helvetica", "italic");
-                      doc.setFontSize(9);
-                      doc.setTextColor(100, 116, 139);
-                      doc.text(safeText("Kayitli taksitli borc bulunmuyor."), 15, tableY);
+                          doc.setFont("Helvetica", "bold");
+                          doc.setFontSize(8);
+                          doc.setTextColor(30, 41, 59);
+                          const nameStr = safePdfText(`${d.name} (${d.category || "Genel"})`);
+                          doc.text(nameStr.length > 38 ? nameStr.slice(0, 36) + ".." : nameStr, 18, tableY);
+
+                          doc.setFont("Helvetica", "normal");
+                          doc.setFontSize(7.5);
+                          if (isPaid) {
+                            doc.setTextColor(16, 185, 129);
+                            doc.text(safePdfText("ODENDI"), 105, tableY);
+                          } else {
+                            doc.setTextColor(239, 68, 68);
+                            doc.text(safePdfText("AKTIF"), 105, tableY);
+                          }
+
+                          doc.setTextColor(51, 65, 85);
+                          doc.text(
+                            `${formatPdf(d.paid)} / ${formatPdf(rem)} / ${formatPdf(d.amount)}`,
+                            135,
+                            tableY
+                          );
+
+                          doc.setDrawColor(241, 245, 249);
+                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+                          tableY += 6.5;
+                        });
+                      }
+
+                      // Section 3: Taksitli Borçlar ve Krediler
+                      tableY += 6;
+                      if (tableY > 245) {
+                        doc.addPage();
+                        tableY = 22;
+                      }
+                      doc.setFontSize(11);
+                      doc.setFont("Helvetica", "bold");
+                      doc.setTextColor(15, 23, 42);
+                      doc.text(safePdfText(`3. TAKSITLI BORCLAR VE KREDILER (${cleanInstallments.length} Kalem)`), 15, tableY);
+                      doc.setDrawColor(203, 213, 225);
+                      doc.line(15, tableY + 3, 195, tableY + 3);
+                      tableY += 9;
+
+                      if (cleanInstallments.length === 0) {
+                        doc.setFont("Helvetica", "italic");
+                        doc.setFontSize(8.5);
+                        doc.setTextColor(100, 116, 139);
+                        doc.text(safePdfText("Kayitli taksitli borc bulunmuyor."), 15, tableY);
+                        tableY += 8;
+                      } else {
+                        doc.setFont("Helvetica", "bold");
+                        doc.setFontSize(7.5);
+                        doc.setFillColor(241, 245, 249);
+                        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
+                        doc.setTextColor(71, 85, 105);
+                        doc.text(safePdfText("Taksit Adi"), 18, tableY + 1);
+                        doc.text(safePdfText("Taksit Durumu"), 105, tableY + 1);
+                        doc.text(safePdfText("Kalan Tutar / Toplam"), 140, tableY + 1);
+                        tableY += 8;
+
+                        cleanInstallments.forEach((inst) => {
+                          if (tableY > 265) {
+                            doc.addPage();
+                            tableY = 22;
+                          }
+                          const monthly = inst.totalAmount / (inst.installmentCount || 1);
+                          const paidVal = (inst.paidInstallmentCount || 0) * monthly;
+                          const rem = Math.max(0, inst.totalAmount - paidVal);
+
+                          doc.setFont("Helvetica", "bold");
+                          doc.setFontSize(8);
+                          doc.setTextColor(30, 41, 59);
+                          const instName = safePdfText(inst.name);
+                          doc.text(instName.length > 38 ? instName.slice(0, 36) + ".." : instName, 18, tableY);
+
+                          doc.setFont("Helvetica", "normal");
+                          doc.setFontSize(7.5);
+                          doc.setTextColor(79, 70, 229);
+                          doc.text(`${inst.paidInstallmentCount || 0}/${inst.installmentCount} Taksit`, 105, tableY);
+
+                          doc.setTextColor(51, 65, 85);
+                          doc.text(`${formatPdf(rem)} / ${formatPdf(inst.totalAmount)}`, 140, tableY);
+
+                          doc.setDrawColor(241, 245, 249);
+                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+                          tableY += 6.5;
+                        });
+                      }
+
+                      // Section 4: Kişi Bazlı Borç ve Alacaklar
+                      tableY += 6;
+                      if (tableY > 245) {
+                        doc.addPage();
+                        tableY = 22;
+                      }
+                      doc.setFontSize(11);
+                      doc.setFont("Helvetica", "bold");
+                      doc.setTextColor(15, 23, 42);
+                      doc.text(safePdfText(`4. KISI BAZLI BORC VE ALACAKLAR (CARI) (${cleanContactTxs.length} Islem)`), 15, tableY);
+                      doc.setDrawColor(203, 213, 225);
+                      doc.line(15, tableY + 3, 195, tableY + 3);
+                      tableY += 9;
+
+                      if (cleanContactTxs.length === 0) {
+                        doc.setFont("Helvetica", "italic");
+                        doc.setFontSize(8.5);
+                        doc.setTextColor(100, 116, 139);
+                        doc.text(safePdfText("Kayitli kisi borcu veya alacagi bulunmuyor."), 15, tableY);
+                        tableY += 8;
+                      } else {
+                        cleanContactTxs.forEach((tx) => {
+                          if (tableY > 265) {
+                            doc.addPage();
+                            tableY = 22;
+                          }
+                          const typeLabel = tx.type === "payable" ? "Borc (Verecek)" : "Alacak";
+                          const statusLabel = tx.isPaid ? "Odendi" : "Bekliyor";
+
+                          doc.setFont("Helvetica", "bold");
+                          doc.setFontSize(8);
+                          doc.setTextColor(30, 41, 59);
+                          doc.text(safePdfText(`${tx.contactName} (${typeLabel})`), 18, tableY);
+
+                          doc.setFont("Helvetica", "normal");
+                          doc.setFontSize(7.5);
+                          doc.setTextColor(tx.isPaid ? 16 : 245, tx.isPaid ? 185 : 158, tx.isPaid ? 129 : 11);
+                          doc.text(safePdfText(statusLabel), 110, tableY);
+
+                          doc.setFont("Helvetica", "bold");
+                          doc.setTextColor(30, 41, 59);
+                          doc.text(formatPdf(tx.amount), 150, tableY);
+
+                          doc.setDrawColor(241, 245, 249);
+                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+                          tableY += 6.5;
+                        });
+                      }
+
+                      // Section 5: Asistan Strateji ve Değerlendirme
+                      tableY += 6;
+                      if (tableY > 230) {
+                        doc.addPage();
+                        tableY = 22;
+                      }
+                      doc.setFont("Helvetica", "bold");
+                      doc.setFontSize(10.5);
+                      doc.setTextColor(79, 70, 229);
+                      doc.text(safePdfText("5. FINANSAL SAGLIK VE ASISTAN STRATEJISI"), 15, tableY);
+                      doc.setDrawColor(203, 213, 225);
+                      doc.line(15, tableY + 3, 195, tableY + 3);
                       tableY += 8;
-                    } else {
-                      installmentDebts.forEach(inst => {
-                        if (tableY > 265) { doc.addPage(); tableY = 25; }
-                        const monthly = inst.totalAmount / inst.installmentCount;
-                        const paidValue = inst.paidInstallmentCount * monthly;
-                        doc.setFont("Helvetica", "bold");
-                        doc.setFontSize(9);
-                        doc.setTextColor(30, 41, 59);
-                        doc.text(safeText(`${inst.name} (${inst.paidInstallmentCount}/${inst.installmentCount} Taksit)`), 18, tableY);
-                        doc.setFont("Helvetica", "normal");
-                        doc.text(`Kalan: ${format(inst.totalAmount - paidValue)} / Toplam: ${format(inst.totalAmount)}`, 120, tableY);
-                        doc.setDrawColor(241, 245, 249);
-                        doc.line(15, tableY + 3, 195, tableY + 3);
-                        tableY += 8;
-                      });
-                    }
 
-                    // Section 4: Contact Debts and Receivables (Cari)
-                    tableY += 4;
-                    if (tableY > 250) { doc.addPage(); tableY = 25; }
-                    doc.setFontSize(11);
-                    doc.setFont("Helvetica", "bold");
-                    doc.setTextColor(15, 23, 42);
-                    doc.text(safeText("4. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ)"), 15, tableY);
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(15, tableY + 3, 195, tableY + 3);
-                    tableY += 10;
+                      doc.setFillColor(248, 250, 252);
+                      doc.rect(15, tableY - 2, 180, 22, "F");
+                      doc.setDrawColor(226, 232, 240);
+                      doc.rect(15, tableY - 2, 180, 22, "S");
 
-                    if (contactTxs.length === 0) {
-                      doc.setFont("Helvetica", "italic");
-                      doc.setFontSize(9);
-                      doc.setTextColor(100, 116, 139);
-                      doc.text(safeText("Kayitli kisi borcu veya alacagi bulunmuyor."), 15, tableY);
-                      tableY += 8;
-                    } else {
-                      contactTxs.forEach(tx => {
-                        if (tableY > 265) { doc.addPage(); tableY = 25; }
-                        doc.setFont("Helvetica", "bold");
-                        doc.setFontSize(9);
-                        doc.setTextColor(30, 41, 59);
-                        const typeLabel = tx.type === "payable" ? "Kisiye Borc" : "Kisiden Alacak";
-                        const statusLabel = tx.isPaid ? "Odenmis" : "Odenmedi";
-                        doc.text(safeText(`${tx.contactName} (${typeLabel} - ${statusLabel})`), 18, tableY);
-                        doc.setFont("Helvetica", "normal");
-                        doc.text(`Tutar: ${format(tx.amount)}`, 120, tableY);
-                        doc.setDrawColor(241, 245, 249);
-                        doc.line(15, tableY + 3, 195, tableY + 3);
-                        tableY += 8;
-                      });
-                    }
+                      doc.setFont("Helvetica", "normal");
+                      doc.setFontSize(8);
+                      doc.setTextColor(51, 65, 85);
+                      const splitAdvice = doc.splitTextToSize(safePdfText(advice.desc), 172);
+                      doc.text(splitAdvice, 18, tableY + 4);
 
-                    // Section 5: AI Assistant Strategy
-                    tableY += 5;
-                    if (tableY > 240) {
-                      doc.addPage();
-                      tableY = 25;
-                    }
+                      // Footnote
+                      doc.setFontSize(7);
+                      doc.setTextColor(148, 163, 184);
+                      doc.text(
+                        safePdfText("Butcem Pro Guvenli Finansal Takip Sistemi • Yerel ve Gizli Denetim Raporu"),
+                        15,
+                        285
+                      );
 
-                    doc.setFont("Helvetica", "bold");
-                    doc.setFontSize(11);
-                    doc.setTextColor(79, 70, 229); // indigo-600
-                    doc.text(safeText("5. ASİSTAN STRATEJİ KARARI"), 15, tableY);
-                    // separator
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(15, tableY + 3, 195, tableY + 3);
+                      const fileName = `Butcem_Pro_Denetim_Raporu_${docId}.pdf`;
 
-                    tableY += 10;
-                    doc.setFillColor(243, 244, 246); // gray-100
-                    doc.rect(15, tableY - 4, 180, 25, "F");
-                    doc.setFont("Helvetica", "normal");
-                    doc.setFontSize(9);
-                    doc.setTextColor(55, 65, 81); // gray-700
-                    
-                    const splitAdvice = doc.splitTextToSize(safeText(advice.desc), 170);
-                    doc.text(splitAdvice, 18, tableY + 2);
-
-                    // Footnote
-                    doc.setFontSize(8);
-                    doc.setTextColor(148, 163, 184);
-                    doc.text(safeText("Bu veri tablosu tamamen kişisel gizlilik standartlarına uygun olarak derlenmiştir."), 15, 285);
-
-                    doc.save(`Butcem_Pro_Finansal_Rapor_${docId}.pdf`);
-                  }}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/20"
-                >
-                  <FileText className="w-3.5 h-3.5" /> PDF Olarak İndir 📥
-                </button>
-
-                <button
-                  onClick={() => {
-                    const curYear = new Date().getFullYear();
-                    generateAnnualPdfReport({
-                      year: curYear,
-                      incomes,
-                      expenses,
-                      payments,
-                      debts,
-                      installmentDebts,
-                      currencySymbol: "₺",
-                      language
-                    });
-                  }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
-                >
-                  <FileText className="w-3.5 h-3.5 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
-                </button>
-
-                <button
-                  onClick={() => {
-                    const reportHtml = document.getElementById("financial-audit-report")?.innerHTML;
-                    if (!reportHtml) {
-                      alert("Rapor içeriği bulunamadı.");
-                      return;
-                    }
-                    
-                    const html = `
-                      <html>
-                        <head>
-                          <title>Bütçem Pro Raporu</title>
-                          <style>
-                            body { font-family: sans-serif; padding: 25px; color: #1e293b; background: #fff; }
-                            h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; font-size: 18px; }
-                            table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
-                            th, td { padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; font-size: 12px; }
-                            th { background-color: #f8fafc; font-weight: bold; font-size: 11px; text-transform: uppercase; }
-                            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-                            .p-3, .p-3\\.5 { padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; }
-                            .text-emerald-600 { color: #059669; }
-                            .text-rose-500 { color: #f43f5e; }
-                            .text-amber-500 { color: #f59e0b; }
-                            .text-indigo-600 { color: #4f46e5; }
-                            .font-black { font-weight: 800; }
-                            .font-bold { font-weight: 700; }
-                            .text-right { text-align: right; }
-                            .text-center { text-align: center; }
-                          </style>
-                        </head>
-                        <body>
-                          <div style="max-width: 800px; margin: 0 auto;">
-                            ${reportHtml}
-                          </div>
-                        </body>
-                      </html>
-                    `;
-
-                    const printFrame = document.createElement("iframe");
-                    printFrame.style.position = "fixed";
-                    printFrame.style.right = "0";
-                    printFrame.style.bottom = "0";
-                    printFrame.style.width = "0";
-                    printFrame.style.height = "0";
-                    printFrame.style.border = "0";
-                    document.body.appendChild(printFrame);
-
-                    const printDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
-                    if (printDoc) {
-                      printDoc.write(html);
-                      printDoc.close();
-                      setTimeout(() => {
+                      // Download execution: Capacitor native or Browser Blob
+                      if (Capacitor.isNativePlatform()) {
                         try {
-                          printFrame.contentWindow?.focus();
-                          printFrame.contentWindow?.print();
-                        } catch (e) {
-                          console.error("Iframe native print failed:", e);
+                          const dataUri = doc.output("datauristring");
+                          await downloadFileWithCustomName({
+                            fileName,
+                            content: dataUri,
+                            mimeType: "application/pdf"
+                          });
+                        } catch (capErr) {
+                          console.warn("Capacitor download fallback:", capErr);
                         }
-                        setTimeout(() => {
-                          document.body.removeChild(printFrame);
-                        }, 1500);
-                      }, 500);
+                      }
+
+                      try {
+                        doc.save(fileName);
+                      } catch (saveErr) {
+                        console.warn("Standard doc.save failed, using blob fallback:", saveErr);
+                        const pdfBlob = doc.output("blob");
+                        const url = URL.createObjectURL(pdfBlob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 2000);
+                      }
+
+                      setReportStatusMessage({
+                        type: "success",
+                        text: `PDF Denetim Raporu (${fileName}) başarıyla hazırlandı ve indirildi!`
+                      });
+                    } catch (err: any) {
+                      console.error("PDF generation error:", err);
+                      setReportStatusMessage({
+                        type: "error",
+                        text: "PDF oluşturulurken bir hata meydana geldi: " + (err?.message || "Bilinmeyen hata")
+                      });
+                    } finally {
+                      setIsGeneratingPdf(false);
                     }
                   }}
-                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/20"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Sistemden Yazdır 🖨️
+                  <FileText className="w-4 h-4" />
+                  {isGeneratingPdf ? "PDF Hazırlanıyor..." : "PDF Olarak İndir 📥"}
+                </button>
+
+                {/* 2. Sistemden Yazdır Butonu */}
+                <button
+                  onClick={() => {
+                    setReportStatusMessage({
+                      type: "info",
+                      text: "Yazdırma penceresi hazırlanıyor..."
+                    });
+                    setTimeout(() => {
+                      try {
+                        window.print();
+                        setReportStatusMessage({
+                          type: "success",
+                          text: "Yazdırma penceresi açıldı. Raporu doğrudan yazıcıya gönderebilir veya PDF olarak kaydedebilirsiniz."
+                        });
+                      } catch (err) {
+                        console.warn("Direct window.print failed:", err);
+                        setReportStatusMessage({
+                          type: "error",
+                          text: "Yazdırma komutu açılamadı. Lütfen 'PDF Olarak İndir' butonunu kullanarak belgeyi edinin."
+                        });
+                      }
+                    }, 150);
+                  }}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
+                >
+                  <Printer className="w-4 h-4 text-emerald-400" /> Sistemden Yazdır 🖨️
+                </button>
+
+                {/* 3. Yıllık PDF Özeti Butonu */}
+                <button
+                  onClick={() => {
+                    try {
+                      setReportStatusMessage({ type: "info", text: "Yıllık Finansal Özet PDF oluşturuluyor..." });
+                      const curYear = new Date().getFullYear();
+                      const res = generateAnnualPdfReport({
+                        year: curYear,
+                        incomes,
+                        expenses,
+                        payments,
+                        debts: cleanDebts,
+                        installmentDebts: cleanInstallments,
+                        currencySymbol: "₺",
+                        language
+                      });
+                      if (res?.fileName) {
+                        setReportStatusMessage({
+                          type: "success",
+                          text: `Yıllık Finansal Özet PDF (${res.fileName}) başarıyla indirildi!`
+                        });
+                      }
+                    } catch (err: any) {
+                      console.error("Annual PDF generation error:", err);
+                      setReportStatusMessage({
+                        type: "error",
+                        text: "Yıllık PDF oluşturulurken hata oluştu: " + (err?.message || "Bilinmeyen hata")
+                      });
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
                 </button>
               </div>
             </div>
 
-            {/* Print/Audit Report Sheet container styled to look extremely clean and official */}
-            <div id="financial-audit-report" className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-inner max-w-4xl mx-auto space-y-8 print:border-0 print:shadow-none print:p-0">
+            {/* Print/Audit Report Sheet container */}
+            <div id="financial-audit-report" className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-inner max-w-4xl mx-auto space-y-7 print:border-0 print:shadow-none print:p-0">
+              
               {/* Header inside Statement document */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 dark:border-slate-800 pb-6 gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 bg-indigo-600 text-white font-black text-[10px] rounded-lg tracking-wider uppercase">
-                      RESMİ DENETİM RAPORU
+                    <span className="px-2.5 py-1 bg-indigo-600 text-white font-black text-[10px] rounded-lg tracking-wider uppercase flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> RESMİ DENETİM RAPORU
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 font-mono">
                       SERİ NO: BP-{Date.now().toString().slice(-6)}
@@ -1235,11 +1427,11 @@ export function FinancialTools({
                     📊 BÜTÇEM PRO FİNANSAL BORÇ VE BÜTÇE DENETİM RAPORU
                   </h1>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    Rapor Düzenleme Tarihi: {new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                    Rapor Düzenleme Tarihi: {new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} {new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
                 <div className="text-right sm:self-center">
-                  <span className="px-3 py-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-400 font-black text-[10px] rounded-xl tracking-widest uppercase border border-emerald-300/40">
+                  <span className="px-3 py-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-400 font-black text-[10px] rounded-xl tracking-widest uppercase border border-emerald-300/40 inline-flex items-center gap-1">
                     ✓ ONAYLI FİNANSAL DOSYA
                   </span>
                 </div>
@@ -1290,157 +1482,368 @@ export function FinancialTools({
                 </div>
               </div>
 
-              {/* 1. BANKA VEYA KREDİ KARTI BORÇLARI */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    💳 1. BANKA VEYA KREDİ KARTI BORÇLARI
-                  </h3>
-                  <span className="text-[10px] font-extrabold text-slate-400">
-                    Toplam {debts.length} Kalem
-                  </span>
+              {/* In-Report Interactive Filter Pills (Hidden during printing) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/80 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800 print:hidden">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <Filter className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Borç Görünümü:</span>
                 </div>
-
-                {debts.length === 0 ? (
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                    <p className="text-xs text-slate-400 italic">Kayıtlı aktif banka veya kredi kartı borcu bulunmamaktadır.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
-                        <tr>
-                          <th className="p-3">Borç / Kredi Adı</th>
-                          <th className="p-3">Kategori</th>
-                          <th className="p-3 text-right">Ödenen Tutar</th>
-                          <th className="p-3 text-right">Kalan Borç</th>
-                          <th className="p-3 text-right">Toplam Tutar</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
-                        {debts.map((d) => {
-                          const remaining = Math.max(0, d.amount - d.paid);
-                          return (
-                            <tr key={d.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
-                              <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{d.name}</td>
-                              <td className="p-3 text-slate-500 dark:text-slate-400">{d.category}</td>
-                              <td className="p-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{format(d.paid)}</td>
-                              <td className="p-3 text-right font-mono font-bold text-rose-500">{format(remaining)}</td>
-                              <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">{format(d.amount)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    onClick={() => setReportDebtFilter("all")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                      reportDebtFilter === "all"
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                    }`}
+                  >
+                    Tüm Kayıtlar ({cleanDebts.length + cleanInstallments.length})
+                  </button>
+                  <button
+                    onClick={() => setReportDebtFilter("active")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                      reportDebtFilter === "active"
+                        ? "bg-rose-600 text-white shadow-sm"
+                        : "bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
+                    Yalnızca Kalan / Aktif Borçlar ({
+                      cleanDebts.filter(d => Math.max(0, d.amount - d.paid) > 0).length +
+                      cleanInstallments.filter(i => {
+                        const m = i.totalAmount / (i.installmentCount || 1);
+                        return Math.max(0, i.totalAmount - (i.paidInstallmentCount || 0) * m) > 0;
+                      }).length
+                    })
+                  </button>
+                  <button
+                    onClick={() => setReportDebtFilter("paid")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                      reportDebtFilter === "paid"
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Kapanan / Ödenenler ({
+                      cleanDebts.filter(d => Math.max(0, d.amount - d.paid) === 0).length +
+                      cleanInstallments.filter(i => {
+                        const m = i.totalAmount / (i.installmentCount || 1);
+                        return Math.max(0, i.totalAmount - (i.paidInstallmentCount || 0) * m) === 0;
+                      }).length
+                    })
+                  </button>
+                </div>
               </div>
 
-              {/* 2. TAKSİTLİ BORÇLAR & KREDİLER */}
+              {/* 1. BANKA VEYA KREDİ KARTI BORÇLARI (Tekrarlardan Arındırılmış) */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    🗓️ 2. TAKSİTLİ BORÇLAR & KREDİLER
-                  </h3>
-                  <span className="text-[10px] font-extrabold text-slate-400">
-                    Toplam {installmentDebts.length} Kalem
-                  </span>
-                </div>
+                {(() => {
+                  const filteredDebts = cleanDebts.filter((d) => {
+                    const rem = Math.max(0, d.amount - d.paid);
+                    if (reportDebtFilter === "active") return rem > 0;
+                    if (reportDebtFilter === "paid") return rem === 0;
+                    return true;
+                  });
 
-                {installmentDebts.length === 0 ? (
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                    <p className="text-xs text-slate-400 italic">Kayıtlı taksitli borç veya kredi kalemi bulunmamaktadır.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
-                        <tr>
-                          <th className="p-3">Taksitli Borç Adı</th>
-                          <th className="p-3">Taksit Durumu</th>
-                          <th className="p-3 text-right">Aylık Taksit</th>
-                          <th className="p-3 text-right">Kalan Borç</th>
-                          <th className="p-3 text-right">Toplam Tutar</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
-                        {installmentDebts.map((inst) => {
-                          const monthly = inst.totalAmount / inst.installmentCount;
-                          const paidValue = inst.paidInstallmentCount * monthly;
-                          const remaining = Math.max(0, inst.totalAmount - paidValue);
-                          return (
-                            <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
-                              <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{inst.name}</td>
-                              <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                                {inst.paidInstallmentCount} / {inst.installmentCount} Taksit
-                              </td>
-                              <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">{format(monthly)}</td>
-                              <td className="p-3 text-right font-mono font-bold text-amber-500">{format(remaining)}</td>
-                              <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">{format(inst.totalAmount)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                  const totalFilteredRem = filteredDebts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+                  const totalFilteredAmount = filteredDebts.reduce((sum, d) => sum + d.amount, 0);
+
+                  return (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 gap-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                            💳 1. BANKA VEYA KREDİ KARTI BORÇLARI
+                          </h3>
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 rounded-md">
+                            {filteredDebts.length} Kalem
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                          Kalan Borç: <span className="text-rose-600 dark:text-rose-400 font-black">{format(totalFilteredRem)}</span> / Toplam: <span className="text-slate-800 dark:text-slate-200 font-black">{format(totalFilteredAmount)}</span>
+                        </div>
+                      </div>
+
+                      {filteredDebts.length === 0 ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                          <p className="text-xs text-slate-400 italic">
+                            {reportDebtFilter === "active"
+                              ? "Harika! Aktif ödenmemiş banka veya kredi kartı borcu kalmamıştır."
+                              : "Bu filtreye uygun kayıtlı banka veya kredi kartı borcu bulunmamaktadır."}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                              <tr>
+                                <th className="p-3">Borç / Kurum Adı</th>
+                                <th className="p-3">Kategori & Vade</th>
+                                <th className="p-3">Durum</th>
+                                <th className="p-3 text-right">Ödenen Tutar</th>
+                                <th className="p-3 text-right">Kalan Borç</th>
+                                <th className="p-3 text-right">Toplam Tutar</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                              {filteredDebts.map((d) => {
+                                const remaining = Math.max(0, d.amount - d.paid);
+                                const isPaid = remaining === 0;
+                                const percentPaid = d.amount > 0 ? Math.min(100, Math.round((d.paid / d.amount) * 100)) : 100;
+
+                                return (
+                                  <tr key={d.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                                    <td className="p-3">
+                                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                                        {d.name}
+                                      </div>
+                                    </td>
+                                    <td className="p-3">
+                                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded text-slate-600 dark:text-slate-400">
+                                        {d.category || "Genel"}
+                                      </span>
+                                      {d.dueDate && (
+                                        <span className="block text-[10px] text-slate-400 mt-0.5">
+                                          Vade: {d.dueDate}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      {isPaid ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                                          <Check className="w-2.5 h-2.5" /> ÖDENDİ
+                                        </span>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+                                            Ödeniyor (%{percentPaid})
+                                          </span>
+                                          <div className="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
+                                            <div
+                                              className="bg-emerald-500 h-1 rounded-full"
+                                              style={{ width: `${percentPaid}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                      {format(d.paid)}
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-bold text-rose-500">
+                                      {format(remaining)}
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">
+                                      {format(d.amount)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* 2. TAKSİTLİ BORÇLAR & KREDİLER (Tekrarlardan Arındırılmış) */}
+              <div className="space-y-3">
+                {(() => {
+                  const filteredInstallments = cleanInstallments.filter((inst) => {
+                    const monthly = inst.totalAmount / (inst.installmentCount || 1);
+                    const paidVal = (inst.paidInstallmentCount || 0) * monthly;
+                    const rem = Math.max(0, inst.totalAmount - paidVal);
+                    if (reportDebtFilter === "active") return rem > 0;
+                    if (reportDebtFilter === "paid") return rem === 0;
+                    return true;
+                  });
+
+                  const totalFilteredRem = filteredInstallments.reduce((sum, inst) => {
+                    const monthly = inst.totalAmount / (inst.installmentCount || 1);
+                    const paidVal = (inst.paidInstallmentCount || 0) * monthly;
+                    return sum + Math.max(0, inst.totalAmount - paidVal);
+                  }, 0);
+                  const totalFilteredAmount = filteredInstallments.reduce((sum, inst) => sum + inst.totalAmount, 0);
+
+                  return (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 gap-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                            🗓️ 2. TAKSİTLİ BORÇLAR & KREDİLER
+                          </h3>
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 rounded-md">
+                            {filteredInstallments.length} Kalem
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                          Kalan Tutar: <span className="text-amber-500 font-black">{format(totalFilteredRem)}</span> / Toplam: <span className="text-slate-800 dark:text-slate-200 font-black">{format(totalFilteredAmount)}</span>
+                        </div>
+                      </div>
+
+                      {filteredInstallments.length === 0 ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                          <p className="text-xs text-slate-400 italic">
+                            {reportDebtFilter === "active"
+                              ? "Harika! Aktif ödenmemiş taksitli borç veya kredi kalemi bulunmamaktadır."
+                              : "Kayıtlı taksitli borç veya kredi kalemi bulunmamaktadır."}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                              <tr>
+                                <th className="p-3">Taksitli Borç Adı</th>
+                                <th className="p-3">Taksit İlerlemesi</th>
+                                <th className="p-3">Durum</th>
+                                <th className="p-3 text-right">Aylık Taksit</th>
+                                <th className="p-3 text-right">Kalan Borç</th>
+                                <th className="p-3 text-right">Toplam Tutar</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                              {filteredInstallments.map((inst) => {
+                                const count = inst.installmentCount || 1;
+                                const paidCount = inst.paidInstallmentCount || 0;
+                                const monthly = inst.totalAmount / count;
+                                const paidValue = paidCount * monthly;
+                                const remaining = Math.max(0, inst.totalAmount - paidValue);
+                                const isComplete = paidCount >= count || remaining === 0;
+
+                                return (
+                                  <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                                    <td className="p-3">
+                                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                                        {inst.name}
+                                      </div>
+                                      {inst.firstDueDate && (
+                                        <span className="text-[10px] text-slate-400">
+                                          Başlangıç: {inst.firstDueDate}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold block">
+                                        {paidCount} / {count} Taksit
+                                      </span>
+                                      <div className="w-20 bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden mt-1">
+                                        <div
+                                          className="bg-indigo-500 h-1 rounded-full"
+                                          style={{ width: `${Math.min(100, Math.round((paidCount / count) * 100))}%` }}
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="p-3">
+                                      {isComplete ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                                          ✓ TAMAMLANDI
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                                          Devam Ediyor
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                                      {format(monthly)}
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-bold text-amber-500">
+                                      {format(remaining)}
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-200">
+                                      {format(inst.totalAmount)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* 3. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ) */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    👥 3. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ)
-                  </h3>
-                  <span className="text-[10px] font-extrabold text-slate-400">
-                    Toplam {contactTxs.length} İşlem
-                  </span>
-                </div>
+                {(() => {
+                  const filteredContactTxs = cleanContactTxs.filter((tx) => {
+                    if (reportDebtFilter === "active") return !tx.isPaid;
+                    if (reportDebtFilter === "paid") return tx.isPaid;
+                    return true;
+                  });
 
-                {contactTxs.length === 0 ? (
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                    <p className="text-xs text-slate-400 italic">Kayıtlı kişi borç veya alacak kaydı bulunmamaktadır.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
-                        <tr>
-                          <th className="p-3">Kişi Adı</th>
-                          <th className="p-3">İşlem Türü</th>
-                          <th className="p-3">Durum</th>
-                          <th className="p-3 text-right">Tutar</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
-                        {contactTxs.map((tx) => (
-                          <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
-                            <td className="p-3 font-bold text-slate-800 dark:text-slate-100">{tx.contactName}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                tx.type === "payable" 
-                                  ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400"
-                                  : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400"
-                              }`}>
-                                {tx.type === "payable" ? "Kişiye Borç (Verecek)" : "Kişiden Alacak"}
-                              </span>
-                            </td>
-                            <td className="p-3">
-                              {tx.isPaid ? (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ Tamamlandı</span>
-                              ) : (
-                                <span className="text-amber-500 font-bold">⌛ Ödeme Bekliyor</span>
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">
-                              {format(tx.amount)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                  return (
+                    <>
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                            👥 3. KİŞİ BAZLI BORÇ VE ALACAKLAR (CARİ)
+                          </h3>
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 rounded-md">
+                            {filteredContactTxs.length} İşlem
+                          </span>
+                        </div>
+                      </div>
+
+                      {filteredContactTxs.length === 0 ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                          <p className="text-xs text-slate-400 italic">Kayıtlı kişi borç veya alacak kaydı bulunmamaktadır.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                              <tr>
+                                <th className="p-3">Kişi Adı</th>
+                                <th className="p-3">İşlem Türü</th>
+                                <th className="p-3">Durum</th>
+                                <th className="p-3 text-right">Tutar</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                              {filteredContactTxs.map((tx) => (
+                                <tr key={tx.id || `${tx.contactName}_${tx.amount}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                                  <td className="p-3 font-bold text-slate-800 dark:text-slate-100">
+                                    {tx.contactName}
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      tx.type === "payable" 
+                                        ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400"
+                                        : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400"
+                                    }`}>
+                                      {tx.type === "payable" ? "Kişiye Borç (Verecek)" : "Kişiden Alacak"}
+                                    </span>
+                                  </td>
+                                  <td className="p-3">
+                                    {tx.isPaid ? (
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                        <Check className="w-3 h-3" /> Tamamlandı
+                                      </span>
+                                    ) : (
+                                      <span className="text-amber-500 font-bold flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> Ödeme Bekliyor
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">
+                                    {format(tx.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* 4. BAŞ ASİSTAN STRATEJİ VE ANALİZ KARARI */}

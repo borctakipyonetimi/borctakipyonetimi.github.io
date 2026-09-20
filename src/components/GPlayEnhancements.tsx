@@ -306,8 +306,26 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
       GOLD_TAM: mainRates?.GOLD_TAM || 44526.08,
       GOLD_CUMHURIYET: mainRates?.GOLD_CUMHURIYET || 45961.00,
       GOLD_ONS: mainRates?.GOLD_ONS || 4431.10,
-      BTC: (mainRates?.BTC_USD || 79614.00) * (mainRates?.USD || 48.42),
-      BTC_USD: mainRates?.BTC_USD || 79614.00
+      BTC: mainRates?.BTC_TRY || (mainRates?.BTC_USD || 79614.00) * (mainRates?.USD || 48.42),
+      BTC_USD: mainRates?.BTC_USD || 79614.00,
+      ETH: mainRates?.ETH_TRY || (mainRates?.ETH_USD || 2680.00) * (mainRates?.USD || 48.42),
+      ETH_USD: mainRates?.ETH_USD || 2680.00,
+      SOL: mainRates?.SOL_TRY || (mainRates?.SOL_USD || 185.50) * (mainRates?.USD || 48.42),
+      SOL_USD: mainRates?.SOL_USD || 185.50,
+      BNB: mainRates?.BNB_TRY || (mainRates?.BNB_USD || 645.00) * (mainRates?.USD || 48.42),
+      BNB_USD: mainRates?.BNB_USD || 645.00,
+      XRP: mainRates?.XRP_TRY || (mainRates?.XRP_USD || 2.15) * (mainRates?.USD || 48.42),
+      XRP_USD: mainRates?.XRP_USD || 2.15,
+      AVAX: mainRates?.AVAX_TRY || (mainRates?.AVAX_USD || 28.50) * (mainRates?.USD || 48.42),
+      AVAX_USD: mainRates?.AVAX_USD || 28.50,
+      DOGE: mainRates?.DOGE_TRY || (mainRates?.DOGE_USD || 0.22) * (mainRates?.USD || 48.42),
+      DOGE_USD: mainRates?.DOGE_USD || 0.22,
+      ADA: mainRates?.ADA_TRY || (mainRates?.ADA_USD || 0.78) * (mainRates?.USD || 48.42),
+      ADA_USD: mainRates?.ADA_USD || 0.78,
+      TON: mainRates?.TON_TRY || (mainRates?.TON_USD || 5.40) * (mainRates?.USD || 48.42),
+      TON_USD: mainRates?.TON_USD || 5.40,
+      USDT: mainRates?.USDT_TRY || mainRates?.USD || 48.45,
+      USDT_USD: mainRates?.USDT_USD || 1.00
     };
   }, [mainRates]);
 
@@ -1520,24 +1538,203 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             </>
           )}
 
-          {/* Crypto Group */}
+          {/* Crypto Group (Diversified) */}
           {(marketCategoryTab === "all" || marketCategoryTab === "crypto") && (
-            <div className="p-3.5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-300 dark:border-amber-700/60 rounded-2xl space-y-1.5 shadow-xs col-span-2 sm:col-span-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
-                  🪙 Bitcoin (BTC)
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  {rateDetails.BTC?.change ? `${rateDetails.BTC.change.toFixed(2)}%` : "+0.85%"}
-                </span>
+            <>
+              {/* BTC */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-300 dark:border-amber-700/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    ₿ Bitcoin (BTC)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.BTC?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.BTC?.change || 0) >= 0 ? "+" : ""}{(rateDetails.BTC?.change || 0.85).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.BTC_USD || 79614).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                </div>
+                <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-bold">
+                  ₺{exchangeRates.BTC?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+                </div>
               </div>
-              <div className="text-base font-black font-mono text-slate-900 dark:text-white">
-                ${(exchangeRates.BTC_USD || 79614).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+
+              {/* ETH */}
+              <div className="p-3.5 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-indigo-900 dark:text-indigo-200 flex items-center gap-1">
+                    ⟠ Ethereum (ETH)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.ETH?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.ETH?.change || 0) >= 0 ? "+" : ""}{(rateDetails.ETH?.change || 1.45).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.ETH_USD || 2680).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                </div>
+                <div className="text-[10px] text-indigo-700 dark:text-indigo-300 font-mono font-bold">
+                  ₺{exchangeRates.ETH?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+                </div>
               </div>
-              <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-bold">
-                ₺{exchangeRates.BTC?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+
+              {/* SOL */}
+              <div className="p-3.5 bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-purple-900 dark:text-purple-200 flex items-center gap-1">
+                    ◎ Solana (SOL)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.SOL?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.SOL?.change || 0) >= 0 ? "+" : ""}{(rateDetails.SOL?.change || 2.15).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.SOL_USD || 185.5).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-purple-700 dark:text-purple-300 font-mono font-bold">
+                  ₺{exchangeRates.SOL?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+                </div>
               </div>
-            </div>
+
+              {/* BNB */}
+              <div className="p-3.5 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/20 border border-yellow-200 dark:border-yellow-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-yellow-900 dark:text-yellow-200 flex items-center gap-1">
+                    🟡 Binance Coin (BNB)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.BNB?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.BNB?.change || 0) >= 0 ? "+" : ""}{(rateDetails.BNB?.change || -0.45).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.BNB_USD || 645).toFixed(1)}
+                </div>
+                <div className="text-[10px] text-yellow-700 dark:text-yellow-300 font-mono font-bold">
+                  ₺{exchangeRates.BNB?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+                </div>
+              </div>
+
+              {/* XRP */}
+              <div className="p-3.5 bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900 dark:to-gray-900 border border-slate-300 dark:border-slate-700 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                    ✕ Ripple (XRP)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.XRP?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.XRP?.change || 0) >= 0 ? "+" : ""}{(rateDetails.XRP?.change || 1.10).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.XRP_USD || 2.15).toFixed(3)}
+                </div>
+                <div className="text-[10px] text-slate-600 dark:text-slate-300 font-mono font-bold">
+                  ₺{(exchangeRates.XRP || 104.1).toFixed(2)} TL
+                </div>
+              </div>
+
+              {/* AVAX */}
+              <div className="p-3.5 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20 border border-red-200 dark:border-red-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-red-900 dark:text-red-200 flex items-center gap-1">
+                    🔺 Avalanche (AVAX)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.AVAX?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.AVAX?.change || 0) >= 0 ? "+" : ""}{(rateDetails.AVAX?.change || 2.80).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.AVAX_USD || 28.5).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-red-700 dark:text-red-300 font-mono font-bold">
+                  ₺{exchangeRates.AVAX?.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL
+                </div>
+              </div>
+
+              {/* DOGE */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                    🐶 Dogecoin (DOGE)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.DOGE?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.DOGE?.change || 0) >= 0 ? "+" : ""}{(rateDetails.DOGE?.change || 0.55).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.DOGE_USD || 0.22).toFixed(3)}
+                </div>
+                <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-bold">
+                  ₺{(exchangeRates.DOGE || 10.65).toFixed(2)} TL
+                </div>
+              </div>
+
+              {/* TON */}
+              <div className="p-3.5 bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/30 dark:to-cyan-950/20 border border-sky-200 dark:border-sky-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-sky-900 dark:text-sky-200 flex items-center gap-1">
+                    💎 Toncoin (TON)
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    (rateDetails.TON?.change || 0) >= 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  }`}>
+                    {(rateDetails.TON?.change || 0) >= 0 ? "+" : ""}{(rateDetails.TON?.change || 1.85).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.TON_USD || 5.4).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-sky-700 dark:text-sky-300 font-mono font-bold">
+                  ₺{(exchangeRates.TON || 261.47).toFixed(2)} TL
+                </div>
+              </div>
+
+              {/* USDT */}
+              <div className="p-3.5 bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/20 border border-teal-200 dark:border-teal-800/60 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-teal-900 dark:text-teal-200 flex items-center gap-1">
+                    🟢 Tether (USDT)
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    Stable
+                  </span>
+                </div>
+                <div className="text-base font-black font-mono text-slate-900 dark:text-white">
+                  ${(exchangeRates.USDT_USD || 1.0).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-teal-700 dark:text-teal-300 font-mono font-bold">
+                  ₺{(exchangeRates.USDT || exchangeRates.USD || 48.45).toFixed(2)} TL
+                </div>
+              </div>
+            </>
           )}
         </div>
 
@@ -1590,7 +1787,16 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                 <option value="GOLD_TAM">👑 Tam Altın</option>
                 <option value="GOLD_CUMHURIYET">👑 Cumhuriyet Altını</option>
                 <option value="GOLD_ONS">🌍 Ons Altın ($ XAU)</option>
-                <option value="BTC">🪙 Bitcoin (BTC)</option>
+                <option value="BTC">₿ Bitcoin (BTC)</option>
+                <option value="ETH">⟠ Ethereum (ETH)</option>
+                <option value="SOL">◎ Solana (SOL)</option>
+                <option value="BNB">🟡 Binance Coin (BNB)</option>
+                <option value="XRP">✕ Ripple (XRP)</option>
+                <option value="AVAX">🔺 Avalanche (AVAX)</option>
+                <option value="DOGE">🐶 Dogecoin (DOGE)</option>
+                <option value="ADA">🔷 Cardano (ADA)</option>
+                <option value="TON">💎 Toncoin (TON)</option>
+                <option value="USDT">🟢 Tether (USDT)</option>
               </select>
             </div>
 
@@ -1631,7 +1837,16 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                 <option value="GOLD_TAM">👑 Tam Altın</option>
                 <option value="GOLD_CUMHURIYET">👑 Cumhuriyet Altını</option>
                 <option value="GOLD_ONS">🌍 Ons Altın ($ XAU)</option>
-                <option value="BTC">🪙 Bitcoin (BTC)</option>
+                <option value="BTC">₿ Bitcoin (BTC)</option>
+                <option value="ETH">⟠ Ethereum (ETH)</option>
+                <option value="SOL">◎ Solana (SOL)</option>
+                <option value="BNB">🟡 Binance Coin (BNB)</option>
+                <option value="XRP">✕ Ripple (XRP)</option>
+                <option value="AVAX">🔺 Avalanche (AVAX)</option>
+                <option value="DOGE">🐶 Dogecoin (DOGE)</option>
+                <option value="ADA">🔷 Cardano (ADA)</option>
+                <option value="TON">💎 Toncoin (TON)</option>
+                <option value="USDT">🟢 Tether (USDT)</option>
               </select>
             </div>
           </div>
