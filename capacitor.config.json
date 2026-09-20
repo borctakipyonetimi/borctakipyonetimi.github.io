@@ -1,0 +1,1 @@
+{"appId": "com.borctakip.app", "appName": "Bütçem Pro", "webDir": "www", "server": {"url": "https://github.io", "cleartext": true}, "plugins": {"SplashScreen": {"launchShowDuration": 0, "launchAutoHide": true}, "LocalNotifications": {"smallIcon": "ic_stat_notify", "iconColor": "#10B981"}}}

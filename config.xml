@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.butcempro.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+    <name>Bütçem Pro</name>
+    <description>Bütçem Pro: Akıllı Bütçe, Borç Takibi ve Finansal Analiz. Telefon kapalıyken de çalışan yerel alarmlar ve hatırlatıcılar.</description>
+    <author email="nettenkazanma2@gmail.com" href="https://borctakipyonetimi.github.io/">Bütçem Pro Team</author>
+    <content src="index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-intent href="tel:*" />
+    <allow-intent href="sms:*" />
+    <allow-intent href="mailto:*" />
+    <allow-intent href="geo:*" />
+    
+    <preference name="ScrollEnabled" value="true" />
+    <preference name="android-minSdkVersion" value="22" />
+    <preference name="android-targetSdkVersion" value="34" />
+    <preference name="android-compileSdkVersion" value="34" />
+    <preference name="android-buildToolsVersion" value="34.0.0" />
+    <preference name="Orientation" value="default" />
+    <preference name="KeepRunning" value="true" />
+    <preference name="ShowSplashScreenSpinner" value="false" />
+    <preference name="SplashMaintainAspectRatio" value="true" />
+    <preference name="BackgroundColor" value="0xff111827" />
+
+    <platform name="android">
+        <allow-intent href="market:*" />
+        
+        <!-- Background execution & exact alarm permissions for Android 12, 13, 14+ -->
+        <config-file target="AndroidManifest.xml" parent="/manifest" mode="merge">
+            <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+            <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+            <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+        </config-file>
+    </platform>
+
+    <!-- Modern Cordova Local Notifications with Android 13/14 and Gradle 8+ support -->
+    <plugin name="cordova-plugin-local-notifications-custom" />
+    <plugin name="cordova-plugin-badge" spec="^0.8.8" />
+</widget>

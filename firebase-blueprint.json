@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "User Workspace",
+      "description": "Consolidated workspace configuration and transactions list for a user",
+      "type": "object",
+      "properties": {
+        "debts": {
+          "type": "array",
+          "description": "List of active financial debts"
+        },
+        "incomes": {
+          "type": "array",
+          "description": "List of source incomes"
+        },
+        "alarms": {
+          "type": "array",
+          "description": "User defined alarm reminders"
+        },
+        "notifications": {
+          "type": "array",
+          "description": "Logged in-app notification events"
+        },
+        "installmentDebts": {
+          "type": "array",
+          "description": "Active installment-based debts"
+        },
+        "payments": {
+          "type": "array",
+          "description": "History logs of debt payment events"
+        },
+        "expenses": {
+          "type": "array",
+          "description": "Custom user daily expenses records"
+        },
+        "expenseCategories": {
+          "type": "array",
+          "description": "Selected expense categories configuration"
+        },
+        "contacts": {
+          "type": "array",
+          "description": "Contacts directory with phone and categories"
+        },
+        "contactsTransactions": {
+          "type": "array",
+          "description": "Receivables and payables linked to contacts"
+        },
+        "userAvatar": {
+          "type": "string",
+          "description": "Base64 avatar image"
+        },
+        "isPremium": {
+          "type": "boolean",
+          "description": "User premium subscription status"
+        },
+        "premiumPlan": {
+          "type": "string",
+          "description": "Active subscription tier"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "High resolution server timestamp of the last write"
+        }
+      },
+      "required": ["updatedAt"]
+    },
+    "MailQueueItem": {
+      "title": "Mail Queue Item",
+      "description": "Outbound email job for automatic dispatch across mobile APK and web client",
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "Recipient email address"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Email subject line"
+        },
+        "html": {
+          "type": "string",
+          "description": "Rendered HTML content"
+        },
+        "text": {
+          "type": "string",
+          "description": "Plain text fallback"
+        },
+        "type": {
+          "type": "string",
+          "description": "Email job type: test_email, verification_code, overdue_alert"
+        },
+        "status": {
+          "type": "string",
+          "description": "Job status: pending, processing, sent, failed"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp when queued"
+        },
+        "sentAt": {
+          "type": "number",
+          "description": "Timestamp when successfully sent"
+        }
+      },
+      "required": ["to", "subject", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserWorkspace",
+      "description": "Dynamic workspace for matching owner profile"
+    },
+    "mail_queue/{mailId}": {
+      "schema": "MailQueueItem",
+      "description": "Global automated mail queue for APK and web dispatch"
+    }
+  }
+}
