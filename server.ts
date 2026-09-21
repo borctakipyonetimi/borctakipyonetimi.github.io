@@ -218,14 +218,14 @@ app.get("/api/trial/status", (req, res) => {
 
 app.post("/api/trial/activate", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
-  const { userId, deviceId, forceReset } = req.body || {};
+  const { userId, deviceId } = req.body || {};
   const trials = readTrials();
   const key = (userId && typeof userId === "string" && userId.trim()) || 
               (deviceId && typeof deviceId === "string" && deviceId.trim()) || 
               ip;
 
-  // If forceReset is requested or no trial exists, activate fresh 7-day trial
-  if (forceReset || !trials[key]) {
+  // 7 günlük deneme süresi tek seferliktir; yenileme yapılmaz
+  if (!trials[key]) {
     const nowIso = new Date().toISOString();
     trials[key] = nowIso;
     if (deviceId) trials[deviceId] = nowIso;
@@ -249,6 +249,33 @@ app.post("/api/trial/activate", (req, res) => {
     daysRemaining: daysRemaining,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
+  });
+});
+
+app.post("/api/trial/cancel", (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
+  const { userId, deviceId } = req.body || {};
+  const trials = readTrials();
+  const key = (userId && typeof userId === "string" && userId.trim()) || 
+              (deviceId && typeof deviceId === "string" && deviceId.trim()) || 
+              ip;
+
+  // Deneme iptal edildiğinde geçmiş bir tarih atanarak sona erdirilir
+  const expiredDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  trials[key] = expiredDate;
+  if (deviceId) trials[deviceId] = expiredDate;
+  if (userId) trials[userId] = expiredDate;
+  trials[ip] = expiredDate;
+  writeTrials(trials);
+
+  res.json({
+    hasTrial: true,
+    isActive: false,
+    isExpired: true,
+    isCanceled: true,
+    daysRemaining: 0,
+    startDate: null,
+    endDate: null,
   });
 });
 

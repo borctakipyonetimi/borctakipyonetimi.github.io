@@ -541,12 +541,14 @@ export default function App() {
               }
             }
           } else if (data.isExpired) {
+            localStorage.removeItem("trial_end_date");
+            setTrialStatus(data);
             if (pSource === "trial" || (!pSource && isPremium)) {
               setIsPremium(false);
               localStorage.setItem("is_premium", "false");
               localStorage.removeItem("premium_source");
               
-              const expMsg = "⏳ 7 günlük ücretsiz Bütçem Pro deneme süreniz sona erdi. Özellikleri kullanmaya devam etmek için lütfen Premium üye olun.";
+              const expMsg = "⏳ 7 günlük ücretsiz Bütçem Pro deneme süreniz dolmuştur. Reklamlı ve kısıtlı ücretsiz plan ile devam ediyorsunuz. Sınırsız kullanım için PRO paketi satın alabilirsiniz.";
               triggerToast(expMsg);
               
               setNotifications(prev => {
@@ -564,8 +566,6 @@ export default function App() {
                   ...prev
                 ];
               });
-              
-              setIsUpgradeModalOpen(true);
             }
           }
         }
@@ -597,6 +597,7 @@ export default function App() {
         setIsPremium(false);
         localStorage.setItem("is_premium", "false");
         localStorage.removeItem("premium_source");
+        localStorage.removeItem("trial_end_date");
       } else {
         setIsPremium(true);
       }
@@ -623,26 +624,40 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: currentUser || "",
-          deviceId,
-          forceReset: true
+          deviceId
         })
       });
 
-      if (data && data.isActive) {
+      if (data) {
         setTrialStatus(data);
-        setIsPremium(true);
-        localStorage.setItem("is_premium", "true");
-        localStorage.setItem("premium_source", "trial");
-        const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        localStorage.setItem("trial_end_date", trialEndDate);
-        triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
-        return;
+        if (data.isActive) {
+          setIsPremium(true);
+          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("premium_source", "trial");
+          const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          localStorage.setItem("trial_end_date", trialEndDate);
+          triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+          return;
+        } else if (data.isExpired) {
+          setIsPremium(false);
+          localStorage.setItem("is_premium", "false");
+          localStorage.removeItem("premium_source");
+          localStorage.removeItem("trial_end_date");
+          triggerToast("⏳ 7 günlük deneme süreniz daha önce tamamlanmıştır. Reklamlı ve kısıtlı ücretsiz plan ile devam edilmektedir.");
+          return;
+        }
       }
     } catch (e) {
       console.warn("Trial activation server request failed, activating locally:", e);
     }
 
-    // Local activation fallback
+    // Local activation fallback (only if not expired before)
+    const existingEnd = localStorage.getItem("trial_end_date");
+    if (existingEnd && new Date(existingEnd).getTime() <= Date.now()) {
+      triggerToast("⏳ 7 günlük deneme süreniz dolmuştur. Reklamlı ve kısıtlı ücretsiz plan ile devam ediliyor.");
+      return;
+    }
+
     const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     localStorage.setItem("is_premium", "true");
     localStorage.setItem("premium_source", "trial");
@@ -657,6 +672,40 @@ export default function App() {
       endDate: trialEndDate
     });
     triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
+  };
+
+  const handleCancelTrial = async () => {
+    let deviceId = localStorage.getItem("butcem_device_id");
+    try {
+      await safeFetchJson("/api/trial/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser || "",
+          deviceId
+        })
+      });
+    } catch (e) {
+      console.warn("Trial cancel server error:", e);
+    }
+
+    // Clear local trial & premium state completely
+    localStorage.removeItem("premium_source");
+    localStorage.removeItem("trial_end_date");
+    localStorage.setItem("is_premium", "false");
+    setIsPremium(false);
+
+    setTrialStatus({
+      hasTrial: true,
+      isActive: false,
+      isExpired: true,
+      daysRemaining: 0,
+      startDate: null,
+      endDate: null
+    });
+
+    await savePremiumStatusAndSync(false, "yearly");
+    triggerToast("Deneme sürümü iptal edildi. Reklamlı ve kısıtlı ücretsiz plana geçildi ⚪");
   };
 
   useEffect(() => {
@@ -5911,6 +5960,11 @@ export default function App() {
           setSelectedProvider(null);
         }}
         onLoginSuccess={handleProviderLoginSuccess}
+        onContinueGuest={() => {
+          setProviderLoginOpen(false);
+          setSelectedProvider(null);
+          triggerToast("Misafir modu ile devam ediliyor (Yerel Cihaz Hafızası) 👍");
+        }}
       />
 
       {/* Header Container - Premium Glossy Mesh Header */}
@@ -9486,8 +9540,8 @@ export default function App() {
                             </div>
                             
                             {trialStatus && trialStatus.hasTrial ? (
-                              trialStatus.isActive ? (
-                                <div className="space-y-2 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
+                              trialStatus.isActive && isPremium ? (
+                                <div className="space-y-2.5 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
                                   <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
                                     ✨ DENEME SÜRÜMÜNÜZ AKTİF
                                   </p>
@@ -9495,31 +9549,32 @@ export default function App() {
                                     Kalan Süre: <span className="font-extrabold text-xs">{trialStatus.daysRemaining} Gün</span>
                                   </p>
                                   <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
-                                    Sona Erme: {new Date(trialStatus.endDate || "").toLocaleDateString("tr-TR")}
+                                    Sona Erme: {trialStatus.endDate ? new Date(trialStatus.endDate).toLocaleDateString("tr-TR") : "-"}
+                                  </p>
+                                  <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                                    7 günlük deneme süresi tek seferliktir ve yenilenmez. Süre dolduğunda otomatik olarak reklamlı ve kısıtlı ücretsiz plan ile devam edilir.
                                   </p>
                                   <button
                                     type="button"
-                                    onClick={handleActivateTrial}
-                                    className="w-full mt-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
+                                    onClick={handleCancelTrial}
+                                    className="w-full mt-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 active:scale-97"
                                   >
-                                    🔄 7 GÜNLÜK DENEMEYİ SIFIRLA / YENİLE
+                                    ✕ Deneme Sürümünü İptal Et
                                   </button>
                                 </div>
                               ) : (
-                                <div className="space-y-2 text-center bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
-                                  <p className="text-[11px] font-black text-rose-700 dark:text-rose-450 uppercase leading-none">
+                                <div className="space-y-2 text-center bg-slate-100 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase leading-none">
                                     ⏳ DENEME SÜRÜNÜZ SONA ERDİ
                                   </p>
-                                  <p className="text-[10px] text-rose-600 dark:text-rose-450 font-bold leading-normal">
-                                    7 günlük deneme süreniz dolmuştur. Yeniden denemek veya Pro'ya geçmek için butona tıklayabilirsiniz.
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                    7 günlük ücretsiz deneme hakkınız tamamlanmıştır. Şu anda <strong>reklamlı ve kısıtlı ücretsiz plan</strong> ile devam etmektesiniz.
                                   </p>
-                                  <button
-                                    type="button"
-                                    onClick={handleActivateTrial}
-                                    className="w-full mt-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 active:scale-97"
-                                  >
-                                    🚀 7 GÜNLÜK DENEMEYİ TEKRAR BAŞLAT
-                                  </button>
+                                  <div className="pt-1">
+                                    <span className="inline-block text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-2.5 py-1 rounded-md">
+                                      🛡️ Reklamlı ve Kısıtlı Ücretsiz Plan Aktif
+                                    </span>
+                                  </div>
                                 </div>
                               )
                             ) : (
@@ -9553,13 +9608,17 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  savePremiumStatusAndSync(false, "yearly");
-                                  localStorage.removeItem("premium_source");
-                                  triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
+                                  if (localStorage.getItem("premium_source") === "trial") {
+                                    handleCancelTrial();
+                                  } else {
+                                    savePremiumStatusAndSync(false, "yearly");
+                                    localStorage.removeItem("premium_source");
+                                    triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
+                                  }
                                 }}
                                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-97 border border-dashed border-slate-300 dark:border-slate-700"
                               >
-                                Lisansı / Denemeyi Devre Dışı Bırak (Test)
+                                {localStorage.getItem("premium_source") === "trial" ? "✕ Deneme Sürümünü İptal Et" : "Lisansı Devre Dışı Bırak (Test)"}
                               </button>
                             </div>
                           ) : (

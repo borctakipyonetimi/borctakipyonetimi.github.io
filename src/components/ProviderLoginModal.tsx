@@ -37,6 +37,7 @@ interface ProviderLoginModalProps {
   onLoginSuccess: (email: string) => void;
   isPremium?: boolean;
   onOpenUpgradeModal?: (featureName?: string) => void;
+  onContinueGuest?: () => void;
 }
 
 export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
@@ -45,7 +46,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
   onClose,
   onLoginSuccess,
   isPremium = false,
-  onOpenUpgradeModal
+  onOpenUpgradeModal,
+  onContinueGuest
 }) => {
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
@@ -71,6 +73,15 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  const handleContinueGuest = () => {
+    resetForm();
+    if (onContinueGuest) {
+      onContinueGuest();
+    } else {
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -243,23 +254,43 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           </div>
 
           <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-            {/* 1. MİSAFİR MODU BİLGİLENDİRME KARTI (AYRI BÖLÜM) */}
-            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl flex items-start gap-3 text-left">
-              <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 mt-0.5">
-                <User className="w-4 h-4" />
-              </div>
-              <div className="space-y-0.5 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    👤 Misafir Modu (Ücretsiz)
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                    Yerel Hafıza
-                  </span>
+            {/* 1. MİSAFİR MODU BİLGİLENDİRME VE SEÇİM KARTI */}
+            <div
+              onClick={handleContinueGuest}
+              className="p-4 bg-slate-50 hover:bg-slate-100/90 dark:bg-slate-800/60 dark:hover:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 rounded-3xl transition-all cursor-pointer group active:scale-[0.99] text-left shadow-xs space-y-3"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform mt-0.5">
+                  <User className="w-5 h-5" />
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                  Hesap açmadan tüm borç ve bütçe kayıtlarınızı telefonunuzda güvenle tutabilirsiniz.
-                </p>
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      👤 Misafir Modu (Ücretsiz)
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                      Yerel Hafıza
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Hesap açmadan tüm borç ve bütçe kayıtlarınızı telefonunuzda güvenle tutabilirsiniz.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleContinueGuest();
+                  }}
+                  className="w-full py-2.5 px-3 bg-slate-200/90 hover:bg-slate-300/90 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-97 shadow-xs"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                  <span>Misafir Modu ile Devam Et</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                </button>
               </div>
             </div>
 
@@ -302,7 +333,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
                   <Sparkles className="w-4 h-4 text-slate-950" />
-                  <span>👑 PRO Satın Al / Giriş Bölümünü Aç</span>
+                  <span>👑 Premium ile Devam Et (PRO Satın Al / Giriş)</span>
                   <ArrowRight className="w-4 h-4 text-slate-950" />
                 </button>
               </div>

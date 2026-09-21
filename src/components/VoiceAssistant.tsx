@@ -409,7 +409,7 @@ export default function VoiceAssistant({
     }
   };
 
-  const startListening = (e?: React.MouseEvent) => {
+  const startListening = async (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
@@ -433,6 +433,26 @@ export default function VoiceAssistant({
     setTranscript("");
     setErrorMsg("");
     setAiResponse(null);
+
+    // Explicitly request microphone stream in Android WebView / Browser if supported
+    // This triggers the Android OS microphone permission dialog if not already granted.
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (micErr: any) {
+        console.warn("Microphone permission check warning:", micErr);
+        if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
+          setIsListening(false);
+          isActiveRef.current = false;
+          setMicVolume(0);
+          setStatus("error");
+          setErrorMsg("Mikrofon izni verilmedi. Lütfen cihaz/uygulama izinlerinden mikrofona izin verin.");
+          triggerToast("Mikrofon izni verilmedi. Lütfen uygulama izinlerinden mikrofonu açın.");
+          return;
+        }
+      }
+    }
 
     // If already active, safely abort before restarting
     if (recognitionRef.current) {
