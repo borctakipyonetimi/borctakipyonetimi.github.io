@@ -190,10 +190,10 @@ app.get("/api/trial/status", (req, res) => {
 });
 app.post("/api/trial/activate", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
-  const { userId, deviceId, forceReset } = req.body || {};
+  const { userId, deviceId } = req.body || {};
   const trials = readTrials();
   const key = userId && typeof userId === "string" && userId.trim() || deviceId && typeof deviceId === "string" && deviceId.trim() || ip;
-  if (forceReset || !trials[key]) {
+  if (!trials[key]) {
     const nowIso = (/* @__PURE__ */ new Date()).toISOString();
     trials[key] = nowIso;
     if (deviceId) trials[deviceId] = nowIso;
@@ -215,6 +215,27 @@ app.post("/api/trial/activate", (req, res) => {
     daysRemaining,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString()
+  });
+});
+app.post("/api/trial/cancel", (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
+  const { userId, deviceId } = req.body || {};
+  const trials = readTrials();
+  const key = userId && typeof userId === "string" && userId.trim() || deviceId && typeof deviceId === "string" && deviceId.trim() || ip;
+  const expiredDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
+  trials[key] = expiredDate;
+  if (deviceId) trials[deviceId] = expiredDate;
+  if (userId) trials[userId] = expiredDate;
+  trials[ip] = expiredDate;
+  writeTrials(trials);
+  res.json({
+    hasTrial: true,
+    isActive: false,
+    isExpired: true,
+    isCanceled: true,
+    daysRemaining: 0,
+    startDate: null,
+    endDate: null
   });
 });
 app.get("/api/drive/backups", async (req, res) => {
