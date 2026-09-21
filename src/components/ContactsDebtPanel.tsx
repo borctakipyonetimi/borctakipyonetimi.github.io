@@ -28,7 +28,8 @@ import {
   BookOpen,
   Edit,
   Bell,
-  BellRing
+  BellRing,
+  X
 } from "lucide-react";
 
 import { t } from "../utils/translations";
@@ -707,15 +708,25 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className="relative">
+          <div className="relative flex items-center bg-white dark:bg-slate-800/90 border border-slate-300/80 dark:border-slate-700/80 rounded-2xl py-1.5 px-3 shadow-xs hover:border-indigo-500/50 transition group">
+            <Search className="w-4 h-4 text-indigo-500 dark:text-indigo-400 mr-2 shrink-0 group-focus-within:scale-105 transition" />
             <input
               type="text"
+              data-search-input="true"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rehberde kişi arayın... 🔎"
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+              placeholder="Rehberde kişi veya telefon arayın..."
+              className="w-full bg-transparent no-forced-border text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder:text-slate-500 focus:outline-none border-0 ring-0 p-0 font-semibold"
             />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Directory Contact List Items */}

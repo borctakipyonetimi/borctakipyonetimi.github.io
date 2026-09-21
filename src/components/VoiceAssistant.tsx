@@ -357,176 +357,25 @@ export default function VoiceAssistant({
 
   const recognitionRef = useRef<any>(null);
   const isActiveRef = useRef(false);
-  const shouldRestartRef = useRef(false);
-
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const accumulatedTranscriptRef = useRef<string>("");
 
-  const startMicVolumeMeter = async () => {
-    try {
-      // Clean previous stream if any
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (audioContextRef.current) {
-        try {
-          audioContextRef.current.close();
-        } catch (_) {}
-      }
-
-      // Check support for mediaDevices
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn("navigator.mediaDevices.getUserMedia is not supported in this container.");
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64; // Small fftSize for fast tracking
-      source.connect(analyser);
-
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      const updateVolume = () => {
-        if (!isActiveRef.current && !shouldRestartRef.current) {
-          setMicVolume(0);
-          return;
-        }
-
-        analyser.getByteFrequencyData(dataArray);
-        let total = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          total += dataArray[i];
-        }
-        const average = total / bufferLength;
-        // Map average volume smoothly (usually ranges 0-120 on voice input)
-        setMicVolume(average);
-
-        animationFrameRef.current = requestAnimationFrame(updateVolume);
-      };
-
-      animationFrameRef.current = requestAnimationFrame(updateVolume);
-    } catch (e) {
-      console.warn("Mic Volume Meter failed to initialize (continuing with speech recognition only):", e);
-    }
-  };
-
-  const stopMicVolumeMeter = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close();
-      } catch (_) {}
-      audioContextRef.current = null;
-    }
-    setMicVolume(0);
-  };
-
   useEffect(() => {
-    try {
-      // Check SpeechRecognition cross-browser support
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        setIsSupported(false);
-      } else {
-        const rec = new SpeechRecognition();
-        rec.continuous = false;
-        rec.lang = "tr-TR";
-        rec.interimResults = true; // Enabled interim results for live voice feedback!
-
-        rec.onstart = () => {
-          isActiveRef.current = true;
-          setIsListening(true);
-          setStatus("listening");
-          setErrorMsg("");
-          accumulatedTranscriptRef.current = "";
-        };
-
-        rec.onresult = (event: any) => {
-          let fullTranscript = "";
-          for (let i = 0; i < event.results.length; ++i) {
-            fullTranscript += event.results[i][0].transcript;
-          }
-
-          if (fullTranscript.trim()) {
-            setTranscript(fullTranscript);
-            setManualInput(fullTranscript);
-            accumulatedTranscriptRef.current = fullTranscript;
-          }
-        };
-
-        rec.onerror = (event: any) => {
-          console.warn("Speech recognition error:", event.error);
-          isActiveRef.current = false;
-          stopMicVolumeMeter();
-          
-          if (event.error === "not-allowed") {
-            setErrorMsg("Mikrofon izni verilmedi. Lütfen telefonunuzun Ayarlar > Uygulamalar > Bütçem > İzinler sayfasından mikrofon iznini etkinleştirin.");
-          } else if (event.error === "network") {
-            setErrorMsg("Ortamda internet bağlantısı bulunamadı veya kesik. Ses analizi için aktif internet bağlantısı zorunludur.");
-          } else if (event.error === "no-speech") {
-            setErrorMsg("Herhangi bir ses algılanamadı. Mikrofona biraz daha yakın durarak daha yüksek sesle konuşmayı deneyin.");
-          } else {
-            setErrorMsg(`Android ses servis hatası (${event.error || "bilinmiyor"}). Lütfen cihazınızda Google Asistan veya Speech Services by Google uygulamasının güncel olduğundan emin olun.`);
-          }
-          setStatus("error");
-          setIsListening(false);
-        };
-
-        rec.onend = () => {
-          isActiveRef.current = false;
-          setIsListening(false);
-          stopMicVolumeMeter();
-          
-          if (accumulatedTranscriptRef.current.trim()) {
-            handleProcessText(accumulatedTranscriptRef.current);
-            accumulatedTranscriptRef.current = "";
-          }
-
-          // Safe, controlled async restart if requested
-          if (shouldRestartRef.current) {
-            shouldRestartRef.current = false;
-            setTimeout(() => {
-              startListening();
-            }, 30);
-          }
-        };
-
-        recognitionRef.current = rec;
-      }
-    } catch (e) {
-      console.warn("SpeechRecognition initialization failed or blocked in this webview-container:", e);
+    // Check initial support for speech recognition cross-browser / webview
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
       setIsSupported(false);
     }
 
-    // Component unmount cleanup
     return () => {
-      shouldRestartRef.current = false;
-      stopMicVolumeMeter();
       if (recognitionRef.current) {
         try {
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
           recognitionRef.current.abort();
-        } catch (e) {
-          console.warn("Speech unmount cleanup ignored error:", e);
-        }
+        } catch (_) {}
+        recognitionRef.current = null;
       }
     };
   }, []);
@@ -560,70 +409,142 @@ export default function VoiceAssistant({
     }
   };
 
-  const startListening = () => {
-    if (!isSupported) {
-      triggerToast("Tarayıcınızda Ses Tanıma modu aktif değil, elle komut girebilirsiniz.");
+  const startListening = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      setIsSupported(false);
+      triggerToast("Cihazınızda/tarayıcınızda ses tanıma servisi bulunamadı, komutunuzu yazarak iletebilirsiniz.");
+      setErrorMsg("Cihazınızda ses tanıma özelliği desteklenmiyor. Lütfen aşağıdaki alandan yazılı komut girin.");
+      setStatus("error");
       return;
     }
     
-    // Stop speaking
+    // Stop any ongoing speech synthesis
     if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
     }
 
     setTranscript("");
     setErrorMsg("");
     setAiResponse(null);
 
-    // If the browser recognition is already active, request an abort first
-    // and flag a restart once 'onend' has clean up resources.
-    if (isActiveRef.current) {
-      shouldRestartRef.current = true;
+    // If already active, safely abort before restarting
+    if (recognitionRef.current) {
       try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
         recognitionRef.current.abort();
-      } catch (e) {
-        console.warn("Speech abort error ignored during restart trigger:", e);
-      }
-      return;
+      } catch (_) {}
+      recognitionRef.current = null;
     }
 
-    shouldRestartRef.current = false;
-
-    // Start Raw mic meter for instant visual wave feedback
-    startMicVolumeMeter();
-
     try {
-      setIsListening(true);
-      setStatus("listening");
-      recognitionRef.current.start();
-      isActiveRef.current = true;
-    } catch (e: any) {
-      if (e.message && e.message.includes("already started")) {
-        console.warn("Speech engine is already started state:", e.message);
+      const rec = new SpeechRecognitionClass();
+      rec.continuous = false;
+      rec.lang = "tr-TR";
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+
+      rec.onstart = () => {
         isActiveRef.current = true;
         setIsListening(true);
         setStatus("listening");
-      } else {
-        setErrorMsg("Mikrofon başlatılamadı.");
-        setStatus("error");
-        setIsListening(false);
+        setErrorMsg("");
+        accumulatedTranscriptRef.current = "";
+        setMicVolume(30);
+      };
+
+      rec.onresult = (event: any) => {
+        try {
+          let fullTranscript = "";
+          for (let i = 0; i < event.results.length; ++i) {
+            fullTranscript += event.results[i][0].transcript;
+          }
+
+          if (fullTranscript.trim()) {
+            setTranscript(fullTranscript);
+            setManualInput(fullTranscript);
+            accumulatedTranscriptRef.current = fullTranscript;
+            setMicVolume(Math.floor(Math.random() * 40) + 40);
+          }
+        } catch (err) {
+          console.warn("Speech onresult parsing error:", err);
+        }
+      };
+
+      rec.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
         isActiveRef.current = false;
-      }
+        setIsListening(false);
+        setMicVolume(0);
+        
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          setErrorMsg("Mikrofon izni verilmedi. Lütfen tarayıcı/cihaz ayarlarından mikrofon iznini etkinleştirin.");
+        } else if (event.error === "network") {
+          setErrorMsg("Ortamda internet bağlantısı bulunamadı. Ses analizi için aktif internet bağlantısı gereklidir.");
+        } else if (event.error === "no-speech") {
+          setErrorMsg("Herhangi bir ses algılanamadı. Mikrofona biraz daha yakın durarak konuşmayı deneyin.");
+        } else if (event.error === "aborted") {
+          setStatus("idle");
+          return;
+        } else {
+          setErrorMsg(`Ses servisi uyarısı (${event.error || "bilinmiyor"}). Lütfen tekrar deneyin veya komutunuzu yazın.`);
+        }
+        setStatus("error");
+      };
+
+      rec.onend = () => {
+        isActiveRef.current = false;
+        setIsListening(false);
+        setMicVolume(0);
+        
+        const finalTxt = accumulatedTranscriptRef.current.trim();
+        if (finalTxt) {
+          handleProcessText(finalTxt);
+          accumulatedTranscriptRef.current = "";
+        } else {
+          setStatus((prev) => (prev === "listening" ? "idle" : prev));
+        }
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+      setIsListening(true);
+      setStatus("listening");
+      isActiveRef.current = true;
+    } catch (e: any) {
+      console.error("Speech Recognition startup error:", e);
+      setIsListening(false);
+      isActiveRef.current = false;
+      setMicVolume(0);
+      setStatus("error");
+      setErrorMsg("Mikrofon başlatılamadı. Lütfen cihaz mikrofon izinlerini kontrol edin veya yazılı komut girin.");
     }
   };
 
-  const stopListening = () => {
-    shouldRestartRef.current = false;
+  const stopListening = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.abort(); // Use abort to force end instantly
+        recognitionRef.current.abort();
       } catch (e) {
-        console.warn("Speech stop warning ignored:", e);
+        console.warn("Speech stop warning:", e);
       }
     }
     isActiveRef.current = false;
     setIsListening(false);
-    stopMicVolumeMeter();
+    setMicVolume(0);
   };
 
   const handleProcessText = async (textToProcess: string) => {
@@ -1010,6 +931,7 @@ export default function VoiceAssistant({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 100, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col max-h-[90vh] sm:max-h-[80vh] z-10"
             >
               {/* Aesthetic Card Header */}
@@ -1031,7 +953,11 @@ export default function VoiceAssistant({
                 <div className="flex items-center gap-1.5">
                   {/* Speech synthesis audio feedback toggle */}
                   <button
-                    onClick={() => setAudioEnabled(!audioEnabled)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAudioEnabled(!audioEnabled);
+                    }}
                     className={`p-2 rounded-xl transition ${
                       audioEnabled 
                         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20" 
@@ -1042,7 +968,11 @@ export default function VoiceAssistant({
                     {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                   </button>
                   <button
-                    onClick={toggleOpen}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleOpen();
+                    }}
                     className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -1065,25 +995,16 @@ export default function VoiceAssistant({
                       <div className="flex items-center gap-1.5 h-12">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((bar) => {
                           const delays = [0.1, 0.3, 0.5, 0.2, 0.4, 0.6, 0.15, 0.35, 0.45, 0.25];
-                          // Speak reactive scaling:
-                          const hasSignal = micVolume > 3;
-                          const calculatedHeight = hasSignal 
-                            ? Math.min(48, 10 + (micVolume * (delays[bar - 1] + 0.4)))
-                            : undefined;
-
                           return (
                             <motion.span
                               key={bar}
-                              style={calculatedHeight ? { height: `${calculatedHeight}px`, transition: "height 0.08s ease" } : {}}
-                              animate={!calculatedHeight ? { 
-                                height: ["12px", "24px", "12px"],
-                                backgroundColor: ["#6366f1", "#4f46e5", "#6366f1"]
-                              } : {
-                                backgroundColor: ["#a855f7", "#ec4899", "#6366f1"]
+                              animate={{ 
+                                height: ["12px", "42px", "16px", "48px", "14px"],
+                                backgroundColor: ["#6366f1", "#a855f7", "#ec4899", "#6366f1"]
                               }}
                               transition={{ 
                                 repeat: Infinity, 
-                                duration: 1.2, 
+                                duration: 1.1, 
                                 delay: delays[bar - 1],
                                 ease: "easeInOut"
                               }}
@@ -1093,20 +1014,25 @@ export default function VoiceAssistant({
                         })}
                       </div>
                       
-                      <div className="flex flex-col items-center gap-1">
+                      <div className="flex flex-col items-center gap-2">
                         <p className="text-xs text-indigo-300 font-extrabold animate-pulse tracking-wide uppercase">
                           Sizi dinliyorum, konuşun...
                         </p>
-                        {micVolume > 3 ? (
-                          <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1 animate-pulse">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
-                            SES SİNYALİ ALINIYOR: %{Math.min(100, Math.round(micVolume * 1.5))}
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-black tracking-widest text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
-                            SES SİNYALİ BEKLENİYOR...
-                          </span>
-                        )}
+                        <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5 animate-pulse">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
+                          SES DİNLENİYOR (CANLI)
+                        </span>
+
+                        <motion.button
+                          type="button"
+                          onClick={(e) => stopListening(e)}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="mt-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-sm bg-white animate-pulse" />
+                          <span>Kaydı Tamamla / Durdur ⏹️</span>
+                        </motion.button>
                       </div>
                     </div>
                   ) : status === "processing" ? (
@@ -1134,7 +1060,7 @@ export default function VoiceAssistant({
                       <div className="flex gap-2.5 mt-2">
                         <button
                           type="button"
-                          onClick={startListening}
+                          onClick={(e) => startListening(e)}
                           className="flex items-center gap-1.5 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl transition active:scale-95 cursor-pointer shadow-md hover:shadow-indigo-500/20 border border-indigo-400/20"
                         >
                           <Mic className="w-3.5 h-3.5" /> Yeni Komut Söyle
@@ -1163,7 +1089,8 @@ export default function VoiceAssistant({
                       </p>
                       <div className="flex gap-2">
                         <button
-                          onClick={startListening}
+                          type="button"
+                          onClick={(e) => startListening(e)}
                           className="py-1 px-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white rounded-lg transition active:scale-95 cursor-pointer mt-1"
                         >
                           Tekrar Dene
@@ -1173,7 +1100,8 @@ export default function VoiceAssistant({
                   ) : (
                     <div className="flex flex-col items-center space-y-3">
                       <motion.button
-                        onClick={startListening}
+                        type="button"
+                        onClick={(e) => startListening(e)}
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.94 }}
                         className="w-16 h-16 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 hover:text-white hover:bg-indigo-600 flex items-center justify-center cursor-pointer shadow-lg transition-all"

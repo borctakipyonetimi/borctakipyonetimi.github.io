@@ -1640,28 +1640,36 @@ export const DebtList: React.FC<DebtListProps> = ({
         </motion.div>
       </div>
 
-      {/* Borçlar Özel Arama Çubuğu */}
-      <div className="relative flex items-center w-full bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-1.5 px-3 shadow-xs hover:border-indigo-500/50 transition-colors">
-        <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 shrink-0 mr-2.5" />
+      {/* Borçlar Özel Modern Arama Çubuğu */}
+      <div className="relative flex items-center w-full bg-white dark:bg-slate-800/90 backdrop-blur-md border border-slate-300/80 dark:border-slate-700/80 rounded-2xl py-2 px-3.5 shadow-sm hover:shadow-md hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-all duration-200 group">
+        <div className="p-1.5 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 mr-2.5 shrink-0 group-focus-within:scale-105 group-focus-within:bg-indigo-600 group-focus-within:text-white transition-all duration-200">
+          <Search className="w-3.5 h-3.5" />
+        </div>
         <input
           type="text"
+          data-search-input="true"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={language === "tr" ? "Borç listesinde ara... (İsim veya Kategori)" : "Search in debt list... (Name or Category)"}
-          className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none"
+          placeholder={language === "tr" ? "Borç listesinde hızlı ara... (İsim veya Kategori)" : "Quick search in debt list... (Name or Category)"}
+          className="w-full bg-transparent no-forced-border text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none border-0 ring-0 p-0"
         />
-        {searchQuery && (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              {filteredDebts.length} {language === "tr" ? "sonuç" : "results"}
+        {searchQuery ? (
+          <div className="flex items-center gap-1.5 shrink-0 pl-2">
+            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 whitespace-nowrap">
+              {filteredDebts.length} {language === "tr" ? "kayıt" : "records"}
             </span>
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 active:scale-90 transition cursor-pointer"
               title="Aramayı Temizle"
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        ) : (
+          <div className="hidden sm:flex items-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shrink-0 pointer-events-none select-none">
+            {filteredDebts.length} BORÇ
           </div>
         )}
       </div>
@@ -1839,26 +1847,21 @@ export const DebtList: React.FC<DebtListProps> = ({
                 {paginatedDebts.map((d, itemIdx) => {
                   const isPaid = d.paid >= d.amount;
                   const percentage = Math.min(((d.paid / d.amount) * 100), 100);
-                  const isOverdue = !isPaid && d.dueDate && (() => {
-                    try {
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const due = new Date(d.dueDate);
-                      due.setHours(0, 0, 0, 0);
-                      return due < today;
-                    } catch { return false; }
-                  })();
-                  const isNearDue = !isPaid && d.dueDate && (() => {
+                  
+                  const diffDays = (() => {
+                    if (!d.dueDate) return null;
                     try {
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
                       const due = new Date(d.dueDate);
                       due.setHours(0, 0, 0, 0);
                       const diffTime = due.getTime() - today.getTime();
-                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      return diffDays <= 3; // 3 days or less, including overdue (negative)
-                    } catch { return false; }
+                      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    } catch { return null; }
                   })();
+
+                  const isOverdue = !isPaid && diffDays !== null && diffDays < 0;
+                  const isNearDue = !isPaid && !isOverdue && diffDays !== null && diffDays >= 0 && diffDays <= 3;
 
                   // Pick unique color theme per debt card based on ID / Name index
                   const themeIndex = Math.abs((d.id || itemIdx) + (d.name ? d.name.charCodeAt(0) : 0)) % DEBT_CARD_THEMES.length;
@@ -1880,14 +1883,8 @@ export const DebtList: React.FC<DebtListProps> = ({
                       <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-indigo-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
                       <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full bg-slate-500/5 dark:bg-white/5 blur-xl pointer-events-none" />
 
-                      {isNearDue && (
-                        <div className="absolute top-3 right-3 flex items-center justify-center p-1.5 rounded-full bg-amber-50 dark:bg-white/20 border border-amber-200 dark:border-white/40 shadow-md animate-bounce z-10" title="Vadesine Az Kaldı veya Geçti! ⏰">
-                          <span className="absolute inset-0 rounded-full bg-amber-400/30 animate-ping" />
-                          <BellRing className="w-4 h-4 text-amber-500 dark:text-amber-300 animate-pulse" />
-                        </div>
-                      )}
-
-                      <div className="space-y-2.5 flex-1 relative z-10">
+                      <div className="space-y-3 flex-1 relative z-10">
+                        {/* Title & metadata row */}
                         <div className="flex items-center flex-wrap gap-2">
                           {(() => {
                             const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
@@ -1919,17 +1916,51 @@ export const DebtList: React.FC<DebtListProps> = ({
                               🔴 Ödenmedi
                             </span>
                           )}
-                          {isOverdue && (
-                            <span className="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full border border-amber-300 flex items-center gap-1 animate-pulse shrink-0 uppercase tracking-tight shadow-md">
-                              ⚠️ Vadesi Geçmiş
-                            </span>
-                          )}
                           {d.dueDate && (
                             <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-white/85 bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/10">
                               <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-300" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
                             </span>
                           )}
                         </div>
+
+                        {/* Dedicated Animated Status Indicator Row for Overdue or Near Due */}
+                        {isOverdue && (
+                          <div className="pt-0.5">
+                            <motion.div
+                              animate={{ scale: [1, 1.03, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                              className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-rose-600 text-white text-xs font-black shadow-md shadow-rose-500/25 border border-rose-400/80 select-none"
+                            >
+                              <motion.span
+                                animate={{ rotate: [-10, 10, -10] }}
+                                transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                                className="inline-block text-sm"
+                              >
+                                ⚠️
+                              </motion.span>
+                              <span>Vadesi Geçmiş {diffDays !== null && `(${Math.abs(diffDays)} gün geçti)`}</span>
+                            </motion.div>
+                          </div>
+                        )}
+
+                        {isNearDue && (
+                          <div className="pt-0.5">
+                            <motion.div
+                              animate={{ scale: [1, 1.03, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                              className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-xs font-black shadow-md shadow-amber-500/25 border border-amber-300 select-none"
+                            >
+                              <motion.span
+                                animate={{ rotate: [-14, 14, -14, 0] }}
+                                transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                                className="inline-flex items-center justify-center"
+                              >
+                                <BellRing className="w-4 h-4 text-slate-950 animate-bounce" />
+                              </motion.span>
+                              <span>Vadesi Yakın {diffDays === 0 ? "(Bugün Son Gün!)" : `(${diffDays} gün kaldı)`}</span>
+                            </motion.div>
+                          </div>
+                        )}
 
                         {/* Amount indicators stats grid */}
                         <div className="flex items-center flex-wrap gap-2 text-xs font-medium">
@@ -1966,7 +1997,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:self-center relative z-10">
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:self-center relative z-10 shrink-0">
                         <button
                           onClick={() => handleOpenEdit(d)}
                           title="Borcu Düzenle"
@@ -1985,7 +2016,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.96 }}
                           onClick={() => onToggleDebtPaid(d.id)}
-                          className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-sm ${
+                          className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-sm ${
                             isPaid 
                               ? "bg-emerald-100/90 text-emerald-800 border border-emerald-300/80 dark:bg-white/20 dark:hover:bg-white/30 dark:text-white dark:border-white/30 backdrop-blur-xs" 
                               : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-md shadow-slate-300/50 dark:shadow-black/20"
@@ -2286,22 +2317,6 @@ export const DebtList: React.FC<DebtListProps> = ({
               </button>
             </div>
 
-            {/* Quick scanning action */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!isPremium) {
-                  onUpgradeClick?.();
-                } else {
-                  setIsModalOpen(false); // Close first to prevent backdrop overlap
-                  setTimeout(() => setIsScannerOpen(true), 150);
-                }
-              }}
-              className="w-full py-2 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl border border-dashed border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-3xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse animate-duration-1000" /> Fatura Fotoğrafı ile Otomatik Doldur {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
-            </button>
-
             <div className="space-y-3">
               <ProviderSelector
                 selectedProviderId={providerId}
@@ -2412,18 +2427,6 @@ export const DebtList: React.FC<DebtListProps> = ({
                   )}
                 </div>
               )}
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUpgradeClick?.();
-                  }}
-                  className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md shadow-amber-500/10 cursor-pointer"
-                >
-                  👑 BU BORCU PRO SÜRÜME EKLE
-                </button>
-              </div>
             </div>
             <div className="flex gap-2 pt-1">
               <button

@@ -30,6 +30,55 @@ interface DashboardOverviewProps {
   language?: "tr" | "en";
 }
 
+interface CountUpNumberProps {
+  value: number;
+  formatFn: (val: number) => string;
+  duration?: number;
+}
+
+export const CountUpNumber: React.FC<CountUpNumberProps> = ({ value, formatFn, duration = 850 }) => {
+  const [displayValue, setDisplayValue] = useState<number>(0);
+  const prevValueRef = useRef<number>(0);
+  const animFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const startValue = prevValueRef.current;
+    const targetValue = typeof value === "number" && !isNaN(value) ? value : 0;
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Smooth cubic ease-out curve
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      const current = startValue + (targetValue - startValue) * easeProgress;
+      
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(targetValue);
+        prevValueRef.current = targetValue;
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+    };
+  }, [value, duration]);
+
+  const hasDecimals = value % 1 !== 0;
+  const numToFormat = hasDecimals ? displayValue : Math.round(displayValue);
+
+  return <>{formatFn(numToFormat)}</>;
+};
+
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   stats,
   onNavigate,
@@ -655,7 +704,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {language === "tr" ? "Bu Ayki Toplam Borç" : "Monthly Total Debt"}
               </span>
               <p className="text-base sm:text-2xl font-black font-mono text-white mt-1 tracking-tight drop-shadow-xs">
-                {format(stats.thisMonthTotalBorc)}
+                <CountUpNumber value={stats.thisMonthTotalBorc} formatFn={format} />
               </p>
             </div>
 
@@ -664,7 +713,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {language === "tr" ? "Bu Ay Kalan Borç" : "Month Remaining"}
               </span>
               <p className="text-base sm:text-2xl font-black font-mono text-rose-100 mt-1 tracking-tight drop-shadow-xs">
-                {format(stats.thisMonthKalanBorc)}
+                <CountUpNumber value={stats.thisMonthKalanBorc} formatFn={format} />
               </p>
             </div>
           </div>
@@ -674,7 +723,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="flex items-center gap-1.5">
               <span>{language === "tr" ? "Bu Ay Kapatılan:" : "Settled this month:"}</span>
               <span className="font-bold font-mono text-emerald-300 bg-emerald-400/20 border border-emerald-300/30 px-2 py-0.5 rounded-full">
-                {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc))}
+                <CountUpNumber value={selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc)} formatFn={format} />
               </span>
             </div>
             <span className="text-[9.5px] sm:text-[10.5px] text-indigo-200/90 font-medium">
@@ -708,7 +757,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <Coins className="w-3 h-3 text-indigo-200" />
               <span>{language === "tr" ? "TOPLAM BORÇ" : "TOTAL DEBT"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalDebt)}</p>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              <CountUpNumber value={stats.totalDebt} formatFn={format} />
+            </p>
           </motion.div>
 
           {/* 2. KİŞİ BORÇLARI TOPLAMI */}
@@ -724,11 +775,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <ArrowUpRight className="w-2.5 h-2.5 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
             </div>
             <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
-              {format(stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0)}
+              <CountUpNumber value={stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0} formatFn={format} />
             </p>
             {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
               <span className="text-[8.5px] font-medium text-purple-200 block truncate max-w-full">
-                {language === "tr" ? "Alacak: " : "Recv: "}{format(stats.contactReceivablesRemaining)}
+                {language === "tr" ? "Alacak: " : "Recv: "}<CountUpNumber value={stats.contactReceivablesRemaining} formatFn={format} />
               </span>
             )}
           </motion.div>
@@ -743,7 +794,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <PlusCircle className="w-3 h-3 text-emerald-200" />
               <span>{language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalIncome)}</p>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              <CountUpNumber value={stats.totalIncome} formatFn={format} />
+            </p>
           </motion.div>
 
           {/* 4. AYLIK GİDER */}
@@ -756,7 +809,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <ArrowUpRight className="w-3 h-3 text-rose-200" />
               <span>{language === "tr" ? "AYLIK GİDER" : "MONTHLY EXPENSE"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.totalExpense)}</p>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              <CountUpNumber value={stats.totalExpense} formatFn={format} />
+            </p>
           </motion.div>
 
           {/* 5. BU AY ÖDENEN KISIM */}
@@ -774,7 +829,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </span>
             </div>
             <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
-              {format(selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid)}
+              <CountUpNumber value={selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid} formatFn={format} />
             </p>
           </motion.div>
 
@@ -792,7 +847,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <Sparkles className="w-3 h-3 text-amber-200 animate-pulse" />
               <span>{language === "tr" ? "NET KALAN" : "NET SURPLUS"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(stats.netIncome)}</p>
+            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+              <CountUpNumber value={stats.netIncome} formatFn={format} />
+            </p>
           </motion.div>
         </div>
       </div>
@@ -823,7 +880,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </span>
               <div className="flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight leading-none drop-shadow-xs">
-                  {format(monthlyInstallmentsDue)}
+                  <CountUpNumber value={monthlyInstallmentsDue} formatFn={format} />
                 </span>
               </div>
             </div>
@@ -880,8 +937,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
             </div>
             <div className="flex items-center justify-between text-[9.5px] text-emerald-100 font-medium">
-              <span>{format(stats.totalPaid)} {language === "tr" ? "kapatıldı" : "settled"}</span>
-              <span className="font-bold text-white drop-shadow-xs">Hedef: {format(stats.totalDebt)}</span>
+              <span><CountUpNumber value={stats.totalPaid} formatFn={format} /> {language === "tr" ? "kapatıldı" : "settled"}</span>
+              <span className="font-bold text-white drop-shadow-xs">Hedef: <CountUpNumber value={stats.totalDebt} formatFn={format} /></span>
             </div>
           </div>
         </motion.div>

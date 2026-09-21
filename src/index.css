@@ -218,18 +218,27 @@ html:not(.dark) .border-slate-100\/80 {
   border-color: #cbd5e1 !important; /* Solid Slate-300 */
 }
 
-/* Make tables, input groups and list dividers highly prominent in Light Mode */
-html:not(.dark) input,
-html:not(.dark) select,
-html:not(.dark) textarea {
+/* Make standard form input groups, select and textarea distinct in Light Mode while preserving seamless search inputs */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border):not([data-search]),
+html:not(.dark) select:not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border),
+html:not(.dark) textarea:not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border) {
   border: 1.5px solid #cbd5e1 !important;
   background-color: #ffffff !important;
   color: #0f172a !important;
 }
 
-html:not(.dark) input:focus,
-html:not(.dark) select:focus,
-html:not(.dark) textarea:focus {
+html:not(.dark) input.bg-transparent,
+html:not(.dark) input[class*="bg-transparent"],
+html:not(.dark) input.no-forced-border,
+html:not(.dark) [data-search-input] {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html:not(.dark) input:not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border):focus,
+html:not(.dark) select:not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border):focus,
+html:not(.dark) textarea:not(.bg-transparent):not([class*="bg-transparent"]):not(.no-forced-border):focus {
   border-color: #6366f1 !important; /* Indigo brand outline on focus */
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
 }

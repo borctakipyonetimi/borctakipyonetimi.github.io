@@ -2131,8 +2131,20 @@ export default function App() {
     }
   }, [themeMode]);
 
-  // Sync theme configurations on body
+  // Sync theme configurations on body and mobile status bar (theme-color)
   useEffect(() => {
+    // Dynamic theme-color sync for mobile/PWA status bar
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement("meta");
+      metaThemeColor.setAttribute("name", "theme-color");
+      document.head.appendChild(metaThemeColor);
+    }
+    // Gündüz ve gece modunda üst başlık (header) ile tam uyumlu koyu lacivert ton (#0b132b / #020617),
+    // böylece telefonun pil göstergesi (99%), saat ve sinyal simgeleri bembeyaz ve kristal netliğinde görünür
+    const statusBarColor = darkMode ? "#020617" : "#0b132b";
+    metaThemeColor.setAttribute("content", statusBarColor);
+
     if (darkMode) {
       document.documentElement.classList.add("dark");
       document.body.classList.add("dark");
@@ -2787,7 +2799,6 @@ export default function App() {
       const allActionable = [...dueTodayItems, ...overdueItems, ...upcomingItems];
 
       if (allActionable.length > 0) {
-        const topItems = allActionable.slice(0, 4);
         const totalDue = allActionable.reduce((acc, cur) => acc + cur.amount, 0);
         const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
         const dateFormatted = now.toLocaleDateString("tr-TR");
@@ -2797,7 +2808,7 @@ export default function App() {
           || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
         const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
 
-        const borcListesiMetni = topItems
+        const borcListesiMetni = allActionable
           .map((item) => {
             const emoji = getDebtCategoryEmoji(item.name, item.category);
             const statusText =
@@ -2808,7 +2819,6 @@ export default function App() {
                 : `${item.daysLeft} gün kaldı`;
             return `${emoji} ${item.name}: ${Math.round(item.amount).toLocaleString("tr-TR")} TL (${statusText})`;
           })
-          .concat(allActionable.length > topItems.length ? [`...ve ${allActionable.length - topItems.length} adet daha`] : [])
           .join("\n");
 
         // Başlık alanını net ve tek bir defa tanımlıyoruz

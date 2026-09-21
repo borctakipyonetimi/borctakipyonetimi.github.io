@@ -30,6 +30,7 @@ import {
   User,
   Fingerprint,
   ChevronLeft,
+  ChevronDown,
   Settings as SettingsIcon,
   Check,
   Folder
@@ -95,7 +96,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   initialTab = "cloud",
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings">(initialTab);
+  const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings" | "none">(initialTab || "cloud");
 
   // Cloud Sync state
   const [cloudActiveTab, setCloudActiveTab] = useState<"sync" | "drive" | "restore">("sync");
@@ -121,6 +122,11 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   }, [initialTab]);
 
   const handleRunCloudSyncNow = async () => {
+    if (!isPremium) {
+      onSuccessToast("⭐ Anlık Bulut Senkronizasyonu Bütçem PRO özelliğidir.");
+      if (onOpenUpgradeModal) onOpenUpgradeModal("Anlık Bulut Senkronizasyonu (Firebase)");
+      return;
+    }
     if (isCloudSyncing) return;
     setIsCloudSyncing(true);
     setSyncProgress(25);
@@ -158,6 +164,11 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   };
 
   const handleToggleAutoSync = () => {
+    if (!isPremium) {
+      onSuccessToast("⭐ Otomatik Bulut Senkronizasyonu Bütçem PRO özelliğidir.");
+      if (onOpenUpgradeModal) onOpenUpgradeModal("Otomatik Bulut Senkronizasyonu");
+      return;
+    }
     const next = !isAutoSyncActive;
     setIsAutoSyncActive(next);
     localStorage.setItem("auto_cloud_sync_active", String(next));
@@ -215,6 +226,13 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   };
 
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isPremium) {
+      onSuccessToast("⭐ Yedek Dosyası Geri Yükleme Bütçem PRO özelliğidir.");
+      if (onOpenUpgradeModal) onOpenUpgradeModal("Yedek Dosyası Geri Yükleme");
+      if (e.target) e.target.value = "";
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -480,94 +498,138 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           </div>
         </div>
 
-        {/* Clean, Modern Top Navigation Tabs */}
-        <div className="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => setActiveTab("cloud")}
-            className={`py-3 px-3 sm:px-4 rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border ${
-              activeTab === "cloud"
-                ? "bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-800 shadow-xs"
-                : "bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            }`}
-          >
-            <Cloud className="w-4 h-4 shrink-0" />
-            <span className="truncate">{language === "tr" ? "Bulut & Yedekleme" : "Cloud & Backup"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("security")}
-            className={`py-3 px-3 sm:px-4 rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border ${
-              activeTab === "security"
-                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-800 shadow-xs"
-                : "bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            }`}
-          >
-            <Lock className="w-4 h-4 shrink-0" />
-            <span className="truncate">{language === "tr" ? "Güvenlik & PIN" : "Security & PIN"}</span>
-            {settings.isEnabled && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("settings")}
-            className={`py-3 px-3 sm:px-4 rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border ${
-              activeTab === "settings"
-                ? "bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-800 shadow-xs"
-                : "bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            }`}
-          >
-            <Sliders className="w-4 h-4 shrink-0" />
-            <span className="truncate">{language === "tr" ? "Genel Tercihler" : "Preferences"}</span>
-          </button>
-        </div>
       </div>
 
-      {/* TAB 1: CLOUD & BACKUP */}
-      {activeTab === "cloud" && (
-        <div className="space-y-6">
+      {/* 3 Vertical Expandable Menu Sections (Accordion) */}
+      <div className="space-y-4">
+        {/* ============================================================ */}
+        {/* SECTION 1: BULUT VE YEDEKLEME (FIREBASE & GOOGLE DRIVE)       */}
+        {/* ============================================================ */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-all duration-300">
+          <button
+            type="button"
+            onClick={() => setActiveTab(activeTab === "cloud" ? "none" : "cloud")}
+            className={`w-full p-5 sm:p-6 flex items-center justify-between gap-4 text-left transition cursor-pointer select-none ${
+              activeTab === "cloud"
+                ? "bg-sky-500/10 dark:bg-sky-950/40 border-b border-slate-200 dark:border-slate-800"
+                : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            }`}
+          >
+            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                activeTab === "cloud"
+                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                  : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+              }`}>
+                <Cloud className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
+                    {language === "tr" ? "Bulut ve Yedekleme (Firebase & Google Drive)" : "Cloud & Backup"}
+                  </h3>
+                  {!isPremium ? (
+                    <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                      <Lock className="w-2.5 h-2.5 text-slate-950" /> PRO KİLİTLİ
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
+                      <span>👑</span> PRO AKTİF
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
+                  {language === "tr"
+                    ? "Anlık Firebase bulut eşitleme, otomatik yedekleme, Google Drive ve JSON içe/dışa aktarma"
+                    : "Instant Firebase sync, auto backup, Google Drive and JSON import/export"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+              <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${activeTab === "cloud" ? "rotate-180" : ""}`} />
+            </div>
+          </button>
+
+          {activeTab === "cloud" && (
+            <div className="p-5 sm:p-6 space-y-6">
+              {/* PRO Locked Banner when not Premium */}
+              {!isPremium && (
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-500/15 via-indigo-500/10 to-sky-500/15 border-2 border-amber-400/50 dark:border-amber-500/40 rounded-3xl shadow-lg relative overflow-hidden">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 text-[9.5px] font-black rounded-lg uppercase tracking-wider shadow-xs">
+                            👑 BÜTÇEM PRO ÖZELLİĞİ
+                          </span>
+                          <span className="text-xs font-black text-amber-700 dark:text-amber-300">
+                            Kilitli / Premium Gerekli
+                          </span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                          Bulut Yedekleme & Google Drive Senkronizasyonu
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-2xl">
+                          Borç, taksit, gelir ve giderlerinizi Firebase Firestore & Google Drive bulutunda 256-bit şifreleme ile güvende tutun. Telefon değişse bile verileriniz asla kaybolmaz.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenUpgradeModal && onOpenUpgradeModal("Bulut Yedekleme & Google Drive Entegrasyonu")}
+                      className="px-6 py-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl font-black text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4 text-slate-950" />
+                      <span>PRO Satın Al & Tümünü Aç 👑</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
           {/* Sub-Tabs Selector */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
             <button
               type="button"
               onClick={() => setCloudActiveTab("sync")}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer border ${
+              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
                 cloudActiveTab === "sync"
-                  ? "bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/20"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              <Cloud className="w-3.5 h-3.5" />
-              <span>1. Anlık Bulut Eşitleme (Firebase)</span>
+              <Cloud className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Bulut Eşitleme (Firebase)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setCloudActiveTab("drive")}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer border ${
+              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
                 cloudActiveTab === "drive"
-                  ? "bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/20"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              <HardDrive className="w-3.5 h-3.5" />
-              <span>2. Google Drive & Dosya Dışa Aktar</span>
+              <HardDrive className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Google Drive & Dışa Aktar</span>
             </button>
 
             <button
               type="button"
               onClick={() => setCloudActiveTab("restore")}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer border ${
+              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
                 cloudActiveTab === "restore"
-                  ? "bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/20"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>3. Yedeği Geri Yükle & İçe Aktar</span>
+              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Yedeği Geri Yükle</span>
             </button>
           </div>
 
@@ -607,7 +669,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               </div>
 
               {/* Sync Card */}
-              <div className="p-6 sm:p-7 bg-gradient-to-br from-sky-600 via-indigo-600 to-sky-800 rounded-3xl text-white shadow-xl space-y-5">
+              <div className="p-6 sm:p-7 bg-gradient-to-br from-sky-600 via-indigo-600 to-sky-800 rounded-3xl text-white shadow-xl space-y-5 relative overflow-hidden">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-black uppercase tracking-widest text-sky-200 flex items-center gap-1.5">
@@ -626,10 +688,23 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     type="button"
                     onClick={handleRunCloudSyncNow}
                     disabled={isCloudSyncing}
-                    className="px-6 py-3.5 bg-white hover:bg-slate-100 text-sky-700 hover:text-sky-800 rounded-2xl font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50 active:scale-95"
+                    className={`px-6 py-3.5 rounded-2xl font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50 active:scale-95 ${
+                      !isPremium
+                        ? "bg-amber-400 hover:bg-amber-300 text-slate-950 font-black"
+                        : "bg-white hover:bg-slate-100 text-sky-700 hover:text-sky-800"
+                    }`}
                   >
-                    <RefreshCw className={`w-4 h-4 ${isCloudSyncing ? "animate-spin text-sky-600" : ""}`} />
-                    <span>{isCloudSyncing ? "Senkronize Ediliyor..." : "Şimdi Buluta Eşitle ☁️"}</span>
+                    {!isPremium ? (
+                      <>
+                        <Lock className="w-4 h-4 text-slate-950" />
+                        <span>KİLİTLİ 🔒 (PRO'ya Yükselt)</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className={`w-4 h-4 ${isCloudSyncing ? "animate-spin text-sky-600" : ""}`} />
+                        <span>{isCloudSyncing ? "Senkronize Ediliyor..." : "Şimdi Buluta Eşitle ☁️"}</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -663,10 +738,17 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               {/* Auto Sync Switch */}
               <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-xs">
                 <div className="space-y-1">
-                  <span className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-sky-500" />
-                    Otomatik Arka Plan Bulut Senkronizasyonu
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-sky-500" />
+                      Otomatik Arka Plan Bulut Senkronizasyonu
+                    </span>
+                    {!isPremium && (
+                      <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        PRO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Her yeni işlem, gelir, gider veya borç güncellemesinde verileri otomatik olarak buluta yazar.
                   </p>
@@ -675,12 +757,14 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   type="button"
                   onClick={handleToggleAutoSync}
                   className={`px-4 py-2 rounded-2xl text-xs font-black cursor-pointer transition select-none shrink-0 ${
-                    isAutoSyncActive
+                    !isPremium
+                      ? "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                      : isAutoSyncActive
                       ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
                       : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                   }`}
                 >
-                  {isAutoSyncActive ? "AÇIK 🟢" : "KAPALI ⚪"}
+                  {!isPremium ? "KİLİTLİ 🔒 (PRO)" : isAutoSyncActive ? "AÇIK 🟢" : "KAPALI ⚪"}
                 </button>
               </div>
             </div>
@@ -732,13 +816,14 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white">
                       <Folder className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/20">
-                      GOOGLE DRIVE
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/20 flex items-center gap-1">
+                      {!isPremium && <Lock className="w-2.5 h-2.5" />} GOOGLE DRIVE (PRO)
                     </span>
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-white">
-                      📁 Google Drive'a Kaydet & Yükle
+                    <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                      <span>📁 Google Drive'a Kaydet & Yükle</span>
+                      {!isPremium && <span className="text-xs">🔒</span>}
                     </h4>
                     <p className="text-xs text-sky-100 font-medium mt-1">
                       Yedek dosyasını doğrudan Google Drive bulut klasörünüze aktarın.
@@ -803,9 +888,16 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   <Upload className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
-                    Yedek Dosyasından Geri Yükle (.JSON)
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
+                      Yedek Dosyasından Geri Yükle (.JSON)
+                    </h3>
+                    {!isPremium && (
+                      <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        PRO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Daha önce dışa aktardığınız Bütçem Pro yedek dosyasını seçerek tüm verilerinizi eksiksiz geri getirin.
                   </p>
@@ -813,18 +905,31 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               </div>
 
               <div
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!isPremium) {
+                    onSuccessToast("⭐ Yedek Dosyası Geri Yükleme Bütçem PRO özelliğidir.");
+                    if (onOpenUpgradeModal) onOpenUpgradeModal("Yedek Dosyası Geri Yükleme");
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
                 className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 rounded-3xl p-8 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-800/30 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 flex flex-col items-center justify-center space-y-3"
               >
                 <div className="w-14 h-14 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                  <Upload className="w-7 h-7" />
+                  {!isPremium ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
                 </div>
                 <div>
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {isRestoring ? "Dosya Okunuyor ve İşleniyor..." : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}
+                    {!isPremium
+                      ? "Yedek Geri Yükleme Kilitli 🔒 (PRO Gerekli)"
+                      : isRestoring
+                      ? "Dosya Okunuyor ve İşleniyor..."
+                      : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    Telefonunuzdaki veya Google Drive klasörünüzdeki .json dosyasını seçin
+                    {!isPremium
+                      ? "Yedeğinizi geri yüklemek için Bütçem PRO'ya yükseltin."
+                      : "Telefonunuzdaki veya Google Drive klasörünüzdeki .json dosyasını seçin"}
                   </p>
                 </div>
                 <input
@@ -844,12 +949,61 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               </div>
             </div>
           )}
+            </div>
+          )}
         </div>
-      )}
 
-      {/* TAB 2: SECURITY & PIN */}
-      {activeTab === "security" && (
-        <div className="space-y-6">
+        {/* ============================================================ */}
+        {/* SECTION 2: UYGULAMA GÜVENLİĞİ & PIN KİLİT SİSTEMİ            */}
+        {/* ============================================================ */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-all duration-300">
+          <button
+            type="button"
+            onClick={() => setActiveTab(activeTab === "security" ? "none" : "security")}
+            className={`w-full p-5 sm:p-6 flex items-center justify-between gap-4 text-left transition cursor-pointer select-none ${
+              activeTab === "security"
+                ? "bg-indigo-500/10 dark:bg-indigo-950/40 border-b border-slate-200 dark:border-slate-800"
+                : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            }`}
+          >
+            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                activeTab === "security"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+              }`}>
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
+                    {language === "tr" ? "Uygulama Güvenliği & PIN Kilit Sistemi" : "Security & PIN Lock"}
+                  </h3>
+                  {settings.isEnabled ? (
+                    <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> PIN AKTİF 🔒
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-black rounded-md uppercase tracking-wider">
+                      DEVRE DIŞI
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
+                  {language === "tr"
+                    ? "4 haneli PIN şifreleme, güvenlik kurtarma sorusu ve biyometrik parmak izi kilidi"
+                    : "4-digit PIN lock, recovery security question and biometric fingerprint authentication"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+              <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${activeTab === "security" ? "rotate-180" : ""}`} />
+            </div>
+          </button>
+
+          {activeTab === "security" && (
+            <div className="p-5 sm:p-6 space-y-6 text-left">
           {/* Main PIN Protection Card */}
           <div className="p-6 sm:p-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
@@ -1163,10 +1317,48 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           </div>
         </div>
       )}
+    </div>
 
-      {/* TAB 3: GENERAL PREFERENCES */}
+    {/* ============================================================ */}
+    {/* SECTION 3: GENEL TERCİHLER & VADE BANDI AYARLARI             */}
+    {/* ============================================================ */}
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-all duration-300">
+      <button
+        type="button"
+        onClick={() => setActiveTab(activeTab === "settings" ? "none" : "settings")}
+        className={`w-full p-5 sm:p-6 flex items-center justify-between gap-4 text-left transition cursor-pointer select-none ${
+          activeTab === "settings"
+            ? "bg-purple-500/10 dark:bg-purple-950/40 border-b border-slate-200 dark:border-slate-800"
+            : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+        }`}
+      >
+        <div className="flex items-center gap-3.5 flex-1 min-w-0">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+            activeTab === "settings"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+              : "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+          }`}>
+            <Sliders className="w-6 h-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
+              {language === "tr" ? "Genel Tercihler & Vade Bandı Ayarları" : "Preferences & Marquee Settings"}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
+              {language === "tr"
+                ? "Kayan vade uyarı bandı hızı, akıllı sesli asistan servisi ve tanıtım rehberi"
+                : "Marquee warning banner speed, smart voice assistant service and onboarding tour"}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${activeTab === "settings" ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
       {activeTab === "settings" && (
-        <div className="space-y-6">
+        <div className="p-5 sm:p-6 space-y-6 text-left">
           {/* Marquee Banner Speed & Control */}
           <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-5">
             <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -1316,6 +1508,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };
