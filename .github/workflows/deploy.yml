@@ -30,7 +30,7 @@ jobs:
         run: |
           if [ ! -f package.json ]; then echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json; fi
           npm install --legacy-peer-deps || npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser
+          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser capacitor-native-biometric --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/browser capacitor-native-biometric
 
       - name: Clean and Create Config
         run: |

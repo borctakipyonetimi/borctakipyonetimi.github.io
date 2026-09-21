@@ -12,8 +12,10 @@ import {
   Key,
   HelpCircle,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Fingerprint
 } from "lucide-react";
+import { BiyometrikDogrulamaYap } from "../utils/biometricAuth";
 
 interface SecurityLockOverlayProps {
   onUnlockSuccess: () => void;
@@ -47,6 +49,29 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryAnswerInput, setRecoveryAnswerInput] = useState("");
   const [recoveryError, setRecoveryError] = useState("");
+
+  const isBiometricActive = typeof localStorage !== "undefined" && localStorage.getItem("biometric_lock") === "true";
+
+  const triggerBiometricUnlock = async () => {
+    if (lockoutTime > 0) return;
+    try {
+      const verified = await BiyometrikDogrulamaYap();
+      if (verified) {
+        setSuccessMsg("Biyometrik Giriş Başarılı! 🔓");
+        setTimeout(() => {
+          onUnlockSuccess();
+        }, 300);
+      }
+    } catch (e) {
+      console.warn("Biyometrik doğrulama hatası:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (isBiometricActive && settings.isEnabled && settings.pinCode) {
+      triggerBiometricUnlock();
+    }
+  }, [isBiometricActive, settings.isEnabled, settings.pinCode]);
 
   // Lock bypass if security not active/setup
   useEffect(() => {
@@ -247,7 +272,19 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
                 </button>
               ))}
 
-              <div className="w-14 h-14" />
+              {isBiometricActive ? (
+                <button
+                  type="button"
+                  onClick={triggerBiometricUnlock}
+                  disabled={lockoutTime > 0}
+                  title="Parmak İzi / Biyometrik Giriş"
+                  className="w-14 h-14 rounded-full bg-indigo-550/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-400 hover:scale-105 transition active:scale-95 cursor-pointer flex items-center justify-center shadow-lg shadow-indigo-500/10"
+                >
+                  <Fingerprint className="w-6 h-6 animate-pulse" />
+                </button>
+              ) : (
+                <div className="w-14 h-14" />
+              )}
 
               <button
                 type="button"

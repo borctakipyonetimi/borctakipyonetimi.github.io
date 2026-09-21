@@ -26,6 +26,7 @@
     "@types/nodemailer": "^8.0.1",
     "@vitejs/plugin-react": "^5.0.4",
     "canvas-confetti": "^1.9.4",
+    "capacitor-native-biometric": "^4.2.2",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

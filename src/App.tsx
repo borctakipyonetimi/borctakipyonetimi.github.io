@@ -158,6 +158,7 @@ import { Share } from "@capacitor/share";
 import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
+import { BiometricAuth, BiyometrikDogrulamaYap } from "./utils/biometricAuth";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
 if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
@@ -220,11 +221,18 @@ async function OneSignalGuncelBaslat() {
   }
 }
 
-// Uygulama yüklenir yüklenmez tetikle
+// Uygulama yüklenir yüklenmez tetikle (OneSignal & Biyometrik Doğrulama)
 if (typeof window !== "undefined") {
-  window.addEventListener('DOMContentLoaded', OneSignalGuncelBaslat);
+  window.addEventListener('DOMContentLoaded', () => {
+    OneSignalGuncelBaslat();
+    BiyometrikDogrulamaYap();
+  });
+  document.addEventListener('deviceready', () => {
+    BiyometrikDogrulamaYap();
+  });
   if (document.readyState !== "loading") {
     OneSignalGuncelBaslat();
+    BiyometrikDogrulamaYap();
   }
 }
 

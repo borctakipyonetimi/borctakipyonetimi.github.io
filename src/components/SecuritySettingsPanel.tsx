@@ -35,7 +35,9 @@ import {
   Zap,
   Globe,
   User,
-  ArrowRight
+  ArrowRight,
+  Fingerprint,
+  ScanFace
 } from "lucide-react";
 
 interface SecuritySettingsPanelProps {
@@ -289,6 +291,37 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     if (propSetVoiceAssistantEnabled) propSetVoiceAssistantEnabled(next);
     localStorage.setItem("voiceAssistantEnabled", next ? "1" : "0");
     onSuccessToast(next ? "Sesli Asistan Servisi Aktifleştirildi 🎙️" : "Sesli Asistan Servisi Devre Dışı Bırakıldı 🔕");
+  };
+
+  const [biometricLock, setBiometricLock] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("biometric_lock") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleBiometricLock = () => {
+    const nextVal = !biometricLock;
+    setBiometricLock(nextVal);
+    try {
+      localStorage.setItem("biometric_lock", nextVal ? "true" : "false");
+    } catch (e) {
+      console.error(e);
+    }
+    if (nextVal) {
+      onSuccessToast(
+        language === "tr"
+          ? "Biyometrik Kilit (Parmak İzi / Yüz Tanıma) Başarıyla Etkinleştirildi! 🔒👆"
+          : "Biometric Lock (Fingerprint / Face ID) Successfully Enabled! 🔒👆"
+      );
+    } else {
+      onSuccessToast(
+        language === "tr"
+          ? "Biyometrik Kilit Devre Dışı Bırakıldı. 🔓"
+          : "Biometric Lock Disabled. 🔓"
+      );
+    }
   };
 
   const [settings, setSettings] = useState(() => {
@@ -682,21 +715,52 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Coming Soon: Biometric & Face ID */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-2">
-              <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded-lg uppercase tracking-widest shadow-sm">YAKINDA</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400">
-                <Key className="w-5 h-5 opacity-50" />
+          {/* Interactive Biometric & Face ID Toggle */}
+          <div className="p-4 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/50 shadow-xs relative overflow-hidden transition-all">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
+                  biometricLock 
+                    ? "bg-emerald-500/15 text-emerald-500 dark:bg-emerald-500/20 dark:text-emerald-400 shadow-sm" 
+                    : "bg-indigo-500/10 text-indigo-500 dark:bg-slate-800 dark:text-slate-400"
+                }`}>
+                  <Fingerprint className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                      Biyometrik Kilidi Aktif Et
+                    </h4>
+                    <span className={`px-2 py-0.5 text-[8px] font-black rounded-lg uppercase tracking-wider ${
+                      biometricLock 
+                        ? "bg-emerald-500 text-white shadow-xs" 
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    }`}>
+                      {biometricLock ? "AKTİF 🔒" : "PASİF"}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-semibold leading-tight mt-1">
+                    Cihazınızdaki Parmak İzi veya Yüz Tanıma (Face ID) ile tek dokunuşla güvenli giriş yapın.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">BİOMETRİK & YÜZ TANIMA</h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-tight mt-0.5">
-                  Parmak izi ve Face ID ile şifresiz, tek dokunuşla güvenli giriş özelliği çok yakında tüm PRO kullanıcıları için aktif olacak.
-                </p>
-              </div>
+
+              {/* Toggle Switch */}
+              <button
+                type="button"
+                onClick={handleToggleBiometricLock}
+                role="switch"
+                aria-checked={biometricLock}
+                className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  biometricLock ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    biometricLock ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
             </div>
           </div>
 
@@ -1203,6 +1267,43 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
               Yardımcı Araçlar & Servisler
             </h4>
+
+            {/* Biyometrik Kilit (Parmak İzi / Yüz Tanıma) Ayarı */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  biometricLock
+                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                    : "bg-slate-200 dark:bg-slate-800 text-slate-500"
+                }`}>
+                  <Fingerprint className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block flex items-center gap-1.5">
+                    Biyometrik Kilit (Parmak İzi / Yüz)
+                    {biometricLock && <span className="bg-emerald-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">AÇIK</span>}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium leading-none block mt-0.5">
+                    Uygulamaya girişte biyometrik doğrulama iste
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleBiometricLock}
+                role="switch"
+                aria-checked={biometricLock}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  biometricLock ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    biometricLock ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
 
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
