@@ -476,7 +476,6 @@ export default function App() {
   });
 
   const [loginUsername, setLoginUsername] = useState("");
-  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [syncCodeToApprove, setSyncCodeToApprove] = useState<string | null>(null);
 
   // Core Financial tables states
@@ -672,6 +671,16 @@ export default function App() {
   const [restoredPlanType, setRestoredPlanType] = useState<"monthly" | "yearly" | "lifetime">("yearly");
   const [restoreStatusLog, setRestoreStatusLog] = useState("");
   const [promoFeature, setPromoFeature] = useState<string | null>(null);
+
+  const openUpgradeModal = (featureName?: string) => {
+    setPromoFeature(featureName || null);
+    setIsUpgradeModalOpen(true);
+  };
+
+  const closeUpgradeModal = () => {
+    setIsUpgradeModalOpen(false);
+    setPromoFeature(null);
+  };
 
   // Custom Google Play & RevenueCat states
   const [isPricingLoading, setIsPricingLoading] = useState(false);
@@ -5449,6 +5458,7 @@ export default function App() {
     { id: "notifications", label: "BİLDİRİM AYARLARI", icon: Bell, isPro: true },
     { id: "aiStrategy", label: "AKILLI ASİSTAN (AI)", icon: Sparkles, isPro: true },
     { id: "financialTools", label: "FİNANSAL ANALİZ", icon: TrendingUp, isPro: true },
+    { id: "settings", label: "GÜVENLİK VE AYARLAR", icon: Settings },
     { id: "help", label: "KULLANIM REHBERİ", icon: HelpCircle },
     { id: "blog", label: "FİNANS KILAVUZLARI", icon: BookOpen },
     { id: "feedback", label: "GERİ BİLDİRİM", icon: MessageSquare },
@@ -5464,8 +5474,8 @@ export default function App() {
       return;
     }
 
-    if (tabId === "security" || tabId === "security_settings") {
-      setIsSecurityModalOpen(true);
+    if (tabId === "security" || tabId === "security_settings" || tabId === "settings") {
+      setActiveTab("settings");
       setIsSidebarOpen(false);
       return;
     }
@@ -5488,19 +5498,14 @@ export default function App() {
     }
 
     if (tabId === "cloud_sync" || tabId === "cloud" || tabId === "backup_cloud") {
-      setActiveTab("gplay_enhancements");
+      setActiveTab("settings");
       setIsSidebarOpen(false);
-      setTimeout(() => {
-        const el = document.getElementById("cloud-backup-sync-widget");
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-      }, 150);
       return;
     }
 
     const clickedItem = sidebarItems.find(item => item.id === tabId);
     if (clickedItem?.isPro && !isPremium) {
-      setPromoFeature(clickedItem.label);
-      setIsUpgradeModalOpen(true);
+      openUpgradeModal(clickedItem.label);
       triggerToast(`👑 ${clickedItem.label} özelliği yalnızca Pro üyelerimize özeldir!`);
       return;
     }
@@ -6077,7 +6082,7 @@ export default function App() {
 
             <button
               onClick={() => {
-                setIsUpgradeModalOpen(true);
+                openUpgradeModal();
               }}
               title="Premium Sürüme Yükselt"
               className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all flex items-center justify-center space-x-1 duration-300 cursor-pointer shrink-0 active:scale-95 ${
@@ -6105,11 +6110,15 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setIsSecurityModalOpen(true)}
+              onClick={() => handleNavClick("settings")}
               title="Güvenlik ve Ayarlar"
-              className="p-1.5 sm:p-2 lg:p-2.5 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
+              className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0 active:scale-95 ${
+                activeTab === "settings"
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                  : "bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300"
+              }`}
             >
-              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
 
@@ -7095,7 +7104,7 @@ export default function App() {
             monthlyPaymentsCount={currentMonthTotalPaymentsCount}
             monthlyInstallmentsDue={monthlyInstallmentsDue}
             isPremium={isPremium}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Genel Bakış & Gelişmiş Finans Paneli")}
             incomes={filteredIncomesByMonth}
             expenses={filteredExpensesByMonth}
             expenseCategories={expenseCategories}
@@ -7150,7 +7159,7 @@ export default function App() {
             onSaveInstallment={handleSaveInstallment}
             installmentDebts={installmentDebts}
             isPremium={isPremium}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Borç Yönetimi & Gelişmiş Takip")}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             setSelectedMonth={setSelectedMonth}
@@ -7171,7 +7180,7 @@ export default function App() {
             onAddAlarm={handleAddAlarm}
             language={language}
             isPremium={isPremium}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Kişi Alacak/Verecek Takibi")}
           />
         )}
 
@@ -7183,7 +7192,7 @@ export default function App() {
             onDeleteIncome={handleDeleteIncome}
             onRestoreIncomes={handleRestoreIncomes}
             isPremium={isPremium}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Gelir & Kasa Takibi")}
             carryOverBalance={statsBag.carryOverBalance}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -7204,7 +7213,7 @@ export default function App() {
             onUpdateAllCategories={handleSaveAllCategories}
             netBalance={statsBag.netIncome}
             isPremium={isPremium}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Gider Analizi & Kategori Yönetimi")}
             language={language}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -7223,7 +7232,7 @@ export default function App() {
             onRestoreInstallments={handleRestoreInstallments}
             isPremium={isPremium}
             language={language}
-            onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+            onUpgradeClick={() => openUpgradeModal("Taksitli Borçlar & Ödeme Planı")}
             focusedInstallmentId={focusedInstallmentId}
             setFocusedInstallmentId={setFocusedInstallmentId}
           />
@@ -7883,7 +7892,7 @@ export default function App() {
                         type="button"
                         onClick={() => {
                           if (!isPremium) {
-                            setIsUpgradeModalOpen(true);
+                            openUpgradeModal("Akıllı Sesli Asistan Servisi");
                           } else {
                             const next = !voiceAssistantEnabled;
                             setVoiceAssistantEnabled(next);
@@ -7988,6 +7997,49 @@ export default function App() {
               );
             }}
             isOfflineMode={isOfflineMode}
+          />
+        )}
+
+        {activeTab === "settings" && (
+          <SecuritySettingsPanel
+            language={language}
+            marqueeSpeed={marqueeSpeed}
+            setMarqueeSpeed={setMarqueeSpeed}
+            marqueePaused={marqueePaused}
+            setMarqueePaused={handleSetMarqueePaused}
+            voiceAssistantEnabled={voiceAssistantEnabled}
+            setVoiceAssistantEnabled={setVoiceAssistantEnabled}
+            isPremium={isPremium}
+            onOpenUpgradeModal={(name) => openUpgradeModal(name)}
+            onOpenOnboarding={() => setShowOnboarding(true)}
+            onSuccessToast={(msg) => triggerToast(msg)}
+            currentUser={currentUser}
+            onOpenGoogleLogin={() => handleQuickLogin("google")}
+            onManualSyncAll={async () => {
+              await saveAllToUser(
+                debts,
+                incomes,
+                alarms,
+                notifications,
+                installmentDebts,
+                payments,
+                expenses,
+                expenseCategories
+              );
+            }}
+            debts={debts}
+            installmentDebts={installmentDebts}
+            incomes={incomes}
+            expenses={expenses}
+            alarms={alarms}
+            notifications={notifications}
+            payments={payments}
+            expenseCategories={expenseCategories}
+            onRestoreBackup={handleRestoreBackup}
+            onExecuteExportBackup={executeExportBackup}
+            onProcessBackupJSON={processBackupJSON}
+            isOfflineMode={isOfflineMode}
+            onBack={() => setActiveTab("overview")}
           />
         )}
 
@@ -8377,92 +8429,7 @@ export default function App() {
         );
       })()}
 
-      {/* Security Settings Modal Overlay */}
-      <AnimatePresence>
-        {isSecurityModalOpen && (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col"
-            >
-              <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-rose-500 to-amber-500" />
-              
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
-                    <Shield className="w-5 h-5 text-indigo-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-500">
-                      GÜVENLİK VE AYARLAR
-                    </h3>
-                    <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      PIN Kilidi, Vade Bandı & Genel Ayarlar
-                    </h2>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSecurityModalOpen(false)}
-                  className="p-2 px-3 text-xs font-black rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 transition cursor-pointer"
-                >
-                  Kapat ✕
-                </button>
-              </div>
 
-              <div className="p-6 overflow-y-auto flex-1 scrollbar-none">
-                <SecuritySettingsPanel 
-                  language={language}
-                  marqueeSpeed={marqueeSpeed}
-                  setMarqueeSpeed={setMarqueeSpeed}
-                  marqueePaused={marqueePaused}
-                  setMarqueePaused={handleSetMarqueePaused}
-                  voiceAssistantEnabled={voiceAssistantEnabled}
-                  setVoiceAssistantEnabled={setVoiceAssistantEnabled}
-                  isPremium={isPremium}
-                  onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
-                  onOpenOnboarding={() => {
-                    setIsSecurityModalOpen(false);
-                    setShowOnboarding(true);
-                  }}
-                  onSuccessToast={(msg) => {
-                    triggerToast(msg);
-                  }} 
-                  currentUser={currentUser}
-                  onOpenGoogleLogin={() => handleQuickLogin("google")}
-                  onManualSyncAll={async () => {
-                    await saveAllToUser(
-                      debts,
-                      incomes,
-                      alarms,
-                      notifications,
-                      installmentDebts,
-                      payments,
-                      expenses,
-                      expenseCategories
-                    );
-                  }}
-                  debts={debts}
-                  installmentDebts={installmentDebts}
-                  incomes={incomes}
-                  expenses={expenses}
-                  alarms={alarms}
-                  notifications={notifications}
-                  payments={payments}
-                  expenseCategories={expenseCategories}
-                  onRestoreBackup={handleRestoreBackup}
-                  onExecuteExportBackup={executeExportBackup}
-                  onProcessBackupJSON={processBackupJSON}
-                  isOfflineMode={isOfflineMode}
-                  initialTab="cloud"
-                />
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* APK Sync Companion Confirmation Overlay */}
       <AnimatePresence>
@@ -9381,7 +9348,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => {
-                            setIsUpgradeModalOpen(false);
+                            closeUpgradeModal();
                             setIsRestoring(false);
                             setRestoreStep("method");
                           }}
@@ -9605,7 +9572,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => {
-                              setIsUpgradeModalOpen(false);
+                              closeUpgradeModal();
                               setIsRestoring(false);
                               setRestoreStep("method");
                               setSelectedProvider("google");
@@ -9631,7 +9598,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => {
-                              setIsUpgradeModalOpen(false);
+                              closeUpgradeModal();
                               setIsRestoring(false);
                               setRestoreStep("method");
                             }}
@@ -10153,7 +10120,7 @@ export default function App() {
           userApiKey={localStorage.getItem("user_gemini_api_key") || undefined}
           triggerToast={triggerToast}
           isPremium={isPremium}
-          onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+          onUpgradeClick={() => openUpgradeModal("Akıllı Sesli Asistan")}
         />
       )}
 

@@ -28,6 +28,7 @@ import { getApiUrl } from "../utils/api";
 import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
 import { useCurrency } from "../utils/CurrencyContext";
+import { LiveMarketCenterWidget } from "./LiveMarketCenterWidget";
 
 interface ChatMessage {
   sender: "user" | "bot";
@@ -1318,116 +1319,8 @@ ${installmentDetailsStr}`;
 
       </div>
 
-      {/* Live Currency & Gold Market Ticker Bar (Positioned BELOW the AI Section) */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl border border-indigo-500/30 shadow-lg space-y-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
-              <span>💱 Canlı Piyasa & Döviz / Altın Kurları</span>
-            </span>
-            {ratesLastUpdated && (
-              <span className="hidden sm:inline text-[10px] text-slate-400 font-mono">
-                ({ratesLastUpdated})
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={() => updateRatesFromAPI()}
-            disabled={isRatesFetching}
-            title="Anlık Kurları Yenile"
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-xl border border-white/20 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 active:scale-95"
-          >
-            <RotateCcw className={`w-3 h-3 ${isRatesFetching ? "animate-spin text-indigo-400" : ""}`} />
-            <span>{isRatesFetching ? "Yükleniyor..." : "Kurları Yenile"}</span>
-          </button>
-        </div>
-
-        {/* Live Rates Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-2.5">
-          <button
-            onClick={() => handleSend("Bugün güncel gram ve çeyrek altın fiyatı kaç TL?")}
-            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🥇 Gram Altın</span>
-              <span className="text-[9px] opacity-75 font-mono">24K</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{Math.round(rates.GOLD_GRAM || ((rates.GOLD_ONS || 4474) * (rates.USD || 45.85) / 31.1035)).toLocaleString("tr-TR")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Bugün çeyrek altın fiyatı kaç TL?")}
-            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🪙 Çeyrek Altın</span>
-              <span className="text-[9px] opacity-75 font-mono">Ziynet</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{Math.round(rates.GOLD_CEYREK || ((rates.GOLD_GRAM || 6595) * 1.635)).toLocaleString("tr-TR")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Dolar (USD) bugün kaç TL?")}
-            className="p-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-emerald-400"
-          >
-            <div className="text-[10px] font-bold text-emerald-300 flex items-center justify-between">
-              <span>🇺🇸 Dolar (USD)</span>
-              <span className="text-[9px] opacity-75 font-mono">Piyasa</span>
-            </div>
-            <div className="text-sm font-black text-emerald-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{(rates.USD || 45.85).toFixed(2)}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Euro (EUR) bugün kaç TL?")}
-            className="p-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-blue-400"
-          >
-            <div className="text-[10px] font-bold text-blue-300 flex items-center justify-between">
-              <span>🇪🇺 Euro (EUR)</span>
-              <span className="text-[9px] opacity-75 font-mono">Piyasa</span>
-            </div>
-            <div className="text-sm font-black text-blue-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ₺{(rates.EUR || 49.85).toFixed(2)}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Ons Altın ($) bugün kaç Dolar?")}
-            className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-amber-400"
-          >
-            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
-              <span>🪙 Ons Altın</span>
-              <span className="text-[9px] opacity-75 font-mono">USD</span>
-            </div>
-            <div className="text-sm font-black text-amber-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ${Math.round(rates.GOLD_ONS || 4474).toLocaleString("en-US")}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSend("Bitcoin (BTC) kaç Dolar?")}
-            className="p-3 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-2xl text-left transition cursor-pointer group shadow-sm hover:border-purple-400"
-          >
-            <div className="text-[10px] font-bold text-purple-300 flex items-center justify-between">
-              <span>₿ Bitcoin</span>
-              <span className="text-[9px] opacity-75 font-mono">BTC</span>
-            </div>
-            <div className="text-sm font-black text-purple-100 mt-0.5 group-hover:scale-105 transition-transform">
-              ${Math.round(rates.BTC_USD || 81588).toLocaleString("en-US")}
-            </div>
-          </button>
-        </div>
-      </div>
+      {/* Live Comprehensive Currency, Gold & Crypto Market Center (Matches Screenshot Exactly) */}
+      <LiveMarketCenterWidget onAskAI={(prompt) => handleSend(prompt)} />
 
       {/* Advanced Gemini API Key / Engine Settings Drawer */}
       <div className="overflow-hidden bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xs">
