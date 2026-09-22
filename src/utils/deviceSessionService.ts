@@ -49,21 +49,26 @@ export async function getDeviceUuid(): Promise<string> {
 
 export interface SaveSessionParams {
   userId: string;
-  email: string;
+  email?: string;
   isPremium: boolean;
-  isGuest: boolean;
+  isGuest?: boolean;
   deviceId?: string;
+  premiumType?: "monthly" | "yearly" | "lifetime";
+  premiumExpiryDate?: string;
+  productId?: string;
+  createdAt?: string;
 }
 
 /**
  * Kullanıcı giriş yaptığında veya kaydolduğunda Firestore (users/{userId}) dokümanını günceller.
  * - info.borcodemetakip@gmail.com hesabı için doğrudan isPremium: true atanır.
  * - Misafir için: isPremium: false, isGuest: true
- * - Premium için: isPremium: true, isGuest: false, activeDeviceId: [cihaz UUID]
+ * - Premium için: isPremium: true, isGuest: false, activeDeviceId: [cihaz UUID], premiumType ve premiumExpiryDate
+ * - createdAt alanı ilk kayıt zamanını temsil eder ve 7 günlük ücretsiz deneme hesabı için temel referanstır.
  * - Ağ gecikmelerinde veya Android WebView'da ekranın takılı kalmaması için süre kısıtı (timeout) ile korunmuştur.
  */
 export async function saveUserSessionToFirestore(params: SaveSessionParams): Promise<void> {
-  const { userId, email, isPremium, isGuest, deviceId } = params;
+  const { userId, email, isPremium, isGuest, deviceId, premiumType, premiumExpiryDate, productId, createdAt } = params;
   const cleanEmail = (email || "").trim().toLowerCase();
   const isSuperTestEmail = cleanEmail === "info.borcodemetakip@gmail.com";
   const now = new Date().toISOString();
@@ -71,14 +76,52 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
   const effectivePremium = isSuperTestEmail ? true : (isPremium === true);
   const effectiveGuest = isSuperTestEmail ? false : (isGuest === true);
 
+  // Var olan createdAt alanını korumak için kontrol et
+  let determinedCreatedAt = createdAt;
+  const userDocRef = doc(firestore, "users", userId);
+
+  if (!determinedCreatedAt) {
+    try {
+      const existingSnap = await Promise.race([
+        getDoc(userDocRef),
+        new Promise<null>(res => setTimeout(() => res(null), 800))
+      ]);
+      if (existingSnap && existingSnap.exists()) {
+        const exData = existingSnap.data();
+        if (exData?.createdAt) {
+          determinedCreatedAt = exData.createdAt;
+        }
+      }
+    } catch {
+      // devam et
+    }
+  }
+
+  // Eğer hâlâ belirlenmediyse ve Firebase Auth metadata varsa oradan al, yoksa şimdiki zamanı ata
+  if (!determinedCreatedAt) {
+    if (auth.currentUser?.metadata?.creationTime) {
+      determinedCreatedAt = new Date(auth.currentUser.metadata.creationTime).toISOString();
+    } else {
+      determinedCreatedAt = now;
+    }
+  }
+
   const userDocData: Record<string, any> = {
     email: cleanEmail,
     userUid: userId,
     isPremium: effectivePremium,
     isGuest: effectiveGuest,
+    createdAt: determinedCreatedAt,
     updatedAt: now,
     lastLoginAt: now
   };
+
+  if (effectivePremium) {
+    if (premiumType) userDocData.premiumType = premiumType;
+    if (premiumExpiryDate) userDocData.premiumExpiryDate = premiumExpiryDate;
+    if (productId) userDocData.productId = productId;
+    userDocData.premiumPlan = premiumType || "yearly";
+  }
 
   if (effectivePremium && deviceId) {
     userDocData.activeDeviceId = deviceId;
@@ -86,7 +129,6 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
 
   // 1. Firestore users/{userId} dokümanına kaydet (Maksimum 1200ms zaman aşımı koruması)
   try {
-    const userDocRef = doc(firestore, "users", userId);
     await Promise.race([
       setDoc(userDocRef, userDocData, { merge: true }),
       new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1200))
@@ -95,6 +137,9 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
       userId,
       isPremium: effectivePremium,
       isGuest: effectiveGuest,
+      createdAt: determinedCreatedAt,
+      premiumType: userDocData.premiumType || "belirtilmedi",
+      premiumExpiryDate: userDocData.premiumExpiryDate || "belirtilmedi",
       activeDeviceId: userDocData.activeDeviceId || "YOK"
     });
   } catch (firestoreErr) {
@@ -103,11 +148,15 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
 
   // 2. Geriye dönük uyumluluk için Realtime Database senkronizasyonu (Arka planda, arayüzü bekletmez)
   try {
-    const rtdbPayload = {
+    const rtdbPayload: Record<string, any> = {
       isPremium: effectivePremium,
       isGuest: effectiveGuest,
+      createdAt: determinedCreatedAt,
       updatedAt: now,
-      ...(effectivePremium && deviceId ? { activeDeviceId: deviceId } : {})
+      ...(effectivePremium && deviceId ? { activeDeviceId: deviceId } : {}),
+      ...(effectivePremium && premiumType ? { premiumType, premiumPlan: premiumType } : {}),
+      ...(effectivePremium && premiumExpiryDate ? { premiumExpiryDate } : {}),
+      ...(effectivePremium && productId ? { productId } : {})
     };
     Promise.race([
       Promise.all([

@@ -39,11 +39,21 @@ import {
 
 export type LoginPortalTab = "premium" | "guest_trial";
 
+export interface LoginSuccessMeta {
+  isPremium?: boolean;
+  isGuest?: boolean;
+  isPendingPayment?: boolean;
+  isTrialActive?: boolean;
+  isTrialExpired?: boolean;
+  trialMessage?: string;
+  createdAt?: string;
+}
+
 interface ProviderLoginModalProps {
   isOpen: boolean;
   provider?: string | null;
   onClose: () => void;
-  onLoginSuccess: (email: string, meta?: { isPremium?: boolean; isGuest?: boolean }) => void;
+  onLoginSuccess: (email: string, meta?: LoginSuccessMeta) => void;
   isPremium?: boolean;
   onOpenUpgradeModal?: (featureName?: string) => void;
   onContinueGuest?: () => void;
@@ -60,8 +70,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
   onContinueGuest,
   initialTab = "premium"
 }) => {
-  // Ana Sekme: "premium" (Premium Üye Girişi) veya "guest_trial" (7 Günlük Ücretsiz Deneme / Misafir)
+  // Ana Sekme: "premium" (Premium Üye Girişi / Kaydı) veya "guest_trial" (7 Günlük Ücretsiz Deneme / Misafir)
   const [activeTab, setActiveTab] = useState<LoginPortalTab>(initialTab);
+
+  // Premium sekmesindeki alt mod: "login" (Mevcut Üye Girişi) | "register" (Yeni Premium Hesap Oluştur & Ödemeye Geç)
+  const [premiumSubMode, setPremiumSubMode] = useState<"login" | "register">("login");
 
   // Misafir / Deneme sekmesindeki alt mod: "login" | "register"
   const [guestSubMode, setGuestSubMode] = useState<"login" | "register">("register");
@@ -113,12 +126,12 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       case "auth/invalid-email":
         return "Geçersiz e-posta adresi formatı. Lütfen kontrol edin.";
       case "auth/user-not-found":
-        return "Bu e-posta adresi ile kayıtlı bir hesap bulunamadı. İlk kez kullanıyorsanız '7 Günlük Ücretsiz Deneme' sekmesinden kaydolabilirsiniz.";
+        return "Bu e-posta adresi ile kayıtlı bir hesap bulunamadı. Lütfen 'Yeni Premium Hesap Oluştur' seçeneği ile kaydolun.";
       case "auth/wrong-password":
       case "auth/invalid-credential":
         return "E-posta veya şifre hatalı. Lütfen şifrenizi kontrol edin veya 'Şifremi Unuttum' bağlantısını kullanın.";
       case "auth/email-already-in-use":
-        return "Bu e-posta adresiyle zaten kayıtlı bir hesap var. Lütfen 'Giriş Yap' seçeneğini kullanarak giriş yapın.";
+        return "Bu e-posta adresiyle zaten kayıtlı bir hesap var. Lütfen 'Giriş Yap' seçeneğini kullanarak şifrenizle giriş yapın.";
       case "auth/weak-password":
         return "Şifreniz çok zayıf. Güvenliğiniz için en az 6 karakterli bir şifre belirleyin.";
       case "auth/too-many-requests":
@@ -153,10 +166,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       ]);
 
       try {
-        // 1. ADIM: Önce girilen e-posta adresini Firestore veritabanında (email_subscribers veya users koleksiyonlarında) sorgula
         const premiumCheck = await checkIsPremiumEmailInFirestore(targetEmail);
-
-        // 2. ADIM: Eğer bu e-posta adresi veritabanında mevcut DEĞİLSE veya mevcut olup da "isPremium" değeri TRUE değilse, şifre sıfırlama maili GÖNDERME.
         if (!premiumCheck.exists || !premiumCheck.isPremium) {
           setIsLoading(false);
           setError("Bu e-posta adresiyle kayıtlı bir Premium üyelik bulunamadı. Şifre sıfırlayamazsınız!");
@@ -164,7 +174,6 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           return;
         }
 
-        // 3. ADIM: Yalnızca ve sadece "isPremium": true olan kayıtlı e-postalar için şifre sıfırlama maili tetiklensin
         setSyncLogs(prev => [
           ...prev,
           "👑 Kayıtlı Premium Üyelik Doğrulandı (isPremium: true)",
@@ -187,8 +196,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       return;
     }
 
-    // Misafir kayıt modunda şifre eşleşme kontrolü
-    if (activeTab === "guest_trial" && guestSubMode === "register" && password !== confirmPassword) {
+    // Kayıt modlarında şifre eşleşme kontrolü (Premium Kayıt & Misafir Kayıt)
+    const isRegistering = (activeTab === "premium" && premiumSubMode === "register") || (activeTab === "guest_trial" && guestSubMode === "register");
+    if (isRegistering && password !== confirmPassword) {
       setError("Girdiğiniz şifreler birbiriyle eşleşmiyor. Lütfen her iki alana da aynı şifreyi yazın.");
       return;
     }
@@ -196,124 +206,273 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
     setIsLoading(true);
     setSyncLogs([
       "Firebase Güvenli Kimlik Doğrulama Bağlantısı Kuruluyor...",
-      "Kullanıcı kimliği doğrulanıyor..."
+      "Kullanıcı kimliği işleniyor..."
     ]);
 
     try {
       // -------------------------------------------------------------
-      // DURUM 1: "Premium Üye Girişi" (E-posta ve Şifre ile giriş)
+      // AKIŞ 1: PREMIUM KAYIT (ÖNCE HESAP OLUŞTURMA -> SATIN ALMAYA YÖNLENDİRME)
       // -------------------------------------------------------------
-      if (activeTab === "premium") {
+      if (activeTab === "premium" && premiumSubMode === "register") {
+        setSyncLogs(prev => [
+          ...prev,
+          "Firebase Auth ile yeni kullanıcı hesabı oluşturuluyor...",
+          "Firestore kullanıcı dokümanı (isPremium: false) hazırlanıyor..."
+        ]);
+
+        // 1. Firebase Auth ile yeni kullanıcı oluştur
+        const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
+        const user = credential.user;
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const nowIso = new Date().toISOString();
+
+        // 2. Cihaz donanım kimliği al
+        const deviceUuid = await Promise.race([
+          getDeviceUuid(),
+          new Promise<string>(res => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+        ]);
+
+        // 3. Firestore'daki (users/{userId}) dokümanına isPremium: false, isGuest: false olarak kaydet
+        try {
+          await Promise.race([
+            saveUserSessionToFirestore({
+              userId: user.uid,
+              email: cleanUserEmail,
+              isPremium: false,
+              isGuest: false,
+              deviceId: deviceUuid,
+              createdAt: nowIso
+            }),
+            new Promise(res => setTimeout(res, 1200))
+          ]);
+        } catch (sessErr) {
+          console.warn("[Premium Signup] Firestore kullanıcı kaydı uyarısı:", sessErr);
+        }
+
+        // 4. LocalStorage oturumunu güncelle
+        localStorage.setItem("currentUser", cleanUserEmail);
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "false");
+        localStorage.setItem("user_created_at", nowIso);
+        localStorage.removeItem("premium_source");
+        localStorage.removeItem("trial_end_date");
+        if (deviceUuid) {
+          localStorage.setItem("active_device_id", deviceUuid);
+        }
+
+        setSyncLogs(prev => [
+          ...prev,
+          "✅ Hesap başarıyla oluşturuldu!",
+          "🚀 Satın Alma ve Abonelik Planlarına Yönlendiriliyorsunuz..."
+        ]);
+
+        setIsLoading(false);
+        handleClose();
+
+        // 5. Otomatik Satın Alma Sayfasına Yönlendir
+        onLoginSuccess(cleanUserEmail, {
+          isPremium: false,
+          isGuest: false,
+          isPendingPayment: true,
+          trialMessage: "Hesabınız oluşturuldu! Aboneliğinizi tamamlamak için lütfen bir plan seçin.",
+          createdAt: nowIso
+        });
+
+        if (onOpenUpgradeModal) {
+          onOpenUpgradeModal("premium_signup");
+        }
+        return;
+      }
+
+      // -------------------------------------------------------------
+      // AKIŞ 2: PREMIUM ÜYE GİRİŞİ (E-Posta & Şifre ile Giriş)
+      // -------------------------------------------------------------
+      if (activeTab === "premium" && premiumSubMode === "login") {
         setSyncLogs(prev => [...prev, "Cihaz donanım kimliği taranıyor..."]);
         
         // 1. Firebase Auth ile giriş yap
         const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
 
-        // 1. Kural: info.borcodemetakip@gmail.com hesabı için doğrudan isPremium: true atanır
-        const isSuperTestEmail = targetEmail === "info.borcodemetakip@gmail.com";
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const isSuperTestEmail = cleanUserEmail === "info.borcodemetakip@gmail.com";
         let isUserPremium = isSuperTestEmail;
+        let determinedCreatedAt: string | null = null;
+        let isGuestUser = false;
 
         if (!isSuperTestEmail) {
           try {
-            // Firestore users/{uid} dokümanı ve email_subscribers kontrolü (hızlı zaman aşımı korumalı)
+            // Firestore users/{uid} dokümanı ve email_subscribers kontrolü
             const uSnap = await Promise.race([
               getDoc(doc(firestore, "users", user.uid)),
               new Promise<null>(res => setTimeout(() => res(null), 1200))
             ]);
-            if (uSnap && uSnap.exists() && uSnap.data()?.isPremium === true) {
-              isUserPremium = true;
+            if (uSnap && uSnap.exists()) {
+              const uData = uSnap.data();
+              if (uData?.isPremium === true) {
+                isUserPremium = true;
+              }
+              if (uData?.isGuest === true) {
+                isGuestUser = true;
+              }
+              if (uData?.createdAt) {
+                determinedCreatedAt = uData.createdAt;
+              }
             } else {
               const checkRes = await Promise.race([
-                checkIsPremiumEmailInFirestore(targetEmail),
+                checkIsPremiumEmailInFirestore(cleanUserEmail),
                 new Promise<{ exists: boolean; isPremium: boolean }>(res => setTimeout(() => res({ exists: false, isPremium: false }), 1200))
               ]);
               if (checkRes.isPremium) {
                 isUserPremium = true;
-              } else {
-                // Premium tabından giriş yapıldığı için oturumu Premium olarak aktive et
-                isUserPremium = true;
               }
             }
           } catch {
-            isUserPremium = true;
+            // Devam et
           }
         }
 
-        // 2. @capacitor/device ile cihaz UUID'sini al (Asla takılmaması için zaman aşımı koruması)
+        // 2. @capacitor/device ile cihaz UUID'sini al
         const deviceUuid = await Promise.race([
           getDeviceUuid(),
           new Promise<string>(res => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
         ]);
 
+        if (!determinedCreatedAt && user.metadata?.creationTime) {
+          determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
+        }
+
         setSyncLogs(prev => [
           ...prev,
-          `Giriş Doğrulandı: ${user.email}`,
-          `Aktif Cihaz Kimliği: ${deviceUuid.substring(0, 8)}...`,
-          "Güvenlik kaydı doğrulanıyor..."
+          `Giriş Doğrulandı: ${cleanUserEmail}`,
+          isUserPremium 
+            ? "👑 Lisanslı Premium Üyelik Doğrulandı" 
+            : "⚠️ Abonelik Tamamlanmamış (Ödeme Bekleniyor)",
+          "Güvenlik ve oturum kaydı işleniyor..."
         ]);
 
-        // 3. Firestore'daki kullanıcı dokümanına isPremium ve activeDeviceId yaz (Asla ekranı kilitlemez)
+        // 3. Firestore'daki kullanıcı dokümanına kaydet
         try {
           await Promise.race([
             saveUserSessionToFirestore({
               userId: user.uid,
-              email: user.email || targetEmail,
+              email: cleanUserEmail,
               isPremium: isUserPremium,
-              isGuest: !isUserPremium,
-              deviceId: deviceUuid
+              isGuest: isGuestUser,
+              deviceId: deviceUuid,
+              createdAt: determinedCreatedAt || undefined
             }),
             new Promise(res => setTimeout(res, 1200))
           ]);
         } catch (sessErr) {
-          console.warn("[Login] Firestore tek cihaz kaydı uyarısı:", sessErr);
+          console.warn("[Login] Firestore oturum kaydı uyarısı:", sessErr);
         }
 
-        // 4. Yerel hafızayı ve durumu anında güncelle
-        localStorage.setItem("currentUser", user.email || targetEmail);
+        // 4. Yerel hafızayı güncelle
+        localStorage.setItem("currentUser", cleanUserEmail);
         localStorage.setItem("is_premium", isUserPremium ? "true" : "false");
-        localStorage.setItem("is_guest", (!isUserPremium).toString());
+        localStorage.setItem("is_guest", isGuestUser ? "true" : "false");
+        if (determinedCreatedAt) {
+          localStorage.setItem("user_created_at", determinedCreatedAt);
+        }
+
         if (isUserPremium) {
           localStorage.setItem("premium_source", "login");
+        } else {
+          localStorage.removeItem("premium_source");
+          localStorage.removeItem("trial_end_date");
         }
+
         if (deviceUuid) {
           localStorage.setItem("active_device_id", deviceUuid);
         }
 
-        // 2. Kural: Giriş başarılı olduğu an yükleme ekranını kapat, modalı kapat ve ana ekrana yönlendir
         setIsLoading(false);
-        onLoginSuccess(user.email || targetEmail, { isPremium: isUserPremium, isGuest: !isUserPremium });
         handleClose();
+
+        // 5. ÖDEME YAPMADAN ÇIKANLAR İÇİN KONTROL:
+        // Eğer isPremium === false ise ana sayfaya geçişi engelle, kullanıcıyı doğrudan Satın Alma Sayfasına yönlendir!
+        if (!isUserPremium) {
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: false,
+            isPendingPayment: true,
+            trialMessage: "Aboneliğinizi tamamlamak için lütfen bir plan seçin.",
+            createdAt: determinedCreatedAt || undefined
+          });
+
+          if (onOpenUpgradeModal) {
+            onOpenUpgradeModal("unpaid_premium_login");
+          }
+          return;
+        }
+
+        // Lisanslı Premium Kullanıcı -> Ana Sayfaya Aç
+        onLoginSuccess(cleanUserEmail, {
+          isPremium: true,
+          isGuest: false,
+          createdAt: determinedCreatedAt || undefined
+        });
+        return;
       } 
       // -------------------------------------------------------------
       // DURUM 2: "7 Günlük Ücretsiz Deneme (Misafir) Girişi / Kaydı"
       // -------------------------------------------------------------
       else {
         let user;
+        const now = new Date();
+        let determinedCreatedAt = now.toISOString();
+
         if (guestSubMode === "register") {
           setSyncLogs(prev => [...prev, "Yeni 7 Günlük Deneme hesabı oluşturuluyor..."]);
           const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
           user = credential.user;
+          if (user.metadata?.creationTime) {
+            determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
+          }
         } else {
           setSyncLogs(prev => [...prev, "Misafir hesabı doğrulanıyor..."]);
           const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
           user = credential.user;
+          try {
+            const userDocSnap = await getDoc(doc(firestore, "users", user.uid));
+            if (userDocSnap.exists()) {
+              const uData = userDocSnap.data();
+              if (uData.createdAt) {
+                determinedCreatedAt = uData.createdAt;
+              }
+            }
+          } catch {
+            // Devam et
+          }
+          if (!determinedCreatedAt && user.metadata?.creationTime) {
+            determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
+          }
         }
+
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+
+        // 7 günlük süre kontrolü
+        const createdAtMs = new Date(determinedCreatedAt).getTime();
+        const diffDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
+        const isTrialActive = diffDays < 7;
+        const isTrialExpired = diffDays >= 7;
 
         // Firestore'daki kullanıcı dokümanına (users/{userId}) "isPremium": false ve "isGuest": true değerleri işlensin
         setSyncLogs(prev => [
           ...prev,
-          `Hesap Bağlandı: ${user.email}`,
-          "Deneme hesabı tanımlanıyor..."
+          `Hesap Bağlandı: ${cleanUserEmail}`,
+          isTrialActive ? "🎁 7 Günlük Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
         ]);
 
         try {
           await Promise.race([
             saveUserSessionToFirestore({
               userId: user.uid,
-              email: user.email || targetEmail,
+              email: cleanUserEmail,
               isPremium: false,
-              isGuest: true
+              isGuest: true,
+              createdAt: determinedCreatedAt
             }),
             new Promise(res => setTimeout(res, 1200))
           ]);
@@ -321,19 +480,41 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           console.warn("[Login] Misafir oturum kaydı uyarısı:", gErr);
         }
 
-        // 7 günlük deneme süresini yerel ve istemci tarafında tanımla
-        const now = new Date();
-        const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        localStorage.setItem("currentUser", user.email || targetEmail);
+        const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+        localStorage.setItem("currentUser", cleanUserEmail);
         localStorage.setItem("is_premium", "false");
         localStorage.setItem("is_guest", "true");
-        localStorage.setItem("trial_end_date", trialEndDate);
-        localStorage.setItem("premium_source", "trial");
+        localStorage.setItem("user_created_at", determinedCreatedAt);
 
-        // Yükleme ekranını kapat, modalı kapat ve ana ekrana yönlendir
+        if (isTrialActive) {
+          localStorage.setItem("trial_end_date", trialEndDate);
+          localStorage.setItem("premium_source", "trial");
+        } else {
+          localStorage.removeItem("trial_end_date");
+          localStorage.removeItem("premium_source");
+        }
+
         setIsLoading(false);
-        onLoginSuccess(user.email || targetEmail, { isPremium: false, isGuest: true });
         handleClose();
+
+        if (isTrialExpired) {
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: true,
+            isTrialExpired: true,
+            createdAt: determinedCreatedAt
+          });
+        } else {
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: true,
+            isTrialActive: true,
+            trialMessage: guestSubMode === "register" 
+              ? "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı!"
+              : "Premium aboneliğiniz tamamlanmadı. Ancak uygulamamızı test edebilmeniz için 7 günlük ücretsiz deneme süreniz tanımlanmıştır!",
+            createdAt: determinedCreatedAt
+          });
+        }
       }
     } catch (err: any) {
       setIsLoading(false);
@@ -387,8 +568,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   {isForgotMode
                     ? "Premium Şifre Sıfırlama"
                     : activeTab === "premium"
-                    ? "Premium Üye Girişi"
-                    : "7 Günlük Ücretsiz Deneme / Misafir"}
+                    ? (premiumSubMode === "register" ? "Yeni Premium Hesap Oluştur" : "Premium Üye Girişi")
+                    : (guestSubMode === "register" ? "7 Günlük Ücretsiz Deneme Kaydı" : "Misafir Girişi")}
                 </h2>
               </div>
             </div>
@@ -440,10 +621,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 >
                   <div className="flex items-center gap-1.5">
                     <CrownIcon className="w-4 h-4" />
-                    <span>👑 Premium Giriş</span>
+                    <span>👑 Premium Üyelik</span>
                   </div>
                   <span className={`text-[10px] font-bold ${activeTab === "premium" ? "text-slate-950/80" : "text-slate-400 dark:text-slate-500"}`}>
-                    Tek Cihaz Korumalı PRO
+                    Kayıt & Giriş (PRO)
                   </span>
                 </button>
 
@@ -477,33 +658,63 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             {/* BİLGİLENDİRME ROZETLERİ (SEÇİLEN SEKMEYE ÖZGÜ MİMARİ AÇIKLAMASI) */}
             {/* ------------------------------------------------------------- */}
             {!isForgotMode && activeTab === "premium" && (
-              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-2.5">
-                <SmartphoneIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-left space-y-0.5">
-                  <div className="text-xs font-black text-amber-700 dark:text-amber-300">
-                    Eşzamanlı Tek Cihaz Koruma Kuralı
+              <div className="space-y-2">
+                {/* Premium sekmesi için Giriş Yap / Yeni Kayıt alt seçicisi */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPremiumSubMode("login");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className={`py-2 text-xs font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      premiumSubMode === "login"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                    }`}
+                  >
+                    <LogInIcon className="w-3.5 h-3.5" />
+                    <span>Giriş Yap</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPremiumSubMode("register");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className={`py-2 text-xs font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      premiumSubMode === "register"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                    }`}
+                  >
+                    <UserPlusIcon className="w-3.5 h-3.5" />
+                    <span>Yeni Hesap Aç</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-2.5">
+                  <SmartphoneIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-left space-y-0.5">
+                    <div className="text-xs font-black text-amber-700 dark:text-amber-300">
+                      {premiumSubMode === "register" 
+                        ? "1. Adım: Hesap Oluşturma, 2. Adım: Plan Seçimi" 
+                        : "Tek Cihaz Korumalı Premium Giriş"}
+                    </div>
+                    <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 font-medium leading-relaxed">
+                      {premiumSubMode === "register"
+                        ? "Başka bir cihaza geçtiğinizde şifrenizle girebilmeniz için önce hesabınızı oluşturun, ardından doğrudan abonelik ve ödeme sayfasına yönlendirileceksiniz."
+                        : "Premium hesabınız bu cihaza bağlanır. Başka bir cihaza geçtiğinizde şifrenizle giriş yaparak lisansınızı kullanmaya devam edebilirsiniz."}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 font-medium leading-relaxed">
-                    Premium hesabınız bu cihaza bağlanır. Telefonunuzu değiştirdiğinizde dilediğiniz gibi giriş yapabilirsiniz; hesabınız başka bir cihazda açıldığında eski cihazdaki oturum güvenlik gereği otomatik sonlandırılır.
-                  </p>
                 </div>
               </div>
             )}
 
             {!isForgotMode && activeTab === "guest_trial" && (
               <div className="space-y-2">
-                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-2.5">
-                  <SparklesIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="text-left space-y-0.5">
-                    <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">
-                      7 Günlük Ücretsiz Deneme (Misafir Modu)
-                    </div>
-                    <p className="text-[11px] text-emerald-900/80 dark:text-emerald-200/80 font-medium leading-relaxed">
-                      E-posta ve şifrenizi belirleyerek kaydolun veya mevcut misafir hesabınıza girin. 7 gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz. Bu modda tek cihaz kısıtlaması uygulanmaz.
-                    </p>
-                  </div>
-                </div>
-
                 {/* Misafir sekmesi için Giriş Yap / Kayıt Ol alt seçicisi */}
                 <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
                   <button
@@ -538,6 +749,18 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                     <LogInIcon className="w-3.5 h-3.5" />
                     <span>Giriş Yap</span>
                   </button>
+                </div>
+
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-2.5">
+                  <SparklesIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="text-left space-y-0.5">
+                    <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">
+                      7 Günlük Ücretsiz Deneme (Misafir Modu)
+                    </div>
+                    <p className="text-[11px] text-emerald-900/80 dark:text-emerald-200/80 font-medium leading-relaxed">
+                      E-posta ve şifrenizi belirleyerek kaydolun veya mevcut misafir hesabınıza girin. 7 gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz. Bu modda tek cihaz kısıtlaması uygulanmaz.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -593,17 +816,19 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                         Şifre
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsForgotMode(true);
-                          setError("");
-                          setSuccessMsg("");
-                        }}
-                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                      >
-                        Şifremi Unuttum?
-                      </button>
+                      {activeTab === "premium" && premiumSubMode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsForgotMode(true);
+                            setError("");
+                            setSuccessMsg("");
+                          }}
+                          className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                        >
+                          Şifremi Unuttum?
+                        </button>
+                      )}
                     </div>
                     <div className="relative">
                       <input
@@ -629,8 +854,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   </div>
                 )}
 
-                {/* Misafir Kayıt Modunda Şifre Onayı */}
-                {!isForgotMode && activeTab === "guest_trial" && guestSubMode === "register" && (
+                {/* Kayıt Modlarında Şifre Onayı (Hem Premium Kayıt hem Misafir Kayıt için) */}
+                {!isForgotMode && (
+                  (activeTab === "premium" && premiumSubMode === "register") ||
+                  (activeTab === "guest_trial" && guestSubMode === "register")
+                ) && (
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                       Şifre Tekrarı
@@ -643,7 +871,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Şifrenizi tekrar girin"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
+                        className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 text-sm font-medium ${
+                          activeTab === "premium" ? "focus:ring-amber-500" : "focus:ring-emerald-500"
+                        }`}
                       />
                       <div className="absolute left-3.5 top-3 text-slate-400">
                         <LockIcon className="w-4 h-4" />
@@ -686,7 +916,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                       isForgotMode
                         ? "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20"
                         : activeTab === "premium"
-                        ? "bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-amber-500/25"
+                        ? (premiumSubMode === "register"
+                            ? "bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-amber-500/25"
+                            : "bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-amber-500/25")
                         : guestSubMode === "register"
                         ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20"
                         : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/20"
@@ -698,11 +930,19 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                         <span>Sıfırlama Bağlantısı Gönder</span>
                       </>
                     ) : activeTab === "premium" ? (
-                      <>
-                        <CrownIcon className="w-4 h-4 text-slate-950" />
-                        <span>👑 Premium Üye Girişi Yap</span>
-                        <ArrowRightIcon className="w-4 h-4 text-slate-950" />
-                      </>
+                      premiumSubMode === "register" ? (
+                        <>
+                          <CrownIcon className="w-4 h-4 text-slate-950" />
+                          <span>✨ Kaydol ve Ödemeye Geç</span>
+                          <ArrowRightIcon className="w-4 h-4 text-slate-950" />
+                        </>
+                      ) : (
+                        <>
+                          <CrownIcon className="w-4 h-4 text-slate-950" />
+                          <span>👑 Premium Üye Girişi Yap</span>
+                          <ArrowRightIcon className="w-4 h-4 text-slate-950" />
+                        </>
+                      )
                     ) : guestSubMode === "register" ? (
                       <>
                         <SparklesIcon className="w-4 h-4" />
@@ -717,32 +957,50 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   </button>
                 </div>
 
-                {/* 2. PREMIUM YENİ KAYIT (SIGN UP) YÖNLENDİRMESİ */}
+                {/* 2. PREMIUM ALT YÖNLENDİRMELERİ */}
                 {!isForgotMode && activeTab === "premium" && (
                   <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="text-center">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        Henüz bir Premium üyeliğiniz yok mu?
-                      </span>
-                    </div>
-                    <button
-                      id="btn-goto-premium-purchase"
-                      type="button"
-                      onClick={() => {
-                        if (onOpenUpgradeModal) {
-                          onOpenUpgradeModal("premium_signup");
-                        }
-                        handleClose();
-                      }}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-200 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98]"
-                    >
-                      <CrownIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span>✨ Yeni Premium Hesap Oluştur (Plan Seç & Satın Al)</span>
-                      <ArrowRightIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    </button>
-                    <p className="text-[10.5px] text-center text-slate-500 dark:text-slate-400 leading-snug">
-                      🔒 Premium hesaplar doğrudan formla açılmaz; üyelik planı satın alındığında hesabınız otomatik olarak aktif edilir ve ardından bu ekrandan şifrenizle giriş yapabilirsiniz.
-                    </p>
+                    {premiumSubMode === "login" ? (
+                      <>
+                        <div className="text-center">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Henüz bir Premium üyeliğiniz yok mu?
+                          </span>
+                        </div>
+                        <button
+                          id="btn-switch-to-premium-register"
+                          type="button"
+                          onClick={() => {
+                            setPremiumSubMode("register");
+                            setError("");
+                            setSuccessMsg("");
+                          }}
+                          className="w-full py-3 px-4 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-200 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98]"
+                        >
+                          <UserPlusIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          <span>✨ Yeni Premium Hesap Oluştur (Kayıt Ol)</span>
+                          <ArrowRightIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        </button>
+                        <p className="text-[10.5px] text-center text-slate-500 dark:text-slate-400 leading-snug">
+                          🔒 Hesabınızı e-posta ve şifrenizle oluşturduktan sonra doğrudan Satın Alma Sayfasına yönlendirileceksiniz.
+                        </p>
+                      </>
+                    ) : (
+                      <div className="text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPremiumSubMode("login");
+                            setError("");
+                            setSuccessMsg("");
+                          }}
+                          className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
+                        >
+                          <LogInIcon className="w-3.5 h-3.5" />
+                          <span>Zaten bir hesabınız var mı? Giriş Yapın</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

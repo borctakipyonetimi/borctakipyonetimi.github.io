@@ -78,6 +78,14 @@
           "type": "string",
           "description": "Active subscription tier"
         },
+        "premiumType": {
+          "type": "string",
+          "description": "Type of premium plan: monthly, yearly, lifetime"
+        },
+        "premiumExpiryDate": {
+          "type": "string",
+          "description": "Expiration timestamp ISO string or 'lifetime' for permanent access"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

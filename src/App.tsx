@@ -26,7 +26,7 @@ import {
   enableNetwork 
 } from "./utils/firebase";
 import { compressAndResizeImage } from "./utils/imageUtils";
-import { Purchases, PLAY_PRODUCTS } from "./utils/purchases";
+import { Purchases, PLAY_PRODUCTS, calculatePlanExpiry } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
 import { subscribeToNewsletter } from "./utils/newsletterService";
 import { motion, AnimatePresence } from "motion/react";
@@ -501,12 +501,42 @@ export default function App() {
 
   // Premium tier configurations (Free vs Paid Premium, persisted to keep premium state on browser reload)
   const [isPremium, setIsPremium] = useState<boolean>(() => {
-    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase();
+    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
     if (savedUser === "info.borcodemetakip@gmail.com") {
       return true;
     }
-    return localStorage.getItem("is_premium") === "true";
+    const isPrem = localStorage.getItem("is_premium") === "true";
+    const pSource = localStorage.getItem("premium_source");
+    if (isPrem && pSource !== "trial") return true;
+    
+    // Check 7-day expiration on initial load
+    const createdAtStr = localStorage.getItem("user_created_at");
+    if (createdAtStr) {
+      const diffDays = (Date.now() - new Date(createdAtStr).getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays >= 7) return false;
+    }
+    return isPrem;
   });
+
+  const [isTrialExpiredLocked, setIsTrialExpiredLocked] = useState<boolean>(() => {
+    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (savedUser === "info.borcodemetakip@gmail.com") return false;
+    if (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial") return false;
+
+    // Matematiksel kontrol: "Şimdiki Zaman - Hesap Kayıt Zamanı (createdAt)"
+    const createdAtStr = localStorage.getItem("user_created_at");
+    if (createdAtStr) {
+      const createdAtMs = new Date(createdAtStr).getTime();
+      const diffDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
+      if (diffDays >= 7) return true;
+    }
+    const trialEndStr = localStorage.getItem("trial_end_date");
+    if (trialEndStr && new Date(trialEndStr).getTime() <= Date.now()) {
+      return true;
+    }
+    return false;
+  });
+
   const [trialStatus, setTrialStatus] = useState<{
     hasTrial: boolean;
     isActive: boolean;
@@ -515,6 +545,101 @@ export default function App() {
     startDate: string | null;
     endDate: string | null;
   } | null>(null);
+
+  /**
+   * 7 Günlük Deneme & Zorunlu Kilitleme Kontrolü:
+   * isPremium: false ise "Şimdiki Zaman - Hesap Kayıt Zamanı (createdAt)" matematiksel farkını hesaplar.
+   * - Fark 7 günü GEÇMİŞSE: Dashboard erişimini kilitler (isTrialExpiredLocked: true),
+   *   Satın Alma sayfasını açar ve uyarı verir.
+   * - Fark 7 günden AZ ise: Girişe izin verir ve deneme süresini aktif tutar.
+   */
+  const checkUserTrialExpiration = (userObj?: any, uData?: any): boolean => {
+    const cleanUser = (currentUser || userObj?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (cleanUser === "info.borcodemetakip@gmail.com") {
+      setIsPremium(true);
+      setIsTrialExpiredLocked(false);
+      return false;
+    }
+
+    if (uData?.isPremium === true) {
+      setIsPremium(true);
+      setIsTrialExpiredLocked(false);
+      localStorage.setItem("is_premium", "true");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("premium_source", "login");
+      return false;
+    }
+
+    const pSource = localStorage.getItem("premium_source");
+    if (localStorage.getItem("is_premium") === "true" && pSource !== "trial") {
+      setIsPremium(true);
+      setIsTrialExpiredLocked(false);
+      return false;
+    }
+
+    // Ödemesi tamamlanmamış Premium hesap kontrolü (isGuest: false & isPremium: false)
+    if (uData && uData.isGuest === false && uData.isPremium === false) {
+      setIsPremium(false);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("trial_end_date");
+      setIsTrialExpiredLocked(true);
+      setIsUpgradeModalOpen(true);
+      triggerToast("Aboneliğinizi tamamlamak için lütfen bir plan seçin.");
+      return true;
+    }
+
+    // Matematiksel kontrol: "Şimdiki Zaman - Hesap Kayıt Zamanı (createdAt)"
+    let createdAtStr: string | null = uData?.createdAt || localStorage.getItem("user_created_at");
+    if (!createdAtStr && userObj?.metadata?.creationTime) {
+      createdAtStr = new Date(userObj.metadata.creationTime).toISOString();
+    }
+    if (!createdAtStr) {
+      const trialEnd = localStorage.getItem("trial_end_date");
+      if (trialEnd) {
+        createdAtStr = new Date(new Date(trialEnd).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+
+    if (createdAtStr) {
+      localStorage.setItem("user_created_at", createdAtStr);
+      const createdAtMs = new Date(createdAtStr).getTime();
+      const nowMs = Date.now();
+      const diffMs = nowMs - createdAtMs;
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (diffDays >= 7) {
+        // 7 GÜNÜ GEÇMİŞSE -> ZORUNLU KİLİTLEME!
+        setIsPremium(false);
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "true");
+        localStorage.removeItem("premium_source");
+        localStorage.removeItem("trial_end_date");
+        setIsTrialExpiredLocked(true);
+        setIsUpgradeModalOpen(true);
+        triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+        return true;
+      } else {
+        // 7 günden az -> Deneme aktif, uygulamaya girişe müsaade et
+        setIsTrialExpiredLocked(false);
+        const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
+        const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+        localStorage.setItem("trial_end_date", trialEndDate);
+        localStorage.setItem("premium_source", "trial");
+        setTrialStatus({
+          hasTrial: true,
+          isActive: true,
+          isExpired: false,
+          daysRemaining: daysLeft,
+          startDate: createdAtStr,
+          endDate: trialEndDate
+        });
+        return false;
+      }
+    }
+    return false;
+  };
 
   const checkTrialStatus = async () => {
     let deviceId = localStorage.getItem("butcem_device_id");
@@ -747,9 +872,19 @@ export default function App() {
   };
 
   const closeUpgradeModal = () => {
+    if (isTrialExpiredLocked) {
+      triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+      return;
+    }
     setIsUpgradeModalOpen(false);
     setPromoFeature(null);
   };
+
+  useEffect(() => {
+    if (isTrialExpiredLocked) {
+      setIsUpgradeModalOpen(true);
+    }
+  }, [isTrialExpiredLocked]);
 
   // Custom Google Play & RevenueCat states
   const [isPricingLoading, setIsPricingLoading] = useState(false);
@@ -2049,7 +2184,18 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  const handleProviderLoginSuccess = (email: string, meta?: { isPremium?: boolean; isGuest?: boolean }) => {
+  const handleProviderLoginSuccess = (
+    email: string,
+    meta?: {
+      isPremium?: boolean;
+      isGuest?: boolean;
+      isPendingPayment?: boolean;
+      isTrialActive?: boolean;
+      isTrialExpired?: boolean;
+      trialMessage?: string;
+      createdAt?: string;
+    }
+  ) => {
     const cleanEmail = email.trim().toLowerCase();
     const isTestSuperAccount = cleanEmail === "info.borcodemetakip@gmail.com";
     const finalIsPremium = isTestSuperAccount ? true : (meta?.isPremium ?? false);
@@ -2058,25 +2204,75 @@ export default function App() {
     setCurrentUser(cleanEmail);
     localStorage.setItem("currentUser", cleanEmail);
     
-    // Global state ve localStorage güncellemesi - TÜM KISITLAMALARI ANINDA KALDIR
-    setIsPremium(finalIsPremium);
-    localStorage.setItem("is_premium", finalIsPremium ? "true" : "false");
-    localStorage.setItem("is_guest", finalIsGuest ? "true" : "false");
-    if (finalIsPremium) {
-      localStorage.setItem("premium_source", "login");
+    if (meta?.createdAt) {
+      localStorage.setItem("user_created_at", meta.createdAt);
     }
 
     // Modal'ları ve pencereleri anında kapat
     setProviderLoginOpen(false);
     setSelectedProvider(null);
     setSessionTerminatedReason(null);
-    setIsUpgradeModalOpen(false);
 
-    // Kullanıcıyı direkt Dashboard / Ana Sayfaya (overview) yönlendir
+    // 1. KENDİ E-POSTAM (info.borcodemetakip@gmail.com) veya Lisanslı Premium
+    if (isTestSuperAccount || finalIsPremium) {
+      setIsPremium(true);
+      setIsTrialExpiredLocked(false);
+      localStorage.setItem("is_premium", "true");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("premium_source", "login");
+
+      setIsUpgradeModalOpen(false);
+      setShowPublicView(null);
+      setActiveTab("overview");
+      triggerToast("👑 Premium Giriş Başarılı! Tüm özelliklerin kilidi açıldı.");
+      return;
+    }
+
+    // 2. ÖDEMESİ TAMAMLANMAMIŞ PREMİUM HESAPLAR İÇİN KONTROL (ZORUNLU SATIN ALMA YÖNLENDİRMESİ)
+    // Eğer kullanıcı Premium kaydı açmış veya isPremium: false olan bir hesapla giriş yapmışsa,
+    // ana sayfaya geçişi engelle ve "Aboneliğinizi tamamlamak için lütfen bir plan seçin" uyarısıyla Satın Alma Sayfasına at!
+    if (meta?.isPendingPayment || (!finalIsPremium && !finalIsGuest)) {
+      setIsPremium(false);
+      setIsTrialExpiredLocked(true);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("trial_end_date");
+
+      setShowPublicView(null);
+      setIsUpgradeModalOpen(true);
+      const msg = meta?.trialMessage || "Aboneliğinizi tamamlamak için lütfen bir plan seçin.";
+      triggerToast(msg);
+      return;
+    }
+
+    // 3. 7 GÜNLÜK SÜRE BİTİM KONTROLÜ (MİSAFİR HESAPLAR İÇİN)
+    if (meta?.isTrialExpired) {
+      setIsPremium(false);
+      setIsTrialExpiredLocked(true);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "true");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("trial_end_date");
+
+      setShowPublicView(null);
+      setIsUpgradeModalOpen(true);
+      triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+      return;
+    }
+
+    // 4. Misafir 7 Günlük Deneme Aktif İse: Girişe Müsaade Et
+    setIsPremium(false);
+    setIsTrialExpiredLocked(false);
+    localStorage.setItem("is_premium", "false");
+    localStorage.setItem("is_guest", "true");
+
+    setIsUpgradeModalOpen(false);
     setShowPublicView(null);
     setActiveTab("overview");
 
-    triggerToast(finalIsPremium ? "👑 Premium Giriş Başarılı! Tüm özelliklerin kilidi açıldı." : "🎁 7 Günlük Ücretsiz Deneme Başlatıldı!");
+    const message = meta?.trialMessage || "Uygulamamızı test edebilmeniz için 7 günlük ücretsiz deneme süreniz tanımlanmıştır!";
+    triggerToast(message);
   };
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2128,8 +2324,8 @@ export default function App() {
 
         const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;
         const displayName = emailOrUid.endsWith("@borctakip.app") 
-          ? emailOrUid.replace("@borctakip.app", "") 
-          : emailOrUid;
+            ? emailOrUid.replace("@borctakip.app", "") 
+            : emailOrUid;
         setCurrentUser(displayName);
         localStorage.setItem("currentUser", displayName);
 
@@ -2139,26 +2335,32 @@ export default function App() {
 
         if (isSuperTestEmail) {
           setIsPremium(true);
+          setIsTrialExpiredLocked(false);
           localStorage.setItem("is_premium", "true");
           localStorage.setItem("is_guest", "false");
           localStorage.setItem("premium_source", "login");
         } else {
-          if (localStorage.getItem("is_premium") === "true") {
-            setIsPremium(true);
-          }
           getDoc(doc(firestore, "users", user.uid))
             .then((docSnap) => {
               if (docSnap.exists()) {
                 const uData = docSnap.data();
                 if (uData.isPremium === true) {
                   setIsPremium(true);
+                  setIsTrialExpiredLocked(false);
                   localStorage.setItem("is_premium", "true");
                   localStorage.setItem("is_guest", "false");
                   localStorage.setItem("premium_source", "login");
+                } else {
+                  // Firestore'da isPremium: false -> 7 günlük süreyi matematiksel kontrol et
+                  checkUserTrialExpiration(user, uData);
                 }
+              } else {
+                checkUserTrialExpiration(user, null);
               }
             })
-            .catch(() => {});
+            .catch(() => {
+              checkUserTrialExpiration(user, null);
+            });
         }
 
         // Kullanıcının kayıtlı profil ismini kullanicilar/KULLANICI_UID/profil/isim düğümünden çek
@@ -2197,6 +2399,7 @@ export default function App() {
         if (savedUser) {
           // Keep the local/hybrid session active if Firebase is loading or in a fallback state
           setCurrentUser(savedUser);
+          checkUserTrialExpiration(null, null);
         } else {
           setCurrentUser(null);
         }
@@ -2225,14 +2428,14 @@ export default function App() {
       const initAndFetchPlayPricing = async () => {
         setIsPricingLoading(true);
         try {
-          // Setup with user-linked custom SDK token goog_prod_borc_takip
-          await Purchases.configure("goog_prod_borc_takip", auth.currentUser?.uid || "web_test_user");
+          // Setup with user-linked custom SDK token goog_prod_butcem_pro
+          await Purchases.configure("goog_prod_butcem_pro", auth.currentUser?.uid || "web_test_user");
           const offerings = await Purchases.getOfferings();
           if (offerings && offerings.current) {
             setDynamicProducts({
-              borc_takip_aylik: offerings.current.monthly.product,
-              borc_takip_yillik: offerings.current.annual.product,
-              borc_takip_sinirsiz: offerings.current.lifetime.product
+              butcem_pro_aylik: offerings.current.monthly.product,
+              butcem_pro_yillik: offerings.current.annual.product,
+              butcem_pro_sinirsiz: offerings.current.lifetime.product
             });
           }
         } catch (err) {
@@ -3122,15 +3325,23 @@ export default function App() {
     setIsPremium(premiumState);
     setSelectedPlan(planType);
     localStorage.setItem("is_premium", premiumState ? "true" : "false");
+    localStorage.setItem("is_guest", (!premiumState).toString());
     localStorage.setItem("premium_plan", planType);
+
+    const { premiumType, premiumExpiryDate, productId } = calculatePlanExpiry(planType);
+
     if (premiumState) {
       localStorage.setItem("premium_source", "purchase");
+      localStorage.setItem("premium_type", premiumType);
+      localStorage.setItem("premium_expiry_date", premiumExpiryDate);
     } else {
       localStorage.removeItem("premium_source");
+      localStorage.removeItem("premium_type");
+      localStorage.removeItem("premium_expiry_date");
     }
 
     const fbUser = auth.currentUser;
-    const userEmail = fbUser?.email || localStorage.getItem("currentUser") || undefined;
+    const userEmail = (fbUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
     const effectiveUid = fbUser?.uid || (userEmail ? "email_" + userEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
 
     if (effectiveUid) {
@@ -3141,7 +3352,10 @@ export default function App() {
           email: userEmail,
           isPremium: premiumState,
           isGuest: !premiumState,
-          deviceId: deviceUuid
+          deviceId: deviceUuid,
+          premiumType: premiumState ? premiumType : undefined,
+          premiumExpiryDate: premiumState ? premiumExpiryDate : undefined,
+          productId: premiumState ? productId : undefined
         });
       } catch (firestoreErr) {
         console.warn("Could not sync premium session to Firestore:", firestoreErr);
@@ -3150,16 +3364,25 @@ export default function App() {
 
     if (fbUser) {
       try {
+        const now = Date.now();
         await Promise.all([
           update(ref(db, `kullanicilar/${fbUser.uid}/veriler`), {
             isPremium: premiumState,
+            isGuest: !premiumState,
             premiumPlan: planType,
-            updatedAt: Date.now()
+            premiumType: premiumState ? premiumType : null,
+            premiumExpiryDate: premiumState ? premiumExpiryDate : null,
+            productId: premiumState ? productId : null,
+            updatedAt: now
           }),
           update(ref(db, `users/${fbUser.uid}/veriler`), {
             isPremium: premiumState,
+            isGuest: !premiumState,
             premiumPlan: planType,
-            updatedAt: Date.now()
+            premiumType: premiumState ? premiumType : null,
+            premiumExpiryDate: premiumState ? premiumExpiryDate : null,
+            productId: premiumState ? productId : null,
+            updatedAt: now
           })
         ]);
       } catch (err) {
@@ -3184,7 +3407,8 @@ export default function App() {
       if (res.success && res.customerInfo) {
         const activeSub = res.customerInfo.activeSubscriptions[0];
         const planMapped: "monthly" | "yearly" | "lifetime" = 
-          activeSub === "borc_takip_aylik" ? "monthly" : activeSub === "borc_takip_sinirsiz" ? "lifetime" : "yearly";
+          activeSub === "butcem_pro_aylik" || activeSub === "borc_takip_aylik" ? "monthly" : 
+          activeSub === "butcem_pro_sinirsiz" || activeSub === "borc_takip_sinirsiz" ? "lifetime" : "yearly";
         
         await savePremiumStatusAndSync(true, planMapped);
         setRestoredPlanType(planMapped);
@@ -9364,7 +9588,18 @@ export default function App() {
       {/* Premium Plan Upgrade / Subscription Management Modal */}
       <AnimatePresence>
         {isUpgradeModalOpen && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex items-start sm:items-center justify-center p-4 overflow-y-auto pt-10 sm:pt-4 pb-10">
+          <div 
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                if (isTrialExpiredLocked) {
+                  triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+                } else {
+                  closeUpgradeModal();
+                }
+              }
+            }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex items-start sm:items-center justify-center p-4 overflow-y-auto pt-10 sm:pt-4 pb-10"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -9605,6 +9840,22 @@ export default function App() {
                       </p>
                     </div>
 
+                    {/* Trial Expired / Subscription Pending Alert Banner */}
+                    {isTrialExpiredLocked && (
+                      <div className="p-3.5 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1.5 text-amber-700 dark:text-amber-400 font-black text-xs uppercase tracking-wide">
+                          {localStorage.getItem("is_guest") === "false" 
+                            ? "👑 Aboneliğinizi Tamamlayın" 
+                            : "⚠️ 7 Günlük Ücretsiz Deneme Süreniz Sona Erdi"}
+                        </div>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold leading-relaxed">
+                          {localStorage.getItem("is_guest") === "false"
+                            ? "Hesabınız oluşturuldu. Uygulamayı kullanabilmek için lütfen bir Premium plan seçin."
+                            : "Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin."}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Promo Feature notice if navigated specifically */}
                     {promoFeature && (
                       <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -9651,48 +9902,72 @@ export default function App() {
                             <span className="w-6 h-px bg-amber-500/30" /> 👑 PREMİUM PLANLAR <span className="w-6 h-px bg-amber-500/30" />
                           </p>
                           <div className="grid grid-cols-3 gap-2.5">
-                            {/* AYLIK Card */}
-                            <div
-                              onClick={() => setSelectedPlan("monthly")}
-                              className={`p-3 rounded-2xl text-center relative overflow-hidden transition-all duration-250 select-none cursor-pointer ${
-                                selectedPlan === "monthly"
-                                  ? "bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500 ring-4 ring-amber-500/10 scale-[1.05] z-20 shadow-xl shadow-amber-500/10"
-                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm opacity-70 hover:opacity-100 hover:border-slate-350 dark:hover:border-slate-600"
-                              }`}
-                            >
-                              <p className={`text-[9px] font-black uppercase tracking-tight ${selectedPlan === "monthly" ? "text-amber-600 dark:text-amber-400" : "text-slate-500"}`}>AYLIK</p>
-                              <p className={`text-base font-black mt-1 ${selectedPlan === "monthly" ? "text-slate-950 dark:text-white" : "text-slate-700 dark:text-slate-205"}`}>{dynamicProducts.borc_takip_aylik.priceString}</p>
-                              <p className={`text-[8px] font-black uppercase mt-1 leading-none ${selectedPlan === "monthly" ? "text-amber-600/80" : "text-slate-400"}`}>Yenilenen</p>
-                            </div>
-
-                            {/* YILLIK Card */}
-                            <div
-                              onClick={() => setSelectedPlan("yearly")}
-                              className={`p-3 rounded-2xl text-center relative overflow-hidden transition-all duration-250 select-none cursor-pointer pt-6.5 ${
-                                selectedPlan === "yearly"
-                                  ? "bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500 ring-4 ring-amber-500/10 scale-[1.05] z-20 shadow-xl shadow-amber-500/10"
-                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm opacity-70 hover:opacity-100 hover:border-slate-350 dark:hover:border-slate-600"
-                              }`}
-                            >
-                              <div className="absolute top-0 right-0 left-0 bg-amber-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none">EN POPÜLER</div>
-                              <p className={`text-[9px] font-black uppercase tracking-tight ${selectedPlan === "yearly" ? "text-amber-600 dark:text-amber-400" : "text-slate-500"}`}>YILLIK</p>
-                              <p className={`text-base font-black mt-1 ${selectedPlan === "yearly" ? "text-slate-950 dark:text-white" : "text-slate-700 dark:text-slate-205"}`}>{dynamicProducts.borc_takip_yillik.priceString}</p>
-                              <p className={`text-[8px] font-black uppercase mt-1 leading-none ${selectedPlan === "yearly" ? "text-amber-500" : "text-slate-400"}`}>Tasarruf: %45</p>
-                            </div>
-
-                            {/* LİMİTSİZ Card */}
-                            <div
-                              onClick={() => setSelectedPlan("lifetime")}
-                              className={`p-3 rounded-2xl text-center relative overflow-hidden transition-all duration-250 select-none cursor-pointer ${
-                                selectedPlan === "lifetime"
-                                  ? "bg-indigo-650 text-white border-2 border-indigo-400 ring-4 ring-indigo-500/25 scale-[1.05] z-20 shadow-xl shadow-indigo-500/20"
-                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm opacity-70 hover:opacity-100 hover:border-slate-350 dark:hover:border-slate-600"
-                              }`}
-                            >
-                              <p className={`text-[9px] font-black uppercase tracking-tight ${selectedPlan === "lifetime" ? "text-indigo-200" : "text-indigo-600 dark:text-indigo-400"}`}>LİMİTSİZ</p>
-                              <p className={`text-base font-black mt-1 ${selectedPlan === "lifetime" ? "text-white" : "text-slate-900 dark:text-white"}`}>{dynamicProducts.borc_takip_sinirsiz.priceString}</p>
-                              <p className={`text-[8px] font-black uppercase mt-1 leading-none ${selectedPlan === "lifetime" ? "text-white/80" : "text-slate-400"}`}>TEK ÖDEME</p>
-                            </div>
+                            {[
+                              {
+                                planKey: "monthly" as const,
+                                id: "butcem_pro_aylik" as const,
+                                label: "AYLIK",
+                                product: (dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik,
+                                badge: "ESNEK",
+                                period: "Aylık Yenilenen"
+                              },
+                              {
+                                planKey: "yearly" as const,
+                                id: "butcem_pro_yillik" as const,
+                                label: "YILLIK",
+                                product: (dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik,
+                                badge: "EN POPÜLER",
+                                period: "Tasarruf: %45",
+                                isPopular: true
+                              },
+                              {
+                                planKey: "lifetime" as const,
+                                id: "butcem_pro_sinirsiz" as const,
+                                label: "LİMİTSİZ",
+                                product: (dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz,
+                                badge: "ÖMÜR BOYU",
+                                period: "Tek Ödeme",
+                                isLifetime: true
+                              }
+                            ].map((pkg) => {
+                              const isSelected = selectedPlan === pkg.planKey;
+                              return (
+                                <div
+                                  key={pkg.id}
+                                  onClick={() => setSelectedPlan(pkg.planKey)}
+                                  className={`p-3 rounded-2xl text-center relative overflow-hidden transition-all duration-200 select-none cursor-pointer ${
+                                    pkg.isPopular ? "pt-6.5" : ""
+                                  } ${
+                                    isSelected
+                                      ? pkg.isLifetime
+                                        ? "bg-indigo-650 text-white border-2 border-indigo-400 ring-4 ring-indigo-500/25 scale-[1.04] z-20 shadow-xl shadow-indigo-500/20"
+                                        : "bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500 ring-4 ring-amber-500/10 scale-[1.04] z-20 shadow-xl shadow-amber-500/10"
+                                      : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm opacity-70 hover:opacity-100 hover:border-slate-350 dark:hover:border-slate-600"
+                                  }`}
+                                >
+                                  {pkg.isPopular && (
+                                    <div className="absolute top-0 right-0 left-0 bg-amber-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none">
+                                      {pkg.badge}
+                                    </div>
+                                  )}
+                                  <p className={`text-[9px] font-black uppercase tracking-tight ${
+                                    isSelected ? (pkg.isLifetime ? "text-indigo-200" : "text-amber-600 dark:text-amber-400") : "text-slate-500"
+                                  }`}>
+                                    {pkg.label}
+                                  </p>
+                                  <p className={`text-base font-black mt-1 ${
+                                    isSelected ? (pkg.isLifetime ? "text-white" : "text-slate-950 dark:text-white") : "text-slate-700 dark:text-slate-200"
+                                  }`}>
+                                    {pkg.product?.priceString}
+                                  </p>
+                                  <p className={`text-[8px] font-black uppercase mt-1 leading-none ${
+                                    isSelected ? (pkg.isLifetime ? "text-white/80" : "text-amber-600/80") : "text-slate-400"
+                                  }`}>
+                                    {pkg.period}
+                                  </p>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -9767,7 +10042,7 @@ export default function App() {
                                 <span className="text-[10px] bg-emerald-500/10 px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
                                   {localStorage.getItem("premium_source") === "trial" 
                                     ? `Kalan Süre: ${trialStatus?.daysRemaining || 7} Gün` 
-                                    : `Paket: ${selectedPlan === "monthly" ? "Aylık Paket" : selectedPlan === "yearly" ? "Yıllık Paket" : "Limitsiz Ömür Boyu"}`}
+                                    : `Paket: ${selectedPlan === "monthly" ? "Bütçem Pro - Aylık" : selectedPlan === "yearly" ? "Bütçem Pro - Yıllık" : "Bütçem Pro - Sınırsız (Ömür Boyu)"}`}
                                 </span>
                               </div>
                               <button
@@ -9795,9 +10070,9 @@ export default function App() {
                               className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-650 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer active:scale-97"
                             >
                               <span>
-                                {selectedPlan === "monthly" && `AYLIK PLANI ETKİNLEŞTİR (${dynamicProducts.borc_takip_aylik.priceString}) ⚡`}
-                                {selectedPlan === "yearly" && `YILLIK PLANI ETKİNLEŞTİR (${dynamicProducts.borc_takip_yillik.priceString}) ⚡`}
-                                {selectedPlan === "lifetime" && `LİMİTSİZ TEK ÖDEME ETKİNLEŞTİR (${dynamicProducts.borc_takip_sinirsiz.priceString}) ⚡`}
+                                {selectedPlan === "monthly" && `AYLIK PLANI ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString}) ⚡`}
+                                {selectedPlan === "yearly" && `YILLIK PLANI ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString}) ⚡`}
+                                {selectedPlan === "lifetime" && `SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString}) ⚡`}
                               </span>
                             </button>
                           )}
@@ -9829,17 +10104,37 @@ export default function App() {
                             🔄 Google Play'den Satın Alımları Geri Yükle
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              closeUpgradeModal();
-                              setIsRestoring(false);
-                              setRestoreStep("method");
-                            }}
-                            className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
-                          >
-                            Kapat, Vazgeç
-                          </button>
+                          {isTrialExpiredLocked ? (
+                            <div className="pt-2 text-center space-y-2">
+                              <p className="text-[11px] text-rose-500 dark:text-rose-400 font-bold">
+                                ⚠️ Deneme süreniz dolduğu için paket seçimi zorunludur.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleLogout();
+                                  setIsTrialExpiredLocked(false);
+                                  setIsUpgradeModalOpen(false);
+                                  setProviderLoginOpen(true);
+                                }}
+                                className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                              >
+                                Farklı Bir Hesapla Giriş Yap / Çıkış Yap
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                closeUpgradeModal();
+                                setIsRestoring(false);
+                                setRestoreStep("method");
+                              }}
+                              className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
+                            >
+                              Kapat, Vazgeç
+                            </button>
+                          )}
                         </div>
                       </>
                     )}
@@ -9850,6 +10145,41 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 7-Day Trial Expired Mandatory Paywall Barrier */}
+      {isTrialExpiredLocked && !isUpgradeModalOpen && (
+        <div className="fixed inset-0 z-[2500] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 text-center space-y-4 shadow-2xl border-2 border-rose-500/30">
+            <div className="w-14 h-14 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-rose-500/20">
+              ⏳
+            </div>
+            <h3 className="text-base font-black text-slate-800 dark:text-white">
+              7 Günlük Ücretsiz Deneme Süreniz Sona Erdi
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+              Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
+            >
+              👑 Premium Planları İncele ve Satın Al
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleLogout();
+                setIsTrialExpiredLocked(false);
+                setProviderLoginOpen(true);
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer block mx-auto pt-1"
+            >
+              Farklı Bir Hesapla Giriş Yap / Çıkış Yap
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Google Play Billing Interactive Overlay */}
       <AnimatePresence>
@@ -9905,22 +10235,22 @@ export default function App() {
                   <div className="flex justify-between items-start">
                     <div className="space-y-0.5">
                       <h4 className="text-sm font-black text-slate-800 dark:text-white leading-tight">
-                        {selectedPlan === "monthly" && "Bütçem Pro Premium - Aylık Paket"}
-                        {selectedPlan === "yearly" && "Bütçem Pro Premium - Yıllık Avantajlı Paket"}
-                        {selectedPlan === "lifetime" && "Bütçem Pro Premium - Ömür Boyu Limitsiz"}
+                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcem_pro_aylik?.title || PLAY_PRODUCTS.butcem_pro_aylik.title)}
+                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcem_pro_yillik?.title || PLAY_PRODUCTS.butcem_pro_yillik.title)}
+                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcem_pro_sinirsiz?.title || PLAY_PRODUCTS.butcem_pro_sinirsiz.title)}
                       </h4>
                       <p className="text-[10px] text-slate-500 font-bold font-mono">
-                        Ürün ID: {selectedPlan === "monthly" ? "borc_takip_aylik" : selectedPlan === "yearly" ? "borc_takip_yillik" : "borc_takip_sinirsiz"}
+                        Ürün ID: {selectedPlan === "monthly" ? "butcem_pro_aylik" : selectedPlan === "yearly" ? "butcem_pro_yillik" : "butcem_pro_sinirsiz"}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-base font-black text-indigo-650 dark:text-indigo-400">
-                        {selectedPlan === "monthly" && dynamicProducts.borc_takip_aylik.priceString}
-                        {selectedPlan === "yearly" && dynamicProducts.borc_takip_yillik.priceString}
-                        {selectedPlan === "lifetime" && dynamicProducts.borc_takip_sinirsiz.priceString}
+                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcem_pro_aylik?.priceString || PLAY_PRODUCTS.butcem_pro_aylik.priceString)}
+                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcem_pro_yillik?.priceString || PLAY_PRODUCTS.butcem_pro_yillik.priceString)}
+                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcem_pro_sinirsiz?.priceString || PLAY_PRODUCTS.butcem_pro_sinirsiz.priceString)}
                       </p>
                       <p className="text-[8px] text-slate-400 font-semibold uppercase mt-0.5">
-                        {selectedPlan === "lifetime" ? "Süresiz" : "Yıllık Otomatik Yenilenir"}
+                        {selectedPlan === "lifetime" ? "Tek Seferlik (Ömür Boyu)" : selectedPlan === "monthly" ? "Aylık Otomatik Yenilenir" : "Yıllık Otomatik Yenilenir"}
                       </p>
                     </div>
                   </div>
@@ -10302,12 +10632,12 @@ export default function App() {
                       }, 2500);
 
                       const t3 = setTimeout(async () => {
-                        const prId = selectedPlan === "monthly" ? "borc_takip_aylik" : selectedPlan === "yearly" ? "borc_takip_yillik" : "borc_takip_sinirsiz";
+                        const prId = selectedPlan === "monthly" ? "butcem_pro_aylik" : selectedPlan === "yearly" ? "butcem_pro_yillik" : "butcem_pro_sinirsiz";
                         try {
                           const result = await Purchases.purchasePackage(prId);
                           if (result.success) {
                             await savePremiumStatusAndSync(true, selectedPlan);
-                            const names = { monthly: "Aylık", yearly: "Yıllık", lifetime: "Limitsiz" };
+                            const names = { monthly: "Aylık", yearly: "Yıllık", lifetime: "Sınırsız (Ömür Boyu)" };
                             triggerToast(`👑 Bütçem Pro Premium (${names[selectedPlan]}) Kapsamı Aktif Edildi! Tüm Sınırlar Kaldırıldı!`);
                             setIsGPlayBillingActive(false);
                             setIsUpgradeModalOpen(false);

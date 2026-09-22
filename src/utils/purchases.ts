@@ -1,4 +1,5 @@
-import { auth, db, ref, set, get, update } from "./firebase";
+import { auth, db, firestore, doc, setDoc, ref, set, get, update } from "./firebase";
+import { saveUserSessionToFirestore, getDeviceUuid } from "./deviceSessionService";
 
 // Product configuration requested by user
 export interface ProductInfo {
@@ -9,44 +10,89 @@ export interface ProductInfo {
   description: string;
   subscriptionPeriod?: string;
   saving?: string;
+  badge?: string;
+  planType: "monthly" | "yearly" | "lifetime";
 }
 
 export const PLAY_PRODUCTS: Record<string, ProductInfo> = {
-  borc_takip_aylik: {
-    identifier: "borc_takip_aylik",
-    price: 29.99,
-    priceString: "₺29,99",
-    title: "Bütçem Pro Aylık Gelişmiş Paket",
-    description: "Tüm reklamsız ayrıcalıklar dahil aylık yenilenen abonelik.",
+  butcem_pro_aylik: {
+    identifier: "butcem_pro_aylik",
+    price: 49.99,
+    priceString: "₺49,99 / Ay",
+    title: "Bütçem Pro Premium - Aylık",
+    description: "Tüm kısıtlamaları ve reklamları kaldıran aylık yenilenen abonelik.",
     subscriptionPeriod: "P1M",
-    saving: "Yenilenen"
+    saving: "Aylık Yenilenen",
+    badge: "ESNEK PLAN",
+    planType: "monthly"
   },
-  borc_takip_yillik: {
-    identifier: "borc_takip_yillik",
-    price: 299.99,
-    priceString: "₺299,99",
-    title: "Bütçem Pro Yıllık Avantajlı Paket",
-    description: "En popüler tercih, yıllık abonelik ve tüm özellikler açık.",
+  butcem_pro_yillik: {
+    identifier: "butcem_pro_yillik",
+    price: 349.99,
+    priceString: "₺349,99 / Yıl",
+    title: "Bütçem Pro Premium - Yıllık",
+    description: "12 ay boyunca kesintisiz kullanım, %45 tasarruf avantajı ile en çok tercih edilen paket.",
     subscriptionPeriod: "P1Y",
-    saving: "Tasarruf: %45"
+    saving: "Tasarruf: %45",
+    badge: "EN POPÜLER",
+    planType: "yearly"
   },
-  borc_takip_sinirsiz: {
-    identifier: "borc_takip_sinirsiz",
-    price: 599.99,
-    priceString: "₺599,99",
-    title: "Bütçem Pro Limitsiz Ömür Boyu Paket",
-    description: "Sadece tek bir ödeme ile sınırsız, kalıcı ve reklamsız lisans.",
+  butcem_pro_sinirsiz: {
+    identifier: "butcem_pro_sinirsiz",
+    price: 699.99,
+    priceString: "₺699,99",
+    title: "Bütçem Pro Premium - Sınırsız (Ömür Boyu)",
+    description: "Tek seferlik satın alma ile kalıcı, limitsiz ve ömür boyu tam kullanım lisansı.",
     subscriptionPeriod: "LIFETIME",
-    saving: "Tek Ödeme"
+    saving: "Tek Seferlik",
+    badge: "ÖMÜR BOYU LİSANS",
+    planType: "lifetime"
   }
 };
 
-// Check platform environment
-const isWeb = typeof window !== "undefined";
+/**
+ * Pakete göre premiumType ve premiumExpiryDate hesaplar:
+ * - Aylık seçildiyse: "premiumType": "monthly" ve "premiumExpiryDate" bugünden 1 ay sonrası ISO string
+ * - Yıllık seçildiyse: "premiumType": "yearly" ve "premiumExpiryDate" bugünden 1 yıl sonrası ISO string
+ * - Sınırsız seçildiyse: "premiumType": "lifetime" ve "premiumExpiryDate" "lifetime"
+ */
+export function calculatePlanExpiry(productIdOrPlan: string): {
+  premiumType: "monthly" | "yearly" | "lifetime";
+  premiumExpiryDate: string;
+  productId: string;
+} {
+  const now = new Date();
+  
+  if (productIdOrPlan === "butcem_pro_aylik" || productIdOrPlan === "monthly" || productIdOrPlan === "borc_takip_aylik") {
+    const expDate = new Date(now);
+    expDate.setMonth(expDate.getMonth() + 1);
+    return {
+      premiumType: "monthly",
+      premiumExpiryDate: expDate.toISOString(),
+      productId: "butcem_pro_aylik"
+    };
+  }
+
+  if (productIdOrPlan === "butcem_pro_sinirsiz" || productIdOrPlan === "lifetime" || productIdOrPlan === "borc_takip_sinirsiz") {
+    return {
+      premiumType: "lifetime",
+      premiumExpiryDate: "lifetime",
+      productId: "butcem_pro_sinirsiz"
+    };
+  }
+
+  // Varsayılan / Yıllık
+  const expDate = new Date(now);
+  expDate.setFullYear(expDate.getFullYear() + 1);
+  return {
+    premiumType: "yearly",
+    premiumExpiryDate: expDate.toISOString(),
+    productId: "butcem_pro_yillik"
+  };
+}
 
 /**
- * Cross-platform RevenueCat (react-native-purchases) simulation/wrapper
- * This allows safe compilation on Web while serving high-fidelity Google Play transactions
+ * Cross-platform RevenueCat & Google Play Billing Wrapper
  */
 class RevenueCatService {
   private apiKey: string | null = null;
@@ -57,10 +103,10 @@ class RevenueCatService {
     if (appUserId) {
       this.appUserId = appUserId;
     }
-    console.log("[RevenueCat] Configured with API Key:", apiKey, "App User ID:", appUserId);
+    console.log("[RevenueCat] Google Play Billing hazırlandı. API Key:", apiKey, "Kullanıcı UID:", appUserId);
   }
 
-  // Get active packages with Google Play simulation
+  // Aktif paketleri Google Play Billing simülasyonu ile çeker
   public async getOfferings(): Promise<{
     current: {
       monthly: { product: ProductInfo };
@@ -69,28 +115,29 @@ class RevenueCatService {
       all: { product: ProductInfo }[];
     };
   }> {
-    // Simulate real network fetching delay from Google Play Billing Client
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    // Kısa ağ simülasyonu
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
-    // Dynamic price logic (e.g. if loaded from real Play Store we return PLAY_PRODUCTS)
     return {
       current: {
-        monthly: { product: PLAY_PRODUCTS.borc_takip_aylik },
-        annual: { product: PLAY_PRODUCTS.borc_takip_yillik },
-        lifetime: { product: PLAY_PRODUCTS.borc_takip_sinirsiz },
+        monthly: { product: PLAY_PRODUCTS.butcem_pro_aylik },
+        annual: { product: PLAY_PRODUCTS.butcem_pro_yillik },
+        lifetime: { product: PLAY_PRODUCTS.butcem_pro_sinirsiz },
         all: [
-          { product: PLAY_PRODUCTS.borc_takip_aylik },
-          { product: PLAY_PRODUCTS.borc_takip_yillik },
-          { product: PLAY_PRODUCTS.borc_takip_sinirsiz }
+          { product: PLAY_PRODUCTS.butcem_pro_aylik },
+          { product: PLAY_PRODUCTS.butcem_pro_yillik },
+          { product: PLAY_PRODUCTS.butcem_pro_sinirsiz }
         ]
       }
     };
   }
 
-  // Buy selected package
+  // Google Play Billing satın alma fonksiyonu
   public async purchasePackage(productId: string): Promise<{
     success: boolean;
     productId: string;
+    premiumType: "monthly" | "yearly" | "lifetime";
+    premiumExpiryDate: string;
     customerInfo: {
       activeSubscriptions: string[];
       allPurchasedProductIdentifiers: string[];
@@ -99,51 +146,82 @@ class RevenueCatService {
       };
     };
   }> {
-    console.log(`[RevenueCat] Starting purchase flow for dynamic product: ${productId}`);
+    console.log(`[Google Play Billing] Satın alma başlatıldı. Ürün ID: ${productId}`);
     
-    // Simulate payment transaction delays with Google Play overlay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Google Play Billing onay bekleme simülasyonu
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const { premiumType, premiumExpiryDate, productId: effectiveProductId } = calculatePlanExpiry(productId);
 
     const customerInfo = {
-      activeSubscriptions: [productId],
-      allPurchasedProductIdentifiers: [productId],
+      activeSubscriptions: [effectiveProductId],
+      allPurchasedProductIdentifiers: [effectiveProductId],
       entitlements: {
         active: {
           premium: {
             isActive: true,
-            expiresDate: productId === "borc_takip_sinirsiz" ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            expiresDate: premiumExpiryDate === "lifetime" ? null : premiumExpiryDate
           }
         }
       }
     };
 
-    // Save to Realtime Database permanently if logged in
+    // Google Play ödeme onayı geldi -> Firestore users/{userId} dokümanını güncelle
     const fbUser = auth.currentUser;
+    const userEmail = (fbUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
+    const effectiveUid = fbUser?.uid || (userEmail ? "email_" + userEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
+
+    if (effectiveUid) {
+      try {
+        const deviceUuid = await getDeviceUuid();
+        await saveUserSessionToFirestore({
+          userId: effectiveUid,
+          email: userEmail,
+          isPremium: true,
+          isGuest: false,
+          deviceId: deviceUuid,
+          premiumType,
+          premiumExpiryDate,
+          productId: effectiveProductId
+        });
+      } catch (fErr) {
+        console.warn("[Google Play Billing] Firestore kullanıcı kaydı uyarısı:", fErr);
+      }
+    }
+
     if (fbUser) {
       try {
+        const now = Date.now();
         const userRef = ref(db, `users/${fbUser.uid}`);
         await update(userRef, {
           isPremium: true,
-          premiumPlan: productId === "borc_takip_aylik" ? "monthly" : productId === "borc_takip_yillik" ? "yearly" : "lifetime",
-          purchasedAt: Date.now(),
-          productId: productId,
+          isGuest: false,
+          premiumPlan: premiumType,
+          premiumType: premiumType,
+          premiumExpiryDate: premiumExpiryDate,
+          purchasedAt: now,
+          productId: effectiveProductId,
           gpaCode: `GPA.3312-${Math.floor(Math.random() * 9000 + 1000)}-${Math.floor(Math.random() * 9000 + 1000)}-${Math.floor(Math.random() * 90000 + 10000)}`
         });
       } catch (err) {
-        console.error("[RevenueCat] Could not sync web purchase to Database:", err);
+        console.error("[Google Play Billing] RTDB senkronizasyon hatası:", err);
       }
     }
 
     return {
       success: true,
-      productId,
+      productId: effectiveProductId,
+      premiumType,
+      premiumExpiryDate,
       customerInfo
     };
   }
 
-  // Restore Purchases
+  // Satın alımları geri yükleme (Restore Purchases)
   public async restorePurchases(): Promise<{
     success: boolean;
+    premiumType: "monthly" | "yearly" | "lifetime";
+    premiumExpiryDate: string;
     customerInfo: {
       activeSubscriptions: string[];
       allPurchasedProductIdentifiers: string[];
@@ -152,8 +230,8 @@ class RevenueCatService {
       };
     } | null;
   }> {
-    console.log("[RevenueCat] Checking purchase entitlements...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("[Google Play Billing] Satın alma hakları kontrol ediliyor...");
+    await new Promise((resolve) => setTimeout(resolve, 1200));
 
     const fbUser = auth.currentUser;
     if (fbUser) {
@@ -162,19 +240,21 @@ class RevenueCatService {
         const userSnap = await get(userRef);
         if (userSnap.exists() && userSnap.val()?.isPremium) {
           const data = userSnap.val();
-          const pPlan = data.premiumPlan || "yearly";
-          const pId = pPlan === "monthly" ? "borc_takip_aylik" : pPlan === "yearly" ? "borc_takip_yillik" : "borc_takip_sinirsiz";
+          const pPlan = data.premiumType || data.premiumPlan || "yearly";
+          const { premiumType, premiumExpiryDate, productId } = calculatePlanExpiry(pPlan);
 
           return {
             success: true,
+            premiumType,
+            premiumExpiryDate,
             customerInfo: {
-              activeSubscriptions: [pId],
-              allPurchasedProductIdentifiers: [pId],
+              activeSubscriptions: [productId],
+              allPurchasedProductIdentifiers: [productId],
               entitlements: {
                 active: {
                   premium: {
                     isActive: true,
-                    expiresDate: pId === "borc_takip_sinirsiz" ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                    expiresDate: premiumExpiryDate === "lifetime" ? null : premiumExpiryDate
                   }
                 }
               }
@@ -182,25 +262,28 @@ class RevenueCatService {
           };
         }
       } catch (err) {
-        console.error("[RevenueCat] Firestore restore check error:", err);
+        console.error("[Google Play Billing] Geri yükleme sorgu hatası:", err);
       }
     }
 
-    // fallback to local storage
+    // Yerel depolama kontrolü
     const wasPremium = localStorage.getItem("is_premium") === "true";
     if (wasPremium) {
-      const pPlan = localStorage.getItem("premium_plan") || "yearly";
-      const pId = pPlan === "monthly" ? "borc_takip_aylik" : pPlan === "yearly" ? "borc_takip_yillik" : "borc_takip_sinirsiz";
+      const pPlan = localStorage.getItem("premium_type") || localStorage.getItem("premium_plan") || "yearly";
+      const { premiumType, premiumExpiryDate, productId } = calculatePlanExpiry(pPlan);
+
       return {
         success: true,
+        premiumType,
+        premiumExpiryDate,
         customerInfo: {
-          activeSubscriptions: [pId],
-          allPurchasedProductIdentifiers: [pId],
+          activeSubscriptions: [productId],
+          allPurchasedProductIdentifiers: [productId],
           entitlements: {
             active: {
               premium: {
                 isActive: true,
-                expiresDate: pId === "borc_takip_sinirsiz" ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                expiresDate: premiumExpiryDate === "lifetime" ? null : premiumExpiryDate
               }
             }
           }
@@ -210,6 +293,8 @@ class RevenueCatService {
 
     return {
       success: false,
+      premiumType: "yearly",
+      premiumExpiryDate: "",
       customerInfo: null
     };
   }
