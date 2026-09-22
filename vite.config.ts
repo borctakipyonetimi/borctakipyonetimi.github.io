@@ -31,6 +31,7 @@ export default defineConfig(() => {
         '@capacitor/filesystem',
         '@capacitor/share',
         '@capacitor/browser',
+        '@capacitor/device',
         '@onesignal/capacitor-plugin',
         'canvas-confetti',
         'jspdf',

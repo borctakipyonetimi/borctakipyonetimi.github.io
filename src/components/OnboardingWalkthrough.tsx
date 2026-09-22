@@ -1471,8 +1471,11 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
         isPremium={isPremium}
         onOpenUpgradeModal={onOpenUpgradeModal}
         onClose={() => setShowEmailLoginModal(false)}
-        onLoginSuccess={(email) => {
+        onLoginSuccess={(email, meta) => {
           localStorage.setItem("currentUser", email.trim().toLowerCase());
+          if (meta?.isPremium !== undefined) {
+            localStorage.setItem("is_premium", meta.isPremium ? "true" : "false");
+          }
           setShowEmailLoginModal(false);
           setAuthSuccess(`Giriş yapıldı: ${email} 🎉`);
           setTimeout(() => {

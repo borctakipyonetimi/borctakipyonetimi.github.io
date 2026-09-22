@@ -117,6 +117,7 @@ import { FollowUpMonthlyYearly } from "./components/FollowUpMonthlyYearly";
 import { AIChat } from "./components/AIChat";
 import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
+import { startDeviceSessionWatcher } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
@@ -774,6 +775,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState("");
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
+  const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
 
   // Live Timer states
   const [liveClock, setLiveClock] = useState("--:--:--");
@@ -2028,13 +2030,23 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  const handleProviderLoginSuccess = (email: string) => {
+  const handleProviderLoginSuccess = (email: string, meta?: { isPremium?: boolean; isGuest?: boolean }) => {
     const cleanEmail = email.trim().toLowerCase();
     setCurrentUser(cleanEmail);
     localStorage.setItem("currentUser", cleanEmail);
+    if (meta) {
+      if (meta.isPremium !== undefined) {
+        setIsPremium(meta.isPremium);
+        localStorage.setItem("is_premium", meta.isPremium ? "true" : "false");
+      }
+      if (meta.isGuest !== undefined) {
+        localStorage.setItem("is_guest", meta.isGuest ? "true" : "false");
+      }
+    }
     setProviderLoginOpen(false);
     setSelectedProvider(null);
-    triggerToast("E-Posta Bulut Girişi Yapıldı! ☁️");
+    setSessionTerminatedReason(null);
+    triggerToast(meta?.isPremium ? "👑 Premium Giriş Yapıldı! Hoş geldiniz." : "🎁 7 Günlük Ücretsiz Deneme Başlatıldı!");
   };
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2051,6 +2063,8 @@ export default function App() {
 
   // Listen to genuine Firebase Authentication state changes
   useEffect(() => {
+    let sessionWatcherUnsub: (() => void) | null = null;
+
     // Process redirect result if coming back from Google OAuth redirect
     getRedirectResult(auth)
       .then((result) => {
@@ -2069,7 +2083,19 @@ export default function App() {
       });
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (sessionWatcherUnsub) {
+        sessionWatcherUnsub();
+        sessionWatcherUnsub = null;
+      }
+
       if (user) {
+        // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
+        sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
+          setSessionTerminatedReason(reason);
+          setCurrentUser(null);
+          setProviderLoginOpen(true);
+        });
+
         const emailOrUid = (user.email ? user.email.toLowerCase() : null) || user.uid;
         const displayName = emailOrUid.endsWith("@borctakip.app") 
           ? emailOrUid.replace("@borctakip.app", "") 
@@ -2126,7 +2152,13 @@ export default function App() {
         }
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (sessionWatcherUnsub) {
+        sessionWatcherUnsub();
+      }
+    };
   }, []);
 
   // Configure RevenueCat and load offerings on paywall dialog open
@@ -5946,6 +5978,45 @@ export default function App() {
       {showToast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-slate-700/50 text-white rounded-full px-5 py-2.5 shadow-lg text-xs font-bold leading-relaxed flex items-center gap-2 animate-bounce">
           <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" /> {toastMessage}
+        </div>
+      )}
+
+      {/* Session Terminated (Single Concurrent Device Restriction) Dialog */}
+      {sessionTerminatedReason && (
+        <div 
+          id="session-terminated-modal"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[1100] flex items-center justify-center p-4"
+        >
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-500 mx-auto flex items-center justify-center border border-amber-500/30">
+              <Shield className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                Güvenlik Uyarısı
+              </span>
+              <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
+                Oturumunuz Sonlandırıldı
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                {sessionTerminatedReason}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Premium hesaplar eşzamanlı tek cihaz korumalıdır. Bu cihazda devam etmek için lütfen tekrar giriş yapın.
+              </p>
+            </div>
+            <button
+              id="btn-re-login-terminated"
+              type="button"
+              onClick={() => {
+                setSessionTerminatedReason(null);
+                setProviderLoginOpen(true);
+              }}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 shadow-lg shadow-amber-500/25"
+            >
+              Bu Cihazda Tekrar Giriş Yap
+            </button>
+          </div>
         </div>
       )}
 

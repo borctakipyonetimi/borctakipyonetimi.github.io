@@ -21,6 +21,14 @@ import {
   goOnline 
 } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  onSnapshot 
+} from "firebase/firestore";
 
 // Veritabanı çökmesini önleyen temizlik fonksiyonu
 export function veriyiTemizle<T>(obj: T): T {
@@ -63,6 +71,10 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 // Firebase Realtime Database - Android WebView ağ engeline takılmayan standart veritabanı
 export const db = getDatabase(app);
 
+// Cloud Firestore Database - Doküman tabanlı kullanıcı ve profil veritabanı
+export const firestore = getFirestore(app);
+export { doc, getDoc, setDoc, updateDoc, onSnapshot };
+
 // Veritabanı bağlantısını çevrim içi tut
 try {
   goOnline(db);
@@ -92,6 +104,7 @@ export const enableNetwork = (databaseInstance?: any) => {
 };
 
 export const auth = getAuth(app);
+export { signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged };
 
 // E-Posta ve Şifre ile Firebase Auth İşlemleri
 export async function epostaIleGirisYap(email: string, sifre: string): Promise<User> {

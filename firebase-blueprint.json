@@ -53,6 +53,27 @@
           "type": "boolean",
           "description": "User premium subscription status"
         },
+        "isGuest": {
+          "type": "boolean",
+          "description": "Flag indicating user is on 7-day free trial or guest mode"
+        },
+        "activeDeviceId": {
+          "type": "string",
+          "description": "Unique device UUID for single concurrent device enforcement on premium accounts"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the most recent user login"
+        },
+        "email": {
+          "type": "string",
+          "description": "Registered email address of the account"
+        },
+        "userUid": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
         "premiumPlan": {
           "type": "string",
           "description": "Active subscription tier"
