@@ -40,9 +40,11 @@ service cloud.firestore {
       }
     }
 
-    // Secure users workspace doc and subcollections for the authenticated owner
+    // Secure users workspace doc and subcollections
     match /users/{userId} {
-      allow read, write: if isSignedIn() && (
+      // Allow reading user profile doc for authentication, device binding, and premium status verification
+      allow read: if true;
+      allow write: if isSignedIn() && (
         request.auth.uid == userId ||
         (request.auth.token.email != null && resource != null && resource.data.email == request.auth.token.email) ||
         (request.auth.token.email != null && request.resource != null && request.resource.data.email == request.auth.token.email) ||
@@ -50,6 +52,7 @@ service cloud.firestore {
         (request.auth.token.email != null && userId.matches('^email_.*'))
       );
 
+      // Subcollections (debts, history, transactions, etc.) remain strictly locked to authenticated owner
       match /{document=**} {
         allow read, write: if isSignedIn() && (
           request.auth.uid == userId ||

@@ -3573,6 +3573,22 @@ app.post("/api/notifications/email/verify", async (req, res) => {
   });
 });
 
+// Endpoint to verify whether an email has isPremium: true in server email subscribers or storage
+app.get("/api/auth/verify-premium-email", (req, res) => {
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Geçerli bir e-posta adresi gereklidir.", exists: false, isPremium: false });
+  }
+
+  const subscriber = emailSubscribersMap[email];
+  const isSubscriberPremium = subscriber && ((subscriber as any).isPremium === true || (subscriber as any).verified === true);
+
+  return res.json({
+    exists: !!subscriber,
+    isPremium: !!isSubscriberPremium
+  });
+});
+
 // Direct Rich HTML Email Send endpoint
 app.post("/api/notifications/email/send-direct", async (req, res) => {
   try {

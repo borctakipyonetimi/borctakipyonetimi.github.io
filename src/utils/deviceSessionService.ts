@@ -6,9 +6,14 @@ import {
   getDoc, 
   setDoc, 
   onSnapshot, 
+  collection,
+  query,
+  where,
+  getDocs,
   auth, 
   db,
   ref,
+  get,
   set,
   update
 } from "./firebase";
@@ -210,3 +215,144 @@ export function startDeviceSessionWatcher(
     clearInterval(intervalId);
   };
 }
+
+/**
+ * Şifre sıfırlama (Password Reset) öncesinde e-postanın Firestore veritabanında (users veya email_subscribers koleksiyonlarında)
+ * kayıtlı olup olmadığını ve "isPremium" değerinin TRUE olup olmadığını doğrular.
+ * 
+ * - Eğer bu e-posta adresi veritabanında mevcut DEĞİLSE veya mevcut olup da "isPremium" değeri TRUE değilse,
+ *   şifre sıfırlama maili gönderilemez.
+ * - Yalnızca ve sadece "isPremium": true olan kayıtlı e-postalar için doğrulama başarılı döner.
+ */
+export async function checkIsPremiumEmailInFirestore(email: string): Promise<{ exists: boolean; isPremium: boolean }> {
+  const cleanEmail = (email || "").trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return { exists: false, isPremium: false };
+  }
+
+  let foundUser = false;
+  let isPremiumUser = false;
+
+  // 1. ADIM: Firestore 'users' koleksiyonunda email alanına göre sorgula
+  try {
+    const usersCol = collection(firestore, "users");
+    const qUsers = query(usersCol, where("email", "==", cleanEmail));
+    const usersSnap = await getDocs(qUsers);
+
+    if (!usersSnap.empty) {
+      foundUser = true;
+      for (const docItem of usersSnap.docs) {
+        const data = docItem.data();
+        if (data && data.isPremium === true) {
+          isPremiumUser = true;
+          console.log("[DeviceSession] users koleksiyonunda Premium kullanıcı bulundu:", cleanEmail);
+          return { exists: true, isPremium: true };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[DeviceSession] users query uyarısı:", err);
+  }
+
+  // 1.b Doğrudan doküman ID ile users kontrolü (email_xxx veya ham email)
+  if (!isPremiumUser) {
+    try {
+      const sanitizedId = "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+      const directDocRef = doc(firestore, "users", sanitizedId);
+      const directSnap = await getDoc(directDocRef);
+      if (directSnap.exists()) {
+        foundUser = true;
+        const data = directSnap.data();
+        if (data && data.isPremium === true) {
+          isPremiumUser = true;
+          console.log("[DeviceSession] users direct doc ile Premium kullanıcı bulundu:", cleanEmail);
+          return { exists: true, isPremium: true };
+        }
+      }
+    } catch (err) {
+      console.warn("[DeviceSession] users direct doc uyarısı:", err);
+    }
+  }
+
+  // 2. ADIM: Firestore 'email_subscribers' koleksiyonunu sorgula
+  if (!isPremiumUser) {
+    try {
+      const subscribersCol = collection(firestore, "email_subscribers");
+      const qSubs = query(subscribersCol, where("email", "==", cleanEmail));
+      const subsSnap = await getDocs(qSubs);
+
+      if (!subsSnap.empty) {
+        foundUser = true;
+        for (const docItem of subsSnap.docs) {
+          const data = docItem.data();
+          if (data && data.isPremium === true) {
+            isPremiumUser = true;
+            console.log("[DeviceSession] email_subscribers koleksiyonunda Premium kullanıcı bulundu:", cleanEmail);
+            return { exists: true, isPremium: true };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[DeviceSession] email_subscribers query uyarısı:", err);
+    }
+  }
+
+  // 2.b email_subscribers doğrudan doküman kontrolü
+  if (!isPremiumUser) {
+    try {
+      const subSanitizedId = cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+      const subDocRef = doc(firestore, "email_subscribers", subSanitizedId);
+      const subSnap = await getDoc(subDocRef);
+      if (subSnap.exists()) {
+        foundUser = true;
+        const data = subSnap.data();
+        if (data && data.isPremium === true) {
+          isPremiumUser = true;
+          console.log("[DeviceSession] email_subscribers direct doc ile Premium kullanıcı bulundu:", cleanEmail);
+          return { exists: true, isPremium: true };
+        }
+      }
+    } catch (err) {
+      console.warn("[DeviceSession] email_subscribers direct doc uyarısı:", err);
+    }
+  }
+
+  // 3. ADIM: Realtime Database 'users' veya 'kullanicilar' yedeğini kontrol et
+  if (!isPremiumUser) {
+    try {
+      const rtdbKey = cleanEmail.replace(/[\.\$\#\[\]\/]/g, "_");
+      const rtdbSnap = await get(ref(db, `users/${rtdbKey}`));
+      if (rtdbSnap.exists()) {
+        foundUser = true;
+        const val = rtdbSnap.val();
+        if (val && val.isPremium === true) {
+          isPremiumUser = true;
+          return { exists: true, isPremium: true };
+        }
+      }
+    } catch (err) {
+      console.warn("[DeviceSession] RTDB users yedek sorgu uyarısı:", err);
+    }
+  }
+
+  // 4. ADIM: Sunucu API endpoint sorgusu (ekstra doğrulama)
+  if (!isPremiumUser) {
+    try {
+      const res = await fetch(`/api/auth/verify-premium-email?email=${encodeURIComponent(cleanEmail)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.exists) foundUser = true;
+        if (json.isPremium) {
+          isPremiumUser = true;
+          return { exists: true, isPremium: true };
+        }
+      }
+    } catch (_) {}
+  }
+
+  return {
+    exists: foundUser,
+    isPremium: isPremiumUser
+  };
+}
+

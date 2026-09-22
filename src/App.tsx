@@ -117,7 +117,7 @@ import { FollowUpMonthlyYearly } from "./components/FollowUpMonthlyYearly";
 import { AIChat } from "./components/AIChat";
 import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
-import { startDeviceSessionWatcher } from "./utils/deviceSessionService";
+import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
@@ -3065,6 +3065,24 @@ export default function App() {
     }
 
     const fbUser = auth.currentUser;
+    const userEmail = fbUser?.email || localStorage.getItem("currentUser") || undefined;
+    const effectiveUid = fbUser?.uid || (userEmail ? "email_" + userEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
+
+    if (effectiveUid) {
+      try {
+        const deviceUuid = await getDeviceUuid();
+        await saveUserSessionToFirestore({
+          userId: effectiveUid,
+          email: userEmail,
+          isPremium: premiumState,
+          isGuest: !premiumState,
+          deviceId: deviceUuid
+        });
+      } catch (firestoreErr) {
+        console.warn("Could not sync premium session to Firestore:", firestoreErr);
+      }
+    }
+
     if (fbUser) {
       try {
         await Promise.all([

@@ -31,7 +31,11 @@ import {
   sendPasswordResetEmail
 } from "firebase/auth";
 import { auth, firestore, doc, getDoc } from "../utils/firebase";
-import { getDeviceUuid, saveUserSessionToFirestore } from "../utils/deviceSessionService";
+import { 
+  getDeviceUuid, 
+  saveUserSessionToFirestore, 
+  checkIsPremiumEmailInFirestore 
+} from "../utils/deviceSessionService";
 
 export type LoginPortalTab = "premium" | "guest_trial";
 
@@ -138,12 +142,37 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       return;
     }
 
-    // 1. Şifre Sıfırlama
+    // 1. Şifre Sıfırlama (Yalnızca doğrulanmış ve isPremium: true olan hesaplar için)
     if (isForgotMode) {
       setIsLoading(true);
+      setError("");
+      setSuccessMsg("");
+      setSyncLogs([
+        "Firestore veritabanı taranıyor...",
+        "Kullanıcı ve abonelik kayıtları doğrulanıyor (users & email_subscribers)..."
+      ]);
+
       try {
+        // 1. ADIM: Önce girilen e-posta adresini Firestore veritabanında (email_subscribers veya users koleksiyonlarında) sorgula
+        const premiumCheck = await checkIsPremiumEmailInFirestore(targetEmail);
+
+        // 2. ADIM: Eğer bu e-posta adresi veritabanında mevcut DEĞİLSE veya mevcut olup da "isPremium" değeri TRUE değilse, şifre sıfırlama maili GÖNDERME.
+        if (!premiumCheck.exists || !premiumCheck.isPremium) {
+          setIsLoading(false);
+          setError("Bu e-posta adresiyle kayıtlı bir Premium üyelik bulunamadı. Şifre sıfırlayamazsınız!");
+          setSyncLogs([]);
+          return;
+        }
+
+        // 3. ADIM: Yalnızca ve sadece "isPremium": true olan kayıtlı e-postalar için şifre sıfırlama maili tetiklensin
+        setSyncLogs(prev => [
+          ...prev,
+          "👑 Kayıtlı Premium Üyelik Doğrulandı (isPremium: true)",
+          "Firebase Güvenli Şifre Sıfırlama E-postası Gönderiliyor..."
+        ]);
+
         await sendPasswordResetEmail(auth, targetEmail);
-        setSuccessMsg("Şifre sıfırlama bağlantısı e-posta adresinize gönderildi! Lütfen gelen kutunuzu ve spam klasörünü kontrol edin.");
+        setSuccessMsg(`Şifre sıfırlama bağlantısı kayıtlı Premium hesabınıza (${targetEmail}) başarıyla gönderildi! Lütfen gelen kutunuzu ve spam klasörünü kontrol edin.`);
         setIsLoading(false);
       } catch (err: any) {
         setIsLoading(false);
@@ -315,7 +344,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 </span>
                 <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
                   {isForgotMode
-                    ? "Şifre Sıfırlama"
+                    ? "Premium Şifre Sıfırlama"
                     : activeTab === "premium"
                     ? "Premium Üye Girişi"
                     : "7 Günlük Ücretsiz Deneme / Misafir"}
@@ -334,6 +363,20 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           </div>
 
           <div className="p-5 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+            {/* Şifre Sıfırlama Güvenlik Bilgilendirmesi */}
+            {isForgotMode && (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-2.5">
+                <ShieldIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-left space-y-0.5">
+                  <div className="text-xs font-black text-amber-700 dark:text-amber-300">
+                    Premium Şifre Sıfırlama Kuralı
+                  </div>
+                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 font-medium leading-relaxed">
+                    Şifre sıfırlama bağlantısı yalnızca veritabanında kayıtlı ve <strong>isPremium: true</strong> olan Premium hesaplara gönderilir. Kayıtsız veya misafir hesaplar şifre sıfırlayamaz.
+                  </p>
+                </div>
+              </div>
+            )}
             {/* ----------------------------------------------------------------- */}
             {/* 1. İKİ SEÇENEĞİ NET OLARAK SUNAN ANA SEÇİM PANELİ (TAB SWITCHER) */}
             {/* ----------------------------------------------------------------- */}
@@ -632,6 +675,35 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                     )}
                   </button>
                 </div>
+
+                {/* 2. PREMIUM YENİ KAYIT (SIGN UP) YÖNLENDİRMESİ */}
+                {!isForgotMode && activeTab === "premium" && (
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Henüz bir Premium üyeliğiniz yok mu?
+                      </span>
+                    </div>
+                    <button
+                      id="btn-goto-premium-purchase"
+                      type="button"
+                      onClick={() => {
+                        if (onOpenUpgradeModal) {
+                          onOpenUpgradeModal("premium_signup");
+                        }
+                        handleClose();
+                      }}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-200 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98]"
+                    >
+                      <CrownIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span>✨ Yeni Premium Hesap Oluştur (Plan Seç & Satın Al)</span>
+                      <ArrowRightIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    </button>
+                    <p className="text-[10.5px] text-center text-slate-500 dark:text-slate-400 leading-snug">
+                      🔒 Premium hesaplar doğrudan formla açılmaz; üyelik planı satın alındığında hesabınız otomatik olarak aktif edilir ve ardından bu ekrandan şifrenizle giriş yapabilirsiniz.
+                    </p>
+                  </div>
+                )}
 
                 {isForgotMode && (
                   <div className="text-center pt-1">

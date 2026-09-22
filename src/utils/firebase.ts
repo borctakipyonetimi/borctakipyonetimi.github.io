@@ -27,7 +27,11 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
-  onSnapshot 
+  onSnapshot,
+  collection,
+  query,
+  where,
+  getDocs
 } from "firebase/firestore";
 
 // Veritabanı çökmesini önleyen temizlik fonksiyonu
@@ -73,7 +77,7 @@ export const db = getDatabase(app);
 
 // Cloud Firestore Database - Doküman tabanlı kullanıcı ve profil veritabanı
 export const firestore = getFirestore(app);
-export { doc, getDoc, setDoc, updateDoc, onSnapshot };
+export { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs };
 
 // Veritabanı bağlantısını çevrim içi tut
 try {
