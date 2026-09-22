@@ -9,6 +9,9 @@ import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePass
 import { 
   auth, 
   db, 
+  firestore,
+  doc,
+  getDoc,
   ref, 
   get, 
   set, 
@@ -498,6 +501,10 @@ export default function App() {
 
   // Premium tier configurations (Free vs Paid Premium, persisted to keep premium state on browser reload)
   const [isPremium, setIsPremium] = useState<boolean>(() => {
+    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase();
+    if (savedUser === "info.borcodemetakip@gmail.com") {
+      return true;
+    }
     return localStorage.getItem("is_premium") === "true";
   });
   const [trialStatus, setTrialStatus] = useState<{
@@ -529,7 +536,19 @@ export default function App() {
       if (data && typeof data.hasTrial === "boolean") {
         setTrialStatus(data);
         
+        const cleanUser = (currentUser || auth.currentUser?.email || "").toLowerCase();
+        if (cleanUser === "info.borcodemetakip@gmail.com") {
+          setIsPremium(true);
+          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("is_guest", "false");
+          return;
+        }
+
         const pSource = localStorage.getItem("premium_source");
+        if (pSource === "login" || pSource === "purchase") {
+          setIsPremium(true);
+          return;
+        }
         
         if (data.hasTrial) {
           if (data.isActive) {
@@ -2032,21 +2051,32 @@ export default function App() {
 
   const handleProviderLoginSuccess = (email: string, meta?: { isPremium?: boolean; isGuest?: boolean }) => {
     const cleanEmail = email.trim().toLowerCase();
+    const isTestSuperAccount = cleanEmail === "info.borcodemetakip@gmail.com";
+    const finalIsPremium = isTestSuperAccount ? true : (meta?.isPremium ?? false);
+    const finalIsGuest = isTestSuperAccount ? false : (meta?.isGuest ?? !finalIsPremium);
+
     setCurrentUser(cleanEmail);
     localStorage.setItem("currentUser", cleanEmail);
-    if (meta) {
-      if (meta.isPremium !== undefined) {
-        setIsPremium(meta.isPremium);
-        localStorage.setItem("is_premium", meta.isPremium ? "true" : "false");
-      }
-      if (meta.isGuest !== undefined) {
-        localStorage.setItem("is_guest", meta.isGuest ? "true" : "false");
-      }
+    
+    // Global state ve localStorage güncellemesi - TÜM KISITLAMALARI ANINDA KALDIR
+    setIsPremium(finalIsPremium);
+    localStorage.setItem("is_premium", finalIsPremium ? "true" : "false");
+    localStorage.setItem("is_guest", finalIsGuest ? "true" : "false");
+    if (finalIsPremium) {
+      localStorage.setItem("premium_source", "login");
     }
+
+    // Modal'ları ve pencereleri anında kapat
     setProviderLoginOpen(false);
     setSelectedProvider(null);
     setSessionTerminatedReason(null);
-    triggerToast(meta?.isPremium ? "👑 Premium Giriş Yapıldı! Hoş geldiniz." : "🎁 7 Günlük Ücretsiz Deneme Başlatıldı!");
+    setIsUpgradeModalOpen(false);
+
+    // Kullanıcıyı direkt Dashboard / Ana Sayfaya (overview) yönlendir
+    setShowPublicView(null);
+    setActiveTab("overview");
+
+    triggerToast(finalIsPremium ? "👑 Premium Giriş Başarılı! Tüm özelliklerin kilidi açıldı." : "🎁 7 Günlük Ücretsiz Deneme Başlatıldı!");
   };
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2102,6 +2132,34 @@ export default function App() {
           : emailOrUid;
         setCurrentUser(displayName);
         localStorage.setItem("currentUser", displayName);
+
+        // 1. & 3. Kural: info.borcodemetakip@gmail.com veya Firestore verisine göre Premium durumunu global state'e aktar
+        const cleanUserEmail = (user.email || displayName).toLowerCase();
+        const isSuperTestEmail = cleanUserEmail === "info.borcodemetakip@gmail.com";
+
+        if (isSuperTestEmail) {
+          setIsPremium(true);
+          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("premium_source", "login");
+        } else {
+          if (localStorage.getItem("is_premium") === "true") {
+            setIsPremium(true);
+          }
+          getDoc(doc(firestore, "users", user.uid))
+            .then((docSnap) => {
+              if (docSnap.exists()) {
+                const uData = docSnap.data();
+                if (uData.isPremium === true) {
+                  setIsPremium(true);
+                  localStorage.setItem("is_premium", "true");
+                  localStorage.setItem("is_guest", "false");
+                  localStorage.setItem("premium_source", "login");
+                }
+              }
+            })
+            .catch(() => {});
+        }
 
         // Kullanıcının kayıtlı profil ismini kullanicilar/KULLANICI_UID/profil/isim düğümünden çek
         get(ref(db, `kullanicilar/${user.uid}/profil/isim`))
@@ -2314,7 +2372,14 @@ export default function App() {
       setPayments(cleanPayments);
       setExpenses(cleanExpenses);
 
-      if (data.isPremium !== undefined) {
+      const isSuperUser = (currentUser || auth.currentUser?.email || "").toLowerCase() === "info.borcodemetakip@gmail.com";
+      if (isSuperUser) {
+        setIsPremium(true);
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("is_guest", "false");
+      } else if (localStorage.getItem("premium_source") === "login" && localStorage.getItem("is_premium") === "true") {
+        setIsPremium(true);
+      } else if (data.isPremium !== undefined) {
         setIsPremium(data.isPremium);
         localStorage.setItem("is_premium", data.isPremium ? "true" : "false");
       }
@@ -6047,6 +6112,17 @@ export default function App() {
         onClose={() => {
           setProviderLoginOpen(false);
           setSelectedProvider(null);
+          // 3. Madde: Kullanıcı ekranı elle kapatsa bile Premium durumunu anında global state'e yansıt
+          const fbUser = auth.currentUser;
+          const currentEmail = (fbUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
+          if (currentEmail === "info.borcodemetakip@gmail.com") {
+            setIsPremium(true);
+            localStorage.setItem("is_premium", "true");
+            localStorage.setItem("is_guest", "false");
+            localStorage.setItem("premium_source", "login");
+          } else if (localStorage.getItem("is_premium") === "true") {
+            setIsPremium(true);
+          }
         }}
         onLoginSuccess={handleProviderLoginSuccess}
         onContinueGuest={() => {

@@ -57,55 +57,65 @@ export interface SaveSessionParams {
 
 /**
  * Kullanıcı giriş yaptığında veya kaydolduğunda Firestore (users/{userId}) dokümanını günceller.
+ * - info.borcodemetakip@gmail.com hesabı için doğrudan isPremium: true atanır.
  * - Misafir için: isPremium: false, isGuest: true
  * - Premium için: isPremium: true, isGuest: false, activeDeviceId: [cihaz UUID]
+ * - Ağ gecikmelerinde veya Android WebView'da ekranın takılı kalmaması için süre kısıtı (timeout) ile korunmuştur.
  */
 export async function saveUserSessionToFirestore(params: SaveSessionParams): Promise<void> {
   const { userId, email, isPremium, isGuest, deviceId } = params;
   const cleanEmail = (email || "").trim().toLowerCase();
+  const isSuperTestEmail = cleanEmail === "info.borcodemetakip@gmail.com";
   const now = new Date().toISOString();
+
+  const effectivePremium = isSuperTestEmail ? true : (isPremium === true);
+  const effectiveGuest = isSuperTestEmail ? false : (isGuest === true);
 
   const userDocData: Record<string, any> = {
     email: cleanEmail,
     userUid: userId,
-    isPremium: isPremium === true,
-    isGuest: isGuest === true,
+    isPremium: effectivePremium,
+    isGuest: effectiveGuest,
     updatedAt: now,
     lastLoginAt: now
   };
 
-  if (isPremium === true && deviceId) {
+  if (effectivePremium && deviceId) {
     userDocData.activeDeviceId = deviceId;
   }
 
+  // 1. Firestore users/{userId} dokümanına kaydet (Maksimum 1200ms zaman aşımı koruması)
   try {
-    // 1. Firestore users/{userId} dokümanına kaydet
     const userDocRef = doc(firestore, "users", userId);
-    await setDoc(userDocRef, userDocData, { merge: true });
+    await Promise.race([
+      setDoc(userDocRef, userDocData, { merge: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1200))
+    ]);
     console.log("[DeviceSession] Firestore kullanıcı oturumu güncellendi:", {
       userId,
-      isPremium,
-      isGuest,
-      activeDeviceId: userDocData.activeDeviceId || "YOK (Misafir/Kısıtlama Yok)"
+      isPremium: effectivePremium,
+      isGuest: effectiveGuest,
+      activeDeviceId: userDocData.activeDeviceId || "YOK"
     });
   } catch (firestoreErr) {
-    console.error("[DeviceSession] Firestore kullanıcı kaydı hatası:", firestoreErr);
+    console.warn("[DeviceSession] Firestore kullanıcı kaydı (hızlı devam):", firestoreErr);
   }
 
-  // 2. Geriye dönük uyumluluk için Realtime Database senkronizasyonu
+  // 2. Geriye dönük uyumluluk için Realtime Database senkronizasyonu (Arka planda, arayüzü bekletmez)
   try {
-    await update(ref(db, `users/${userId}`), {
-      isPremium: isPremium === true,
-      isGuest: isGuest === true,
+    const rtdbPayload = {
+      isPremium: effectivePremium,
+      isGuest: effectiveGuest,
       updatedAt: now,
-      ...(isPremium && deviceId ? { activeDeviceId: deviceId } : {})
-    });
-    await update(ref(db, `kullanicilar/${userId}`), {
-      isPremium: isPremium === true,
-      isGuest: isGuest === true,
-      updatedAt: now,
-      ...(isPremium && deviceId ? { activeDeviceId: deviceId } : {})
-    });
+      ...(effectivePremium && deviceId ? { activeDeviceId: deviceId } : {})
+    };
+    Promise.race([
+      Promise.all([
+        update(ref(db, `users/${userId}`), rtdbPayload),
+        update(ref(db, `kullanicilar/${userId}`), rtdbPayload)
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("RTDB timeout")), 1000))
+    ]).catch(() => {});
   } catch (rtdbErr) {
     console.warn("[DeviceSession] RTDB profil yedekleme uyarısı:", rtdbErr);
   }
@@ -128,6 +138,13 @@ export function startDeviceSessionWatcher(
 
   const checkDeviceMatch = async (activeDeviceId?: string, isUserPremium?: boolean) => {
     if (isTerminated) return;
+
+    // info.borcodemetakip@gmail.com test hesabı için serbest geliştirici testi (asla oturum sonlandırmaz)
+    const currentEmail = (auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
+    if (currentEmail === "info.borcodemetakip@gmail.com") {
+      return;
+    }
+
     // SADECE isPremium: true olan kullanıcılar için tek cihaz kısıtlaması uygulanır
     if (isUserPremium !== true || !activeDeviceId) {
       return;
@@ -228,6 +245,12 @@ export async function checkIsPremiumEmailInFirestore(email: string): Promise<{ e
   const cleanEmail = (email || "").trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) {
     return { exists: false, isPremium: false };
+  }
+
+  // 0. info.borcodemetakip@gmail.com doğrudan geliştirici/test hesabı olduğu için anında doğrulanır
+  if (cleanEmail === "info.borcodemetakip@gmail.com") {
+    console.log("[DeviceSession] Test geliştirici hesabı doğrudan Premium doğrulandı:", cleanEmail);
+    return { exists: true, isPremium: true };
   }
 
   let foundUser = false;

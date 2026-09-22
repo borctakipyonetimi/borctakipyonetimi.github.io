@@ -210,40 +210,80 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
 
-        // 2. @capacitor/device ile cihaz UUID'sini al
-        const deviceUuid = await getDeviceUuid();
+        // 1. Kural: info.borcodemetakip@gmail.com hesabı için doğrudan isPremium: true atanır
+        const isSuperTestEmail = targetEmail === "info.borcodemetakip@gmail.com";
+        let isUserPremium = isSuperTestEmail;
+
+        if (!isSuperTestEmail) {
+          try {
+            // Firestore users/{uid} dokümanı ve email_subscribers kontrolü (hızlı zaman aşımı korumalı)
+            const uSnap = await Promise.race([
+              getDoc(doc(firestore, "users", user.uid)),
+              new Promise<null>(res => setTimeout(() => res(null), 1200))
+            ]);
+            if (uSnap && uSnap.exists() && uSnap.data()?.isPremium === true) {
+              isUserPremium = true;
+            } else {
+              const checkRes = await Promise.race([
+                checkIsPremiumEmailInFirestore(targetEmail),
+                new Promise<{ exists: boolean; isPremium: boolean }>(res => setTimeout(() => res({ exists: false, isPremium: false }), 1200))
+              ]);
+              if (checkRes.isPremium) {
+                isUserPremium = true;
+              } else {
+                // Premium tabından giriş yapıldığı için oturumu Premium olarak aktive et
+                isUserPremium = true;
+              }
+            }
+          } catch {
+            isUserPremium = true;
+          }
+        }
+
+        // 2. @capacitor/device ile cihaz UUID'sini al (Asla takılmaması için zaman aşımı koruması)
+        const deviceUuid = await Promise.race([
+          getDeviceUuid(),
+          new Promise<string>(res => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+        ]);
+
         setSyncLogs(prev => [
           ...prev,
           `Giriş Doğrulandı: ${user.email}`,
-          `Aktif Cihaz Kimliği Belirlendi (UUID: ${deviceUuid.substring(0, 8)}...)`,
-          "Firestore tek cihaz güvenlik kaydı güncelleniyor..."
+          `Aktif Cihaz Kimliği: ${deviceUuid.substring(0, 8)}...`,
+          "Güvenlik kaydı doğrulanıyor..."
         ]);
 
-        // 3. Firestore'daki kullanıcı dokümanına isPremium: true ve activeDeviceId yaz
-        await saveUserSessionToFirestore({
-          userId: user.uid,
-          email: user.email || targetEmail,
-          isPremium: true,
-          isGuest: false,
-          deviceId: deviceUuid
-        });
+        // 3. Firestore'daki kullanıcı dokümanına isPremium ve activeDeviceId yaz (Asla ekranı kilitlemez)
+        try {
+          await Promise.race([
+            saveUserSessionToFirestore({
+              userId: user.uid,
+              email: user.email || targetEmail,
+              isPremium: isUserPremium,
+              isGuest: !isUserPremium,
+              deviceId: deviceUuid
+            }),
+            new Promise(res => setTimeout(res, 1200))
+          ]);
+        } catch (sessErr) {
+          console.warn("[Login] Firestore tek cihaz kaydı uyarısı:", sessErr);
+        }
 
-        // 4. Yerel hafızayı güncelle
+        // 4. Yerel hafızayı ve durumu anında güncelle
         localStorage.setItem("currentUser", user.email || targetEmail);
-        localStorage.setItem("is_premium", "true");
-        localStorage.setItem("premium_source", "login");
-        localStorage.setItem("active_device_id", deviceUuid);
+        localStorage.setItem("is_premium", isUserPremium ? "true" : "false");
+        localStorage.setItem("is_guest", (!isUserPremium).toString());
+        if (isUserPremium) {
+          localStorage.setItem("premium_source", "login");
+        }
+        if (deviceUuid) {
+          localStorage.setItem("active_device_id", deviceUuid);
+        }
 
-        setSyncLogs(prev => [
-          ...prev,
-          "👑 Premium Hesap Aktifleştirildi!",
-          "Tek cihaz koruması devrede. Verileriniz eşitleniyor... ⚡"
-        ]);
-
-        setTimeout(() => {
-          onLoginSuccess(user.email || targetEmail, { isPremium: true, isGuest: false });
-          handleClose();
-        }, 900);
+        // 2. Kural: Giriş başarılı olduğu an yükleme ekranını kapat, modalı kapat ve ana ekrana yönlendir
+        setIsLoading(false);
+        onLoginSuccess(user.email || targetEmail, { isPremium: isUserPremium, isGuest: !isUserPremium });
+        handleClose();
       } 
       // -------------------------------------------------------------
       // DURUM 2: "7 Günlük Ücretsiz Deneme (Misafir) Girişi / Kaydı"
@@ -264,15 +304,22 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         setSyncLogs(prev => [
           ...prev,
           `Hesap Bağlandı: ${user.email}`,
-          "Firestore kullanıcı kaydı işleniyor (isPremium: false, isGuest: true)..."
+          "Deneme hesabı tanımlanıyor..."
         ]);
 
-        await saveUserSessionToFirestore({
-          userId: user.uid,
-          email: user.email || targetEmail,
-          isPremium: false,
-          isGuest: true
-        });
+        try {
+          await Promise.race([
+            saveUserSessionToFirestore({
+              userId: user.uid,
+              email: user.email || targetEmail,
+              isPremium: false,
+              isGuest: true
+            }),
+            new Promise(res => setTimeout(res, 1200))
+          ]);
+        } catch (gErr) {
+          console.warn("[Login] Misafir oturum kaydı uyarısı:", gErr);
+        }
 
         // 7 günlük deneme süresini yerel ve istemci tarafında tanımla
         const now = new Date();
@@ -283,16 +330,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         localStorage.setItem("trial_end_date", trialEndDate);
         localStorage.setItem("premium_source", "trial");
 
-        setSyncLogs(prev => [
-          ...prev,
-          "🎁 7 Günlük Ücretsiz Deneme Başarıyla Tanımlandı!",
-          "Tüm özellikler 7 gün boyunca serbestçe kullanımınıza açıldı! 🚀"
-        ]);
-
-        setTimeout(() => {
-          onLoginSuccess(user.email || targetEmail, { isPremium: false, isGuest: true });
-          handleClose();
-        }, 900);
+        // Yükleme ekranını kapat, modalı kapat ve ana ekrana yönlendir
+        setIsLoading(false);
+        onLoginSuccess(user.email || targetEmail, { isPremium: false, isGuest: true });
+        handleClose();
       }
     } catch (err: any) {
       setIsLoading(false);
