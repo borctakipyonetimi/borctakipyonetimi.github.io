@@ -3175,6 +3175,18 @@ app.post("/api/notifications/email/verify", async (req, res) => {
     }
   });
 });
+app.get("/api/auth/verify-premium-email", (req, res) => {
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Ge\xE7erli bir e-posta adresi gereklidir.", exists: false, isPremium: false });
+  }
+  const subscriber = emailSubscribersMap[email];
+  const isSubscriberPremium = subscriber && (subscriber.isPremium === true || subscriber.verified === true);
+  return res.json({
+    exists: !!subscriber,
+    isPremium: !!isSubscriberPremium
+  });
+});
 app.post("/api/notifications/email/send-direct", async (req, res) => {
   try {
     const { recipientEmail, subject, htmlContent } = req.body || {};
