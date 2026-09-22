@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Shield as ShieldIcon,
@@ -55,9 +55,11 @@ interface ProviderLoginModalProps {
   onClose: () => void;
   onLoginSuccess: (email: string, meta?: LoginSuccessMeta) => void;
   isPremium?: boolean;
+  currentUser?: string | null;
   onOpenUpgradeModal?: (featureName?: string) => void;
   onContinueGuest?: () => void;
   initialTab?: LoginPortalTab;
+  initialSubMode?: "login" | "register";
 }
 
 export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
@@ -66,9 +68,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
   onClose,
   onLoginSuccess,
   isPremium = false,
+  currentUser = null,
   onOpenUpgradeModal,
   onContinueGuest,
-  initialTab = "premium"
+  initialTab = "premium",
+  initialSubMode
 }) => {
   // Ana Sekme: "premium" (Premium Üye Girişi / Kaydı) veya "guest_trial" (7 Günlük Ücretsiz Deneme / Misafir)
   const [activeTab, setActiveTab] = useState<LoginPortalTab>(initialTab);
@@ -78,6 +82,16 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
   // Misafir / Deneme sekmesindeki alt mod: "login" | "register"
   const [guestSubMode, setGuestSubMode] = useState<"login" | "register">("register");
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) setActiveTab(initialTab);
+      if (initialSubMode) {
+        if (initialTab === "guest_trial") setGuestSubMode(initialSubMode);
+        if (initialTab === "premium") setPremiumSubMode(initialSubMode);
+      }
+    }
+  }, [isOpen, initialTab, initialSubMode]);
 
   // Şifre sıfırlama modu
   const [isForgotMode, setIsForgotMode] = useState(false);
@@ -155,33 +169,23 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
       return;
     }
 
-    // 1. Şifre Sıfırlama (Yalnızca doğrulanmış ve isPremium: true olan hesaplar için)
+    // 1. Şifre Sıfırlama (Hem Premium hem Misafir hesapları için güvenli Firebase şifre sıfırlama)
     if (isForgotMode) {
       setIsLoading(true);
       setError("");
       setSuccessMsg("");
       setSyncLogs([
-        "Firestore veritabanı taranıyor...",
-        "Kullanıcı ve abonelik kayıtları doğrulanıyor (users & email_subscribers)..."
+        "Firebase Güvenli Kimlik Doğrulama Servisine Bağlanılıyor...",
+        "Şifre sıfırlama bağlantısı oluşturuluyor..."
       ]);
 
       try {
-        const premiumCheck = await checkIsPremiumEmailInFirestore(targetEmail);
-        if (!premiumCheck.exists || !premiumCheck.isPremium) {
-          setIsLoading(false);
-          setError("Bu e-posta adresiyle kayıtlı bir Premium üyelik bulunamadı. Şifre sıfırlayamazsınız!");
-          setSyncLogs([]);
-          return;
-        }
-
+        await sendPasswordResetEmail(auth, targetEmail);
+        setSuccessMsg(`Şifre sıfırlama bağlantısı (${targetEmail}) adresine başarıyla gönderildi! Lütfen gelen kutunuzu ve spam/gereksiz klasörünü kontrol edin.`);
         setSyncLogs(prev => [
           ...prev,
-          "👑 Kayıtlı Premium Üyelik Doğrulandı (isPremium: true)",
-          "Firebase Güvenli Şifre Sıfırlama E-postası Gönderiliyor..."
+          "✅ Sıfırlama e-postası başarıyla gönderildi."
         ]);
-
-        await sendPasswordResetEmail(auth, targetEmail);
-        setSuccessMsg(`Şifre sıfırlama bağlantısı kayıtlı Premium hesabınıza (${targetEmail}) başarıyla gönderildi! Lütfen gelen kutunuzu ve spam klasörünü kontrol edin.`);
         setIsLoading(false);
       } catch (err: any) {
         setIsLoading(false);
@@ -482,7 +486,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
         const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("currentUser", cleanUserEmail);
-        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_premium", isTrialActive ? "true" : "false");
         localStorage.setItem("is_guest", "true");
         localStorage.setItem("user_created_at", determinedCreatedAt);
 
@@ -506,12 +510,12 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           });
         } else {
           onLoginSuccess(cleanUserEmail, {
-            isPremium: false,
+            isPremium: true,
             isGuest: true,
             isTrialActive: true,
             trialMessage: guestSubMode === "register" 
-              ? "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı!"
-              : "Premium aboneliğiniz tamamlanmadı. Ancak uygulamamızı test edebilmeniz için 7 günlük ücretsiz deneme süreniz tanımlanmıştır!",
+              ? "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı! Tüm PRO özellikler açık!"
+              : "🎁 7 Günlük Ücretsiz Deneme Süreniz Aktif! Tüm PRO özellikleri kullanabilirsiniz.",
             createdAt: determinedCreatedAt
           });
         }
@@ -566,7 +570,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 </span>
                 <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
                   {isForgotMode
-                    ? "Premium Şifre Sıfırlama"
+                    ? "Şifre Sıfırlama"
                     : activeTab === "premium"
                     ? (premiumSubMode === "register" ? "Yeni Premium Hesap Oluştur" : "Premium Üye Girişi")
                     : (guestSubMode === "register" ? "7 Günlük Ücretsiz Deneme Kaydı" : "Misafir Girişi")}
@@ -587,14 +591,14 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           <div className="p-5 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
             {/* Şifre Sıfırlama Güvenlik Bilgilendirmesi */}
             {isForgotMode && (
-              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-2.5">
-                <ShieldIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-start gap-2.5">
+                <ShieldIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                 <div className="text-left space-y-0.5">
-                  <div className="text-xs font-black text-amber-700 dark:text-amber-300">
-                    Premium Şifre Sıfırlama Kuralı
+                  <div className="text-xs font-black text-indigo-750 dark:text-indigo-300">
+                    Şifre Sıfırlama Bağlantısı
                   </div>
-                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 font-medium leading-relaxed">
-                    Şifre sıfırlama bağlantısı yalnızca veritabanında kayıtlı ve <strong>isPremium: true</strong> olan Premium hesaplara gönderilir. Kayıtsız veya misafir hesaplar şifre sıfırlayamaz.
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                    Kayıtlı e-posta adresinizi girin. E-postanıza güvenli bir şifre sıfırlama bağlantısı gönderilecektir.
                   </p>
                 </div>
               </div>
@@ -816,7 +820,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                         Şifre
                       </label>
-                      {activeTab === "premium" && premiumSubMode === "login" && (
+                      {((activeTab === "premium" && premiumSubMode === "login") ||
+                        (activeTab === "guest_trial" && guestSubMode === "login")) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -824,7 +829,11 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                             setError("");
                             setSuccessMsg("");
                           }}
-                          className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                          className={`text-[11px] font-bold hover:underline cursor-pointer ${
+                            activeTab === "premium" 
+                              ? "text-amber-600 dark:text-amber-400" 
+                              : "text-indigo-600 dark:text-indigo-400"
+                          }`}
                         >
                           Şifremi Unuttum?
                         </button>
@@ -1023,18 +1032,18 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             )}
 
             {/* ------------------------------------------------------------- */}
-            {/* 3. ŞİFRESİZ YEREL MİSAFİR MODU HIZLI BUTONU */}
+            {/* 3. KAYIT OLMADAN KEŞFET / ZİYARETÇİ MODU BUTONU */}
             {/* ------------------------------------------------------------- */}
             {!isForgotMode && (
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
-                  id="btn-continue-offline-guest"
+                  id="btn-explore-without-login"
                   type="button"
                   onClick={handleContinueWithoutAccount}
-                  className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                  className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
-                  <UserIcon className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Şifresiz Misafir Modu ile Devam Et (Yerel Hafıza)</span>
+                  <SparklesIcon className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Kayıt Olmadan Devam Et / Keşfet (Ziyaretçi Modu)</span>
                   <ArrowRightIcon className="w-3.5 h-3.5 text-slate-400" />
                 </button>
               </div>

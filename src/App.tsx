@@ -621,8 +621,11 @@ export default function App() {
         triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
         return true;
       } else {
-        // 7 günden az -> Deneme aktif, uygulamaya girişe müsaade et
+        // 7 günden az -> 7 Günlük Otomatik Premium Deneme Aktif
+        setIsPremium(true);
         setIsTrialExpiredLocked(false);
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("is_guest", "true");
         const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
         const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("trial_end_date", trialEndDate);
@@ -2084,7 +2087,11 @@ export default function App() {
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
-  const [providerLoginOpen, setProviderLoginOpen] = useState(false);
+  const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
+    return !localStorage.getItem("currentUser") && !localStorage.getItem("skip_initial_login");
+  });
+  const [providerLoginInitialTab, setProviderLoginInitialTab] = useState<"premium" | "guest_trial">("premium");
+  const [providerLoginInitialSubMode, setProviderLoginInitialSubMode] = useState<"login" | "register">("login");
   const [selectedProvider, setSelectedProvider] = useState<"google" | null>(null);
   const splashTimerRef = useRef<any>(null);
 
@@ -2261,17 +2268,18 @@ export default function App() {
       return;
     }
 
-    // 4. Misafir 7 Günlük Deneme Aktif İse: Girişe Müsaade Et
-    setIsPremium(false);
+    // 4. Misafir 7 Günlük Deneme Aktif İse: Otomatik 7 Günlük Premium Giriş Tanımla
+    setIsPremium(true);
     setIsTrialExpiredLocked(false);
-    localStorage.setItem("is_premium", "false");
+    localStorage.setItem("is_premium", "true");
     localStorage.setItem("is_guest", "true");
+    localStorage.setItem("premium_source", "trial");
 
     setIsUpgradeModalOpen(false);
     setShowPublicView(null);
     setActiveTab("overview");
 
-    const message = meta?.trialMessage || "Uygulamamızı test edebilmeniz için 7 günlük ücretsiz deneme süreniz tanımlanmıştır!";
+    const message = meta?.trialMessage || "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı! Tüm PRO özellikler açık!";
     triggerToast(message);
   };
 
@@ -3905,10 +3913,32 @@ export default function App() {
         } catch (err) {
           console.error("SignOut error:", err);
         }
+        // 1. KURAL: LocalStorage üzerindeki tüm kullanıcı ve Premium verilerini tamamen temizle
         localStorage.removeItem("currentUser");
         localStorage.removeItem("user_profile_name");
+        localStorage.removeItem("user_profile_avatar");
+        localStorage.removeItem("is_premium");
+        localStorage.removeItem("is_guest");
+        localStorage.removeItem("premium_plan");
+        localStorage.removeItem("premium_source");
+        localStorage.removeItem("premium_type");
+        localStorage.removeItem("premium_expiry_date");
+        localStorage.removeItem("trial_end_date");
+        localStorage.removeItem("user_created_at");
+        localStorage.removeItem("active_device_id");
+        localStorage.removeItem("user_gemini_api_key");
+        localStorage.removeItem("butcem_device_id");
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "false");
+
+        // State ve context sıfırlaması
         setUserProfileName("");
+        setUserAvatar("");
         setCurrentUser(null);
+        setIsPremium(false);
+        setIsTrialExpiredLocked(false);
+        setIsUpgradeModalOpen(false);
+        setTrialStatus(null);
         setDebts([]);
         setIncomes([]);
         setAlarms([]);
@@ -3916,7 +3946,10 @@ export default function App() {
         setInstallmentDebts([]);
         setPayments([]);
         setExpenses([]);
-        triggerToast("Oturum Kapatıldı ve Veriler Temizlendi 🔒");
+        
+        // Giriş modalını zorunlu olarak aç
+        setProviderLoginOpen(true);
+        triggerToast("Oturum Kapatıldı. Tüm Premium yetkiler kilitlendi 🔒");
       }
     );
   };
@@ -6332,11 +6365,15 @@ export default function App() {
         isOpen={providerLoginOpen}
         provider={selectedProvider}
         isPremium={isPremium}
+        currentUser={currentUser}
+        initialTab={providerLoginInitialTab}
+        initialSubMode={providerLoginInitialSubMode}
         onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
         onClose={() => {
+          localStorage.setItem("skip_initial_login", "true");
           setProviderLoginOpen(false);
           setSelectedProvider(null);
-          // 3. Madde: Kullanıcı ekranı elle kapatsa bile Premium durumunu anında global state'e yansıt
+          // Kullanıcı ekranı kapatsa bile Premium durumunu yansıt
           const fbUser = auth.currentUser;
           const currentEmail = (fbUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
           if (currentEmail === "info.borcodemetakip@gmail.com") {
@@ -6350,9 +6387,10 @@ export default function App() {
         }}
         onLoginSuccess={handleProviderLoginSuccess}
         onContinueGuest={() => {
+          localStorage.setItem("skip_initial_login", "true");
           setProviderLoginOpen(false);
           setSelectedProvider(null);
-          triggerToast("Misafir modu ile devam ediliyor (Yerel Cihaz Hafızası) 👍");
+          triggerToast("✨ Ziyaretçi Modu Aktif. Uygulamayı keşfedebilirsiniz!");
         }}
       />
 
@@ -6413,7 +6451,7 @@ export default function App() {
           {(() => {
             const rawUser = currentUser || "";
             const cleanDisplayName = userProfileName?.trim() || (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser);
-            const displayGreeting = cleanDisplayName.trim() || (language === "tr" ? "İsim Girin" : "Add Name");
+            const displayGreeting = cleanDisplayName.trim() || (currentUser ? (language === "tr" ? "İsim Girin" : "Add Name") : (language === "tr" ? "Ziyaretçi (Giriş Yap)" : "Visitor (Sign In)"));
 
             const getWelcomeThemeStyles = () => {
               switch (colorTheme) {
@@ -6467,8 +6505,16 @@ export default function App() {
                 className="flex items-center shrink-0 max-w-[150px] xs:max-w-[180px] sm:max-w-none ml-1 sm:ml-2"
               >
                 <button 
-                  onClick={handlePromptEditName}
-                  title={language === "tr" ? "İsmini değiştirmek veya yazmak için tıkla" : "Click to change or write your name"}
+                  onClick={() => {
+                    if (!currentUser) {
+                      setProviderLoginInitialTab("guest_trial");
+                      setProviderLoginInitialSubMode("login");
+                      setProviderLoginOpen(true);
+                    } else {
+                      handlePromptEditName();
+                    }
+                  }}
+                  title={!currentUser ? (language === "tr" ? "Giriş Yapmak veya Kaydolmak için tıkla" : "Click to Sign In or Sign Up") : (language === "tr" ? "İsmini değiştirmek veya yazmak için tıkla" : "Click to change or write your name")}
                   className={`group flex items-center gap-1.5 sm:gap-2.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 sm:px-3 py-1.5 rounded-xl border ${themeStyles.border} ${themeStyles.glow} transition-all duration-300 cursor-pointer select-none shrink-0 w-full hover:brightness-110 active:scale-95`}
                 >
                   <div className={`p-1.5 ${themeStyles.iconContainerBg} rounded-lg group-hover:scale-110 group-hover:rotate-[12deg] transition-all duration-300 flex items-center justify-center shrink-0`}>
@@ -9875,7 +9921,80 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                        {/* Features list */}
+                        {/* Ziyaretçi / Kısıtlı Kullanıcı İki Seçenekli Karar Kartı */}
+                    {(!currentUser || (!isPremium && !isTrialExpiredLocked)) && (
+                      <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
+                        <div className="text-center space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
+                            🔒 KISITLI ÖZELLİK ERİŞİMİ
+                          </span>
+                          <h4 className="text-sm font-black text-slate-800 dark:text-white">
+                            {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
+                          </h4>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                            Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUpgradeModalOpen(false);
+                              setProviderLoginInitialTab("guest_trial");
+                              setProviderLoginInitialSubMode("register");
+                              setProviderLoginOpen(true);
+                            }}
+                            className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xl">🎁</span>
+                              <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Ücretsiz
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-black leading-tight">
+                                7 Günlük Deneme Başlat
+                              </div>
+                              <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
+                                E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Seçenek 2: Premium Satın Al */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = document.getElementById("premium-plans-section");
+                              if (el) {
+                                el.scrollIntoView({ behavior: "smooth" });
+                              }
+                            }}
+                            className="p-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl shadow-md shadow-amber-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-amber-400/40"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xl">👑</span>
+                              <span className="text-[9px] font-black bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Limitsiz
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-black leading-tight">
+                                Premium Satın Al
+                              </div>
+                              <div className="text-[10px] text-amber-950/80 font-semibold mt-0.5 leading-snug">
+                                Aylık, Yıllık veya Limitsiz paketle tüm sınırlamaları kalıcı olarak kaldırın.
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Features list */}
                         <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
                           {[
                             { icon: "🤖", title: "AI Finansal Koç", desc: "Harcamalarınızı yapay zeka ile analiz edin ve tasarruf stratejileri geliştirin." },
@@ -9897,7 +10016,7 @@ export default function App() {
                         </div>
 
                         {/* Simulated Plans Select / Activation block */}
-                        <div className="space-y-4">
+                        <div id="premium-plans-section" className="space-y-4">
                           <p className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-500 tracking-widest text-center flex items-center justify-center gap-2">
                             <span className="w-6 h-px bg-amber-500/30" /> 👑 PREMİUM PLANLAR <span className="w-6 h-px bg-amber-500/30" />
                           </p>
