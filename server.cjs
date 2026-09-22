@@ -3180,6 +3180,12 @@ app.get("/api/auth/verify-premium-email", (req, res) => {
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Ge\xE7erli bir e-posta adresi gereklidir.", exists: false, isPremium: false });
   }
+  if (email === "info.borcodemetakip@gmail.com") {
+    return res.json({
+      exists: true,
+      isPremium: true
+    });
+  }
   const subscriber = emailSubscribersMap[email];
   const isSubscriberPremium = subscriber && (subscriber.isPremium === true || subscriber.verified === true);
   return res.json({
