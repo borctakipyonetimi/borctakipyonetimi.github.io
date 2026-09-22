@@ -10033,35 +10033,29 @@ export default function App() {
                             )}
                           </div>
 
-                          {isPremium ? (
+                          {isPremium && localStorage.getItem("premium_source") !== "trial" ? (
                             <div className="space-y-2.5">
                               <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-center font-bold text-xs uppercase tracking-tight flex flex-col items-center justify-center gap-1 font-sans">
                                 <span className="font-extrabold text-[12px] tracking-wide">
-                                  {localStorage.getItem("premium_source") === "trial" ? "✨ DENEME SÜRÜMÜNÜZ AKTİF" : "👑 LİSANSLI PRO SÜRÜM AKTİF"}
+                                  👑 LİSANSLI PRO SÜRÜM AKTİF
                                 </span>
                                 <span className="text-[10px] bg-emerald-500/10 px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-                                  {localStorage.getItem("premium_source") === "trial" 
-                                    ? `Kalan Süre: ${trialStatus?.daysRemaining || 7} Gün` 
-                                    : `Paket: ${selectedPlan === "monthly" ? "Bütçem Pro - Aylık" : selectedPlan === "yearly" ? "Bütçem Pro - Yıllık" : "Bütçem Pro - Sınırsız (Ömür Boyu)"}`}
+                                  Paket: {selectedPlan === "monthly" ? "Bütçem Pro - Aylık" : selectedPlan === "yearly" ? "Bütçem Pro - Yıllık" : "Bütçem Pro - Sınırsız (Ömür Boyu)"}
                                 </span>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (localStorage.getItem("premium_source") === "trial") {
-                                    handleCancelTrial();
-                                  } else {
-                                    savePremiumStatusAndSync(false, "yearly");
-                                    localStorage.removeItem("premium_source");
-                                    triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
-                                  }
+                                  savePremiumStatusAndSync(false, "yearly");
+                                  localStorage.removeItem("premium_source");
+                                  triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
                                 }}
                                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-97 border border-dashed border-slate-300 dark:border-slate-700"
                               >
-                                {localStorage.getItem("premium_source") === "trial" ? "✕ Deneme Sürümünü İptal Et" : "Lisansı Devre Dışı Bırak (Test)"}
+                                Lisansı Devre Dışı Bırak (Test)
                               </button>
                             </div>
-                          ) : (
+                          ) : !isPremium ? (
                             <button
                               type="button"
                               onClick={() => {
@@ -10075,7 +10069,7 @@ export default function App() {
                                 {selectedPlan === "lifetime" && `SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString}) ⚡`}
                               </span>
                             </button>
-                          )}
+                          ) : null}
 
                           {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
                           <button
