@@ -33,6 +33,7 @@ import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
+import { AdMobBanner } from "./AdMobBanner";
 
 interface IncomesListProps {
   incomes: Income[];
@@ -669,46 +670,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         </div>
       </div>
 
-      {/* Gelir Sayfası Sponsorlu Reklamı - Vadeli Mevduat/Kazanım */}
-      {!isPremium && (
-        <div className="mt-6 p-4 bg-emerald-500/5 dark:bg-emerald-950/10 border border-emerald-500/20 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xl shrink-0">
-              💰
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[8px] font-black uppercase tracking-wider rounded-md border border-emerald-500/20">
-                  Birikim Fırsatı
-                </span>
-                <span className="text-[9px] text-slate-400 font-bold">• Garanti BBVA E-Vadeli Hesap</span>
-              </div>
-              <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                Gelirlerinizi Boşta Tutmayın! %48.5 En Yüksek Tanışma Faizi Garanti'de! 💎
-              </h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-normal">
-                Garanti BBVA Mobil'den hemen hesap açın, birikimlerinizi yüksek e-vadeli faiz oranları ile anında büyüterek risksiz kazanın.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
-            <a
-              href="https://www.garantibbva.com.tr"
-              target="_blank"
-              rel="noreferrer referrer"
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-xl transition shadow-xs cursor-pointer uppercase tracking-wider text-center flex-1 sm:flex-none"
-            >
-              Yüksek Faiz Al
-            </a>
-            <button
-              onClick={onUpgradeClick}
-              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-500 text-[10px] font-black rounded-xl transition shadow-xs cursor-pointer flex items-center justify-center gap-1 uppercase tracking-tight shrink-0 flex-1 sm:flex-none"
-            >
-              Yükselt
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Gelir Sayfası Google AdMob Banner Reklamı */}
+      {!isPremium && <AdMobBanner className="mt-6" />}
 
       {/* Income Add/Edit Modal */}
       {isModalOpen && createPortal(

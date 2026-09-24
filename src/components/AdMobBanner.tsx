@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { Sparkles, ShieldCheck } from "lucide-react";
+import { ADMOB_CONFIG } from "../utils/rewardedAdService";
 
 interface AdMobBannerProps {
   unitType?: "banner" | "native" | "interstitial";
@@ -16,29 +17,19 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   className = ""
 }) => {
   const [isPremium, setIsPremium] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isWebView, setIsWebView] = useState(false);
+  const [adLoaded, setAdLoaded] = useState(false);
   const adInited = useRef(false);
 
-  // Dynamically check premium status and environment with event-based sync
+  // Check premium status dynamically
   useEffect(() => {
     const checkStatus = () => {
       const nextPrem = localStorage.getItem("is_premium") === "true";
-      const nextLogged = !!localStorage.getItem("currentUser");
       setIsPremium((prev) => (prev !== nextPrem ? nextPrem : prev));
-      setIsLoggedIn((prev) => (prev !== nextLogged ? nextLogged : prev));
     };
     checkStatus();
 
     window.addEventListener("storage", checkStatus);
     window.addEventListener("premium_status_changed", checkStatus);
-
-    // Detect if we are running inside an Android WebView context (APK wrapper)
-    if (typeof window !== "undefined" && navigator) {
-      const ua = navigator.userAgent || "";
-      const webViewActive = /Android/i.test(ua) && (ua.includes("; wv") || /Version\/[0-9.]+/i.test(ua));
-      setIsWebView(webViewActive);
-    }
 
     return () => {
       window.removeEventListener("storage", checkStatus);
@@ -46,85 +37,56 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     };
   }, []);
 
-  // Initialize Google AdSense / AdMob responsive ad units for all non-premium users (including visitors and guests)
+  // Initialize official Google AdSense / AdMob responsive banner units
   useEffect(() => {
     if (isPremium) return;
 
     const delay = setTimeout(() => {
       try {
         const ads = document.querySelectorAll("ins.adsbygoogle");
-        let pushed = false;
         ads.forEach((ad) => {
           if (ad.getAttribute("data-adsbygoogle-status") !== "done") {
             try {
               ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-              pushed = true;
+              setAdLoaded(true);
             } catch (adPushErr) {
-              // Ignore already filled
+              // Handled by AdSense script
             }
           }
         });
-        if (pushed) {
-          adInited.current = true;
-        }
+        adInited.current = true;
       } catch (err) {
-        console.warn("[AdMob] Unit configuration status:", err);
+        console.warn("[AdMob] Banner initialization status:", err);
       }
     }, 500);
 
     return () => clearTimeout(delay);
   }, [isPremium, unitType]);
 
-  // Premium users do NOT see any ads. All visitors, guests, and free users see ads.
+  // Premium users do not see ads
   if (isPremium) return null;
 
-  // Predefined high-performance fintech-themed visual sponsor campaigns
-  const adOffers = [
-    {
-      title: "Finansal Yapılandırma Kredisi",
-      desc: "Tüm borçlarınızı tek bankada toplayın, faiz canavarına dur deyin. %1.99'dan başlayan transfer faizleriyle rahat nefes alın.",
-      cta: "Hemen Başvur",
-      sponsor: "Garanti BBVA Mobil Sponsorluğunda",
-      url: "https://www.garantibbva.com.tr"
-    },
-    {
-      title: "Akıllı Yatırım & Fon Asistanı",
-      desc: "Birikimlerinizi enflasyona karşı koruyun. Kolayca altın, gümüş ve borsa yatırım fonları satın alın.",
-      cta: "Portföyü Keşfet",
-      sponsor: "Bütçem Pro Yatırım Ortağı",
-      url: "https://www.google.com/finance"
-    },
-    {
-      title: "Sıfır Masraflı Dijital Hesap",
-      desc: "EFT, Havale ve FAST işlemlerine ücret ödemeyin. Günlük biriken faizle harcarken de kazanın.",
-      cta: "Başvuru Yap",
-      sponsor: "Enpara Finans Reklam Ağı",
-      url: "https://www.enpara.com"
-    }
-  ];
-
-  // Pick a sponsor offer based on random index to add diversity
-  const activeOffer = adOffers[Math.floor(Math.random() * adOffers.length)];
-
-  // Modern dual layout hosting BOTH Google AdSense and the premium sponsor campaign fallback.
-  // This satisfies the critical Google AdSense policy review (active ins tags on active views)
-  // while ensuring a beautiful, organic aesthetic.
   return (
     <div className={`w-full overflow-hidden my-3 ${className}`}>
-      <div className="relative p-4 bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 dark:from-[#0d1527] dark:via-[#0b0f19] dark:to-[#090b11] rounded-3xl border border-indigo-500/10 dark:border-slate-800 shadow-sm">
+      <div className="relative p-3 sm:p-4 bg-slate-900/90 dark:bg-[#0b0f19] rounded-2xl border border-slate-800 shadow-md text-white">
         
-        {/* Banner Label & Branding compliant with Google AdSense policy */}
-        <div className="flex items-center justify-between mb-3 select-none">
-          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded border border-slate-200 dark:border-slate-800">
-            GOOGLE ADMOB • SPONSORLU REKLAM
-          </span>
-          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-wider">
-            REKLAM
+        {/* Google AdMob Official Header Label */}
+        <div className="flex items-center justify-between mb-2.5 select-none">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 text-[10px] font-black uppercase tracking-wider rounded border border-amber-500/30 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" /> GOOGLE ADMOB TEST REKLAMI
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+              Slot: {ADMOB_CONFIG.BANNER_SLOT}
+            </span>
+          </div>
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+            REKLAM • AD
           </span>
         </div>
 
-        {/* Real Live Google AdMob / AdSense responsive unit */}
-        <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-white/50 dark:bg-slate-950/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-2 relative z-10 transition mb-4">
+        {/* Live Google AdSense / AdMob Responsive Unit */}
+        <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-slate-950/80 rounded-xl border border-dashed border-slate-700/80 p-2 relative z-10 transition">
           <ins 
             className="adsbygoogle"
             style={{ display: "block", width: "100%", minHeight: "90px" }}
@@ -132,30 +94,22 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             data-ad-slot="6318747286"
             data-ad-format="auto"
             data-full-width-responsive="true"
+            data-adtest="on"
           />
-        </div>
 
-        {/* Polished Visual Sponsor Backup Campaign beneath AdSense */}
-        <div className="pt-3.5 border-t border-slate-200/50 dark:border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
-          <div className="min-w-0 flex-1 leading-snug">
-            <h4 className="text-[10.5px] sm:text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              {activeOffer.title}
-            </h4>
-            <p className="text-[9.5px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1">
-              {activeOffer.desc}
-            </p>
+          {/* Test Ad Info Watermark (Compliant with Google AdMob Testing) */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-center p-2 opacity-85">
+            <div className="flex items-center gap-1.5 text-amber-400 text-xs font-black tracking-wide">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <span>Google AdMob Test Reklam Birimi</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+              {ADMOB_CONFIG.BANNER_ID}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-1">
+              Test Modu Aktif • Gerçek AdMob Kampanyaları Canlı Sürümde Yayınlanır
+            </div>
           </div>
-          
-          <a 
-            href={activeOffer.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 w-full sm:w-auto py-1.5 px-3 bg-indigo-650 hover:bg-indigo-750 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-1 shadow-xs cursor-pointer text-center"
-          >
-            <span>{activeOffer.cta}</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
         </div>
 
       </div>
