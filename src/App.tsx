@@ -129,7 +129,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, getRemainingPassTimeFormatted, ADMOB_CONFIG, RewardedFeatureType } from "./utils/rewardedAdService";
+import { isPassActive, getRemainingPassTimeFormatted, RewardedFeatureType } from "./utils/rewardedAdService";
 import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";

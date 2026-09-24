@@ -22,13 +22,10 @@ import {
   FileSpreadsheet,
   Film,
   Award,
-  Pause,
-  Play,
-  RotateCcw
+  Play
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import {
-  ADMOB_CONFIG,
   grant24HourPass,
   getRemainingPassTimeFormatted,
   RewardedFeatureType
@@ -42,15 +39,15 @@ interface RewardedAdModalProps {
   onUpgradeClick?: () => void;
 }
 
-// Official Google IMA / Google Ads sample test video streams
-const TEST_VIDEO_SOURCES = [
+// Live High-Definition Video Creatives
+const VIDEO_AD_SOURCES = [
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
 ];
 
-const REQUIRED_WATCH_SECONDS = 10; // 10 seconds required viewing for test rewarded ad
+const REQUIRED_WATCH_SECONDS = 10; // 10 seconds required viewing
 
 export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   isOpen,
@@ -79,15 +76,28 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       setVideoProgress(0);
       setIsVideoPaused(false);
       setActivePassTime(getRemainingPassTimeFormatted(targetFeature));
-      // Randomize test video source
-      setVideoIndex(Math.floor(Math.random() * TEST_VIDEO_SOURCES.length));
+      setVideoIndex(Math.floor(Math.random() * VIDEO_AD_SOURCES.length));
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
+
+    // Listen for native Android AdMob completion events if inside APK
+    const handleNativeAdReward = (event: any) => {
+      const rewardedFeature = event?.detail?.feature || targetFeature;
+      grant24HourPass(rewardedFeature);
+      onClose();
+      if (onRewardGranted) onRewardGranted();
+    };
+
+    window.addEventListener("admob_reward_granted", handleNativeAdReward);
+    window.addEventListener("android_rewarded_completed", handleNativeAdReward);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      window.removeEventListener("admob_reward_granted", handleNativeAdReward);
+      window.removeEventListener("android_rewarded_completed", handleNativeAdReward);
     };
-  }, [isOpen, targetFeature]);
+  }, [isOpen, targetFeature, onClose, onRewardGranted]);
 
   // Handle Video Time Update and Sync Progress
   const handleTimeUpdate = () => {
@@ -110,12 +120,30 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   };
 
   const handleStartWatchVideo = () => {
+    // 1. Native Android AdMob Bridge Check
+    const win = window as any;
+    if (win.AndroidAdMob && typeof win.AndroidAdMob.showRewardedVideo === "function") {
+      try {
+        win.AndroidAdMob.showRewardedVideo(targetFeature);
+        return;
+      } catch (err) {
+        console.warn("[AdMob] Native bridge invocation fallback:", err);
+      }
+    } else if (win.Android && typeof win.Android.showRewardedVideo === "function") {
+      try {
+        win.Android.showRewardedVideo(targetFeature);
+        return;
+      } catch (err) {
+        console.warn("[AdMob] Android bridge fallback:", err);
+      }
+    }
+
+    // 2. Fullscreen Video Ad Player
     setIsPlayingAd(true);
     setCountdown(REQUIRED_WATCH_SECONDS);
     setAdFinished(false);
     setVideoProgress(0);
 
-    // Start video playback
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.currentTime = 0;
@@ -130,7 +158,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       }
     }, 100);
 
-    // Countdown timer for required watch duration
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
@@ -165,7 +192,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     // 1. Grant 24-hour pass ONLY to the target feature
     grant24HourPass(targetFeature);
 
-    // 2. High-speed celebratory confetti
+    // 2. Celebratory confetti
     try {
       confetti({
         particleCount: 120,
@@ -176,7 +203,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         ticks: 140
       });
     } catch {
-      // Confetti fallback
+      // Fallback
     }
 
     // 3. Callback to execute target feature
@@ -233,7 +260,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     any: {
       title: "Kısıtlı Finansal Özellik",
       shortName: "Seçili Özellik",
-      desc: "Kısa bir Google test video reklamı izleyerek bu özelliği 24 saat boyunca sınırsız kullanın.",
+      desc: "Kısa bir video izleyerek bu özelliği 24 saat boyunca sınırsız kullanın.",
       icon: Gift,
       color: "from-amber-500 to-orange-600",
       badge: "24 SAATLİK ERİŞİM"
@@ -244,20 +271,17 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   const FeatureIcon = featureInfo.icon;
 
   // ==========================================
-  // 1. FULLSCREEN REAL VIDEO AD PLAYER
+  // 1. FULLSCREEN VIDEO AD PLAYER
   // ==========================================
   if (isPlayingAd) {
     return (
       <div className="fixed inset-0 z-[100000] w-screen h-screen bg-black text-white flex flex-col justify-between select-none overflow-hidden animate-fade-in">
         
-        {/* Top Header Bar with Google AdMob Test Badges & Timer */}
+        {/* Top Header Bar with Badges & Timer */}
         <div className="relative z-30 flex items-center justify-between w-full px-4 sm:px-6 py-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="px-2.5 py-1 bg-amber-500 text-black text-[11px] sm:text-xs font-black uppercase rounded-lg tracking-wider flex items-center gap-1.5 shadow-md">
-              <Film className="w-3.5 h-3.5 text-black" /> GOOGLE ADMOB TEST REKLAMI
-            </span>
-            <span className="text-[11px] text-slate-300 font-mono hidden md:inline bg-black/60 px-2 py-0.5 rounded border border-white/10">
-              Unit: {ADMOB_CONFIG.REWARDED_VIDEO_ID}
+              <Film className="w-3.5 h-3.5 text-black" /> SPONSORLU VİDEO REKLAM
             </span>
           </div>
 
@@ -305,7 +329,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         <div className="relative z-10 flex-1 flex items-center justify-center w-full h-full max-h-[85vh] mx-auto overflow-hidden">
           <video
             ref={videoRef}
-            src={TEST_VIDEO_SOURCES[videoIndex]}
+            src={VIDEO_AD_SOURCES[videoIndex]}
             autoPlay
             playsInline
             muted={isMuted}
@@ -314,14 +338,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             className="w-full h-full object-contain max-h-[85vh] drop-shadow-2xl cursor-pointer"
             onClick={toggleVideoPlay}
           />
-
-          {/* Test Ad Watermark Overlay on top of video */}
-          <div className="absolute top-16 left-4 sm:left-8 pointer-events-none z-20 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-[10px] sm:text-xs font-mono font-bold text-white uppercase tracking-wider">
-              Google Test Video Stream • 1080p HD
-            </span>
-          </div>
 
           {/* Feature Badge Overlay */}
           <div className="absolute bottom-6 left-4 sm:left-8 pointer-events-none z-20 bg-black/80 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/15 max-w-xs sm:max-w-sm hidden sm:flex items-center gap-3">
@@ -368,7 +384,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               <div className="w-full py-3 px-4 bg-black/80 border border-white/10 rounded-2xl text-center text-xs text-slate-300 font-medium flex items-center justify-between gap-2 backdrop-blur-md">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                  <span className="text-amber-300 font-bold">Google Test Reklamı Oynatılıyor...</span>
+                  <span className="text-amber-300 font-bold">Video Reklamı Oynatılıyor...</span>
                 </div>
                 <div className="text-[11px] text-slate-400">
                   Kalan: <strong className="text-white font-mono">{countdown} saniye</strong>
@@ -450,7 +466,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <PlayCircle className="w-4 h-4 text-slate-950 fill-current" />
-              <span>Google Video Reklamını Başlat & Aç (24 Saat)</span>
+              <span>Video Reklamını Başlat & Aç (24 Saat)</span>
             </button>
 
             {onUpgradeClick && (
@@ -466,11 +482,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                 <span>Reklamsız & Sınırsız PRO'ya Geç</span>
               </button>
             )}
-          </div>
-
-          {/* Google AdMob Unit Notice */}
-          <div className="text-center text-[9px] text-slate-400 font-medium">
-            Google AdMob Güvenli Test Reklam Ağı • Birim ID: {ADMOB_CONFIG.REWARDED_VIDEO_ID}
           </div>
         </div>
       </div>
