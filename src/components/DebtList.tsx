@@ -20,7 +20,7 @@ import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
-import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 
 interface DebtListProps {
@@ -967,7 +967,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   };
 
   // Plain HTML Print & PDF trigger functions
-  const handlePrint = (isPdf = false) => {
+  const handlePrint = async (isPdf = false) => {
     // Bypassed premium block so everyone can use PDF exports
     const filtered = filteredDebts;
     if (filtered.length === 0) {
@@ -1341,7 +1341,11 @@ export const DebtList: React.FC<DebtListProps> = ({
       doc.setTextColor(100, 116, 139);
       doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v5.0 Ultimate"), 15, 285);
 
-      doc.save("Butcem_Pro_Borc_Raporu.pdf");
+      try {
+        await savePdfDocument(doc, "Butcem_Pro_Borc_Raporu.pdf");
+      } catch (pdfErr) {
+        console.error("PDF export error:", pdfErr);
+      }
       return;
     }
 
@@ -2449,8 +2453,8 @@ export const DebtList: React.FC<DebtListProps> = ({
         document.body
       )}
 
-      {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner (Only show when there is actual content) */}
-      {!isPremium && debts && debts.length > 0 && (
+      {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner */}
+      {!isPremium && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}

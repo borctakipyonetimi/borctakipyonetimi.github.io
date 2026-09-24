@@ -15,7 +15,7 @@ import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
-import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 
 interface InstallmentsListProps {
@@ -375,7 +375,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     return sum + (inst.installmentCount - inst.paidInstallmentCount) * single;
   }, 0);
 
-  const handlePrint = (isPdf = false) => {
+  const handlePrint = async (isPdf = false) => {
     if (installmentDebts.length === 0) {
       alert("Yazdırılacak taksit kaydı bulunamadı.");
       return;
@@ -429,7 +429,11 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
         yPos += 8;
       });
 
-      doc.save("Taksitli_Borc_Raporu.pdf");
+      try {
+        await savePdfDocument(doc, "Taksitli_Borc_Raporu.pdf");
+      } catch (pdfErr) {
+        console.error("PDF export error:", pdfErr);
+      }
       return;
     }
 
@@ -822,7 +826,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
       <InstallmentsPortalChart installmentDebts={installmentDebts} />
 
-      {!isPremium && installmentDebts && installmentDebts.length > 0 && (
+      {!isPremium && (
         <AdMobBanner unitType="banner" className="opacity-95 py-1" />
       )}
 

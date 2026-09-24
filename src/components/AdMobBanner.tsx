@@ -20,7 +20,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   const [isWebView, setIsWebView] = useState(false);
   const adInited = useRef(false);
 
-  // Dynamically check premium status, auth, and WebView environment with event-based sync
+  // Dynamically check premium status and environment with event-based sync
   useEffect(() => {
     const checkStatus = () => {
       const nextPrem = localStorage.getItem("is_premium") === "true";
@@ -46,31 +46,37 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     };
   }, []);
 
-  // Initialize Google AdSense responsive ad units safely inside React lifecycle
+  // Initialize Google AdSense / AdMob responsive ad units for all non-premium users (including visitors and guests)
   useEffect(() => {
-    if (isPremium || isWebView || !isLoggedIn) return;
+    if (isPremium) return;
 
     const delay = setTimeout(() => {
       try {
-        // Find if adsbygoogle script is loaded and we have uninitialized ads
         const ads = document.querySelectorAll("ins.adsbygoogle");
-        const uninitializedAds = Array.from(ads).filter(
-          (ad) => ad.getAttribute("data-adsbygoogle-status") !== "done"
-        );
-
-        if (uninitializedAds.length > 0 && !adInited.current) {
-          ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+        let pushed = false;
+        ads.forEach((ad) => {
+          if (ad.getAttribute("data-adsbygoogle-status") !== "done") {
+            try {
+              ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+              pushed = true;
+            } catch (adPushErr) {
+              // Ignore already filled
+            }
+          }
+        });
+        if (pushed) {
           adInited.current = true;
         }
       } catch (err) {
-        console.warn("Google AdSense unit configuration info: ", err);
+        console.warn("[AdMob] Unit configuration status:", err);
       }
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(delay);
-  }, [isPremium, isWebView, isLoggedIn, unitType]);
+  }, [isPremium, unitType]);
 
-  if (isPremium || !isLoggedIn) return null;
+  // Premium users do NOT see any ads. All visitors, guests, and free users see ads.
+  if (isPremium) return null;
 
   // Predefined high-performance fintech-themed visual sponsor campaigns
   const adOffers = [
@@ -110,29 +116,27 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         {/* Banner Label & Branding compliant with Google AdSense policy */}
         <div className="flex items-center justify-between mb-3 select-none">
           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded border border-slate-200 dark:border-slate-800">
-            {isWebView ? "SPONSORLU REKLAM" : "SPONSORLU BAĞLANTI / REKLAM"}
+            GOOGLE ADMOB • SPONSORLU REKLAM
           </span>
           <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-wider">
             REKLAM
           </span>
         </div>
 
-        {/* Real Live Google AdSense responsive unit - Hidden in APK WebView to satisfy Google Policy */}
-        {!isWebView && (
-          <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-white/50 dark:bg-slate-950/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-2 relative z-10 transition mb-4">
-            <ins 
-              className="adsbygoogle"
-              style={{ display: "block", width: "100%", minHeight: "90px" }}
-              data-ad-client="ca-pub-4449700232321088"
-              data-ad-slot="9010886121"
-              data-ad-format="auto"
-              data-full-width-responsive="true"
-            />
-          </div>
-        )}
+        {/* Real Live Google AdMob / AdSense responsive unit */}
+        <div className="w-full overflow-hidden flex items-center justify-center min-h-[90px] bg-white/50 dark:bg-slate-950/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-2 relative z-10 transition mb-4">
+          <ins 
+            className="adsbygoogle"
+            style={{ display: "block", width: "100%", minHeight: "90px" }}
+            data-ad-client="ca-pub-4449700232321088"
+            data-ad-slot="6318747286"
+            data-ad-format="auto"
+            data-full-width-responsive="true"
+          />
+        </div>
 
         {/* Polished Visual Sponsor Backup Campaign beneath AdSense */}
-        <div className={`${!isWebView ? "pt-3.5 border-t border-slate-200/50 dark:border-slate-800/60" : ""} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left`}>
+        <div className="pt-3.5 border-t border-slate-200/50 dark:border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
           <div className="min-w-0 flex-1 leading-snug">
             <h4 className="text-[10.5px] sm:text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-1">
               <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />

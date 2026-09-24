@@ -7,7 +7,7 @@ import { jsPDF } from "jspdf";
 import { Debt, Income, Expense, PaymentLog, InstallmentDebt } from "../types";
 import { parseDateParts } from "./dateUtils";
 import { isAndroidAlarmBridgeAvailable, saveAndroidNativeFile } from "./androidAlarmBridge";
-import { downloadFileWithCustomName } from "./fileDownloadHelper";
+import { downloadFileWithCustomName, savePdfDocument } from "./fileDownloadHelper";
 
 export interface AnnualReportOptions {
   year: number;
@@ -229,11 +229,11 @@ export function calculateAnnualData(options: AnnualReportOptions): AnnualReportD
 /**
  * Generates and triggers download of the official Annual Financial Summary PDF Report
  */
-export function generateAnnualPdfReport(options: AnnualReportOptions): {
+export async function generateAnnualPdfReport(options: AnnualReportOptions): Promise<{
   success: boolean;
   fileName: string;
   doc: jsPDF;
-} {
+}> {
   const data = calculateAnnualData(options);
   const symbol = options.currencySymbol || "TL";
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -655,24 +655,11 @@ export function generateAnnualPdfReport(options: AnnualReportOptions): {
   doc.setTextColor(148, 163, 184);
   doc.text(safePdfText("Bütçem Pro Finansal Takip Sistemi • Gizli ve Kişiye Özel Finansal Değerlendirme • Sayfa 2 / 2"), margin, pageHeight - 8);
 
-  // Trigger Save
+  // Universal Robust Save & Download for Web, WebView and Mobile APK
   try {
-    doc.save(fileName);
+    await savePdfDocument(doc, fileName);
   } catch (err) {
-    console.warn("Standard doc.save failed, using blob fallback:", err);
-    try {
-      const pdfBlob = doc.output("blob");
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (blobErr) {
-      console.error("PDF download error:", blobErr);
-    }
+    console.warn("[annualPdfReport] savePdfDocument error:", err);
   }
 
   return { success: true, fileName, doc };

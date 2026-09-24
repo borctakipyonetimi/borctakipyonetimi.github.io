@@ -35,6 +35,7 @@ import {
   Check,
   Folder
 } from "lucide-react";
+import { isPassActive } from "../utils/rewardedAdService";
 
 interface SecuritySettingsPanelProps {
   language?: string;
@@ -47,6 +48,7 @@ interface SecuritySettingsPanelProps {
   setVoiceAssistantEnabled?: (enabled: boolean) => void;
   isPremium?: boolean;
   onOpenUpgradeModal?: (featureName?: string) => void;
+  onOpenRewardedModal?: (feature: "ai" | "export" | "import", onSuccess: () => void) => void;
   onOpenOnboarding?: () => void;
   currentUser?: string | null;
   onOpenGoogleLogin?: () => void;
@@ -78,6 +80,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   setVoiceAssistantEnabled: propSetVoiceAssistantEnabled,
   isPremium = false,
   onOpenUpgradeModal,
+  onOpenRewardedModal,
   onOpenOnboarding,
   currentUser = null,
   onOpenGoogleLogin,
@@ -180,8 +183,15 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   };
 
   const handleTriggerDriveExport = (action: "download" | "drive" | "whatsapp" | "share") => {
-    if (!isPremium && onOpenUpgradeModal) {
-      onOpenUpgradeModal("Bulut Yedekleme & Google Drive Entegrasyonu");
+    const hasExportAccess = isPremium || isPassActive();
+    if (!hasExportAccess) {
+      if (onOpenRewardedModal) {
+        onOpenRewardedModal("export", () => handleTriggerDriveExport(action));
+        return;
+      }
+      if (onOpenUpgradeModal) {
+        onOpenUpgradeModal("Bulut Yedekleme & Google Drive Entegrasyonu");
+      }
       return;
     }
 
@@ -315,38 +325,11 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   });
 
   const handleToggleBiometricLock = () => {
-    if (!biometricLock && !isPremium) {
-      onSuccessToast(
-        language === "tr"
-          ? "⭐ Biyometrik Giriş (Parmak İzi / Yüz Tanıma) Bütçem PRO Özelliğidir. Lütfen Premium'a yükseltin."
-          : "⭐ Biometric Login is a PRO Feature. Please upgrade to Premium."
-      );
-      if (onOpenUpgradeModal) {
-        onOpenUpgradeModal("Biyometrik Güvenlik (Parmak İzi / Yüz Tanıma)");
-      }
-      return;
-    }
-
-    const nextVal = !biometricLock;
-    setBiometricLock(nextVal);
-    try {
-      localStorage.setItem("biometric_lock", nextVal ? "true" : "false");
-    } catch (e) {
-      console.error(e);
-    }
-    if (nextVal) {
-      onSuccessToast(
-        language === "tr"
-          ? "Biyometrik Kilit (Parmak İzi / Yüz Tanıma) Başarıyla Etkinleştirildi! 🔒👆"
-          : "Biometric Lock (Fingerprint / Face ID) Successfully Enabled! 🔒👆"
-      );
-    } else {
-      onSuccessToast(
-        language === "tr"
-          ? "Biyometrik Kilit Devre Dışı Bırakıldı. 🔓"
-          : "Biometric Lock Disabled. 🔓"
-      );
-    }
+    onSuccessToast(
+      language === "tr"
+        ? "🔒 Biyometrik Giriş (Parmak İzi / Yüz Tanıma) özelliği şimdilik kapalıdır. Çok yakında yeni güncelleme ile aktif edilecektir! ✨"
+        : "🔒 Biometric Login (Fingerprint / Face ID) is temporarily disabled. Coming very soon in the next update! ✨"
+    );
   };
 
   const [settings, setSettings] = useState(() => {
@@ -906,7 +889,12 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
               <div
                 onClick={() => {
-                  if (!isPremium) {
+                  const hasImportAccess = isPremium || isPassActive();
+                  if (!hasImportAccess) {
+                    if (onOpenRewardedModal) {
+                      onOpenRewardedModal("import", () => fileInputRef.current?.click());
+                      return;
+                    }
                     onSuccessToast("⭐ Yedek Dosyası Geri Yükleme Bütçem PRO özelliğidir.");
                     if (onOpenUpgradeModal) onOpenUpgradeModal("Yedek Dosyası Geri Yükleme");
                     return;
@@ -916,19 +904,19 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 rounded-3xl p-8 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-800/30 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 flex flex-col items-center justify-center space-y-3"
               >
                 <div className="w-14 h-14 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                  {!isPremium ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
+                  {!isPremium && !isPassActive() ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
                 </div>
                 <div>
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {!isPremium
-                      ? "Yedek Geri Yükleme Kilitli 🔒 (PRO Gerekli)"
+                    {!isPremium && !isPassActive()
+                      ? "Yedek Geri Yükleme Kilitli 🔒 (PRO veya Reklamla Aç)"
                       : isRestoring
                       ? "Dosya Okunuyor ve İşleniyor..."
                       : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    {!isPremium
-                      ? "Yedeğinizi geri yüklemek için Bütçem PRO'ya yükseltin."
+                    {!isPremium && !isPassActive()
+                      ? "Yedeğinizi geri yüklemek için kısa bir video reklam izleyip 24 saat ücretsiz kullanabilirsiniz."
                       : "Telefonunuzdaki veya Google Drive klasörünüzdeki .json dosyasını seçin"}
                   </p>
                 </div>
@@ -1268,22 +1256,12 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
                     Biyometrik Kilit (Parmak İzi / Yüz Tanıma)
                   </h4>
-                  {!isPremium ? (
-                    <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[9px] font-black rounded-lg uppercase tracking-wider shadow-xs">
-                      ⭐ PRO ÖZELLİK
-                    </span>
-                  ) : (
-                    <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-wider ${
-                      biometricLock
-                        ? "bg-emerald-500 text-white shadow-xs"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                    }`}>
-                      {biometricLock ? "AÇIK 🔒" : "KAPALI"}
-                    </span>
-                  )}
+                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white text-[9.5px] font-black rounded-lg uppercase tracking-wider shadow-xs animate-pulse">
+                    ⏳ ÇOK YAKINDA
+                  </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                  Cihazınızdaki parmak izi veya Face ID sensörü ile PIN girmeden anında güvenli giriş yapın.
+                  Cihazınızdaki parmak izi veya Face ID sensörü ile PIN girmeden anında güvenli giriş (Çok yakında aktif olacaktır).
                 </p>
               </div>
             </div>
@@ -1292,15 +1270,12 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               type="button"
               onClick={handleToggleBiometricLock}
               role="switch"
-              aria-checked={biometricLock}
-              className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                biometricLock ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-700"
-              }`}
+              aria-checked={false}
+              className="relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-300 dark:bg-slate-700 opacity-85 hover:opacity-100"
+              title="Biyometrik Kilit (Çok Yakında)"
             >
               <span
-                className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  biometricLock ? "translate-x-6" : "translate-x-0"
-                }`}
+                className="pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out translate-x-0"
               />
             </button>
           </div>

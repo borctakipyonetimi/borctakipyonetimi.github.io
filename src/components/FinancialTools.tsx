@@ -29,12 +29,13 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, PaymentLog } from "../types";
+import { AdMobBanner } from "./AdMobBanner";
 import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
 import { useCurrency } from "../utils/CurrencyContext";
 import { generateAnnualPdfReport, safePdfText } from "../utils/annualPdfReport";
 import { Capacitor } from "@capacitor/core";
-import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -1295,34 +1296,8 @@ export function FinancialTools({
 
                       const fileName = `Butcem_Pro_Denetim_Raporu_${docId}.pdf`;
 
-                      // Download execution: Capacitor native or Browser Blob
-                      if (Capacitor.isNativePlatform()) {
-                        try {
-                          const dataUri = doc.output("datauristring");
-                          await downloadFileWithCustomName({
-                            fileName,
-                            content: dataUri,
-                            mimeType: "application/pdf"
-                          });
-                        } catch (capErr) {
-                          console.warn("Capacitor download fallback:", capErr);
-                        }
-                      }
-
-                      try {
-                        doc.save(fileName);
-                      } catch (saveErr) {
-                        console.warn("Standard doc.save failed, using blob fallback:", saveErr);
-                        const pdfBlob = doc.output("blob");
-                        const url = URL.createObjectURL(pdfBlob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        setTimeout(() => URL.revokeObjectURL(url), 2000);
-                      }
+                      // Universal robust PDF download across Android WebView, Capacitor and Web
+                      await savePdfDocument(doc, fileName);
 
                       setReportStatusMessage({
                         type: "success",
@@ -1374,11 +1349,11 @@ export function FinancialTools({
 
                 {/* 3. Yıllık PDF Özeti Butonu */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     try {
                       setReportStatusMessage({ type: "info", text: "Yıllık Finansal Özet PDF oluşturuluyor..." });
                       const curYear = new Date().getFullYear();
-                      const res = generateAnnualPdfReport({
+                      const res = await generateAnnualPdfReport({
                         year: curYear,
                         incomes,
                         expenses,
@@ -1868,6 +1843,9 @@ export function FinancialTools({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Sponsor / Google AdMob Banner section for visitors and free users */}
+      <AdMobBanner unitType="banner" className="my-4" />
     </div>
   );
 }

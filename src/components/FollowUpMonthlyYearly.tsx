@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Debt, Income, Expense, PaymentLog, InstallmentDebt } from "../types";
+import { AdMobBanner } from "./AdMobBanner";
 import { BarChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
@@ -278,10 +279,10 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
     installmentDebts
   });
 
-  const handleDownloadAnnualPdf = () => {
+  const handleDownloadAnnualPdf = async () => {
     setIsGeneratingPdf(true);
     try {
-      const res = generateAnnualPdfReport({
+      const res = await generateAnnualPdfReport({
         year: selectedYear,
         incomes,
         expenses,
@@ -292,11 +293,13 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         language
       });
       if (res.success) {
-        setPdfSuccessMessage(`📄 '${res.fileName}' başarıyla oluşturuldu ve indirildi!`);
-        setTimeout(() => setPdfSuccessMessage(null), 5000);
+        setPdfSuccessMessage(`📄 '${res.fileName}' başarıyla oluşturuldu ve cihazınıza indirildi!`);
+        setTimeout(() => setPdfSuccessMessage(null), 6000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Annual PDF generation error:", err);
+      setPdfSuccessMessage(`⚠️ PDF oluşturulurken hata: ${err?.message || "Bilinmeyen hata"}`);
+      setTimeout(() => setPdfSuccessMessage(null), 6000);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -560,6 +563,9 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
           <LineChart labels={monthsList} values={monthlyDataYear} lineColor="#4f46e5" />
         </div>
       </div>
+
+      {/* Sponsor / Google AdMob Banner section for visitors and free users */}
+      <AdMobBanner unitType="banner" className="my-3" />
 
       {/* Bottom Summary Call-to-Action Bar */}
       <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">

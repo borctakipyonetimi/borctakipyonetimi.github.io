@@ -30,6 +30,13 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
+
+  const triggerNativeCamera = () => {
+    if (nativeCameraInputRef.current) {
+      nativeCameraInputRef.current.click();
+    }
+  };
 
   // Stop camera stream on unmount
   useEffect(() => {
@@ -49,26 +56,42 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
 
   const startCamera = async () => {
     setError(null);
+    if (typeof navigator === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
+      setError(
+        "Canlı kamera önizlemesi bu tarayıcıda kısıtlı. Aşağıdaki butona dokunarak kameranızı açıp fotoğraf çekebilirsiniz."
+      );
+      setCameraActive(false);
+      return;
+    }
+
     try {
       if (streamRef.current) {
         stopCamera();
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+      } catch (firstErr) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
       
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {});
         setCameraActive(true);
       }
     } catch (err: any) {
-      console.error("Camera Access Error:", err);
+      console.warn("Camera Access Error:", err);
       setError(
-        "Kameraya erişim sağlanamadı. Tarayıcınızdan kamera izinlerini kontrol edin veya 'Dosya Yükleme' sekmesini kullanın."
+        "Kamera önizlemesi başlatılamadı. Cihaz kamerasını açmak için aşağıdaki butona dokunun:"
       );
       setCameraActive(false);
     }
@@ -249,14 +272,20 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         {/* Dynamic Display Area */}
         <div className="min-h-[220px] bg-slate-50 dark:bg-slate-950/50 border border-slate-200/40 dark:border-slate-800/60 rounded-2xl flex flex-col justify-center items-center relative overflow-hidden p-3 text-center">
           
-          {/* Error Message */}
+          {/* Error Message with direct camera trigger */}
           {error && (
-            <div className="absolute top-2 left-2 right-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-1.5 text-rose-600 dark:text-rose-400 text-[10px] text-left">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-bold block text-[11px]">HATA!</span>
-                {error}
+            <div className="w-full mb-3 p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex flex-col items-center gap-2.5 text-rose-600 dark:text-rose-400 text-xs text-center">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
               </div>
+              <button
+                type="button"
+                onClick={triggerNativeCamera}
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+              >
+                <Camera className="w-4 h-4" /> 📷 Cihaz Kamerasından Fotoğraf Çek
+              </button>
             </div>
           )}
 
@@ -406,14 +435,34 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                 </div>
               </div>
 
-              {cameraActive && (
-                <button
-                  onClick={capturePhoto}
-                  className="mt-4 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full transition-all duration-150 active:scale-90 shadow-lg cursor-pointer flex items-center gap-2 text-xs font-bold"
-                  title="Faturayı Tara"
-                >
-                  <Camera className="w-4 h-4" /> Fotoğraf Çek & Tara
-                </button>
+              {cameraActive ? (
+                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                  <button
+                    onClick={capturePhoto}
+                    className="p-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full transition-all duration-150 active:scale-95 shadow-lg cursor-pointer flex items-center gap-2 text-xs font-bold"
+                    title="Faturayı Tara"
+                  >
+                    <Camera className="w-4 h-4" /> Fotoğraf Çek & Tara
+                  </button>
+                  <button
+                    onClick={triggerNativeCamera}
+                    type="button"
+                    className="p-3 px-4 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-full transition-all duration-150 active:scale-95 shadow-sm cursor-pointer flex items-center gap-2 text-xs font-bold"
+                    title="Cihaz Kamerasını Aç"
+                  >
+                    📱 Cihaz Kamerasını Aç
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 w-full">
+                  <button
+                    onClick={triggerNativeCamera}
+                    type="button"
+                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                  >
+                    <Camera className="w-4 h-4" /> 📷 Cihaz Kamerasını Aç ve Fotoğraf Çek
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -439,6 +488,14 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <input
+                ref={nativeCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
                 onChange={handleFileChange}
                 className="hidden"
               />

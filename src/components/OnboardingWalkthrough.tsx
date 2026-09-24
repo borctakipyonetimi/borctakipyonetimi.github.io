@@ -92,8 +92,8 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // 1 Hoş Geldiniz/Vizyon (Slide 0) + 5 Özellik Tanıtım Sayfası (Slides 1-5) + 1 Firebase Giriş Bölümü (Slide 6)
-  const totalSlides = 7;
+  // 3 Tanıtım Sayfası (Slides 0-2) + 1 Firebase Giriş & Kayıt Bölümü (Slide 3)
+  const totalSlides = 4;
 
   // Slide 6 Auth States
   const [authLoading, setAuthLoading] = useState(false);
@@ -293,93 +293,15 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     },
 
     // -------------------------------------------------------------
-    // SLIDE 1: Bütçe, Gelir & Gider Yönetimi
+    // -------------------------------------------------------------
+    // SLIDE 1: Borç, Taksit & Kamera ile Fiş Tarama (2. Tanıtım Sayfası)
     // -------------------------------------------------------------
     {
       id: 1,
-      badge: "SAYFA 1 / 5 • BÜTÇE & NAKİT AKIŞI",
-      badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-      title: "Akıllı Bütçe, Gelir ve Gider Yönetimi",
-      subtitle: "Kişisel ve aile finansınızı tek ekrandan tam kontrol altına alın.",
-      features: [
-        {
-          icon: <Wallet className="w-4 h-4 text-emerald-400" />,
-          title: "Dinamik Gelir & Gider Takibi",
-          desc: "Maaş, kira, serbest gelir ve tüm harcamalarınızı kategorilerine göre saniyeler içinde kaydedin.",
-          tag: "Tam Kontrol"
-        },
-        {
-          icon: <Flame className="w-4 h-4 text-amber-400" />,
-          title: "Kategori Bütçe Limitleri & Uyarılar",
-          desc: "Harcama kalemlerine bütçe tavanı tanımlayın; limit yaklaştığında veya aşıldığında anında uyarı alın.",
-          tag: "Tasarruf"
-        },
-        {
-          icon: <DollarSign className="w-4 h-4 text-sky-400" />,
-          title: "Canlı Döviz, Altın & Kripto Kurları",
-          desc: "TRY, USD, EUR, GBP, Gram Altın ve Bitcoin kurları anlık güncellenir ve bütçenize otomatik yansır.",
-          tag: "Canlı Kur"
-        }
-      ],
-      mockup: (
-        <div className="space-y-3">
-          {/* Executive Balance Card */}
-          <div className="p-4 bg-gradient-to-br from-slate-900/90 via-slate-800/90 to-indigo-950/70 border border-white/10 rounded-2xl shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aylık Net Bütçe Dengesi</span>
-              <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> %68 Tasarruf
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <div className="text-2xl font-black text-white font-mono">₺24.850,00</div>
-              <span className="text-xs text-emerald-400 font-bold flex items-center gap-0.5">
-                <TrendingUp className="w-3.5 h-3.5" /> +14.2%
-              </span>
-            </div>
-            {/* Progress bar */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                <span>Harcama Limiti (₺12.500 / ₺20.000)</span>
-                <span className="text-indigo-300 font-bold">%62,5</span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-white/5">
-                <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-indigo-400" style={{ width: "62.5%" }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Categories Mini Pills */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 bg-slate-900/70 border border-white/10 rounded-xl flex items-center justify-between">
-              <span className="font-bold text-slate-300 text-[11px]">🛒 Market & Gıda</span>
-              <span className="font-mono font-black text-rose-400 text-[11px]">₺4.200</span>
-            </div>
-            <div className="p-2.5 bg-slate-900/70 border border-white/10 rounded-xl flex items-center justify-between">
-              <span className="font-bold text-slate-300 text-[11px]">🏠 Kira & Faturalar</span>
-              <span className="font-mono font-black text-rose-400 text-[11px]">₺6.500</span>
-            </div>
-          </div>
-
-          {/* Live Rates Mini ticker */}
-          <div className="flex items-center justify-between p-2 bg-slate-900/50 border border-white/5 rounded-xl text-[10px] font-bold text-slate-400">
-            <span className="flex items-center gap-1 text-emerald-400">USD/TRY: ₺38,45</span>
-            <span className="flex items-center gap-1 text-sky-400">EUR/TRY: ₺41,20</span>
-            <span className="flex items-center gap-1 text-amber-400">Gram Altın: ₺3.420</span>
-          </div>
-        </div>
-      )
-    },
-
-    // -------------------------------------------------------------
-    // SLIDE 2: Borç & Taksit Takibi
-    // -------------------------------------------------------------
-    {
-      id: 2,
-      badge: "SAYFA 2 / 5 • BORÇ & TAKSİT DEFTERİ",
+      badge: "2. SAYFA • BORÇLAR, TAKSİTLER & FİŞ TARAMA",
       badgeColor: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-      title: "Detaylı Borç, Alacak & Taksit Takibi",
-      subtitle: "Vade günlerini ve kredi taksitlerini asla kaçırmayın.",
+      title: "Akıllı Borç Defteri & Kamera ile Fiş Tarama",
+      subtitle: "Banka kredileri, taksit planları, kişi alacak-verecek defteri ve yapay zeka ile otomatik fatura okuma tek ekranda.",
       features: [
         {
           icon: <CreditCard className="w-4 h-4 text-indigo-400" />,
@@ -388,27 +310,26 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
           tag: "Taksitler"
         },
         {
+          icon: <Camera className="w-4 h-4 text-amber-400" />,
+          title: "Kamera ile Anında Fiş / Fatura Okuma",
+          desc: "Alışveriş fişinizin fotoğrafını çekin; yapay zeka tutarı, tarihi ve satıcıyı anında okusun.",
+          tag: "Yapay Zeka"
+        },
+        {
           icon: <Users className="w-4 h-4 text-emerald-400" />,
-          title: "Kişisel Cari Borç/Alacak Defteri",
-          desc: "Kişilere ve esnafa borç/alacaklarınızı listeleyin; ödemeleri parçalı olarak düşüp güncelleyin.",
+          title: "Kişi Alacak/Verecek & Rehber (.VCF)",
+          desc: "Telefon rehberinizden tek tıkla kişi aktarın ve WhatsApp tan borç hatırlatma mesajı gönderin.",
           tag: "Cari Hesap"
         },
         {
-          icon: <Smartphone className="w-4 h-4 text-green-400" />,
-          title: "Rehber (.vcf) & WhatsApp Hatırlatma",
-          desc: "Telefon rehberinizi yükleyip kişilere tek tıkla şablonlu WhatsApp borç hatırlatması gönderin.",
-          tag: "WhatsApp"
-        },
-        {
-          icon: <Bell className="w-4 h-4 text-amber-400" />,
-          title: "Kilit Ekranı Alarmları & Push Bildirim",
-          desc: "Android kilit ekranında tam zamanında çalan alarm, web push ve e-posta ile son ödeme gününü kaçırmayın.",
+          icon: <Bell className="w-4 h-4 text-rose-400" />,
+          title: "Kilit Ekranı Alarmları & Bildirimler",
+          desc: "Android kilit ekranında tam zamanında çalan alarm ve bildirimlerle son ödeme gününü kaçırmayın.",
           tag: "Sesli Alarm"
         }
       ],
       mockup: (
         <div className="space-y-3">
-          {/* Loan / Installment Mockup Card */}
           <div className="p-4 bg-gradient-to-br from-slate-900/90 via-indigo-950/60 to-slate-900/90 border border-indigo-500/30 rounded-2xl shadow-xl space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -417,7 +338,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-white">İhtiyaç Kredisi (Garanti BBVA)</h4>
-                  <p className="text-[10px] text-slate-400">Aylık: ₺3.250 • Son Ödeme: 15'i</p>
+                  <p className="text-[10px] text-slate-400">Aylık: ₺3.250 • Son Ödeme: 15 i</p>
                 </div>
               </div>
               <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -425,7 +346,6 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               </span>
             </div>
 
-            {/* Installment Tracker Progress */}
             <div className="p-2.5 bg-slate-900/80 rounded-xl border border-white/5 space-y-1.5">
               <div className="flex justify-between text-[10px] font-bold">
                 <span className="text-slate-300">Ödenen: 5 / 12 Taksit</span>
@@ -442,31 +362,32 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300">
-                <Bell className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
-                <span>Kilit Ekranı Alarmı Aktif</span>
+            <div className="p-2.5 bg-indigo-950/60 border border-indigo-500/20 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs">
+                  📷
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-white block">Akıllı Fiş Tarama</span>
+                  <span className="text-[9px] text-slate-400">Migros A.Ş. • ₺482,50 okundu</span>
+                </div>
               </div>
-              <button className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-extrabold flex items-center gap-1 shadow-sm">
-                <Check className="w-3 h-3" /> Taksiti Öde
-              </button>
+              <span className="text-[9px] font-extrabold text-emerald-400">Otomatik İşlendi ✓</span>
             </div>
           </div>
 
-          {/* Contact Directory Debt Row */}
           <div className="p-3 bg-slate-900/60 border border-white/10 rounded-xl flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold text-[10px]">
                 MK
               </span>
               <div>
-                <span className="font-bold text-white text-[11px]">Mehmet Kaya (Kişisel Borç)</span>
-                <p className="text-[9px] text-slate-400">Elden Alınan • ₺5.000</p>
+                <span className="font-bold text-white text-[11px]">Mehmet Kaya (Kişisel Alacak)</span>
+                <p className="text-[9px] text-slate-400">Rehberden Aktarıldı (.VCF) • ₺5.000</p>
               </div>
             </div>
             <span className="px-2 py-1 bg-green-500/20 text-green-300 border border-green-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1">
-              💬 WhatsApp Hatırlat
+              💬 WhatsApp
             </span>
           </div>
         </div>
@@ -474,126 +395,42 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     },
 
     // -------------------------------------------------------------
-    // SLIDE 3: Yapay Zeka & Fiş Tarama (OCR)
+    // SLIDE 2: Grafikler, Yıllık PDF Özeti & 256-Bit Güvenlik (3. Tanıtım Sayfası)
     // -------------------------------------------------------------
     {
-      id: 3,
-      badge: "SAYFA 3 / 5 • YAPAY ZEKA & FİŞ TARAMA",
-      badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-      title: "Yapay Zeka (AI) & Akıllı Fiş/Fatura Tarama",
-      subtitle: "Gemini 3.7 gücüyle finansal koçunuz ve akıllı kamera asistanınız hazır.",
-      features: [
-        {
-          icon: <Bot className="w-4 h-4 text-purple-400" />,
-          title: "Gemini 3.7 Destekli Finans Koçu",
-          desc: "Gelir-giderinizi analiz eden, kartopu borç kapama stratejileri ve 50/30/20 tasarruf tavsiyesi sunan asistan.",
-          tag: "AI Koç"
-        },
-        {
-          icon: <Camera className="w-4 h-4 text-indigo-400" />,
-          title: "Akıllı Kamera & Fiş/Fatura OCR",
-          desc: "Kamerayla fiş veya faturanın fotoğrafını çekin; tutar, tarih ve kategoriyi saniyeler içinde otomatik çıkarsın.",
-          tag: "Otomatik OCR"
-        },
-        {
-          icon: <Mic className="w-4 h-4 text-rose-400" />,
-          title: "Sesli Komut İle Gider Kaydetme",
-          desc: "Mikrofona 'Markete 350 TL ödedim' deyin; ses analiziyle harcamanız anında bütçenize eklensin.",
-          tag: "Sesli Asistan"
-        },
-        {
-          icon: <Sparkles className="w-4 h-4 text-amber-400" />,
-          title: "Akıllı Tasarruf & Bütçe İpuçları",
-          desc: "Gereksiz abonelik ve harcama kaçaklarını tespit eder; paranızı büyütecek kişisel taktikler verir.",
-          tag: "Tasarruf"
-        }
-      ],
-      mockup: (
-        <div className="space-y-3">
-          {/* AI Chat Bubble Mockup */}
-          <div className="p-3.5 bg-gradient-to-br from-slate-900/90 via-purple-950/40 to-slate-900/90 border border-purple-500/30 rounded-2xl shadow-xl space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-500 text-white flex items-center justify-center text-[10px] font-black shadow-md">
-                ✨
-              </div>
-              <span className="text-[11px] font-black text-purple-300">Bütçem AI Danışman</span>
-              <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold">Online</span>
-            </div>
-            <p className="text-[11px] text-slate-200 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-white/5">
-              "Tebrikler! 🎉 Bu ay market harcamanız %15 azaldı. Kalan <strong>₺1.850</strong> fazlalığı kredi kartı borcunuzun asgarisine ekleyerek <strong>₺340 faiz tasarrufu</strong> sağlayabilirsiniz!"
-            </p>
-          </div>
-
-          {/* OCR Receipt Scanner Mockup */}
-          <div className="p-3 bg-slate-900/80 border border-white/10 rounded-2xl flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="relative w-10 h-10 rounded-xl bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-center shrink-0">
-                <Camera className="w-5 h-5 text-indigo-400" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-white">Fiş Başarıyla Tarandı</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                </div>
-                <p className="text-[10px] text-slate-400">Migros A.Ş. • ₺485,50 • Market</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-[10px] font-black">
-              Otomatik Kaydedildi
-            </span>
-          </div>
-
-          {/* Voice Assistant Pill */}
-          <div className="p-2 bg-slate-900/50 border border-white/5 rounded-xl flex items-center justify-between text-[10px] text-slate-400">
-            <div className="flex items-center gap-1.5 text-rose-400 font-bold">
-              <Mic className="w-3.5 h-3.5 animate-pulse" />
-              <span>Sesli Komut: "Akaryakıt 600 TL"</span>
-            </div>
-            <span className="text-emerald-400 font-mono font-bold">✓ Algılandı</span>
-          </div>
-        </div>
-      )
-    },
-
-    // -------------------------------------------------------------
-    // SLIDE 4: Grafikler & Tek Tuşla Yıllık PDF Özeti
-    // -------------------------------------------------------------
-    {
-      id: 4,
-      badge: "SAYFA 4 / 5 • GRAFİKLER & RAPORLAMA",
+      id: 2,
+      badge: "3. SAYFA • GRAFİKLER, YILLIK PDF & GÜVENLİK",
       badgeColor: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-      title: "Gelişmiş Grafikler & Tek Tuşla Yıllık PDF Raporu",
-      subtitle: "Mali tablolarınızı görselleştirin, profesyonel yıllık PDF dökümü alın.",
+      title: "Detaylı Finansal Analizler & Yıllık Raporlama",
+      subtitle: "Tek tuşla 12 aylık resmi PDF dökümü, pasta/sütun grafikleri ve 256-bit çevrimdışı güvence.",
       features: [
         {
           icon: <BarChart3 className="w-4 h-4 text-sky-400" />,
           title: "İnteraktif Aylık & Yıllık Trendler",
-          desc: "Gelir, gider ve borç kapatma eğilimlerini dinamik sütun ve çizgi grafikleriyle anlık takip edin.",
+          desc: "Gelir, gider ve borç kapatma eğilimlerini dinamik sütun ve çizgi grafikleriyle anlık izleyin.",
           tag: "Grafikler"
         },
         {
           icon: <FileText className="w-4 h-4 text-amber-400" />,
-          title: "Tek Tuşla 12 Aylık Finansal PDF Özeti",
-          desc: "Yıl boyunca yapılan tüm gelir, gider, borç ödemeleri ve kategori dağılımlarını resmi PDF olarak tek tıkla indirin.",
-          tag: "YENİ • Tek Tuş"
+          title: "Tek Tuşla 12 Aylık Yıllık PDF Özeti",
+          desc: "Yıl boyunca yapılan tüm gelir, gider ve borç ödemelerini resmi PDF olarak tek tıkla indirin.",
+          tag: "Tek Tuş PDF"
         },
         {
-          icon: <PieChart className="w-4 h-4 text-indigo-400" />,
-          title: "Kategori Bazlı Harcama Dağılımı",
-          desc: "Paranızın nereye gittiğini gösteren yüzdelik pasta dilimleri ve tasarruf fırsat göstergeleri.",
-          tag: "Analiz"
+          icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+          title: "%100 Çevrimdışı Çalışma & Yerel Veri",
+          desc: "İnternetsiz de tüm özellikler aktiftir; verileriniz cihazınızda 256-Bit şifrelemeyle korunur.",
+          tag: "Tam Güvenlik"
         },
         {
-          icon: <Download className="w-4 h-4 text-emerald-400" />,
-          title: "Excel (CSV), HTML & E-Posta Çıktısı",
-          desc: "Finansal verilerinizi Excel'e aktarın, yazıcı dostu makbuzlar basın ve EML formatında raporlayın.",
-          tag: "Dışa Aktar"
+          icon: <Smartphone className="w-4 h-4 text-purple-400" />,
+          title: "Android APK & Yedekleme",
+          desc: "Cihazınıza APK olarak yükleyin, JSON/Excel yedekleri alın ve istediğiniz an geri yükleyin.",
+          tag: "Yedekleme"
         }
       ],
       mockup: (
         <div className="space-y-3">
-          {/* Annual PDF Report Feature Highlight Card */}
           <div className="p-4 bg-gradient-to-br from-slate-900/90 via-sky-950/50 to-slate-900/90 border border-sky-500/30 rounded-2xl shadow-xl space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -610,13 +447,11 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               </span>
             </div>
 
-            {/* Mini Chart Mockup */}
             <div className="p-2.5 bg-slate-950/70 rounded-xl border border-white/5 space-y-2">
               <div className="flex justify-between text-[10px] text-slate-400 font-bold">
                 <span>12 Aylık Finansal Akış</span>
                 <span className="text-emerald-400 font-mono">Net: +₺84.500</span>
               </div>
-              {/* Mini visual bars */}
               <div className="flex items-end justify-between h-14 pt-1 gap-1 px-1">
                 {[35, 45, 60, 50, 75, 65, 80, 70, 90, 85, 95, 100].map((h, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -630,7 +465,6 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               </div>
             </div>
 
-            {/* Financial Health Score */}
             <div className="flex items-center justify-between text-xs pt-0.5">
               <div className="flex items-center gap-1.5">
                 <Award className="w-4 h-4 text-amber-400" />
@@ -640,7 +474,6 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
             </div>
           </div>
 
-          {/* Export badges row */}
           <div className="grid grid-cols-3 gap-2 text-[10px] font-bold text-center">
             <div className="p-2 bg-slate-900/60 border border-white/10 rounded-xl text-slate-300">
               📊 Excel (CSV)
@@ -648,8 +481,8 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
             <div className="p-2 bg-slate-900/60 border border-white/10 rounded-xl text-slate-300">
               🖨️ Yazıcı Makbuzu
             </div>
-            <div className="p-2 bg-slate-900/60 border border-white/10 rounded-xl text-slate-300">
-              ✉️ E-Posta Raporu
+            <div className="p-2 bg-slate-900/60 border border-white/10 rounded-xl text-emerald-400">
+              🔒 256-Bit Güvenlik
             </div>
           </div>
         </div>
@@ -657,140 +490,11 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
     },
 
     // -------------------------------------------------------------
-    // SLIDE 5: Bulut Senkronizasyon, Çevrimdışı Güvenlik, Android APK & Bütçem PRO
+    // SLIDE 3: Firebase Giriş / Kayıt Bölümü (4. Sayfa)
     // -------------------------------------------------------------
     {
-      id: 5,
-      badge: "SAYFA 5 / 5 • GÜVENLİK & PRO SÜRÜM",
-      badgeColor: "bg-teal-500/20 text-teal-300 border-teal-500/30",
-      title: "Güvenli Senkronizasyon, Android APK & PRO Sürüm",
-      subtitle: "İster çevrimdışı, ister bulutta; PRO sürüm satın alındığında %100 sıfır reklam ve VIP ayrıcalıklar.",
-      features: [
-        {
-          icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
-          title: "%100 Çevrimdışı (Offline-First) Güvenlik",
-          desc: "İnternet bağlantısı olmadan da tam kapasite çalışır; banka şifresi veya hassas kimlik bilgisi asla istemez.",
-          tag: "Gizlilik"
-        },
-        {
-          icon: <Cloud className="w-4 h-4 text-sky-400" />,
-          title: "Firebase Bulut Senkronizasyonu",
-          desc: "E-posta ve şifrenizle giriş yaparak verilerinizi telefon, tablet ve bilgisayarınız arasında anında eşitleyin.",
-          tag: "Çoklu Cihaz"
-        },
-        {
-          icon: <Smartphone className="w-4 h-4 text-indigo-400" />,
-          title: "Android Native APK Tam Uyumluluğu",
-          desc: "Kilit ekranı alarmları, galeriye fiş kaydı, yerel bildirimler ve uygulama simgesiyle tam mobil deneyim.",
-          tag: "Mobil APK"
-        },
-        {
-          icon: <Award className="w-4 h-4 text-amber-400" />,
-          title: "Bütçem PRO Sürüm: %100 Sıfır Reklam",
-          desc: "Pro sürüm satın alındığında tüm AdMob reklamları kalıcı olarak kaldırılır; kesintisiz, odaklanmış ve hızlı kullanım sağlanır.",
-          tag: "Sıfır Reklam 👑"
-        }
-      ],
-      mockup: (
-        <div className="space-y-3">
-          {/* Security & Cloud Hybrid Badge */}
-          <div className="p-4 bg-gradient-to-br from-slate-900/90 via-teal-950/40 to-slate-900/90 border border-teal-500/30 rounded-2xl shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                  <ShieldCheck className="w-5 h-5 text-teal-400" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-white">Çift Modlu Hibrit Mimari</h4>
-                  <p className="text-[10px] text-slate-400">Çevrimdışı Korumalı & Bulut Senkronize</p>
-                </div>
-              </div>
-              <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                256-Bit Koruma
-              </span>
-            </div>
-
-            {/* Storage Toggle Indicator */}
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-white/5 space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold">
-                <span className="flex items-center gap-1 text-slate-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> Yerel Depolama (Aktif)
-                </span>
-                <span className="flex items-center gap-1 text-indigo-300">
-                  <Cloud className="w-3.5 h-3.5" /> Bulut Yedekleme (Hazır)
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Tüm verileriniz cihazınızda şifrelenir. İstediğiniz an Google hesabınızla bağlanıp cihazlar arası senkronize edebilirsiniz.
-              </p>
-            </div>
-
-            {/* Android APK & Security Perks (Zero Ads removed from here and moved to PRO) */}
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-300 pt-0.5">
-              <span className="flex items-center gap-1 text-indigo-300">
-                <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Android APK Uyumlu
-              </span>
-              <span className="text-teal-400">✓ 256-Bit Şifreli</span>
-              <span className="text-amber-400">✓ Sınırsız Kayıt</span>
-            </div>
-          </div>
-
-          {/* PRO Sürüm Satın Alındığında: Sıfır Reklam & VIP Ayrıcalıklar Showcase */}
-          <div className="p-3.5 bg-gradient-to-br from-amber-500/15 via-purple-500/10 to-indigo-500/15 border border-amber-500/30 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center font-black text-xs">
-                  👑
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                    Bütçem PRO Sürüm
-                    <span className="text-[8px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded-full">VIP</span>
-                  </h4>
-                  <p className="text-[9.5px] text-slate-400">Pro Sürüm Satın Alındığında</p>
-                </div>
-              </div>
-              <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                🚫 Sıfır Reklam
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
-              <div className="p-1.5 bg-slate-950/70 rounded-lg border border-white/5 flex items-center gap-1.5 text-slate-200 font-medium">
-                <span className="text-amber-400 font-bold">✓</span> %100 Reklamsız Deneyim
-              </div>
-              <div className="p-1.5 bg-slate-950/70 rounded-lg border border-white/5 flex items-center gap-1.5 text-slate-200 font-medium">
-                <span className="text-amber-400 font-bold">✓</span> Sınırsız AI & Fiş OCR
-              </div>
-              <div className="p-1.5 bg-slate-950/70 rounded-lg border border-white/5 flex items-center gap-1.5 text-slate-200 font-medium">
-                <span className="text-amber-400 font-bold">✓</span> Yıllık VIP A4 PDF Raporu
-              </div>
-              <div className="p-1.5 bg-slate-950/70 rounded-lg border border-white/5 flex items-center gap-1.5 text-slate-200 font-medium">
-                <span className="text-amber-400 font-bold">✓</span> Öncelikli Bulut Senk.
-              </div>
-            </div>
-          </div>
-
-          {/* Final Call to Action Ready Banner */}
-          <div className="p-3 bg-gradient-to-r from-indigo-900/60 via-purple-900/60 to-emerald-900/60 border border-white/10 rounded-xl text-center space-y-1">
-            <span className="text-xs font-black text-white flex items-center justify-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              Tüm Özellikler Kullanıma Hazır!
-            </span>
-            <p className="text-[10px] text-slate-300">
-              Aşağıdaki butona tıklayarak Bütçem Pro ile finansal yolculuğunuza hemen başlayın.
-            </p>
-          </div>
-        </div>
-      )
-    },
-
-    // -------------------------------------------------------------
-    // SLIDE 6: Firebase ile Giriş & Kayıt Bölümü (İsteğe Bağlı & Misafir Girişi)
-    // -------------------------------------------------------------
-    {
-      id: 6,
-      badge: "SON ADIM • E-POSTA & FIREBASE BULUT HESABI",
+      id: 3,
+      badge: "4. SAYFA • GİRİŞ & KAYIT BÖLÜMÜ",
       badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
       title: "Hesabınızı Bağlayın veya Hemen Başlayın",
       subtitle: "Verilerinizin bulutta güvende kalması ve tüm cihazlarınızdan erişebilmeniz için E-Posta ve Şifrenizle giriş yapın ya da yeni hesap açın. Dilerseniz hiçbir hesap açmadan uygulamayı doğrudan çevrimdışı kullanabilirsiniz.",
@@ -888,15 +592,15 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>Giriş • Bütçem Pro</span>
             </div>
-          ) : currentSlide === 6 ? (
+          ) : currentSlide === 3 ? (
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
               <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Google & Firebase</span>
+              <span>Giriş & Kayıt (4 / 4)</span>
             </div>
           ) : (
             <div className="flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
               <span>Tanıtım Sayfası</span>
-              <span className="text-indigo-400 font-mono font-black">{currentSlide} / 5</span>
+              <span className="text-indigo-400 font-mono font-black">{currentSlide + 1} / 4</span>
             </div>
           )}
         </div>
@@ -1039,13 +743,13 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                   </button>
                 </div>
               </div>
-            ) : currentSlide === 6 ? (
-              /* SLIDE 6: GOOGLE VE HOTMAIL İLE GİRİŞ BÖLÜMÜ (GÖSTERİŞLİ KART MODELİ & DOĞRUDAN BAŞLA) */
+            ) : currentSlide === 3 ? (
+              /* SLIDE 3 (4. SAYFA): E-POSTA / GOOGLE İLE GİRİŞ & KAYIT BÖLÜMÜ */
               <div className="w-full max-w-4xl mx-auto space-y-4 text-center">
                 {/* Badge */}
                 <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-black tracking-wide border shadow-sm uppercase bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>SON ADIM • BULUT HESABI VEYA DOĞRUDAN BAŞLA</span>
+                  <span>4. ADIM • BULUT HESABI VEYA DOĞRUDAN BAŞLA</span>
                 </div>
 
                 {/* Başlık Yazısı */}
@@ -1376,7 +1080,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                   idx === currentSlide
                     ? idx === 0
                       ? "w-6 h-2 bg-amber-400 shadow-md shadow-amber-400/50"
-                      : idx === 6
+                      : idx === 3
                       ? "w-6 h-2 bg-emerald-400 shadow-md shadow-emerald-400/50"
                       : "w-6 h-2 bg-indigo-500 shadow-md shadow-indigo-500/50"
                     : "w-2 h-2 bg-slate-700 hover:bg-slate-600"
@@ -1384,9 +1088,9 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                 title={
                   idx === 0
                     ? "Bütçem Pro'ya Hoş Geldiniz"
-                    : idx === 6
-                    ? "Google & Firebase Girişi"
-                    : `Sayfa ${idx}`
+                    : idx === 3
+                    ? "Giriş ve Kayıt Bölümü"
+                    : `Tanıtım Sayfası ${idx + 1}`
                 }
               />
             ))}
@@ -1405,7 +1109,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                   isActive
                     ? idx === 0
                       ? "w-8 h-2.5 bg-gradient-to-r from-amber-400 to-amber-500 shadow-lg shadow-amber-400/50"
-                      : idx === 6
+                      : idx === 3
                       ? "w-8 h-2.5 bg-gradient-to-r from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/50"
                       : "w-8 h-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/50"
                     : "w-2.5 h-2.5 bg-slate-800 hover:bg-slate-700 border border-white/10"
@@ -1413,9 +1117,9 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                 title={
                   idx === 0
                     ? "Bütçem Pro'ya Hoş Geldiniz"
-                    : idx === 6
-                    ? "Google & Firebase ile Giriş"
-                    : `Tanıtım Sayfası ${idx} / 5`
+                    : idx === 3
+                    ? "Giriş ve Kayıt Bölümü"
+                    : `Tanıtım Sayfası ${idx + 1} / 4`
                 }
               />
             );
@@ -1429,27 +1133,27 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
               onClick={handleNext}
               className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-indigo-600 to-purple-600 hover:from-amber-600 hover:to-purple-700 text-white text-xs sm:text-sm font-black transition-all duration-200 shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
-              <span>Tanıtım Turuna Başla (1/5)</span>
+              <span>Tanıtım Turuna Başla (1 / 4)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-          ) : currentSlide >= 1 && currentSlide < 5 ? (
+          ) : currentSlide === 1 ? (
             <button
               onClick={handleNext}
               className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs sm:text-sm font-black transition-all duration-200 shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
-              <span>Devam Et ({currentSlide + 1}/5)</span>
+              <span>Devam Et (3. Sayfa)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-          ) : currentSlide === 5 ? (
+          ) : currentSlide === 2 ? (
             <button
               onClick={handleNext}
               className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-teal-600 to-emerald-600 hover:brightness-110 text-white text-xs sm:text-sm font-black transition-all duration-200 shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
-              <span>Hesap ve Giriş Ekranına Geç (Son Adım)</span>
+              <span>Giriş & Kayıt Ekranına Geç (4. Sayfa)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
-            /* Slide 6 (Son Adım): Giriş Yapmadan Devam Et / Uygulamaya Başla */
+            /* Slide 3 (Son Adım - 4. Sayfa): Giriş Yapmadan Devam Et / Uygulamaya Başla */
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}

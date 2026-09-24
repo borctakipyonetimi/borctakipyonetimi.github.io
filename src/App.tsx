@@ -120,6 +120,7 @@ import { FollowUpMonthlyYearly } from "./components/FollowUpMonthlyYearly";
 import { AIChat } from "./components/AIChat";
 import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
+import { GuestCheckoutAuthModal } from "./components/GuestCheckoutAuthModal";
 import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
@@ -127,6 +128,8 @@ import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
+import { RewardedAdModal } from "./components/RewardedAdModal";
+import { isPassActive, getRemainingPassTimeFormatted, ADMOB_CONFIG } from "./utils/rewardedAdService";
 import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -225,18 +228,13 @@ async function OneSignalGuncelBaslat() {
   }
 }
 
-// Uygulama yüklenir yüklenmez tetikle (OneSignal & Biyometrik Doğrulama)
+// Uygulama yüklenir yüklenmez OneSignal bildirim altyapısını hazırla
 if (typeof window !== "undefined") {
   window.addEventListener('DOMContentLoaded', () => {
     OneSignalGuncelBaslat();
-    BiyometrikDogrulamaYap();
-  });
-  document.addEventListener('deviceready', () => {
-    BiyometrikDogrulamaYap();
   });
   if (document.readyState !== "loading") {
     OneSignalGuncelBaslat();
-    BiyometrikDogrulamaYap();
   }
 }
 
@@ -247,28 +245,47 @@ export default function App() {
     try {
       confetti({
         particleCount: 150,
-        spread: 80,
+        spread: 90,
+        gravity: 1.2,
+        decay: 0.92,
+        ticks: 140,
+        startVelocity: 55,
         origin: { y: 0.6 },
         colors: ["#6366f1", "#a855f7", "#ec4899", "#10b981", "#f59e0b"]
       });
       setTimeout(() => {
         confetti({
-          particleCount: 60,
+          particleCount: 70,
           angle: 60,
-          spread: 55,
+          spread: 80,
+          gravity: 1.2,
+          decay: 0.92,
+          ticks: 130,
+          startVelocity: 50,
           origin: { x: 0, y: 0.75 },
           colors: ["#6366f1", "#a855f7", "#ec4899", "#10b981", "#f59e0b"]
         });
-      }, 120);
+      }, 100);
       setTimeout(() => {
         confetti({
-          particleCount: 60,
+          particleCount: 70,
           angle: 120,
-          spread: 55,
+          spread: 80,
+          gravity: 1.2,
+          decay: 0.92,
+          ticks: 130,
+          startVelocity: 50,
           origin: { x: 1, y: 0.75 },
           colors: ["#6366f1", "#a855f7", "#ec4899", "#10b981", "#f59e0b"]
         });
-      }, 180);
+      }, 150);
+
+      // Konfetilerin ekrandan maksimum 2-3 saniye içinde tamamen kaybolmasını sağla
+      setTimeout(() => {
+        try {
+          confetti.reset();
+        } catch {}
+      }, 2500);
     } catch (e) {
       console.warn("Confetti animation failed to trigger:", e);
     }
@@ -874,6 +891,20 @@ export default function App() {
     setIsUpgradeModalOpen(true);
   };
 
+  // Google AdMob Rewarded Video Pass State (24-Hour Access)
+  const [isRewardedModalOpen, setIsRewardedModalOpen] = useState(false);
+  const [rewardedFeature, setRewardedFeature] = useState<"ai" | "export" | "import" | "any">("any");
+  const [rewardedCallback, setRewardedCallback] = useState<(() => void) | null>(null);
+
+  const openRewardedModal = (
+    feature: "ai" | "export" | "import" | "any" = "any",
+    onSuccess?: () => void
+  ) => {
+    setRewardedFeature(feature);
+    setRewardedCallback(() => onSuccess || null);
+    setIsRewardedModalOpen(true);
+  };
+
   const closeUpgradeModal = () => {
     if (isTrialExpiredLocked) {
       triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
@@ -895,31 +926,34 @@ export default function App() {
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState("");
   const [isGPlayBillingActive, setIsGPlayBillingActive] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState({
-    id: "visa",
-    name: "Visa •••• 5043",
-    type: "Google Pay / Kredi Kartı",
-    icon: "💳"
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<{ id: string; name: string; type: string; icon: string }>({
+    id: "gplay_balance",
+    name: "Google Play Bakiyesi",
+    type: "Google Play Hesabı",
+    icon: "✨"
   });
   const [isChangingPaymentMethod, setIsChangingPaymentMethod] = useState(false);
 
-  const [playPaymentMethods, setPlayPaymentMethods] = useState([
-    { id: "visa", name: "Visa •••• 5043", type: "Google Pay / Kredi Kartı", icon: "💳" },
-    { id: "mastercard", name: "Mastercard •••• 9811", type: "Bireysel Kredi Kartı", icon: "💳" },
-    { id: "gplay_balance", name: "Google Play Bakiyesi", type: "Mevcut Bakiye: ₺1.250,00", icon: "✨" },
-    { id: "mobil_odeme", name: "Turkcell Mobil Ödeme", type: "Mobil Ödeme (532 123 45 67)", icon: "📱", details: "532 123 45 67" }
+  const [playPaymentMethods, setPlayPaymentMethods] = useState<Array<{ id: string; name: string; type: string; icon: string; details?: string }>>([
+    { id: "gplay_balance", name: "Google Play Bakiyesi", type: "Google Play Hesabı", icon: "✨" }
   ]);
 
-  const [playAccountEmail, setPlayAccountEmail] = useState("info.borcodemetakip@gmail.com");
+  const [playAccountEmail, setPlayAccountEmail] = useState<string>(() => {
+    return localStorage.getItem("currentUser") || "";
+  });
   const [isEditingEmail, setIsEditingEmail] = useState(false);
 
-  // Form states for adding simulated payment options
+  // Form states for adding simulated payment options - Clean value="" without hardcoded test numbers
   const [paymentFormType, setPaymentFormType] = useState<"none" | "card" | "mobile">("none");
   const [newCardNameValue, setNewCardNameValue] = useState("");
   const [newCardNumberValue, setNewCardNumberValue] = useState("");
   const [newCardExpiryValue, setNewCardExpiryValue] = useState("");
   const [newCardCVVValue, setNewCardCVVValue] = useState("");
-  const [newMobileNoValue, setNewMobileNoValue] = useState("532 123 45 67");
+  const [newMobileNoValue, setNewMobileNoValue] = useState("");
+
+  // Misafir ödeme öncesi gerçek e-posta ve şifre kayıt zorunluluğu state'leri
+  const [isGuestCheckoutAuthOpen, setIsGuestCheckoutAuthOpen] = useState(false);
+  const [pendingPlanForCheckout, setPendingPlanForCheckout] = useState<"monthly" | "yearly" | "lifetime">("yearly");
 
   const purchaseTimeoutsRef = useRef<any[]>([]);
   const clearPurchaseTimeouts = () => {
@@ -3401,6 +3435,16 @@ export default function App() {
 
   const handlePurchase = async (planType: "monthly" | "yearly" | "lifetime") => {
     setSelectedPlan(planType);
+
+    // 3. Madde: Ziyaretçi/misafir modundaki bir kişi doğrudan kart bilgileri sayfasına gidemez
+    // Önce araya güvenlik adımı ekle: Gerçek bir E-posta ve Şifre ile hesap oluşturulması zorunludur.
+    const isGuestOrVisitor = !currentUser || !auth.currentUser || auth.currentUser.isAnonymous || localStorage.getItem("is_guest") === "true";
+    if (isGuestOrVisitor) {
+      setPendingPlanForCheckout(planType);
+      setIsGuestCheckoutAuthOpen(true);
+      return;
+    }
+
     setIsPurchasing(true);
     setPurchaseStatus("Google Play Billing bağlantısı kuruluyor...");
     setIsGPlayBillingActive(true);
@@ -5167,9 +5211,8 @@ export default function App() {
     customName?: string, 
     action: "share" | "download" | "drive" | "whatsapp" | "picker" | boolean = "download"
   ) => {
-    if (!isPremium) {
-      setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
-      setIsUpgradeModalOpen(true);
+    if (!isPremium && !isPassActive()) {
+      openRewardedModal("export", () => executeExportBackup(customName, action));
       return;
     }
 
@@ -5475,9 +5518,8 @@ export default function App() {
   };
 
   const handleExportBackup = (directName?: string) => {
-    if (!isPremium) {
-      setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
-      setIsUpgradeModalOpen(true);
+    if (!isPremium && !isPassActive()) {
+      openRewardedModal("export", () => handleExportBackup(directName));
       return;
     }
     if (typeof directName === "string" && directName.trim()) {
@@ -5802,9 +5844,8 @@ export default function App() {
   };
 
   const handleImportBackup = () => {
-    if (!isPremium) {
-      setPromoFeature("Veri Yedekleme (İçe Aktarma)");
-      setIsUpgradeModalOpen(true);
+    if (!isPremium && !isPassActive()) {
+      openRewardedModal("import", () => handleImportBackup());
       return;
     }
     triggerToast(language === "tr" ? "Yedek Dosyası Seçin (.json)... 📂" : "Select Backup File (.json)... 📂");
@@ -5930,6 +5971,19 @@ export default function App() {
 
     if (tabId === "cloud_sync" || tabId === "cloud" || tabId === "backup_cloud") {
       setActiveTab("settings");
+      setIsSidebarOpen(false);
+      return;
+    }
+
+    if (tabId === "aiStrategy") {
+      if (!isPremium && !isPassActive()) {
+        openRewardedModal("ai", () => {
+          setActiveTab("aiStrategy");
+          setIsSidebarOpen(false);
+        });
+        return;
+      }
+      setActiveTab("aiStrategy");
       setIsSidebarOpen(false);
       return;
     }
@@ -6391,6 +6445,38 @@ export default function App() {
           setProviderLoginOpen(false);
           setSelectedProvider(null);
           triggerToast("✨ Ziyaretçi Modu Aktif. Uygulamayı keşfedebilirsiniz!");
+        }}
+      />
+
+      {/* Misafir Satın Alma Güvenlik Paneli (E-Posta & Şifre Zorunluluğu) */}
+      <GuestCheckoutAuthModal
+        isOpen={isGuestCheckoutAuthOpen}
+        planType={pendingPlanForCheckout}
+        planTitle={
+          pendingPlanForCheckout === "monthly"
+            ? "Bütçem Pro - Aylık Plan"
+            : pendingPlanForCheckout === "yearly"
+            ? "Bütçem Pro - Yıllık Plan"
+            : "Bütçem Pro - Sınırsız (Ömür Boyu) Plan"
+        }
+        planPrice={
+          pendingPlanForCheckout === "monthly"
+            ? ((dynamicProducts as any)?.butcem_pro_aylik?.priceString || PLAY_PRODUCTS.butcem_pro_aylik.priceString)
+            : pendingPlanForCheckout === "yearly"
+            ? ((dynamicProducts as any)?.butcem_pro_yillik?.priceString || PLAY_PRODUCTS.butcem_pro_yillik.priceString)
+            : ((dynamicProducts as any)?.butcem_pro_sinirsiz?.priceString || PLAY_PRODUCTS.butcem_pro_sinirsiz.priceString)
+        }
+        onClose={() => setIsGuestCheckoutAuthOpen(false)}
+        onSuccess={(registeredEmail) => {
+          setIsGuestCheckoutAuthOpen(false);
+          setCurrentUser(registeredEmail);
+          setPlayAccountEmail(registeredEmail);
+          triggerToast(`✨ Hoş geldiniz! ${registeredEmail} hesabınız hazırlandı. Kart ödeme adımına aktarılıyorsunuz...`);
+          // Kullanıcıyı kart bilgileri girme adımına (satın almaya) güvenli bir şekilde aktar
+          setSelectedPlan(pendingPlanForCheckout);
+          setIsPurchasing(true);
+          setPurchaseStatus("Google Play Billing bağlantısı kuruluyor...");
+          setIsGPlayBillingActive(true);
         }}
       />
 
@@ -7519,12 +7605,14 @@ export default function App() {
                       animate={{ scale: [1, 1.08, 1] }}
                       transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                       className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest font-mono shrink-0 ml-1.5 ${
-                        isActive
+                        item.id === "aiStrategy" && isPassActive()
+                          ? "bg-emerald-500 text-white shadow-xs"
+                          : isActive
                           ? "bg-amber-300 text-slate-950 shadow-xs"
                           : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.35)]"
                       }`}
                     >
-                      PRO
+                      {item.id === "aiStrategy" && isPassActive() ? "24S AÇIK" : "PRO"}
                     </motion.span>
                   )}
                 </button>
@@ -7539,9 +7627,8 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                if (!isPremium) {
-                  setPromoFeature("Veri Yedekleme (Dışa Aktarma)");
-                  setIsUpgradeModalOpen(true);
+                if (!isPremium && !isPassActive()) {
+                  openRewardedModal("export", () => handleExportBackup());
                   return;
                 }
                 handleExportBackup();
@@ -7549,14 +7636,17 @@ export default function App() {
               className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> DIŞA AKTAR
-              {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
+              {isPassActive() ? (
+                <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
+              ) : !isPremium ? (
+                <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
+              ) : null}
             </button>
             <button
               type="button"
               onClick={() => {
-                if (!isPremium) {
-                  setPromoFeature("Veri Yedekleme (İçe Aktarma)");
-                  setIsUpgradeModalOpen(true);
+                if (!isPremium && !isPassActive()) {
+                  openRewardedModal("import", () => handleImportBackup());
                   return;
                 }
                 handleImportBackup();
@@ -7564,15 +7654,21 @@ export default function App() {
               className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> İÇE AKTAR
-              {!isPremium && <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>}
+              {isPassActive() ? (
+                <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
+              ) : !isPremium ? (
+                <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
+              ) : null}
             </button>
           </div>
           <button
             type="button"
             onClick={() => {
-              if (!isPremium) {
-                setPromoFeature("CSV Raporu");
-                setIsUpgradeModalOpen(true);
+              if (!isPremium && !isPassActive()) {
+                openRewardedModal("export", () => {
+                  setCsvStep("filter");
+                  setIsCsvModalOpen(true);
+                });
                 return;
               }
               setCsvStep("filter");
@@ -8510,6 +8606,7 @@ export default function App() {
             setVoiceAssistantEnabled={setVoiceAssistantEnabled}
             isPremium={isPremium}
             onOpenUpgradeModal={(name) => openUpgradeModal(name)}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             onOpenOnboarding={() => setShowOnboarding(true)}
             onSuccessToast={(msg) => triggerToast(msg)}
             currentUser={currentUser}
@@ -9631,6 +9728,22 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Google AdMob Rewarded Video Ad Modal (24-Hour Pass Unlock) */}
+      <RewardedAdModal
+        isOpen={isRewardedModalOpen}
+        onClose={() => setIsRewardedModalOpen(false)}
+        targetFeature={rewardedFeature}
+        onRewardGranted={() => {
+          if (rewardedCallback) {
+            rewardedCallback();
+          }
+          triggerToast("🎉 24 saatlik erişim hakkınız tanımlandı! Özellik açıldı.");
+        }}
+        onUpgradeClick={() => {
+          openUpgradeModal("Bütçem Pro");
+        }}
+      />
+
       {/* Premium Plan Upgrade / Subscription Management Modal */}
       <AnimatePresence>
         {isUpgradeModalOpen && (
@@ -9921,8 +10034,8 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                        {/* Ziyaretçi / Kısıtlı Kullanıcı İki Seçenekli Karar Kartı */}
-                    {(!currentUser || (!isPremium && !isTrialExpiredLocked)) && (
+                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - Sadece Misafir/Ziyaretçi anonim kullanıcılara 7 günlük deneme butonunu gösterir */}
+                    {!isPremium && !currentUser && (!trialStatus || !trialStatus.hasTrial) && (
                       <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
                         <div className="text-center space-y-1">
                           <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
@@ -9937,7 +10050,7 @@ export default function App() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - Sadece Anonim Misafirler İçin */}
                           <button
                             type="button"
                             onClick={() => {
@@ -10092,51 +10205,13 @@ export default function App() {
 
                         <div className="space-y-3 pt-1">
                           {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
-                          <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
-                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
-                            </div>
-                            
-                            {trialStatus && trialStatus.hasTrial ? (
-                              trialStatus.isActive && isPremium ? (
-                                <div className="space-y-2.5 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
-                                  <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
-                                    ✨ DENEME SÜRÜMÜNÜZ AKTİF
-                                  </p>
-                                  <p className="text-[10px] text-indigo-600 dark:text-indigo-450 font-bold">
-                                    Kalan Süre: <span className="font-extrabold text-xs">{trialStatus.daysRemaining} Gün</span>
-                                  </p>
-                                  <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
-                                    Sona Erme: {trialStatus.endDate ? new Date(trialStatus.endDate).toLocaleDateString("tr-TR") : "-"}
-                                  </p>
-                                  <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
-                                    7 günlük deneme süresi tek seferliktir ve yenilenmez. Süre dolduğunda otomatik olarak reklamlı ve kısıtlı ücretsiz plan ile devam edilir.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={handleCancelTrial}
-                                    className="w-full mt-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 active:scale-97"
-                                  >
-                                    ✕ Deneme Sürümünü İptal Et
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="space-y-2 text-center bg-slate-100 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                                  <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase leading-none">
-                                    ⏳ DENEME SÜRÜNÜZ SONA ERDİ
-                                  </p>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                                    7 günlük ücretsiz deneme hakkınız tamamlanmıştır. Şu anda <strong>reklamlı ve kısıtlı ücretsiz plan</strong> ile devam etmektesiniz.
-                                  </p>
-                                  <div className="pt-1">
-                                    <span className="inline-block text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-2.5 py-1 rounded-md">
-                                      🛡️ Reklamlı ve Kısıtlı Ücretsiz Plan Aktif
-                                    </span>
-                                  </div>
-                                </div>
-                              )
-                            ) : (
+                          {/* 2. Madde Kuralı: Premium üyeler veya gerçek kullanıcılar için Deneme butonu tamamen gizli (display: none). Sadece anonim misafir modunda görünür. */}
+                          {!isPremium && !currentUser && (!trialStatus || !trialStatus.hasTrial) && (
+                            <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
+                                <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
+                              </div>
                               <div className="space-y-2">
                                 <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold leading-relaxed uppercase">
                                   Kredi kartı gerekmeden 7 gün boyunca Bütçem Pro Premium'un tüm ayrıcalıklı özelliklerini ücretsiz kullanabilirsiniz.
@@ -10149,8 +10224,58 @@ export default function App() {
                                   🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
                                 </button>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
+
+                          {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
+                          {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (
+                            <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 DENEME SÜRÜMÜ DETAYLARI</span>
+                                <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">AKTİF</span>
+                              </div>
+                              <div className="space-y-2.5 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
+                                <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
+                                  ✨ DENEME SÜRÜMÜNÜZ AKTİF
+                                </p>
+                                <p className="text-[10px] text-indigo-600 dark:text-indigo-450 font-bold">
+                                  Kalan Süre: <span className="font-extrabold text-xs">{trialStatus.daysRemaining} Gün</span>
+                                </p>
+                                <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
+                                  Sona Erme: {trialStatus.endDate ? new Date(trialStatus.endDate).toLocaleDateString("tr-TR") : "-"}
+                                </p>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                                  7 günlük deneme süresi tek seferliktir ve yenilenmez. Süre dolduğunda otomatik olarak reklamlı ve kısıtlı ücretsiz plan ile devam edilir.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelTrial}
+                                  className="w-full mt-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 active:scale-97"
+                                >
+                                  ✕ Deneme Sürümünü İptal Et
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Süresi Dolan Deneme Sürümü Uyarısı */}
+                          {trialStatus && trialStatus.hasTrial && !trialStatus.isActive && !isPremium && (
+                            <div className="p-4 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5 shadow-sm">
+                              <div className="space-y-2 text-center">
+                                <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase leading-none">
+                                  ⏳ DENEME SÜRÜNÜZ SONA ERDİ
+                                </p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                  7 günlük ücretsiz deneme hakkınız tamamlanmıştır. Şu anda <strong>reklamlı ve kısıtlı ücretsiz plan</strong> ile devam etmektesiniz.
+                                </p>
+                                <div className="pt-1">
+                                  <span className="inline-block text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-2.5 py-1 rounded-md">
+                                    🛡️ Reklamlı ve Kısıtlı Ücretsiz Plan Aktif
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {isPremium && localStorage.getItem("premium_source") !== "trial" ? (
                             <div className="space-y-2.5">
@@ -10385,7 +10510,8 @@ export default function App() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter") setIsEditingEmail(false);
                           }}
-                          className="bg-white dark:bg-slate-900 border border-indigo-400 rounded px-1.5 py-0.5 text-[10.5px] font-bold text-slate-800 dark:text-slate-100 w-full focus:outline-none"
+                          placeholder="ornek@gmail.com"
+                          className="bg-white dark:bg-slate-900 border border-indigo-400 rounded px-1.5 py-0.5 text-[10.5px] font-bold text-slate-800 dark:text-slate-100 w-full focus:outline-none placeholder:text-slate-400"
                           autoFocus
                         />
                       ) : (
@@ -10394,7 +10520,7 @@ export default function App() {
                           className="text-[10.5px] font-black text-slate-800 dark:text-slate-200 leading-none cursor-pointer hover:underline truncate"
                           title="E-postayı değiştirmek için tıklayın"
                         >
-                          {playAccountEmail} ✏️
+                          {playAccountEmail || "E-posta girilmedi (belirtmek için tıkla)"} ✏️
                         </p>
                       )}
                       <p className="text-[9px] text-slate-400 font-bold mt-0.5 whitespace-nowrap">Google Play Hesabı (Değiştirmek için tıkla)</p>
@@ -10532,7 +10658,7 @@ export default function App() {
                                   type="text"
                                   value={newCardNameValue}
                                   onChange={(e) => setNewCardNameValue(e.target.value)}
-                                  placeholder="Örn: Ahmet Yılmaz"
+                                  placeholder="Kart Sahibi Adı"
                                   className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
@@ -10548,7 +10674,7 @@ export default function App() {
                                     const formatted = val.match(/.{1,4}/g)?.join(" ") || val;
                                     setNewCardNumberValue(formatted.slice(0, 19));
                                   }}
-                                  placeholder="4355 1200 4500 1100"
+                                  placeholder="•••• •••• •••• ••••"
                                   className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
@@ -10566,7 +10692,7 @@ export default function App() {
                                     }
                                     setNewCardExpiryValue(val);
                                   }}
-                                  placeholder="08/29"
+                                  placeholder="AA/YY"
                                   className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
@@ -10643,7 +10769,7 @@ export default function App() {
                                   maxLength={15}
                                   value={newMobileNoValue}
                                   onChange={(e) => setNewMobileNoValue(e.target.value)}
-                                  placeholder="532 123 45 67"
+                                  placeholder="5xx xxx xx xx"
                                   className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>

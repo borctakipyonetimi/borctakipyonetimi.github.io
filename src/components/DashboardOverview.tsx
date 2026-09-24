@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, StickyNote, Calendar, CheckCircle2, Users } from "lucide-react";
+import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, Calendar, CheckCircle2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
 import { BarChart, DoughnutChart, LineChart } from "./BudgetCharts";
@@ -106,49 +106,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState(budgetGoal.toString());
-
-  // Daily Financial Notes State and Handlers
-  interface FinancialNote {
-    id: string;
-    text: string;
-  }
-  const [notes, setNotes] = useState<FinancialNote[]>([]);
-  const [newNoteText, setNewNoteText] = useState("");
-
-  useEffect(() => {
-    const email = localStorage.getItem("currentUser") || "anonymous";
-    const saved = localStorage.getItem(`financial_notes_${email}`);
-    if (saved) {
-      try {
-        setNotes(JSON.parse(saved));
-      } catch (e) {
-        setNotes([]);
-      }
-    } else {
-      setNotes([
-        { id: "1", text: "Gereksiz abonelikleri iptal etmeyi unutma." },
-        { id: "2", text: "Taksit tutarlarını her ayın ilk haftası bütçeden ayır." }
-      ]);
-    }
-  }, []);
-
-  const handleAddNote = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = newNoteText.trim();
-    if (!trimmed) return;
-    const email = localStorage.getItem("currentUser") || "anonymous";
-    const updatedNotes = [...notes, { id: Date.now().toString(), text: trimmed }];
-    setNotes(updatedNotes);
-    localStorage.setItem(`financial_notes_${email}`, JSON.stringify(updatedNotes));
-    setNewNoteText("");
-  };
-
-  const handleDeleteNote = (id: string) => {
-    const email = localStorage.getItem("currentUser") || "anonymous";
-    const updatedNotes = notes.filter(n => n.id !== id);
-    setNotes(updatedNotes);
-    localStorage.setItem(`financial_notes_${email}`, JSON.stringify(updatedNotes));
-  };
 
   // Exchange rate custom manual edit controls
   const [isEditingRates, setIsEditingRates] = useState(false);
@@ -944,8 +901,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </motion.div>
       </div>
 
-      {/* Sponsor / Google AdMob Banner section for free tier - Placed above AI & Alarms section (Only show when there is actual content) */}
-      {!isPremium && hasContent && (
+      {/* Sponsor / Google AdMob Banner section for free tier & visitors - Placed above AI & Alarms section */}
+      {!isPremium && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1262,79 +1219,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         );
       })()}
 
-      {/* Günlük Finansal Notlar Panel */}
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm space-y-4"
-      >
-        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-700/40">
-          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl">
-            <StickyNote className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div>
-            <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              📝 Günlük Finansal Notlar
-            </h4>
-            <p className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold tracking-wider uppercase">
-              BÜTÇE HEDEFLERİ VE ÖNEMLİ HATIRLATICILAR KILAVUZU
-            </p>
-          </div>
-        </div>
-
-        {/* Input Form */}
-        <form onSubmit={(e) => handleAddNote(e)} className="flex gap-2">
-          <input
-            type="text"
-            value={newNoteText}
-            onChange={(e) => setNewNoteText(e.target.value)}
-            placeholder="Kısa bir bütçe notu yazın... (örn: Kira gününü takip et)"
-            className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-all font-semibold"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition active:scale-95 cursor-pointer shrink-0"
-          >
-            Not Ekle
-          </button>
-        </form>
-
-        {/* Notes list */}
-        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-          {notes.length === 0 ? (
-            <p className="text-[11px] text-slate-600 dark:text-slate-300 italic text-center py-4 font-bold">
-              Henüz bir finansal not eklemediniz. Bütçe kararlarınızı buraya not alabilirsiniz.
-            </p>
-          ) : (
-            notes.map((note) => (
-              <motion.div
-                layout
-                key={note.id}
-                initial={{ opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center justify-between gap-3 p-3 bg-slate-50/55 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700 transition"
-              >
-                <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                  <span className="text-sm select-none shrink-0">📌</span>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed break-all">
-                    {note.text}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteNote(note.id)}
-                  className="p-1.5 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer shrink-0 animate-fade-in"
-                  title="Notu sil"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </motion.div>
-            ))
-          )}
-        </div>
-      </motion.div>
-
       {/* Visual Analytics Sections Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Paid vs Remaining doughnut */}
@@ -1354,8 +1238,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
-      {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card (Only show when there is actual content) */}
-      {!isPremium && hasContent && (
+      {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card */}
+      {!isPremium && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

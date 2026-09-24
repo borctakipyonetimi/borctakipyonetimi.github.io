@@ -34,6 +34,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Google AdMob Application ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-4449700232321088~4683751583" />
+
         <!-- Alarm Broadcast Receiver -->
         <receiver
             android:name=".AndroidAlarmBridge$AlarmReceiver"

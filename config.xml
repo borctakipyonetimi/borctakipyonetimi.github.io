@@ -37,6 +37,9 @@
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
         </config-file>
+        <config-file target="AndroidManifest.xml" parent="/manifest/application" mode="merge">
+            <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-4449700232321088~4683751583" />
+        </config-file>
     </platform>
 
     <!-- Modern Cordova Local Notifications with Android 13/14 and Gradle 8+ support -->

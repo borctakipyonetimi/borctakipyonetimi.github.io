@@ -50,21 +50,11 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
   const [recoveryAnswerInput, setRecoveryAnswerInput] = useState("");
   const [recoveryError, setRecoveryError] = useState("");
 
-  const isBiometricActive = typeof localStorage !== "undefined" && localStorage.getItem("biometric_lock") === "true";
+  const isBiometricActive = false; // Biometrics girişi şimdilik kapalı (Çok Yakında)
 
   const triggerBiometricUnlock = async () => {
-    if (lockoutTime > 0) return;
-    try {
-      const verified = await BiyometrikDogrulamaYap();
-      if (verified) {
-        setSuccessMsg("Biyometrik Giriş Başarılı! 🔓");
-        setTimeout(() => {
-          onUnlockSuccess();
-        }, 300);
-      }
-    } catch (e) {
-      console.warn("Biyometrik doğrulama hatası:", e);
-    }
+    setErrorMsg("Biyometrik giriş (Parmak İzi / Yüz Tanıma) çok yakında aktif olacaktır. Lütfen PIN kodunuzu giriniz.");
+    setTimeout(() => setErrorMsg(""), 3500);
   };
 
   useEffect(() => {

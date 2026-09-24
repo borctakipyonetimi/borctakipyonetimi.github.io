@@ -29,6 +29,7 @@ import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
 import { useCurrency } from "../utils/CurrencyContext";
 import { LiveMarketCenterWidget } from "./LiveMarketCenterWidget";
+import { getRemainingPassTimeFormatted, isPassActive } from "../utils/rewardedAdService";
 
 interface ChatMessage {
   sender: "user" | "bot";
@@ -308,6 +309,20 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [passRemaining, setPassRemaining] = useState<string | null>(null);
+
+  useEffect(() => {
+    const updatePass = () => {
+      setPassRemaining(getRemainingPassTimeFormatted());
+    };
+    updatePass();
+    window.addEventListener("rewarded_pass_updated", updatePass);
+    window.addEventListener("storage", updatePass);
+    return () => {
+      window.removeEventListener("rewarded_pass_updated", updatePass);
+      window.removeEventListener("storage", updatePass);
+    };
+  }, []);
   
   // Custom scroll refs to target ONLY the scrollable chat container
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -1056,6 +1071,19 @@ ${installmentDetailsStr}`;
             </motion.button>
           </div>
         </div>
+
+        {/* 24-Hour Pass Status Banner */}
+        {passRemaining && (
+          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-300">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
+              24 Saatlik Ücretsiz AI Erişiminiz Aktif
+            </span>
+            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30">
+              {passRemaining}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}

@@ -226,3 +226,80 @@ export async function saveImageToGalleryWithCustomName(options: SaveImageOptions
     return false;
   }
 }
+
+/**
+ * Universally downloads or shares any jsPDF document across Web, Android WebViews,
+ * Capacitor native containers, and mobile browsers.
+ */
+export async function savePdfDocument(doc: any, fileName: string): Promise<boolean> {
+  // Ensure valid .pdf extension
+  const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+
+  // 1. Capacitor Native Platform (Android / iOS APK)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const dataUri = doc.output("datauristring");
+      const success = await downloadFileWithCustomName({
+        fileName: safeName,
+        content: dataUri,
+        mimeType: "application/pdf"
+      });
+      if (success) return true;
+    } catch (e) {
+      console.warn("[savePdfDocument] Capacitor native failed, attempting fallback:", e);
+    }
+  }
+
+  // 2. Android Native Alarm/Cordova Bridge
+  if (isAndroidAlarmBridgeAvailable()) {
+    try {
+      const dataUri = doc.output("datauristring");
+      const saved = saveAndroidNativeFile(safeName, dataUri, "application/pdf");
+      if (saved) return true;
+    } catch (e) {
+      console.warn("[savePdfDocument] Android bridge failed:", e);
+    }
+  }
+
+  // 3. Native jsPDF doc.save
+  try {
+    doc.save(safeName);
+    return true;
+  } catch (saveErr) {
+    console.warn("[savePdfDocument] doc.save failed, trying blob link:", saveErr);
+  }
+
+  // 4. Blob URL with HTML5 download link
+  try {
+    const pdfBlob = doc.output("blob");
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = safeName;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(url);
+    }, 1500);
+    return true;
+  } catch (blobErr) {
+    console.warn("[savePdfDocument] Blob download failed:", blobErr);
+  }
+
+  // 5. Data URI fallback via downloadFileWithCustomName
+  try {
+    const dataUri = doc.output("datauristring");
+    return await downloadFileWithCustomName({
+      fileName: safeName,
+      content: dataUri,
+      mimeType: "application/pdf"
+    });
+  } catch (err) {
+    console.error("[savePdfDocument] All PDF download methods failed:", err);
+    return false;
+  }
+}

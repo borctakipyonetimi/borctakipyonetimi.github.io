@@ -388,7 +388,8 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
         if (parsedContacts.length > 0) {
           setSimulatedDeviceContacts(parsedContacts);
           localStorage.setItem(`${spaceKey}_parsed_vcf_device_contacts`, JSON.stringify(parsedContacts));
-          showLocalToast(`Rehber yedek dosyanızdan ${parsedContacts.length} kişi başarıyla okundu! Aşağıdaki listeden dilediğiniz kişiyi tek tek 'Hızlı Ekle ➔' seçeneğiyle ekleyebilirsiniz! 📱🎉`);
+          setIsSimulatedPickerOpen(true);
+          showLocalToast(`Rehber dosyanızdan ${parsedContacts.length} kişi başarıyla okundu! Listeden dilediğiniz kişiyi 'Hızlı Ekle ➔' seçeneğiyle ekleyebilirsiniz. 📱🎉`);
         } else {
           showLocalToast("Dosyadan kişi ayrıştırılamadı. Geçerli bir .vcf dosyası olduğundan emin olun.");
         }
@@ -607,6 +608,16 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                 >
                   📁 .VCF YÜKLE
                 </button>
+                <input
+                  ref={vcfFileInputRef}
+                  type="file"
+                  accept=".vcf,text/vcard,text/x-vcard,text/plain,*/*"
+                  onChange={(e) => {
+                    handleVcfImport(e);
+                    if (e.target) e.target.value = "";
+                  }}
+                  className="hidden"
+                />
                 <button
                   onClick={() => setIsAddingContact((prev) => !prev)}
                   type="button"
@@ -1424,16 +1435,6 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                     >
                       📁 REHBER YEDEK DOSYASI SEÇ (.VCF)
                     </button>
-                    <input
-                      ref={vcfFileInputRef}
-                      type="file"
-                      accept=".vcf,text/vcard,text/x-vcard,text/plain,*/*"
-                      onChange={(e) => {
-                        handleVcfImport(e);
-                        if (e.target) e.target.value = "";
-                      }}
-                      className="hidden"
-                    />
                   </div>
 
                   {/* Search filter for simulated contacts */}
