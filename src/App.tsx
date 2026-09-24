@@ -129,7 +129,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, getRemainingPassTimeFormatted, ADMOB_CONFIG } from "./utils/rewardedAdService";
+import { isPassActive, getRemainingPassTimeFormatted, ADMOB_CONFIG, RewardedFeatureType } from "./utils/rewardedAdService";
 import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -893,11 +893,11 @@ export default function App() {
 
   // Google AdMob Rewarded Video Pass State (24-Hour Access)
   const [isRewardedModalOpen, setIsRewardedModalOpen] = useState(false);
-  const [rewardedFeature, setRewardedFeature] = useState<"ai" | "export" | "import" | "any">("any");
+  const [rewardedFeature, setRewardedFeature] = useState<RewardedFeatureType>("any");
   const [rewardedCallback, setRewardedCallback] = useState<(() => void) | null>(null);
 
   const openRewardedModal = (
-    feature: "ai" | "export" | "import" | "any" = "any",
+    feature: RewardedFeatureType = "any",
     onSuccess?: () => void
   ) => {
     setRewardedFeature(feature);
@@ -5230,7 +5230,7 @@ export default function App() {
     customName?: string, 
     action: "share" | "download" | "drive" | "whatsapp" | "picker" | boolean = "download"
   ) => {
-    if (!isPremium && !isPassActive()) {
+    if (!isPremium && !isPassActive("export")) {
       openRewardedModal("export", () => executeExportBackup(customName, action));
       return;
     }
@@ -5537,7 +5537,7 @@ export default function App() {
   };
 
   const handleExportBackup = (directName?: string) => {
-    if (!isPremium && !isPassActive()) {
+    if (!isPremium && !isPassActive("export")) {
       openRewardedModal("export", () => handleExportBackup(directName));
       return;
     }
@@ -5840,6 +5840,11 @@ export default function App() {
   };
 
   const handleDownloadCSV = (startDate?: string, endDate?: string) => {
+    if (!isPremium && !isPassActive("report")) {
+      openRewardedModal("report", () => handleDownloadCSV(startDate, endDate));
+      return;
+    }
+
     const { fileName, csvContent } = generateCSVData(startDate, endDate);
 
     triggerToast("CSV Finansal Rapor indiriliyor... ⏳");
@@ -5863,7 +5868,7 @@ export default function App() {
   };
 
   const handleImportBackup = () => {
-    if (!isPremium && !isPassActive()) {
+    if (!isPremium && !isPassActive("import")) {
       openRewardedModal("import", () => handleImportBackup());
       return;
     }
@@ -5995,7 +6000,7 @@ export default function App() {
     }
 
     if (tabId === "aiStrategy") {
-      if (!isPremium && !isPassActive()) {
+      if (!isPremium && !isPassActive("ai")) {
         openRewardedModal("ai", () => {
           setActiveTab("aiStrategy");
           setIsSidebarOpen(false);
@@ -7624,14 +7629,14 @@ export default function App() {
                       animate={{ scale: [1, 1.08, 1] }}
                       transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                       className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest font-mono shrink-0 ml-1.5 ${
-                        item.id === "aiStrategy" && isPassActive()
+                        item.id === "aiStrategy" && isPassActive("ai")
                           ? "bg-emerald-500 text-white shadow-xs"
                           : isActive
                           ? "bg-amber-300 text-slate-950 shadow-xs"
                           : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.35)]"
                       }`}
                     >
-                      {item.id === "aiStrategy" && isPassActive() ? "24S AÇIK" : "PRO"}
+                      {item.id === "aiStrategy" && isPassActive("ai") ? "24S AÇIK" : "PRO"}
                     </motion.span>
                   )}
                 </button>
@@ -7646,7 +7651,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                if (!isPremium && !isPassActive()) {
+                if (!isPremium && !isPassActive("export")) {
                   openRewardedModal("export", () => handleExportBackup());
                   return;
                 }
@@ -7655,7 +7660,7 @@ export default function App() {
               className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> DIŞA AKTAR
-              {isPassActive() ? (
+              {isPassActive("export") ? (
                 <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
               ) : !isPremium ? (
                 <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
@@ -7664,7 +7669,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                if (!isPremium && !isPassActive()) {
+                if (!isPremium && !isPassActive("import")) {
                   openRewardedModal("import", () => handleImportBackup());
                   return;
                 }
@@ -7673,7 +7678,7 @@ export default function App() {
               className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> İÇE AKTAR
-              {isPassActive() ? (
+              {isPassActive("import") ? (
                 <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
               ) : !isPremium ? (
                 <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
@@ -7683,8 +7688,8 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
-              if (!isPremium && !isPassActive()) {
-                openRewardedModal("export", () => {
+              if (!isPremium && !isPassActive("report")) {
+                openRewardedModal("report", () => {
                   setCsvStep("filter");
                   setIsCsvModalOpen(true);
                 });
@@ -7696,7 +7701,14 @@ export default function App() {
             className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm hover:shadow-md cursor-pointer uppercase tracking-tight relative overflow-hidden"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" /> FİNANSAL RAPORU İNDİR (.CSV)
-            {!isPremium && <span className="absolute -top-1 -right-4 px-5 py-2 bg-amber-500 text-[7px] text-white font-black transform rotate-12 shadow-sm border border-amber-300/30">PRO</span>}
+            {isPassActive("report") ? (
+              <span className="ml-1 text-[7px] bg-emerald-300 text-slate-950 px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
+            ) : !isPremium ? (
+              <span className="ml-1 text-[7px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
+            ) : null}
+            {!isPremium && !isPassActive("report") && (
+              <span className="absolute -top-1 -right-4 px-5 py-2 bg-amber-500 text-[7px] text-white font-black transform rotate-12 shadow-sm border border-amber-300/30">PRO</span>
+            )}
           </button>
           <button
             type="button"
@@ -9756,7 +9768,15 @@ export default function App() {
           if (rewardedCallback) {
             rewardedCallback();
           }
-          triggerToast("🎉 24 saatlik erişim hakkınız tanımlandı! Özellik açıldı.");
+          const featureNames: Record<string, string> = {
+            report: "Finansal Rapor & CSV İndirme",
+            ai: "Yapay Zeka Analiz Asistanı",
+            export: "Veri Dışa Aktarma & Yedekleme",
+            import: "Veri İçe Aktarma & Geri Yükleme",
+            any: "Seçili özellik"
+          };
+          const name = featureNames[rewardedFeature] || "Seçili özellik";
+          triggerToast(`🎉 24 saatlik ${name} erişim hakkınız başarıyla tanımlandı!`);
         }}
         onUpgradeClick={() => {
           openUpgradeModal("Bütçem Pro");

@@ -14,32 +14,45 @@ export const ADMOB_CONFIG = {
   ADS_TXT_ENTRY: "google.com, pub-4449700232321088, DIRECT, f08c47fec0942fa0"
 };
 
-const PASS_EXPIRY_KEY = "butcem_rewarded_pass_expiry";
+export type RewardedFeatureType = "ai" | "export" | "import" | "report" | "any";
+
 const PASS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours (1 gün)
 
+export function getFeaturePassKey(feature: RewardedFeatureType | string = "any"): string {
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  return `butcem_rewarded_pass_${cleanFeature}_expiry`;
+}
+
 /**
- * Checks if the user currently has an active 24-hour pass or premium status
+ * Checks if the user currently has an active 24-hour pass for a SPECIFIC feature,
+ * or has permanent PRO status. Watching an ad for one feature (e.g. AI) only unlocks
+ * that specific feature and does NOT unlock others (e.g. Export or Import).
  */
-export function isPassActive(): boolean {
+export function isPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
   
-  // Premium users have permanent access without ads
+  // Premium users have permanent access to all features without ads
   if (localStorage.getItem("is_premium") === "true") {
     return true;
   }
 
-  const expiry = Number(localStorage.getItem(PASS_EXPIRY_KEY) || 0);
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  const key = getFeaturePassKey(cleanFeature);
+  const expiry = Number(localStorage.getItem(key) || 0);
+  
   return Date.now() < expiry;
 }
 
 /**
- * Gets formatted remaining time string (e.g., "23 saat 45 dk kaldı")
+ * Gets formatted remaining time string for a specific feature (e.g., "23 saat 45 dk kaldı")
  */
-export function getRemainingPassTimeFormatted(): string | null {
+export function getRemainingPassTimeFormatted(feature: RewardedFeatureType | string = "any"): string | null {
   if (typeof window === "undefined") return null;
   if (localStorage.getItem("is_premium") === "true") return "Sınırsız (Premium)";
 
-  const expiry = Number(localStorage.getItem(PASS_EXPIRY_KEY) || 0);
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  const key = getFeaturePassKey(cleanFeature);
+  const expiry = Number(localStorage.getItem(key) || 0);
   const diff = expiry - Date.now();
   if (diff <= 0) return null;
 
@@ -53,24 +66,27 @@ export function getRemainingPassTimeFormatted(): string | null {
 }
 
 /**
- * Grants 24-hour full access to AI analysis, export, and import features
+ * Grants 24-hour full access ONLY to the specified target feature (e.g. 'ai', 'export', or 'import')
  */
-export function grant24HourPass(): { expiresAt: number } {
+export function grant24HourPass(feature: RewardedFeatureType | string = "any"): { expiresAt: number; feature: string } {
+  const cleanFeature = (feature || "any").toLowerCase().trim();
   const expiresAt = Date.now() + PASS_DURATION_MS;
+  
   if (typeof window !== "undefined") {
-    localStorage.setItem(PASS_EXPIRY_KEY, String(expiresAt));
+    const key = getFeaturePassKey(cleanFeature);
+    localStorage.setItem(key, String(expiresAt));
     window.dispatchEvent(
-      new CustomEvent("rewarded_pass_updated", { detail: { expiresAt } })
+      new CustomEvent("rewarded_pass_updated", { detail: { feature: cleanFeature, expiresAt } })
     );
   }
-  return { expiresAt };
+  return { expiresAt, feature: cleanFeature };
 }
 
 /**
  * Determines whether a specific feature requires viewing a rewarded ad
  */
-export function featureRequiresAd(feature: "ai" | "export" | "import" | "any"): boolean {
+export function featureRequiresAd(feature: RewardedFeatureType | string): boolean {
   if (typeof window === "undefined") return false;
   if (localStorage.getItem("is_premium") === "true") return false;
-  return !isPassActive();
+  return !isPassActive(feature);
 }

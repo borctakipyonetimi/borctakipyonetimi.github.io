@@ -313,7 +313,7 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   useEffect(() => {
     const updatePass = () => {
-      setPassRemaining(getRemainingPassTimeFormatted());
+      setPassRemaining(getRemainingPassTimeFormatted("ai"));
     };
     updatePass();
     window.addEventListener("rewarded_pass_updated", updatePass);

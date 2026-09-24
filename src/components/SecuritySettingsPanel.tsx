@@ -183,7 +183,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   };
 
   const handleTriggerDriveExport = (action: "download" | "drive" | "whatsapp" | "share") => {
-    const hasExportAccess = isPremium || isPassActive();
+    const hasExportAccess = isPremium || isPassActive("export");
     if (!hasExportAccess) {
       if (onOpenRewardedModal) {
         onOpenRewardedModal("export", () => handleTriggerDriveExport(action));
@@ -236,9 +236,14 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   };
 
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isPremium) {
-      onSuccessToast("⭐ Yedek Dosyası Geri Yükleme Bütçem PRO özelliğidir.");
-      if (onOpenUpgradeModal) onOpenUpgradeModal("Yedek Dosyası Geri Yükleme");
+    const hasImportAccess = isPremium || isPassActive("import");
+    if (!hasImportAccess) {
+      if (onOpenRewardedModal) {
+        onOpenRewardedModal("import", () => fileInputRef.current?.click());
+      } else {
+        onSuccessToast("⭐ Yedek Dosyası Geri Yükleme Bütçem PRO özelliğidir.");
+        if (onOpenUpgradeModal) onOpenUpgradeModal("Yedek Dosyası Geri Yükleme");
+      }
       if (e.target) e.target.value = "";
       return;
     }
@@ -889,7 +894,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
               <div
                 onClick={() => {
-                  const hasImportAccess = isPremium || isPassActive();
+                  const hasImportAccess = isPremium || isPassActive("import");
                   if (!hasImportAccess) {
                     if (onOpenRewardedModal) {
                       onOpenRewardedModal("import", () => fileInputRef.current?.click());
@@ -904,18 +909,18 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 rounded-3xl p-8 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-800/30 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 flex flex-col items-center justify-center space-y-3"
               >
                 <div className="w-14 h-14 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                  {!isPremium && !isPassActive() ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
+                  {!isPremium && !isPassActive("import") ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
                 </div>
                 <div>
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {!isPremium && !isPassActive()
+                    {!isPremium && !isPassActive("import")
                       ? "Yedek Geri Yükleme Kilitli 🔒 (PRO veya Reklamla Aç)"
                       : isRestoring
                       ? "Dosya Okunuyor ve İşleniyor..."
                       : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    {!isPremium && !isPassActive()
+                    {!isPremium && !isPassActive("import")
                       ? "Yedeğinizi geri yüklemek için kısa bir video reklam izleyip 24 saat ücretsiz kullanabilirsiniz."
                       : "Telefonunuzdaki veya Google Drive klasörünüzdeki .json dosyasını seçin"}
                   </p>
