@@ -450,7 +450,9 @@ async function handleBackgroundSync(tag) {
 
   if (Array.isArray(activeDebts)) {
     activeDebts.forEach((debt) => {
-      if (!debt || debt.isPaid) return;
+      if (!debt) return;
+      const isPaid = debt.isPaid === true || debt.durum === "odendi" || debt.status === "paid" || Number(debt.paid || 0) >= Number(debt.amount || 0);
+      if (isPaid) return;
       const remaining = (Number(debt.amount) || 0) - (Number(debt.paid) || 0);
       if (remaining <= 0) return;
 
@@ -478,6 +480,8 @@ async function handleBackgroundSync(tag) {
       if (!inst) return;
       const count = Number(inst.installmentCount) || 1;
       const paid = Number(inst.paidInstallmentCount) || 0;
+      const isPaid = inst.isPaid === true || inst.durum === "odendi" || inst.status === "paid" || paid >= count;
+      if (isPaid) return;
       const total = Number(inst.totalAmount) || 0;
       const perInst = count > 0 ? total / count : 0;
 

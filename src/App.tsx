@@ -3138,7 +3138,9 @@ export default function App() {
       const scannedItems: ScannedDebtItem[] = [];
 
       currentDebts.forEach((d) => {
-        if (!d || Number(d.paid || 0) >= Number(d.amount || 0)) return;
+        if (!d) return;
+        const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
+        if (isPaid) return; // Arka plan servisinin ödenmiş borçlar için kesinlikle yeni bildirim üretmesini engelle
         if (!d.dueDate) return;
         try {
           const [year, month, day] = d.dueDate.split("-").map(Number);
@@ -3158,7 +3160,9 @@ export default function App() {
       });
 
       currentInsts.forEach((inst) => {
-        if (!inst || Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1)) return;
+        if (!inst) return;
+        const isPaid = (inst as any).isPaid === true || (inst as any).durum === "odendi" || (inst as any).status === "paid" || Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1);
+        if (isPaid) return; // Arka plan servisinin ödenmiş taksitler için kesinlikle yeni bildirim üretmesini engelle
         if (!inst.firstDueDate) return;
         try {
           const [year, month, day] = inst.firstDueDate.split("-").map(Number);
@@ -4205,9 +4209,13 @@ export default function App() {
         );
       }
     } else if (effectivePaid >= effectiveAmount && effectiveId) {
-      // Borç tamamen ödendiyse eski alarmı iptal et
+      // Borç tamamen ödendiyse tüm planlanmış yerel alarmları tamamen yok et
+      try {
+        LocalNotifications.cancel({ notifications: [{ id: Number(effectiveId) }] }).catch(() => {});
+        LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(effectiveId) }] }).catch(() => {});
+        LocalNotifications.cancel({ notifications: [{ id: 800000 + Number(effectiveId) }] }).catch(() => {});
+      } catch {}
       cancelCapacitorAlarm(effectiveId).catch(() => {});
-      cancelCapacitorAlarm(200000 + effectiveId).catch(() => {});
       cancelAndroidDebtAlarm(effectiveId);
     }
 
@@ -4219,14 +4227,17 @@ export default function App() {
     }
   };
 
-  const handleDeleteDebt = (id: number) => {
+  const handleDeleteDebt = async (id: number) => {
     triggerConfirm(
       "Borcu Sil",
       "Bu borç kaydı tamamen silinecektir, devam edilsin mi?",
-      () => {
+      async () => {
         // Borca bağlı tüm sistem ve Capacitor alarmlarını iptal et
+        try {
+          await LocalNotifications.cancel({ notifications: [{ id: Number(id) }] });
+          await LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(id) }] });
+        } catch {}
         cancelCapacitorAlarm(id).catch(() => {});
-        cancelCapacitorAlarm(200000 + id).catch(() => {});
         cancelAndroidDebtAlarm(id);
 
         const updatedDebts = debts.filter((d) => d.id !== id);
@@ -4247,9 +4258,22 @@ export default function App() {
     );
   };
 
-  const handleToggleDebtPaid = (id: number) => {
+  const handleToggleDebtPaid = async (id: number) => {
     let updatedPayments = [...payments];
     let shouldCelebrate = false;
+    const borcId = Number(id);
+
+    // Borç kullanıcı tarafından 'Ödendi' olarak işaretlendiğinde, o borca ait tüm planlanmış yerel alarmları tamamen yok et
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: Number(borcId) }] });
+      await LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(borcId) }] });
+      await LocalNotifications.cancel({ notifications: [{ id: 800000 + Number(borcId) }] });
+    } catch (e) {
+      console.warn("[LocalNotifications] cancel error on toggle:", e);
+    }
+    cancelCapacitorAlarm(borcId).catch(() => {});
+    cancelAndroidDebtAlarm(borcId);
+
     const updated = debts.map((d) => {
       if (d.id === id) {
         const isPaid = d.paid >= d.amount;
@@ -4269,11 +4293,6 @@ export default function App() {
           };
           updatedPayments.push(newPayment);
           shouldCelebrate = true;
-
-          // Borç tamamen ödendiğinde alarmı iptal et
-          cancelCapacitorAlarm(id).catch(() => {});
-          cancelCapacitorAlarm(200000 + id).catch(() => {});
-          cancelAndroidDebtAlarm(id);
         } else if (d.dueDate) {
           // Ödeme geri alındığında alarmı tekrar kur
           const trig = parseAlarmDateToMillis(d.dueDate);

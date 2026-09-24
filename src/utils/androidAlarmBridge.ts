@@ -244,7 +244,7 @@ export async function scheduleCapacitorAlarm(
       await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
     } catch {}
 
-    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true, exact: true ve allowInExactlyDatatype: true
+    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true, exact: true, allowInExactlyDatatype: true ve forceShow: true
     await LocalNotifications.schedule({
       notifications: [
         {
@@ -257,7 +257,8 @@ export async function scheduleCapacitorAlarm(
             at: new Date(triggerAtMillis),
             allowWhileIdle: true, // Ekran kilitliyken ve Doze modunda uyandırma sağlar
             exact: true, // Android derin uyku modunu (Doze) baypas eden kesin tetikleme
-            allowInExactlyDatatype: true // İşletim sistemi seviyesinde kesin uyanma parametresi
+            allowInExactlyDatatype: true, // İşletim sistemi seviyesinde kesin uyanma parametresi
+            forceShow: true // Ekran kapalıyken bildirimi zorla uyandır
           },
           channelId: "debt_reminders",
           autoCancel: true,
@@ -326,7 +327,8 @@ export async function sendInstantCapacitorNotification(
             at: new Date(Date.now() + 100),
             allowWhileIdle: true,
             exact: true,
-            allowInExactlyDatatype: true
+            allowInExactlyDatatype: true,
+            forceShow: true
           },
           channelId: "debt_reminders",
           autoCancel: true,
@@ -356,7 +358,11 @@ export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
   try {
     const safeId = Math.abs(Number(id));
     await LocalNotifications.cancel({
-      notifications: [{ id: safeId }]
+      notifications: [
+        { id: safeId },
+        { id: 200000 + safeId },
+        { id: 800000 + safeId }
+      ]
     });
     console.log(`[Capacitor LocalNotifications] Alarm #${safeId} iptal edildi.`);
     return true;
@@ -499,10 +505,26 @@ export function syncAllDebtsAndAlarmsToAndroid(
   // 2. Vadesi belirlenmiş ve henüz ödenmemiş borçları otomatik olarak zamanla
   if (Array.isArray(debts)) {
     debts.forEach((debt) => {
-      if (debt && debt.dueDate && Number(debt.paid || 0) < Number(debt.amount || 0)) {
+      if (!debt) return;
+      const isDebtPaid = Boolean(
+        (debt as any).isPaid === true ||
+        (debt as any).durum === "odendi" ||
+        (debt as any).status === "paid" ||
+        Number(debt.paid || 0) >= Number(debt.amount || 0)
+      );
+
+      const debtId = Math.abs(Number(debt.id)) || 1;
+
+      if (isDebtPaid) {
+        // Ödenmiş borç için planlanmış alarmları tamamen yok et ve kesinlikle bildirim üretme
+        cancelCapacitorAlarm(debtId).catch(() => {});
+        cancelAndroidDebtAlarm(debtId);
+        return;
+      }
+
+      if (debt.dueDate && Number(debt.paid || 0) < Number(debt.amount || 0)) {
         const triggerMillis = parseAlarmDateToMillis(debt.dueDate);
         if (triggerMillis && triggerMillis > now) {
-          const debtId = Math.abs(Number(debt.id)) || 1;
           const remaining = (Number(debt.amount || 0) - Number(debt.paid || 0)).toLocaleString("tr-TR");
           const borcAdi = debt.name || "Borç";
           const miktar = `${remaining} TL`;
@@ -529,8 +551,25 @@ export function syncAllDebtsAndAlarmsToAndroid(
   // 3. Taksitli borçların sıradaki taksit gününü otomatik zamanla
   if (Array.isArray(installmentDebts)) {
     installmentDebts.forEach((inst) => {
+      if (!inst) return;
+      const isInstPaid = Boolean(
+        (inst as any).isPaid === true ||
+        (inst as any).durum === "odendi" ||
+        (inst as any).status === "paid" ||
+        Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1)
+      );
+
+      const instId = Math.abs(Number(inst.id)) || 1;
+
+      if (isInstPaid) {
+        // Ödenmiş taksit için alarmları tamamen yok et
+        cancelCapacitorAlarm(instId).catch(() => {});
+        cancelCapacitorAlarm(800000 + instId).catch(() => {});
+        cancelAndroidDebtAlarm(instId);
+        return;
+      }
+
       if (
-        inst &&
         inst.firstDueDate &&
         Number(inst.paidInstallmentCount || 0) < Number(inst.installmentCount || 1)
       ) {
@@ -540,7 +579,6 @@ export function syncAllDebtsAndAlarmsToAndroid(
           const nextDate = new Date(year, (month - 1) + nextIndex, day, 9, 0, 0, 0);
           const triggerMillis = nextDate.getTime();
           if (triggerMillis > now) {
-            const instId = Math.abs(Number(inst.id)) || 1;
             const perMonth = inst.installmentCount ? Math.round(Number(inst.totalAmount || 0) / Number(inst.installmentCount)) : 0;
             const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
             const borcAdi = `${inst.name || "Taksit"} (${nextIndex + 1}/${inst.installmentCount}. Taksit)`;
