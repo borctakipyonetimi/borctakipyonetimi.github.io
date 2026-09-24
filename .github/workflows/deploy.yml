@@ -114,12 +114,16 @@ jobs:
           npx cap sync android
           cd android
           ./gradlew assembleDebug
+          cd ..
+          mkdir -p release_apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/bütçempro.apk
 
       - name: Upload Final Butcem Pro APK
         uses: actions/upload-artifact@v4
         with:
-          name: butcem-pro-reklamsiz-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: bütçempro
+          path: release_apk/
 
       - name: Deploy to GitHub Pages 🚀
         uses: JamesIves/github-pages-deploy-action@v4

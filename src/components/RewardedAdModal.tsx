@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Sparkles,
   PlayCircle,
   Clock,
   CheckCircle2,
@@ -22,7 +21,8 @@ import {
   FileSpreadsheet,
   Film,
   Award,
-  Play
+  Play,
+  Sparkles
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import {
@@ -67,9 +67,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<any>(null);
+  const prevOpenRef = useRef(false);
 
+  // Initialize ONLY when the modal transitions from closed to open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       setIsPlayingAd(false);
       setCountdown(REQUIRED_WATCH_SECONDS);
       setAdFinished(false);
@@ -77,36 +79,32 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       setIsVideoPaused(false);
       setActivePassTime(getRemainingPassTimeFormatted(targetFeature));
       setVideoIndex(Math.floor(Math.random() * VIDEO_AD_SOURCES.length));
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+    } else if (!isOpen && prevOpenRef.current) {
+      setIsPlayingAd(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
+    prevOpenRef.current = isOpen;
+  }, [isOpen, targetFeature]);
 
-    // Listen for native Android AdMob completion events if inside APK
-    const handleNativeAdReward = (event: any) => {
-      const rewardedFeature = event?.detail?.feature || targetFeature;
-      grant24HourPass(rewardedFeature);
-      onClose();
-      if (onRewardGranted) onRewardGranted();
-    };
-
-    window.addEventListener("admob_reward_granted", handleNativeAdReward);
-    window.addEventListener("android_rewarded_completed", handleNativeAdReward);
-
+  // Clean up timer on unmount
+  useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      window.removeEventListener("admob_reward_granted", handleNativeAdReward);
-      window.removeEventListener("android_rewarded_completed", handleNativeAdReward);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [isOpen, targetFeature, onClose, onRewardGranted]);
+  }, []);
 
   // Handle Video Time Update and Sync Progress
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    const current = videoRef.current.currentTime;
+    const current = videoRef.current.currentTime || 0;
     const duration = videoRef.current.duration || REQUIRED_WATCH_SECONDS;
     setVideoProgress((current / duration) * 100);
 
-    // If video naturally ended or reached required duration
     if (current >= REQUIRED_WATCH_SECONDS && !adFinished) {
       setAdFinished(true);
       setCountdown(0);
@@ -116,53 +114,53 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   const handleVideoEnded = () => {
     setAdFinished(true);
     setCountdown(0);
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
 
-  const handleStartWatchVideo = () => {
-    // 1. Native Android AdMob Bridge Check
-    const win = window as any;
-    if (win.AndroidAdMob && typeof win.AndroidAdMob.showRewardedVideo === "function") {
-      try {
-        win.AndroidAdMob.showRewardedVideo(targetFeature);
-        return;
-      } catch (err) {
-        console.warn("[AdMob] Native bridge invocation fallback:", err);
-      }
-    } else if (win.Android && typeof win.Android.showRewardedVideo === "function") {
-      try {
-        win.Android.showRewardedVideo(targetFeature);
-        return;
-      } catch (err) {
-        console.warn("[AdMob] Android bridge fallback:", err);
-      }
+  const handleStartWatchVideo = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
 
-    // 2. Fullscreen Video Ad Player
+    // Switch to fullscreen video player
     setIsPlayingAd(true);
     setCountdown(REQUIRED_WATCH_SECONDS);
     setAdFinished(false);
     setVideoProgress(0);
+    setIsVideoPaused(false);
 
+    // Auto-play the video
     setTimeout(() => {
       if (videoRef.current) {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play().catch((e) => {
-          console.warn("[RewardedAd] Autoplay prevented, retrying muted:", e);
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            setIsMuted(true);
-            videoRef.current.play().catch(() => {});
+        try {
+          videoRef.current.currentTime = 0;
+          videoRef.current.muted = true;
+          setIsMuted(true);
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.info("[RewardedAd] Video autoplay notice:", err);
+            });
           }
-        });
+        } catch (playErr) {
+          console.info("[RewardedAd] Play attempt handled:", playErr);
+        }
       }
-    }, 100);
+    }, 120);
 
+    // Interval countdown
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           setAdFinished(true);
           return 0;
         }
@@ -171,10 +169,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }, 1000);
   };
 
-  const toggleVideoPlay = () => {
+  const toggleVideoPlay = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {});
       setIsVideoPaused(false);
     } else {
       videoRef.current.pause();
@@ -182,13 +181,19 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }
   };
 
-  const toggleMute = () => {
+  const toggleMute = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
     videoRef.current.muted = !videoRef.current.muted;
     setIsMuted(videoRef.current.muted);
   };
 
-  const handleClaimReward = () => {
+  const handleClaimReward = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     // 1. Grant 24-hour pass ONLY to the target feature
     grant24HourPass(targetFeature);
 
@@ -208,11 +213,12 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 
     // 3. Callback to execute target feature
     setTimeout(() => {
+      setIsPlayingAd(false);
       onClose();
       if (onRewardGranted) {
         onRewardGranted();
       }
-    }, 600);
+    }, 500);
   };
 
   if (!isOpen) return null;
@@ -275,8 +281,10 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   // ==========================================
   if (isPlayingAd) {
     return (
-      <div className="fixed inset-0 z-[100000] w-screen h-screen bg-black text-white flex flex-col justify-between select-none overflow-hidden animate-fade-in">
-        
+      <div 
+        className="fixed inset-0 z-[100000] w-screen h-screen bg-black text-white flex flex-col justify-between select-none overflow-hidden animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Header Bar with Badges & Timer */}
         <div className="relative z-30 flex items-center justify-between w-full px-4 sm:px-6 py-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -393,7 +401,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             )}
           </div>
         </div>
-
       </div>
     );
   }
@@ -402,13 +409,25 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   // 2. MODAL PREVIEW SCREEN (BEFORE AD STARTS)
   // ==========================================
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden relative text-slate-800 dark:text-slate-100 my-auto">
-        
+    <div 
+      className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden relative text-slate-800 dark:text-slate-100 my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           type="button"
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition z-20 cursor-pointer"
         >
           <X className="w-5 h-5" />
@@ -472,7 +491,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             {onUpgradeClick && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   onClose();
                   onUpgradeClick();
                 }}
