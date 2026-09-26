@@ -11,6 +11,7 @@ import {
   TrendingDown,
   DollarSign,
   CalendarRange,
+  CalendarDays,
   Plus,
   Trash2,
   Calculator,
@@ -26,7 +27,21 @@ import {
   Download,
   Sparkles,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Landmark,
+  ShieldAlert,
+  Scale,
+  Car,
+  Home,
+  Briefcase,
+  Layers,
+  Lock,
+  Percent,
+  RefreshCw,
+  BookmarkCheck,
+  CreditCard,
+  Wallet
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, PaymentLog } from "../types";
 import { AdMobBanner } from "./AdMobBanner";
@@ -46,6 +61,10 @@ interface FinancialToolsProps {
   currentUser: string | null;
   format: (val: number) => string;
   language?: "tr" | "en";
+  isPremium?: boolean;
+  onUpgradeClick?: (featureName?: string) => void;
+  onSaveInstallment?: (inst: Partial<InstallmentDebt>) => void;
+  defaultSubTab?: "health" | "calculators" | "savings" | "calendar" | "report";
 }
 
 export interface SavingsGoal {
@@ -64,10 +83,52 @@ export function FinancialTools({
   installmentDebts,
   currentUser,
   format,
-  language = "tr"
+  language = "tr",
+  isPremium = false,
+  onUpgradeClick,
+  onSaveInstallment,
+  defaultSubTab
 }: FinancialToolsProps) {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
-  const [activeSubTab, setActiveSubTab] = useState<"health" | "savings" | "calendar" | "report">("health");
+  const [activeSubTab, setActiveSubTab] = useState<"health" | "calculators" | "savings" | "calendar" | "report">(defaultSubTab || "health");
+
+  // Calculator Sub-tab State
+  const [calcTab, setCalcTab] = useState<"loan" | "emergency" | "networth">("loan");
+
+  // 1. Kredi Hesaplayıcı State
+  const [loanType, setLoanType] = useState<"personal" | "housing" | "vehicle" | "commercial">("personal");
+  const [loanAmount, setLoanAmount] = useState<number>(100000);
+  const [loanTerm, setLoanTerm] = useState<number>(12);
+  const [loanMonthlyRate, setLoanMonthlyRate] = useState<number>(3.49);
+  const [showAmortization, setShowAmortization] = useState<boolean>(false);
+  const [loanAddedToast, setLoanAddedToast] = useState<string>("");
+
+  // 2. Acil Durum Fonu State
+  const [emergencyRent, setEmergencyRent] = useState<number>(12000);
+  const [emergencyBills, setEmergencyBills] = useState<number>(3500);
+  const [emergencyFood, setEmergencyFood] = useState<number>(8000);
+  const [emergencyTransport, setEmergencyTransport] = useState<number>(2500);
+  const [emergencyDebts, setEmergencyDebts] = useState<number>(4000);
+  const [emergencyOther, setEmergencyOther] = useState<number>(2000);
+  const [emergencyMonths, setEmergencyMonths] = useState<number>(6);
+  const [emergencyCurrentSaved, setEmergencyCurrentSaved] = useState<number>(15000);
+  const [emergencyMonthlySaveCap, setEmergencyMonthlySaveCap] = useState<number>(5000);
+  const [emergencySavedToast, setEmergencySavedToast] = useState<string>("");
+
+  // 3. Net Varlık (Net Worth) State
+  const [assetCash, setAssetCash] = useState<number>(45000);
+  const [assetGoldFx, setAssetGoldFx] = useState<number>(85000);
+  const [assetInvest, setAssetInvest] = useState<number>(60000);
+  const [assetRealEstate, setAssetRealEstate] = useState<number>(1500000);
+  const [assetVehicle, setAssetVehicle] = useState<number>(450000);
+  const [assetReceivables, setAssetReceivables] = useState<number>(15000);
+  const [assetOther, setAssetOther] = useState<number>(10000);
+
+  const [liabCreditCard, setLiabCreditCard] = useState<number>(25000);
+  const [liabBankLoans, setLiabBankLoans] = useState<number>(120000);
+  const [liabPersonalDebts, setLiabPersonalDebts] = useState<number>(30000);
+  const [liabOther, setLiabOther] = useState<number>(5000);
+  const [netWorthSyncToast, setNetWorthSyncToast] = useState<string>("");
 
   // Local savings goals persistence
   const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
@@ -376,6 +437,178 @@ export function FinancialTools({
     return matchedDebts;
   };
 
+  // --- HESAPLAYICILAR VE SİMÜLASYON MOTORLARI ---
+  // KKDF and BSMV rates according to Turkish legislation
+  const kkdfRate = loanType === "housing" || loanType === "commercial" ? 0 : 0.15;
+  const bsmvRate = loanType === "housing" ? 0 : loanType === "vehicle" ? 0.05 : loanType === "commercial" ? 0.05 : 0.15;
+
+  const loanResults = useMemo(() => {
+    const P = Math.max(100, Number(loanAmount) || 0);
+    const n = Math.max(1, Number(loanTerm) || 1);
+    const nominalMonthlyRate = (Number(loanMonthlyRate) || 0) / 100;
+    const r = nominalMonthlyRate * (1 + kkdfRate + bsmvRate);
+
+    let monthlyPayment = 0;
+    if (r === 0) {
+      monthlyPayment = P / n;
+    } else {
+      monthlyPayment = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    }
+
+    const totalPayment = monthlyPayment * n;
+    const totalCost = Math.max(0, totalPayment - P);
+    const totalTax = totalCost * ((kkdfRate + bsmvRate) / (1 + kkdfRate + bsmvRate || 1));
+    const totalInterest = Math.max(0, totalCost - totalTax);
+    const annualEffectiveRate = (Math.pow(1 + r, 12) - 1) * 100;
+
+    // Amortization schedule
+    const schedule: Array<{ month: number; payment: number; principal: number; interest: number; tax: number; remaining: number }> = [];
+    let remBalance = P;
+    for (let m = 1; m <= n; m++) {
+      const interestPart = remBalance * nominalMonthlyRate;
+      const taxPart = interestPart * (kkdfRate + bsmvRate);
+      const principalPart = Math.min(remBalance, monthlyPayment - (interestPart + taxPart));
+      remBalance = Math.max(0, remBalance - principalPart);
+      schedule.push({
+        month: m,
+        payment: monthlyPayment,
+        principal: principalPart,
+        interest: interestPart,
+        tax: taxPart,
+        remaining: remBalance
+      });
+    }
+
+    return {
+      monthlyPayment,
+      totalPayment,
+      totalCost,
+      totalInterest,
+      totalTax,
+      annualEffectiveRate,
+      schedule
+    };
+  }, [loanAmount, loanTerm, loanMonthlyRate, kkdfRate, bsmvRate]);
+
+  const handleAddLoanToInstallments = () => {
+    if (!onSaveInstallment) {
+      alert("Taksit planı kaydedilemedi.");
+      return;
+    }
+    const typeLabel = loanType === "personal" ? "İhtiyaç Kredisi" : loanType === "housing" ? "Konut Kredisi" : loanType === "vehicle" ? "Taşıt Kredisi" : "Ticari Kredi";
+    const loanName = `${typeLabel} (${format(loanAmount)})`;
+    onSaveInstallment({
+      name: loanName,
+      totalAmount: Math.round(loanResults.totalPayment),
+      installmentCount: Number(loanTerm) || 1,
+      paidInstallmentCount: 0,
+      firstDueDate: new Date().toISOString().slice(0, 10)
+    });
+    setLoanAddedToast(`✅ '${loanName}' planı taksitli borçlarınıza başarıyla eklendi!`);
+    setTimeout(() => setLoanAddedToast(""), 4000);
+  };
+
+  // 2. Emergency Fund Calculation
+  const emergencyMonthlyTotal = useMemo(() => {
+    return (
+      (Number(emergencyRent) || 0) +
+      (Number(emergencyBills) || 0) +
+      (Number(emergencyFood) || 0) +
+      (Number(emergencyTransport) || 0) +
+      (Number(emergencyDebts) || 0) +
+      (Number(emergencyOther) || 0)
+    );
+  }, [emergencyRent, emergencyBills, emergencyFood, emergencyTransport, emergencyDebts, emergencyOther]);
+
+  const emergencyTargetTotal = useMemo(() => {
+    return emergencyMonthlyTotal * emergencyMonths;
+  }, [emergencyMonthlyTotal, emergencyMonths]);
+
+  const emergencyMissingAmount = Math.max(0, emergencyTargetTotal - (Number(emergencyCurrentSaved) || 0));
+  const emergencyProgressPct = Math.min(100, Math.round(((Number(emergencyCurrentSaved) || 0) / Math.max(1, emergencyTargetTotal)) * 100));
+  const emergencyMonthsToFinish = emergencyMonthlySaveCap > 0 ? Math.ceil(emergencyMissingAmount / emergencyMonthlySaveCap) : 0;
+
+  const handleAutoFillEmergencyFromApp = () => {
+    const totalExp = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const monthlyInst = installmentDebts.reduce((s, i) => {
+      if ((i.paidInstallmentCount || 0) >= (i.installmentCount || 1)) return s;
+      return s + (i.totalAmount / (i.installmentCount || 1));
+    }, 0);
+
+    const baseRent = Math.round(totalExp * 0.35) || 12000;
+    const baseBills = Math.round(totalExp * 0.15) || 3500;
+    const baseFood = Math.round(totalExp * 0.30) || 8000;
+    const baseTrans = Math.round(totalExp * 0.10) || 2500;
+    const baseOther = Math.round(totalExp * 0.10) || 2000;
+
+    setEmergencyRent(baseRent);
+    setEmergencyBills(baseBills);
+    setEmergencyFood(baseFood);
+    setEmergencyTransport(baseTrans);
+    setEmergencyDebts(Math.round(monthlyInst) || 4000);
+    setEmergencyOther(baseOther);
+
+    setEmergencySavedToast("⚡ Mevcut bütçe harcama ve taksit verileriniz hesaplayıcıya aktarıldı!");
+    setTimeout(() => setEmergencySavedToast(""), 3500);
+  };
+
+  const handleAddEmergencyGoalToSavings = () => {
+    const goalTitle = `⚠️ Acil Durum Fonu (${emergencyMonths} Aylık Güvence)`;
+    const newGoal: SavingsGoal = {
+      id: "sg_emg_" + Date.now(),
+      name: goalTitle,
+      targetAmount: emergencyTargetTotal,
+      currentAmount: Math.min(emergencyTargetTotal, Number(emergencyCurrentSaved) || 0),
+      category: "emergency"
+    };
+    setSavingsGoals([newGoal, ...savingsGoals.filter(g => !g.name.includes("Acil Durum Fonu"))]);
+    setEmergencySavedToast(`🎯 '${goalTitle}' hedefi Kumbaranıza eklendi!`);
+    setTimeout(() => setEmergencySavedToast(""), 4000);
+  };
+
+  // 3. Net Worth Calculation
+  const totalAssetsSum = useMemo(() => {
+    return (
+      (Number(assetCash) || 0) +
+      (Number(assetGoldFx) || 0) +
+      (Number(assetInvest) || 0) +
+      (Number(assetRealEstate) || 0) +
+      (Number(assetVehicle) || 0) +
+      (Number(assetReceivables) || 0) +
+      (Number(assetOther) || 0)
+    );
+  }, [assetCash, assetGoldFx, assetInvest, assetRealEstate, assetVehicle, assetReceivables, assetOther]);
+
+  const totalLiabilitiesSum = useMemo(() => {
+    return (
+      (Number(liabCreditCard) || 0) +
+      (Number(liabBankLoans) || 0) +
+      (Number(liabPersonalDebts) || 0) +
+      (Number(liabOther) || 0)
+    );
+  }, [liabCreditCard, liabBankLoans, liabPersonalDebts, liabOther]);
+
+  const netWorthValue = totalAssetsSum - totalLiabilitiesSum;
+  const debtToAssetRatio = totalAssetsSum > 0 ? Math.round((totalLiabilitiesSum / totalAssetsSum) * 100) : 100;
+
+  const handleAutoFillNetWorthFromApp = () => {
+    const instRem = installmentDebts.reduce((s, i) => {
+      const single = i.totalAmount / (i.installmentCount || 1);
+      return s + (Math.max(0, (i.installmentCount || 1) - (i.paidInstallmentCount || 0)) * single);
+    }, 0);
+    const bankDebts = debts.filter(d => (d.amount - (d.paid || 0)) > 0).reduce((s, d) => s + Math.max(0, d.amount - (d.paid || 0)), 0);
+    const contactPay = contactTxs.filter(t => t.type === "payable" && !t.isPaid).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const contactRec = contactTxs.filter(t => t.type === "receivable" && !t.isPaid).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    setLiabCreditCard(Math.round(instRem));
+    setLiabBankLoans(Math.round(bankDebts));
+    setLiabPersonalDebts(Math.round(contactPay));
+    setAssetReceivables(Math.round(contactRec));
+
+    setNetWorthSyncToast("⚡ Uygulamadaki borç, taksit ve kişi alacakları Net Değer tablosuna aktarıldı!");
+    setTimeout(() => setNetWorthSyncToast(""), 3500);
+  };
+
   const [selectedDayTab, setSelectedDayTab] = useState<number | null>(new Date().getDate());
 
   return (
@@ -393,22 +626,30 @@ export function FinancialTools({
       </div>
 
       {/* Visual Menu Header Bar */}
-      <div className="flex flex-col gap-5 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
-        <div className="z-10 w-full text-center md:text-left">
-          <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
-            Premium Akıllı Modüller
-          </span>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed mt-1">
-            Bütçenizin sürdürülebilirliğini ölçümleyin, birikim havuzları dizayn edin, risk analiz raporlarını inceleyin.
-          </p>
+        <div className="z-10 w-full text-center md:text-left flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div>
+            <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
+              Akıllı Finans & Simülasyon Merkezi
+            </span>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed mt-1">
+              Kredi hesaplama, acil durum fonu, net varlık ve bütçe sağlık simülatörlerini tek noktadan yönetin.
+            </p>
+          </div>
+          {!isPremium && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-black self-center md:self-auto">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>PRO Raporlar Kilitli</span>
+            </div>
+          )}
         </div>
 
-        {/* Action button mock */}
+        {/* Subtab Navigation Pills */}
         <div className="flex flex-wrap gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl z-10 w-full border border-slate-200/50 dark:border-slate-800/80">
           <button
             onClick={() => setActiveSubTab("health")}
-            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+            className={`flex-1 min-w-[100px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "health"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -417,8 +658,18 @@ export function FinancialTools({
             <Gauge className="w-3.5 h-3.5" /> Bütçe Sağlığı
           </button>
           <button
+            onClick={() => setActiveSubTab("calculators")}
+            className={`flex-1 min-w-[130px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+              activeSubTab === "calculators"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5 text-indigo-500" /> Mali Hesaplayıcılar
+          </button>
+          <button
             onClick={() => setActiveSubTab("savings")}
-            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+            className={`flex-1 min-w-[100px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "savings"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -426,10 +677,9 @@ export function FinancialTools({
           >
             <PiggyBank className="w-3.5 h-3.5" /> Kumbara
           </button>
-
           <button
             onClick={() => setActiveSubTab("calendar")}
-            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+            className={`flex-1 min-w-[110px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "calendar"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
@@ -439,13 +689,14 @@ export function FinancialTools({
           </button>
           <button
             onClick={() => setActiveSubTab("report")}
-            className={`flex-1 min-w-[120px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+            className={`flex-1 min-w-[110px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "report"
                 ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
             <FileText className="w-3.5 h-3.5" /> Rapor Al
+            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded font-black font-mono">PRO</span>}
           </button>
         </div>
       </div>
@@ -608,6 +859,746 @@ export function FinancialTools({
                 </div>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* TAB: FINANCIAL CALCULATORS & SIMULATION TOOLS */}
+        {activeSubTab === "calculators" && (
+          <motion.div
+            key="calculators"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            {/* 3 Calculator Tabs: Kredi Hesaplayıcı, Acil Durum Fonu, Net Varlık */}
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setCalcTab("loan")}
+                className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                  calcTab === "loan"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Calculator className="w-3.5 h-3.5" /> 🧮 Kredi & Taksit Hesaplayıcı
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalcTab("emergency")}
+                className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                  calcTab === "emergency"
+                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" /> 🛡️ Acil Durum Fonu Hesaplayıcı
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalcTab("networth")}
+                className={`flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                  calcTab === "networth"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5" /> 💎 Net Varlık (Net Worth) Hesabı
+              </button>
+            </div>
+
+            {/* ======================================================== */}
+            {/* SUB-CALCULATOR 1: KREDİ & TAKSİT HESAPLAYICI             */}
+            {/* ======================================================== */}
+            {calcTab === "loan" && (
+              <div className="space-y-6 animate-fade-in">
+                {loanAddedToast && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{loanAddedToast}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left: Inputs */}
+                  <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-5">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <Calculator className="w-5 h-5 text-indigo-500" />
+                      <div>
+                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                          KREDİ PARAMETRELERİ
+                        </h3>
+                        <p className="text-[10px] text-slate-400">Tutar, vade ve faiz oranını belirleyin</p>
+                      </div>
+                    </div>
+
+                    {/* Kredi Türü */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
+                        Kredi Türü
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: "personal", label: "İhtiyaç Kredisi", icon: "💳", tax: "KKDF %15, BSMV %15" },
+                          { id: "housing", label: "Konut Kredisi", icon: "🏠", tax: "Vergi Muafiyeti (%0)" },
+                          { id: "vehicle", label: "Taşıt Kredisi", icon: "🚗", tax: "KKDF %15, BSMV %5" },
+                          { id: "commercial", label: "Ticari / KOBİ", icon: "💼", tax: "BSMV %5" },
+                        ].map((tItem) => (
+                          <button
+                            key={tItem.id}
+                            type="button"
+                            onClick={() => setLoanType(tItem.id as any)}
+                            className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                              loanType === tItem.id
+                                ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-600 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20"
+                                : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            <div className="font-extrabold text-xs flex items-center gap-1">
+                              <span>{tItem.icon}</span> {tItem.label}
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-medium mt-0.5">{tItem.tax}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Kredi Tutarı */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                        <span>Kredi Tutarı (TL)</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">{format(loanAmount)}</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="1000"
+                        step="1000"
+                        value={loanAmount || ""}
+                        onChange={(e) => setLoanAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-indigo-500"
+                      />
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[25000, 50000, 100000, 250000, 500000].map((quickAmt) => (
+                          <button
+                            key={quickAmt}
+                            type="button"
+                            onClick={() => setLoanAmount(quickAmt)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                              loanAmount === quickAmt
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                            }`}
+                          >
+                            {quickAmt >= 1000 ? `${quickAmt / 1000}K ₺` : quickAmt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Vade (Ay) */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                        <span>Vade Süresi (Ay)</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">{loanTerm} Ay</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max={loanType === "housing" ? "120" : "60"}
+                        step="1"
+                        value={loanTerm}
+                        onChange={(e) => setLoanTerm(parseInt(e.target.value, 10))}
+                        className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                      />
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[6, 12, 24, 36, 48, 60, ...(loanType === "housing" ? [120] : [])].map((term) => (
+                          <button
+                            key={term}
+                            type="button"
+                            onClick={() => setLoanTerm(term)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                              loanTerm === term
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                            }`}
+                          >
+                            {term} Ay
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Aylık Faiz Oranı (%) */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                        <span>Aylık Faiz / Kâr Payı (%)</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">%{loanMonthlyRate.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.05"
+                          min="0.1"
+                          max="15"
+                          value={loanMonthlyRate || ""}
+                          onChange={(e) => setLoanMonthlyRate(parseFloat(e.target.value) || 0)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Results & Simulation Analysis */}
+                  <div className="lg:col-span-2 space-y-5">
+                    {/* Big Monthly Payment Banner */}
+                    <div className="p-6 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 text-white rounded-3xl shadow-xl space-y-4 relative overflow-hidden">
+                      <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">
+                            HESAPLANAN AYLIK TAKSİT TUTARI
+                          </span>
+                          <div className="text-2xl sm:text-4xl font-black font-mono tracking-tight mt-1">
+                            {format(loanResults.monthlyPayment)} <span className="text-sm font-normal text-indigo-200">/ Ay</span>
+                          </div>
+                        </div>
+                        <div className="text-right sm:text-right">
+                          <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block">Yıllık Efektif Maliyet (YMO)</span>
+                          <span className="text-lg font-black font-mono text-amber-300">
+                            %{loanResults.annualEffectiveRate.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 4 Detail Badges */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-white/10">
+                        <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl">
+                          <span className="text-[9px] text-indigo-200 block font-bold uppercase">Çekilen Anapara</span>
+                          <span className="text-xs sm:text-sm font-black font-mono">{format(loanAmount)}</span>
+                        </div>
+                        <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl">
+                          <span className="text-[9px] text-indigo-200 block font-bold uppercase">Toplam Faiz Yükü</span>
+                          <span className="text-xs sm:text-sm font-black font-mono text-amber-300">{format(loanResults.totalInterest)}</span>
+                        </div>
+                        <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl">
+                          <span className="text-[9px] text-indigo-200 block font-bold uppercase">Toplam Vergi (KKDF+BSMV)</span>
+                          <span className="text-xs sm:text-sm font-black font-mono">{format(loanResults.totalTax)}</span>
+                        </div>
+                        <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl">
+                          <span className="text-[9px] text-indigo-200 block font-bold uppercase">Toplam Geri Ödeme</span>
+                          <span className="text-xs sm:text-sm font-black font-mono text-emerald-300">{format(loanResults.totalPayment)}</span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {onSaveInstallment && (
+                          <button
+                            type="button"
+                            onClick={handleAddLoanToInstallments}
+                            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-black transition active:scale-95 flex items-center gap-1.5 shadow-md cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" /> Bu Krediyi Taksitli Borçlarıma Ekle ➕
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowAmortization(!showAmortization)}
+                          className="px-4 py-2.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <CalendarDays className="w-4 h-4" /> {showAmortization ? "Ödeme Planını Gizle" : "Ödeme Planını / Amortismanı Gör (Ay Ay)"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Amortization Table */}
+                    {showAmortization && (
+                      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            🗓️ Aylık Taksit & Amortisman Planı
+                          </h4>
+                          <span className="text-[10px] text-slate-400 font-bold">{loanTerm} Taksit</span>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto pr-1">
+                          <table className="w-full text-[11px] text-left">
+                            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase text-[9px] font-black">
+                              <tr>
+                                <th className="p-2">Ay</th>
+                                <th className="p-2">Taksit Tutarı</th>
+                                <th className="p-2">Anapara</th>
+                                <th className="p-2">Faiz</th>
+                                <th className="p-2">Vergi</th>
+                                <th className="p-2">Kalan Borç</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {loanResults.schedule.map((row) => (
+                                <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                  <td className="p-2 font-bold">{row.month}. Ay</td>
+                                  <td className="p-2 font-mono font-bold text-slate-800 dark:text-slate-200">{format(row.payment)}</td>
+                                  <td className="p-2 font-mono text-emerald-600 dark:text-emerald-400">{format(row.principal)}</td>
+                                  <td className="p-2 font-mono text-amber-600 dark:text-amber-400">{format(row.interest)}</td>
+                                  <td className="p-2 font-mono text-slate-500">{format(row.tax)}</td>
+                                  <td className="p-2 font-mono font-black text-slate-700 dark:text-slate-300">{format(row.remaining)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* SUB-CALCULATOR 2: ACİL DURUM FONU HESAPLAYICI            */}
+            {/* ======================================================== */}
+            {calcTab === "emergency" && (
+              <div className="space-y-6 animate-fade-in">
+                {emergencySavedToast && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{emergencySavedToast}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left: Monthly Expenses Inputs */}
+                  <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-5 h-5 text-amber-500" />
+                        <div>
+                          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                            AYLIK ZORUNLU GİDERLER
+                          </h3>
+                          <p className="text-[10px] text-slate-400">Hayatınızı idame ettirecek asgari giderler</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAutoFillEmergencyFromApp}
+                      className="w-full py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Uygulamadaki Giderleri Otomatik Çek ⚡
+                    </button>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🏠 Kira / Konut / Aidat (TL)
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyRent || ""}
+                          onChange={(e) => setEmergencyRent(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💡 Faturalar (Elektrik, Su, Doğalgaz, Tel)
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyBills || ""}
+                          onChange={(e) => setEmergencyBills(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🛒 Temel Mutfak & Market
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyFood || ""}
+                          onChange={(e) => setEmergencyFood(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🚗 Ulaşım & Yakıt
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyTransport || ""}
+                          onChange={(e) => setEmergencyTransport(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💳 Asgari Borç / Kredi / Taksit Ödemeleri
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyDebts || ""}
+                          onChange={(e) => setEmergencyDebts(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💊 Sağlık & Diğer Zorunlu
+                        </label>
+                        <input
+                          type="number"
+                          value={emergencyOther || ""}
+                          onChange={(e) => setEmergencyOther(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Emergency Target Setup & Strategy */}
+                  <div className="lg:col-span-2 space-y-5">
+                    {/* Duration & Saved Amount Card */}
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                          🎯 Hedef Güvence Süresi
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { m: 3, label: "3 Ay", desc: "Asgari Güvence" },
+                            { m: 6, label: "6 Ay", desc: "Önerilen Standart ⭐" },
+                            { m: 9, label: "9 Ay", desc: "Yüksek Güvenlik" },
+                            { m: 12, label: "12 Ay", desc: "Maksimum Bağımsızlık" },
+                          ].map((dur) => (
+                            <button
+                              key={dur.m}
+                              type="button"
+                              onClick={() => setEmergencyMonths(dur.m)}
+                              className={`p-3 rounded-2xl border text-center transition cursor-pointer ${
+                                emergencyMonths === dur.m
+                                  ? "bg-amber-500 text-slate-950 font-black border-amber-500 shadow-md shadow-amber-500/20"
+                                  : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                              }`}
+                            >
+                              <div className="text-sm font-black">{dur.label}</div>
+                              <div className="text-[9px] opacity-80 mt-0.5">{dur.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                            💰 Şu Anda Birikmiş Acil Fon Tutarı (TL)
+                          </label>
+                          <input
+                            type="number"
+                            value={emergencyCurrentSaved || ""}
+                            onChange={(e) => setEmergencyCurrentSaved(Math.max(0, parseFloat(e.target.value) || 0))}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                            ⏳ Aylık Tasarruf Kapasiteniz (TL/Ay)
+                          </label>
+                          <input
+                            type="number"
+                            value={emergencyMonthlySaveCap || ""}
+                            onChange={(e) => setEmergencyMonthlySaveCap(Math.max(0, parseFloat(e.target.value) || 0))}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Big Result Card */}
+                    <div className="p-6 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 text-slate-950 rounded-3xl shadow-xl space-y-4 relative overflow-hidden">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-950/80">
+                            {emergencyMonths} AYLIK HEDEF ACİL DURUM FONU
+                          </span>
+                          <div className="text-2xl sm:text-4xl font-black font-mono tracking-tight text-slate-950 mt-1">
+                            {format(emergencyTargetTotal)}
+                          </div>
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] font-bold text-amber-950/80 uppercase tracking-wider block">Aylık Yaşam Masrafı</span>
+                          <span className="text-lg font-black font-mono text-slate-950">
+                            {format(emergencyMonthlyTotal)} / Ay
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-1.5 pt-2 border-t border-amber-400/40">
+                        <div className="flex justify-between text-xs font-black text-slate-950">
+                          <span>Fon Tamamlanma Oranı: %{emergencyProgressPct}</span>
+                          <span>Eksik Kalan: {format(emergencyMissingAmount)}</span>
+                        </div>
+                        <div className="w-full h-3 bg-amber-950/20 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${emergencyProgressPct}%` }}
+                            transition={{ duration: 1 }}
+                            className="h-full bg-slate-950 rounded-full"
+                          />
+                        </div>
+                        <p className="text-[11px] font-semibold text-amber-950 mt-1">
+                          {emergencyMissingAmount <= 0
+                            ? "🎉 Tebrikler! Acil durum güvence fonunuz eksiksiz şekilde hazır."
+                            : emergencyMonthlySaveCap > 0
+                            ? `💡 Aylık ${format(emergencyMonthlySaveCap)} tasarruf ile yaklaşık ${emergencyMonthsToFinish} ay sonra fonunuz tamamlanacaktır.`
+                            : "💡 Düzenli aylık tasarruf ayırarak acil durum güvence fonunuzu tamamlayabilirsiniz."}
+                        </p>
+                      </div>
+
+                      {/* Action */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={handleAddEmergencyGoalToSavings}
+                          className="px-4 py-2.5 bg-slate-950 hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-black transition active:scale-95 flex items-center gap-1.5 shadow-md cursor-pointer"
+                        >
+                          <PiggyBank className="w-4 h-4" /> Bu Fonu Kumbarama Hedef Olarak Ekle 🎯
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* SUB-CALCULATOR 3: NET VARLIK (NET WORTH) HESAPLAYICI     */}
+            {/* ======================================================== */}
+            {calcTab === "networth" && (
+              <div className="space-y-6 animate-fade-in">
+                {netWorthSyncToast && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{netWorthSyncToast}</span>
+                  </div>
+                )}
+
+                {/* Big Net Worth Banner */}
+                <div className={`p-6 rounded-3xl text-white shadow-xl space-y-4 relative overflow-hidden ${
+                  netWorthValue >= 0
+                    ? "bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900"
+                    : "bg-gradient-to-br from-rose-600 via-red-700 to-slate-900"
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">
+                        TOPLAM NET SERVET (NET WORTH)
+                      </span>
+                      <div className="text-2xl sm:text-4xl font-black font-mono tracking-tight mt-1">
+                        {format(netWorthValue)}
+                      </div>
+                      <span className="text-xs text-emerald-100/90 font-medium">
+                        (Toplam Varlıklar - Toplam Borçlar)
+                      </span>
+                    </div>
+
+                    <div className="text-left sm:text-right space-y-1">
+                      <span className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider block">
+                        Finansal Sağlık Notu
+                      </span>
+                      <span className="px-3 py-1 bg-white/20 rounded-xl text-xs font-black inline-block">
+                        {netWorthValue > 500000
+                          ? "🌟 MÜKEMMEL (AAA)"
+                          : netWorthValue > 100000
+                          ? "🟢 GÜÇLÜ (AA)"
+                          : netWorthValue >= 0
+                          ? "🟡 DENGELİ (A)"
+                          : "🔴 BORÇ BASKISI (B)"}
+                      </span>
+                      <div className="text-[10px] text-emerald-200 font-mono">
+                        Borç / Varlık Oranı: %{debtToAssetRatio}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={handleAutoFillNetWorthFromApp}
+                      className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Uygulamadaki Borç & Alacakları Eşitle ⚡
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2-Column Balance Sheet (Aktifler vs Pasifler) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left: Varlıklar (Assets) */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-emerald-500/20 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-emerald-500" />
+                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                          AKTİF VARLIKLAR (ASSETS)
+                        </h3>
+                      </div>
+                      <span className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">
+                        {format(totalAssetsSum)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💵 Nakit & Vadesiz / Vadeli Banka (TL)
+                        </label>
+                        <input
+                          type="number"
+                          value={assetCash || ""}
+                          onChange={(e) => setAssetCash(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🥇 Altın & Döviz Varlıkları
+                        </label>
+                        <input
+                          type="number"
+                          value={assetGoldFx || ""}
+                          onChange={(e) => setAssetGoldFx(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          📈 Hisse Senedi, Fon & Kripto
+                        </label>
+                        <input
+                          type="number"
+                          value={assetInvest || ""}
+                          onChange={(e) => setAssetInvest(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🏠 Gayrimenkul / Konut / Arsa Değerleri
+                        </label>
+                        <input
+                          type="number"
+                          value={assetRealEstate || ""}
+                          onChange={(e) => setAssetRealEstate(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🚗 Araç / Otomobil Değeri
+                        </label>
+                        <input
+                          type="number"
+                          value={assetVehicle || ""}
+                          onChange={(e) => setAssetVehicle(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🤝 Kişi / Şahıs Alacakları (Cari)
+                        </label>
+                        <input
+                          type="number"
+                          value={assetReceivables || ""}
+                          onChange={(e) => setAssetReceivables(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Yükümlülükler (Liabilities) */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-rose-500/20 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <TrendingDown className="w-5 h-5 text-rose-500" />
+                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                          PASİF YÜKÜMLÜLÜKLER (BORÇLAR)
+                        </h3>
+                      </div>
+                      <span className="text-sm font-black font-mono text-rose-600 dark:text-rose-400">
+                        {format(totalLiabilitiesSum)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💳 Kredi Kartı & Taksitli Borç Yükü (TL)
+                        </label>
+                        <input
+                          type="number"
+                          value={liabCreditCard || ""}
+                          onChange={(e) => setLiabCreditCard(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          🏦 Banka Kredileri & Kalan Anapara
+                        </label>
+                        <input
+                          type="number"
+                          value={liabBankLoans || ""}
+                          onChange={(e) => setLiabBankLoans(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          👥 Kişi / Şahıs Borçları (Verecekler)
+                        </label>
+                        <input
+                          type="number"
+                          value={liabPersonalDebts || ""}
+                          onChange={(e) => setLiabPersonalDebts(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          📦 Diğer Borç & Taahhütler
+                        </label>
+                        <input
+                          type="number"
+                          value={liabOther || ""}
+                          onChange={(e) => setLiabOther(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -984,6 +1975,32 @@ export function FinancialTools({
               </motion.div>
             )}
 
+            {/* PRO Lock Notification Banner for Non-Premium Users */}
+            {!isPremium && (
+              <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-indigo-500/15 border-2 border-amber-500/40 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md print:hidden">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+                    PRO
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-amber-500" /> Resmi PDF Raporlama & Yazdırma Özellikleri Kilitli
+                    </h4>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                      PDF Denetim Raporu İndirme, Sistemden Yazdırma ve 12 Aylık Yıllık PDF Özeti Premium hesaplara özeldir.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpgradeClick?.("Resmi Denetim Raporu & PDF İndirme")}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl transition shadow-md shrink-0 cursor-pointer active:scale-95"
+                >
+                  Hemen PRO'ya Geç ✨
+                </button>
+              </div>
+            )}
+
             {/* Control Panel Block */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
               <div className="space-y-1">
@@ -1005,6 +2022,10 @@ export function FinancialTools({
                 <button
                   disabled={isGeneratingPdf}
                   onClick={async () => {
+                    if (!isPremium) {
+                      onUpgradeClick?.("PDF Denetim Raporu İndirme");
+                      return;
+                    }
                     setIsGeneratingPdf(true);
                     setReportStatusMessage({ type: "info", text: "PDF Denetim Raporu hazırlanıyor..." });
 
@@ -1313,15 +2334,24 @@ export function FinancialTools({
                       setIsGeneratingPdf(false);
                     }
                   }}
-                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/20"
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/30"
                 >
                   <FileText className="w-4 h-4" />
                   {isGeneratingPdf ? "PDF Hazırlanıyor..." : "PDF Olarak İndir 📥"}
+                  {!isPremium && (
+                    <span className="ml-1 text-[8px] bg-slate-950 text-amber-400 px-1.5 py-0.5 rounded font-black font-mono">
+                      PRO
+                    </span>
+                  )}
                 </button>
 
                 {/* 2. Sistemden Yazdır Butonu */}
                 <button
                   onClick={() => {
+                    if (!isPremium) {
+                      onUpgradeClick?.("Finansal Rapor Yazdırma");
+                      return;
+                    }
                     setReportStatusMessage({
                       type: "info",
                       text: "Yazdırma penceresi hazırlanıyor..."
@@ -1345,11 +2375,20 @@ export function FinancialTools({
                   className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
                 >
                   <Printer className="w-4 h-4 text-emerald-400" /> Sistemden Yazdır 🖨️
+                  {!isPremium && (
+                    <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-black font-mono">
+                      PRO
+                    </span>
+                  )}
                 </button>
 
                 {/* 3. Yıllık PDF Özeti Butonu */}
                 <button
                   onClick={async () => {
+                    if (!isPremium) {
+                      onUpgradeClick?.("12 Aylık Yıllık PDF Özeti");
+                      return;
+                    }
                     try {
                       setReportStatusMessage({ type: "info", text: "Yıllık Finansal Özet PDF oluşturuluyor..." });
                       const curYear = new Date().getFullYear();
@@ -1380,6 +2419,11 @@ export function FinancialTools({
                   className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
+                  {!isPremium && (
+                    <span className="ml-1 text-[8px] bg-slate-950 text-amber-400 px-1.5 py-0.5 rounded font-black font-mono">
+                      PRO
+                    </span>
+                  )}
                 </button>
               </div>
             </div>

@@ -99,12 +99,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
   // --- TAKSİT DIŞA VE İÇE AKTARMA (YEDEKLEME & GERİ YÜKLEME) ---
   const handleOpenExportModal = () => {
-    if (!isPremium) {
-      onUpgradeClick?.();
-      return;
-    }
     if (installmentDebts.length === 0) {
-      alert("Dışa aktarılacak taksitli borç planı bulunmuyor.");
+      alert("Dışa aktarılacak taksitli borç planı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
       return;
     }
     setExportFileName(`Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`);
@@ -112,11 +108,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   };
 
   const executeExportInstallments = async (pickFolder: boolean = false) => {
-    if (!isPremium) {
-      onUpgradeClick?.();
+    if (installmentDebts.length === 0) {
+      alert("İndirilecek taksit planı bulunmuyor.");
       return;
     }
-    if (installmentDebts.length === 0) return;
     const jsonString = JSON.stringify(installmentDebts, null, 2);
     let rawName = (exportFileName || `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`).trim();
     if (!rawName) rawName = `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`;
@@ -211,11 +206,31 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     });
   };
 
-  const handleOpenImportModal = () => {
-    if (!isPremium) {
-      onUpgradeClick?.();
+  const handleExportCsv = () => {
+    if (installmentDebts.length === 0) {
+      alert("Dışa aktarılacak taksitli borç planı bulunmuyor.");
       return;
     }
+    const header = "Plan Adı,Toplam Borç,Taksit Sayısı,Ödenen Taksit,Kalan Taksit,Aylık Taksit Tutarı,İlk Vade Tarihi\n";
+    const rows = installmentDebts.map((i) => {
+      const single = i.totalAmount / (i.installmentCount || 1);
+      const remaining = (i.installmentCount || 1) - (i.paidInstallmentCount || 0);
+      return `"${(i.name || "").replace(/"/g, '""')}",${i.totalAmount},${i.installmentCount},${i.paidInstallmentCount || 0},${remaining},${single.toFixed(2)},${i.firstDueDate || ""}`;
+    }).join("\n");
+    const csvContent = "\uFEFF" + header + rows;
+    const fileName = `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadFileWithCustomName({
+      fileName,
+      content: csvContent,
+      mimeType: "text/csv;charset=utf-8",
+      onSuccess: () => {
+        alert(`✅ ${installmentDebts.length} adet taksit planı CSV/Excel olarak indirildi!`);
+        setIsExportModalOpen(false);
+      }
+    });
+  };
+
+  const handleOpenImportModal = () => {
     setImportedPreviewList(null);
     setImportError("");
     setIsImportModalOpen(true);
@@ -377,7 +392,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
   const handlePrint = async (isPdf = false) => {
     if (installmentDebts.length === 0) {
-      alert("Yazdırılacak taksit kaydı bulunamadı.");
+      alert("Yazdırılacak veya indirilecek taksit kaydı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
       return;
     }
 
@@ -412,53 +427,103 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       doc.rect(15, yPos - 5, 180, 8, "F");
       doc.setFontSize(9);
       doc.text(safeText("Plan Adı"), 18, yPos);
-      doc.text(safeText("Tutar"), 80, yPos);
-      doc.text(safeText("Taksit"), 120, yPos);
-      doc.text(safeText("Kalan"), 160, yPos);
+      doc.text(safeText("Toplam Tutar"), 80, yPos);
+      doc.text(safeText("Taksit"), 125, yPos);
+      doc.text(safeText("Kalan Borç"), 160, yPos);
       yPos += 10;
 
       installmentDebts.forEach((inst) => {
         if (yPos > 270) { doc.addPage(); yPos = 25; }
         doc.setFont("Helvetica", "normal");
-        const single = inst.totalAmount / inst.installmentCount;
-        const remaining = (inst.installmentCount - inst.paidInstallmentCount) * single;
+        const single = inst.totalAmount / (inst.installmentCount || 1);
+        const remaining = ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0)) * single;
         doc.text(safeText(inst.name), 18, yPos);
         doc.text(format(inst.totalAmount), 80, yPos);
-        doc.text(`${inst.paidInstallmentCount}/${inst.installmentCount}`, 120, yPos);
+        doc.text(`${inst.paidInstallmentCount || 0}/${inst.installmentCount || 1}`, 125, yPos);
         doc.text(format(remaining), 160, yPos);
         yPos += 8;
       });
 
       try {
-        await savePdfDocument(doc, "Taksitli_Borc_Raporu.pdf");
+        await savePdfDocument(doc, `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}.pdf`);
       } catch (pdfErr) {
         console.error("PDF export error:", pdfErr);
       }
       return;
     }
 
-    const html = `
-      <html><head><title>Taksitli Borç Raporu</title><style>
-      body{font-family:sans-serif;padding:20px;color:#1e293b}
-      table{width:100%;border-collapse:collapse;margin-top:15px}
-      th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;font-size:12px}
-      th{background:#f1f5f9}</style></head><body>
-      <h2>🗓️ Taksitli Borç Raporu</h2>
-      <p>Tarih: ${new Date().toLocaleDateString("tr-TR")}</p>
-      <table><thead><tr><th>Plan Adı</th><th>Toplam</th><th>Taksit</th><th>Kalan</th></tr></thead>
-      <tbody>${installmentDebts.map(inst => `<tr><td>${inst.name}</td><td>${format(inst.totalAmount)}</td><td>${inst.paidInstallmentCount}/${inst.installmentCount}</td><td>${format((inst.installmentCount - inst.paidInstallmentCount) * (inst.totalAmount / inst.installmentCount))}</td></tr>`).join("")}</tbody>
-      </table></body></html>`;
-
-    const printFrame = document.createElement("iframe");
-    printFrame.style.position = "fixed"; printFrame.style.width = "0"; printFrame.style.height = "0"; printFrame.style.border = "0";
-    document.body.appendChild(printFrame);
-    const docFrame = printFrame.contentWindow?.document || printFrame.contentDocument;
-    if (docFrame) {
-      docFrame.write(html); docFrame.close();
-      setTimeout(() => {
-        printFrame.contentWindow?.focus(); printFrame.contentWindow?.print();
-        setTimeout(() => document.body.removeChild(printFrame), 1500);
-      }, 500);
+    // Direct Browser Print: Create a styled print window
+    try {
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Taksitli Borç Raporu - Bütçem Pro</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
+              .header { border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+              h1 { font-size: 20px; margin: 0 0 6px 0; color: #1e1b4b; }
+              .meta { font-size: 12px; color: #64748b; }
+              table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+              th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; }
+              th { background-color: #f8fafc; font-weight: 700; color: #334155; }
+              tr:nth-child(even) { background-color: #f8fafc; }
+              .totals { margin-top: 24px; padding: 12px; background: #eef2ff; border-radius: 8px; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>🗓️ Bütçem Pro - Taksitli Borç Planı Raporu</h1>
+              <div class="meta">Rapor Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Taksit Plan Adı</th>
+                  <th>Toplam Borç</th>
+                  <th>Taksit Durumu</th>
+                  <th>Aylık Taksit</th>
+                  <th>Kalan Borç Tutarı</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${installmentDebts.map((inst, idx) => {
+                  const single = inst.totalAmount / (inst.installmentCount || 1);
+                  const rem = ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0)) * single;
+                  return `
+                    <tr>
+                      <td>${idx + 1}</td>
+                      <td><strong>${inst.name}</strong></td>
+                      <td>${format(inst.totalAmount)}</td>
+                      <td>${inst.paidInstallmentCount || 0} / ${inst.installmentCount || 1} Ödendi</td>
+                      <td>${format(single)} / Ay</td>
+                      <td><strong>${format(rem)}</strong></td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+            <div class="totals">
+              Toplam Kalan Taksit Yükü: ${format(totalRemaining)} | Toplam Plan: ${installmentDebts.length} Adet
+            </div>
+            <script>
+              window.onload = function() {
+                window.focus();
+                window.print();
+              };
+            </script>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        window.print();
+      }
+    } catch (e) {
+      window.print();
     }
   };
 
@@ -483,38 +548,26 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             title="Taksitli borç planlarını dosya olarak kaydet / indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Taksitleri İndir {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Taksitleri İndir
           </button>
           <button
             onClick={handleOpenImportModal}
             title="Yedek dosyasından taksitli borçları geri yükle"
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
-            <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle
           </button>
           <button
-            onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
-              } else {
-                handlePrint(false);
-              }
-            }}
-            className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 transition cursor-pointer"
+            onClick={() => handlePrint(false)}
+            className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5" /> Yazdır {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-white px-1 py-0.5 rounded-sm font-black">PRO</span>}
+            <Printer className="w-3.5 h-3.5" /> Yazdır
           </button>
           <button
-            onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
-              } else {
-                handlePrint(true);
-              }
-            }}
+            onClick={() => handlePrint(true)}
             className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 transition cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5" /> PDF Al {!isPremium && <span className="ml-1 text-[8px] bg-slate-900 text-slate-100 dark:bg-amber-500 dark:text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <FileText className="w-3.5 h-3.5" /> PDF Al
           </button>
           <button
             onClick={handleOpenAdd}
@@ -1054,13 +1107,20 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                   <Download className="w-4 h-4 text-emerald-200" />
                 </button>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => executeExportInstallments(false)}
-                    className="p-2.5 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
+                    className="p-2.5 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition active:scale-[0.98] cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" /> Hızlı İndir (.json)
+                    <Download className="w-3.5 h-3.5" /> .JSON İndir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition active:scale-[0.98] cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> .CSV Excel
                   </button>
                   <button
                     type="button"
@@ -1069,9 +1129,9 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                       alert("✅ Taksit planları verisi panoya kopyalandı!");
                       setIsExportModalOpen(false);
                     }}
-                    className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
+                    className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition active:scale-[0.98] cursor-pointer"
                   >
-                    <Copy className="w-3.5 h-3.5 text-indigo-500" /> JSON Kopyala
+                    <Copy className="w-3.5 h-3.5 text-indigo-500" /> Kopyala
                   </button>
                 </div>
               </div>

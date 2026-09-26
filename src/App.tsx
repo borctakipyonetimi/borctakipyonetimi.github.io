@@ -8742,6 +8742,9 @@ export default function App() {
             currentUser={currentUser}
             format={format}
             language={language}
+            isPremium={isPremium}
+            onUpgradeClick={(feat) => openUpgradeModal(feat || "Finansal Analiz & Raporlama")}
+            onSaveInstallment={handleSaveInstallment}
           />
         )}
 

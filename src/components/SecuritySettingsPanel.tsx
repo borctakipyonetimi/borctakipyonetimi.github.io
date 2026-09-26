@@ -1300,7 +1300,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     </div>
 
     {/* ============================================================ */}
-    {/* SECTION 3: GENEL TERCİHLER & VADE BANDI AYARLARI             */}
+    {/* SECTION 3: GENEL TERCİHLER & UYGULAMA AYARLARI               */}
     {/* ============================================================ */}
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-all duration-300">
       <button
@@ -1322,12 +1322,12 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
-              {language === "tr" ? "Genel Tercihler & Vade Bandı Ayarları" : "Preferences & Marquee Settings"}
+              {language === "tr" ? "Genel Tercihler & Uygulama Ayarları" : "General Preferences & App Settings"}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
               {language === "tr"
-                ? "Kayan vade uyarı bandı hızı, akıllı sesli asistan servisi ve tanıtım rehberi"
-                : "Marquee warning banner speed, smart voice assistant service and onboarding tour"}
+                ? "Akıllı sesli asistan servisi, para birimi tercihleri ve tanıtım rehberi"
+                : "Smart voice assistant service, currency preferences and onboarding tour"}
             </p>
           </div>
         </div>
@@ -1339,88 +1339,6 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
       {activeTab === "settings" && (
         <div className="p-5 sm:p-6 space-y-6 text-left">
-          {/* Marquee Banner Speed & Control */}
-          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-5">
-            <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                  <Sliders className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    Vade Uyarı Bandı & Akış Hızı
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Üst kısımda kayan yaklaşan vadeler bandının hızını ayarlayın ve duraklatın.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleToggleMarqueePaused}
-                className={`px-4 py-2 rounded-2xl text-xs font-black cursor-pointer transition select-none flex items-center gap-1.5 shadow-xs ${
-                  currentMarqueePaused
-                    ? "bg-amber-500 text-slate-950"
-                    : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
-                }`}
-              >
-                {currentMarqueePaused ? (
-                  <>
-                    <Pause className="w-3.5 h-3.5" />
-                    <span>DURAKLATILDI ⏸️</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5" />
-                    <span>AKAYOR ▶️</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Speed Slider */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-600 dark:text-slate-300">Geçiş Süresi / Hız:</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-mono font-black">{currentMarqueeSpeed} saniye</span>
-              </div>
-              <input
-                type="range"
-                min="20"
-                max="180"
-                step="5"
-                value={currentMarqueeSpeed}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  handleUpdateMarqueeSpeed(val);
-                }}
-                className="w-full accent-indigo-600 cursor-pointer h-2.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
-              />
-
-              <div className="grid grid-cols-4 gap-2 pt-1">
-                {[
-                  { label: "Çok Hızlı ⚡", val: 30 },
-                  { label: "Normal ⏱️", val: 60 },
-                  { label: "Yavaş 🚶", val: 90 },
-                  { label: "Çok Yavaş 🐢", val: 140 },
-                ].map((item) => (
-                  <button
-                    key={item.val}
-                    type="button"
-                    onClick={() => handleUpdateMarqueeSpeed(item.val, item.label)}
-                    className={`py-2 px-2 rounded-xl text-[11px] font-black border transition cursor-pointer text-center ${
-                      currentMarqueeSpeed === item.val
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
 
           {/* Voice Assistant & Smart Services */}
           <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-4">

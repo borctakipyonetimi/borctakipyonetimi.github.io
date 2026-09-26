@@ -450,16 +450,16 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       categoryLabel: "Bulut & Güvenlik",
       badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
       icon: "☁️",
-      title: "Google ile Giriş, Bulut Senkronizasyonu & Güvenli Yedekleme",
-      summary: "Verilerinizi Firebase Firestore ile cihazlar arası senkronize edin veya %100 çevrimdışı yerel profillerle kullanın. Excel / CSV / JSON dışa aktarma.",
+      title: "E-posta ile Giriş, Bulut Senkronizasyonu & Güvenli Yedekleme",
+      summary: "Tüm e-posta adresleriniz ile kayıt olup yeni şifrenizle giriş yapabilir, verilerinizi Firebase Firestore ile cihazlar arası senkronize edebilir veya %100 çevrimdışı kullanabilirsiniz.",
       badge: "Çoklu Cihaz",
       targetTab: "overview",
-      whatItDoes: "Tüm finansal kayıtlarınızı ister Google hesabınızla şifreli bulut veritabanında saklayın, ister cihazınızın yerel hafızasında (Local Storage) tamamen anonim tutun. Excel, CSV ve JSON formatlarında tek tıkla veri yedekleme ve geri yükleme imkanı sunar.",
+      whatItDoes: "Tüm finansal kayıtlarınızı dilediğiniz e-posta adresiyle oluşturacağınız hesap ve yeni şifrenizle şifreli bulut veritabanında saklayabilir, telefon ve bilgisayarınızdan anında erişebilirsiniz. Dilerseniz cihazınızın yerel hafızasında (Local Storage) tamamen anonim tutabilir; Excel, CSV ve JSON formatlarında tek tıkla veri yedekleme ve geri yükleme imkanından faydalanabilirsiniz.",
       instructions: [
         {
           step: 1,
-          title: "Google ile Giriş Yapın veya Profil Seçin",
-          desc: "Sağ üstteki kullanıcı butonuna basarak Google hesabınızla giriş yapabilir ve telefon/bilgisayar arasında verilerinizi anında eşzamanlayabilirsiniz."
+          title: "E-posta ile Kayıt Olun veya Giriş Yapın",
+          desc: "Sol üst tarafta bulunan giriş bölümünden tüm e-posta adreslerinizle (Gmail, Hotmail, Outlook, Yahoo vb.) kayıt olabilir, belirlediğiniz şifrenizle giriş yaparak telefon ve bilgisayar arasında verilerinizi anında eşzamanlayabilirsiniz."
         },
         {
           step: 2,
@@ -478,6 +478,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
         }
       ],
       proTips: [
+        "Tüm e-posta adresleri ile kayıt olup yeni şifreniz ile sol üst köşedeki giriş bölümünden dilediğiniz zaman oturum açabilirsiniz.",
         "Düzenli aralıklarla 'JSON Yedek Al' butonuna basarak verilerinizin bir kopyasını kendi arşivinizde saklamanız tavsiye edilir."
       ]
     }
@@ -1176,7 +1177,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
               1. Verilerin Tamamen Yerel Depolanması & Güvenli Bulut Opsiyonu
             </h3>
             <p>
-              Girdiğiniz hassas finansal veriler (maaş, ek gelir, borç, taksit tutarı, harcama kayıtları) varsayılan olarak cihazınızın tarayıcısında çalışan güvenli yerel depolama biriminde (<strong>Local Storage / IndexedDB</strong>) barındırılır. Google ile giriş yaptığınızda ise verileriniz Firebase Firestore bulut altyapısında şifreli olarak korunur.
+              Girdiğiniz hassas finansal veriler (maaş, ek gelir, borç, taksit tutarı, harcama kayıtları) varsayılan olarak cihazınızın tarayıcısında çalışan güvenli yerel depolama biriminde (<strong>Local Storage / IndexedDB</strong>) barındırılır. E-posta hesabınızla giriş yaptığınızda ise verileriniz Firebase Firestore bulut altyapısında şifreli olarak korunur.
             </p>
           </div>
 
