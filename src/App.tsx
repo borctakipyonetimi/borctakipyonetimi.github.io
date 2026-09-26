@@ -9933,7 +9933,7 @@ export default function App() {
                             placeholder="GPA.3301-5291-8849-10255"
                             value={gpaInput}
                             onChange={(e) => setGpaInput(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-xs font-black text-slate-800 dark:text-white uppercase focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-450"
+                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-xs font-black text-slate-800 dark:text-white uppercase focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-400"
                           />
                         </div>
 
@@ -9942,7 +9942,7 @@ export default function App() {
                           <select
                             value={restoredPlanType}
                             onChange={(e) => setRestoredPlanType(e.target.value as any)}
-                            className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-extrabold text-slate-750 dark:text-white focus:outline-none"
+                            className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-extrabold text-slate-800 dark:text-white focus:outline-none"
                           >
                             <option value="monthly">Aylık Abonelik Planı (₺29,99 / Ay)</option>
                             <option value="yearly">Yıllık Avantajlı Abonelik Planı (₺299,99 / Yıl)</option>
@@ -9950,7 +9950,7 @@ export default function App() {
                           </select>
                         </div>
 
-                        <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 text-[10px] leading-relaxed text-slate-500 font-bold rounded-xl uppercase">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-bold rounded-xl uppercase">
                           💡 Sipariş No Google Play Store fatura e-postasında GPA.XXXX-XXXX-XXXX-XXXXX formatında yer alır. Kod doğrulandığında seçili lisansınız anında yeniden aktif edilir.
                         </div>
 
@@ -9961,7 +9961,7 @@ export default function App() {
                               setRestoreStep("method");
                               setGpaInput("");
                             }}
-                            className="flex-1 py-2.5 bg-slate-150 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+                            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
                           >
                             Geri Dön
                           </button>
@@ -10707,18 +10707,18 @@ export default function App() {
                             
                             <div className="grid grid-cols-2 gap-2 text-left">
                               <div className="col-span-2">
-                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-wider block mb-0.5">Kart Sahibi Adı</label>
+                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-0.5">Kart Sahibi Adı</label>
                                 <input
                                   type="text"
                                   value={newCardNameValue}
                                   onChange={(e) => setNewCardNameValue(e.target.value)}
                                   placeholder="Kart Sahibi Adı"
-                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
                               
                               <div className="col-span-2">
-                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-wider block mb-0.5">Kart Numarası</label>
+                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-0.5">Kart Numarası</label>
                                 <input
                                   type="text"
                                   maxLength={19}
@@ -10729,12 +10729,12 @@ export default function App() {
                                     setNewCardNumberValue(formatted.slice(0, 19));
                                   }}
                                   placeholder="•••• •••• •••• ••••"
-                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
 
                               <div>
-                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-wider block mb-0.5">Son Kullanma</label>
+                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-0.5">Son Kullanma</label>
                                 <input
                                   type="text"
                                   maxLength={5}
@@ -10747,19 +10747,19 @@ export default function App() {
                                     setNewCardExpiryValue(val);
                                   }}
                                   placeholder="AA/YY"
-                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
 
                               <div>
-                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-wider block mb-0.5">CVC / CVV</label>
+                                <label className="text-[8px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-0.5">CVC / CVV</label>
                                 <input
                                   type="password"
                                   maxLength={3}
                                   value={newCardCVVValue}
                                   onChange={(e) => setNewCardCVVValue(e.target.value.replace(/\D/g, ""))}
                                   placeholder="•••"
-                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
                             </div>
@@ -10768,7 +10768,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => setPaymentFormType("none")}
-                                className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-350 font-black text-[9px] uppercase tracking-wider rounded-lg transition"
+                                className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase tracking-wider rounded-lg transition"
                               >
                                 Vazgeç
                               </button>
