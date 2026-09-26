@@ -1895,7 +1895,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                             return (
                               <>
                                 {provider && (
-                                  <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
+                                  <ProviderBadge providerId={provider.id} size="md" showLabel={false} />
                                 )}
                                 <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
                                   {d.name}

@@ -708,7 +708,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                         return (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {provider && (
-                              <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
+                              <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
                             )}
                             <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[140px] text-white" title={inst.name}>
                               {inst.name}

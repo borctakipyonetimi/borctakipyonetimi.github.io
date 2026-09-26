@@ -7118,7 +7118,7 @@ export default function App() {
                       >
                         {/* Provider Logo Badge */}
                         {provider && (
-                          <ProviderBadge providerId={provider.id} size="xs" showLabel={false} />
+                          <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
                         )}
 
                         {d.isOverdue ? (

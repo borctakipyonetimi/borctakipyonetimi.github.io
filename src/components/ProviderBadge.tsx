@@ -23,6 +23,7 @@ import {
   Tag
 } from "lucide-react";
 import { DEBT_PROVIDERS, DebtProvider, getProviderById, detectProviderFromName } from "../data/providers";
+import { ProviderLogo } from "./ProviderLogo";
 
 interface ProviderBadgeProps {
   providerId?: string;
@@ -66,10 +67,10 @@ export const ProviderBadge: React.FC<ProviderBadgeProps> = ({
   };
 
   const dimensions = {
-    xs: { badge: "w-5 h-5 text-[9px]", text: "text-[10px]", icon: "w-3 h-3" },
-    sm: { badge: "w-6 h-6 text-[10px]", text: "text-xs", icon: "w-3.5 h-3.5" },
-    md: { badge: "w-8 h-8 text-xs font-black", text: "text-xs font-bold", icon: "w-4 h-4" },
-    lg: { badge: "w-10 h-10 text-sm font-black", text: "text-sm font-black", icon: "w-5 h-5" }
+    xs: { badge: "w-5 h-5", text: "text-[10px]", icon: "w-3 h-3" },
+    sm: { badge: "w-7 h-7", text: "text-xs font-bold", icon: "w-3.5 h-3.5" },
+    md: { badge: "w-9 h-9", text: "text-xs font-bold", icon: "w-4 h-4" },
+    lg: { badge: "w-11 h-11", text: "text-sm font-black", icon: "w-5 h-5" }
   }[size];
 
   if (!provider) {
@@ -90,16 +91,7 @@ export const ProviderBadge: React.FC<ProviderBadgeProps> = ({
 
   return (
     <div className={`inline-flex items-center gap-2 ${className}`}>
-      <div
-        className={`${dimensions.badge} rounded-xl shadow-sm flex items-center justify-center shrink-0 border border-black/10 dark:border-white/20 font-black tracking-tighter uppercase transition-transform hover:scale-105`}
-        style={{
-          backgroundColor: provider.color,
-          color: provider.textColor || "#FFFFFF"
-        }}
-        title={provider.name}
-      >
-        {provider.shortCode}
-      </div>
+      <ProviderLogo provider={provider} size={size} className="shrink-0 shadow-sm hover:scale-105 transition-transform" />
       {showLabel && (
         <span
           className={`${dimensions.text} font-bold text-slate-800 dark:text-slate-100 truncate`}
@@ -314,22 +306,18 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                           : "bg-slate-50/80 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700/80"
                       }`}
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <div
-                          className="w-8 h-8 rounded-xl shadow-sm flex items-center justify-center shrink-0 font-black text-xs border border-black/10 tracking-tighter"
-                          style={{
-                            backgroundColor: provider.color,
-                            color: provider.textColor || "#FFFFFF"
-                          }}
-                        >
-                          {provider.shortCode}
-                        </div>
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <ProviderLogo provider={provider} size="md" className="shrink-0 ring-1 ring-black/5 dark:ring-white/10" />
                         <div className="truncate">
                           <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
                             {provider.name}
                           </p>
                           <p className="text-[10px] text-slate-400 capitalize">
-                            {provider.category}
+                            {provider.category === "bank" ? "Banka / Kredi" :
+                             provider.category === "telecom" ? "GSM / Telefon" :
+                             provider.category === "utility" ? "Fatura / Hizmet" :
+                             provider.category === "subscription" ? "Dijital Abonelik" :
+                             provider.category === "shopping" ? "Alışveriş & Taksit" : "Kurum / Kart"}
                           </p>
                         </div>
                       </div>
