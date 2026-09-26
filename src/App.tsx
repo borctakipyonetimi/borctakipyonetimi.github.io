@@ -12,6 +12,7 @@ import {
   firestore,
   doc,
   getDoc,
+  setDoc,
   ref, 
   get, 
   set, 
@@ -75,6 +76,8 @@ import {
   Zap,
   Sliders,
   Play,
+  Pause,
+  ChevronRight,
   CheckCircle2,
   User,
   Pencil,
@@ -1044,6 +1047,7 @@ export default function App() {
     };
     triggerToast(`Bildirim Sıklığı: ${labels[val] || val} ⏰`);
   };
+  // Vade Uyarı Bandı Hız Ayarı & Bulut Senkronizasyonu
   const [marqueeSpeed, setMarqueeSpeed] = useState<number>(() => {
     const saved = localStorage.getItem("marqueeSpeed");
     return saved ? parseInt(saved, 10) : 55;
@@ -1051,10 +1055,63 @@ export default function App() {
   const [marqueePaused, setMarqueePaused] = useState<boolean>(() => {
     return localStorage.getItem("marqueePaused") === "true";
   });
+  const [isMarqueeSpeedModalOpen, setIsMarqueeSpeedModalOpen] = useState<boolean>(false);
 
-  const handleSetMarqueePaused = (val: boolean) => {
+  const handleUpdateMarqueeSpeed = async (val: number, labelText?: string) => {
+    const safeVal = Math.max(20, Math.min(240, Number(val) || 55));
+    setMarqueeSpeed(safeVal);
+    localStorage.setItem("marqueeSpeed", safeVal.toString());
+
+    // Bulut senkronizasyonu (Realtime Database & Firestore)
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        await Promise.all([
+          update(ref(db, `kullanicilar/${fbUser.uid}/veriler`), {
+            marqueeSpeed: safeVal,
+            updatedAt: Date.now()
+          }),
+          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), safeVal)
+        ]);
+        try {
+          await setDoc(doc(firestore, "users", fbUser.uid), {
+            marqueeSpeed: safeVal,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (_) {}
+      } catch (err) {
+        console.warn("Bulut hız ayarı kaydetme uyarısı:", err);
+      }
+    }
+    if (labelText) {
+      triggerToast(`Vade akış hızı: ${labelText} (${safeVal}s) olarak ayarlandı ⏱️`);
+    }
+  };
+
+  const handleSetMarqueePaused = async (val: boolean) => {
     setMarqueePaused(val);
     localStorage.setItem("marqueePaused", String(val));
+
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        await Promise.all([
+          update(ref(db, `kullanicilar/${fbUser.uid}/veriler`), {
+            marqueePaused: val,
+            updatedAt: Date.now()
+          }),
+          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), val)
+        ]);
+        try {
+          await setDoc(doc(firestore, "users", fbUser.uid), {
+            marqueePaused: val,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (_) {}
+      } catch (err) {
+        console.warn("Bulut bant durumu kaydetme uyarısı:", err);
+      }
+    }
   };
 
   // CSV Report Filter modal states
@@ -2441,6 +2498,49 @@ export default function App() {
           .catch((imgErr) => {
             console.warn("Profil resmi sorgulama uyarısı:", imgErr);
           });
+
+        // Kullanıcının kayıtlı hız ve arayüz tercihlerini Realtime Database ve Firestore'dan güvenle çek
+        get(ref(db, `kullanicilar/${user.uid}/ayarlar`))
+          .then((aSnap) => {
+            let speedFound = false;
+            if (aSnap.exists()) {
+              const aVal = aSnap.val();
+              if (aVal && typeof aVal.marqueeSpeed === "number" && aVal.marqueeSpeed >= 20) {
+                setMarqueeSpeed(aVal.marqueeSpeed);
+                localStorage.setItem("marqueeSpeed", aVal.marqueeSpeed.toString());
+                speedFound = true;
+              }
+              if (aVal && aVal.marqueePaused !== undefined) {
+                setMarqueePaused(Boolean(aVal.marqueePaused));
+                localStorage.setItem("marqueePaused", String(aVal.marqueePaused));
+              }
+            }
+            if (!speedFound) {
+              get(ref(db, `kullanicilar/${user.uid}/veriler/marqueeSpeed`)).then((sSnap) => {
+                if (sSnap.exists() && typeof sSnap.val() === "number" && sSnap.val() >= 20) {
+                  setMarqueeSpeed(sSnap.val());
+                  localStorage.setItem("marqueeSpeed", sSnap.val().toString());
+                  speedFound = true;
+                }
+              }).catch(() => {});
+              getDoc(doc(firestore, "users", user.uid)).then((uSnap) => {
+                if (uSnap.exists()) {
+                  const uData = uSnap.data();
+                  if (uData?.marqueeSpeed && typeof uData.marqueeSpeed === "number" && uData.marqueeSpeed >= 20) {
+                    setMarqueeSpeed(uData.marqueeSpeed);
+                    localStorage.setItem("marqueeSpeed", uData.marqueeSpeed.toString());
+                  }
+                  if (uData?.marqueePaused !== undefined) {
+                    setMarqueePaused(Boolean(uData.marqueePaused));
+                    localStorage.setItem("marqueePaused", String(uData.marqueePaused));
+                  }
+                }
+              }).catch(() => {});
+            }
+          })
+          .catch((aErr) => {
+            console.warn("Kullanıcı ayarları sorgulama uyarısı:", aErr);
+          });
       } else {
         const savedUser = localStorage.getItem("currentUser");
         if (savedUser) {
@@ -2641,6 +2741,15 @@ export default function App() {
       const hasCats = data.expenseCategories && Array.isArray(data.expenseCategories) && data.expenseCategories.length > 0;
       setExpenseCategories(hasCats ? data.expenseCategories : defaultCategories);
 
+      if (typeof data.marqueeSpeed === "number" && data.marqueeSpeed >= 20) {
+        setMarqueeSpeed(data.marqueeSpeed);
+        localStorage.setItem("marqueeSpeed", data.marqueeSpeed.toString());
+      }
+      if (data.marqueePaused !== undefined) {
+        setMarqueePaused(Boolean(data.marqueePaused));
+        localStorage.setItem("marqueePaused", String(data.marqueePaused));
+      }
+
       // Cache locally for instant offline loading
       const userKey = currentUser || (auth.currentUser?.email ? auth.currentUser.email.toLowerCase() : auth.currentUser?.uid);
       if (userKey) {
@@ -2653,7 +2762,9 @@ export default function App() {
           installmentDebts: cleanInsts,
           payments: cleanPayments,
           expenses: cleanExpenses,
-          expenseCategories: hasCats ? data.expenseCategories : defaultCategories
+          expenseCategories: hasCats ? data.expenseCategories : defaultCategories,
+          marqueeSpeed: typeof data.marqueeSpeed === "number" ? data.marqueeSpeed : marqueeSpeed,
+          marqueePaused: data.marqueePaused !== undefined ? Boolean(data.marqueePaused) : marqueePaused
         };
         try {
           localStorage.setItem(spaceKey, JSON.stringify(dataBag));
@@ -2693,6 +2804,13 @@ export default function App() {
           setExpenses(loadedExpenses);
           setExpenseCategories(cleanCats);
 
+          if (typeof parsed.marqueeSpeed === "number" && parsed.marqueeSpeed >= 20) {
+            setMarqueeSpeed(parsed.marqueeSpeed);
+          }
+          if (parsed.marqueePaused !== undefined) {
+            setMarqueePaused(Boolean(parsed.marqueePaused));
+          }
+
           // Update storage with cleaned data
           try {
             const cleanBag = {
@@ -2704,7 +2822,9 @@ export default function App() {
               notifications: loadedNotifs,
               payments: cleanPayments,
               expenses: loadedExpenses,
-              expenseCategories: cleanCats
+              expenseCategories: cleanCats,
+              marqueeSpeed: typeof parsed.marqueeSpeed === "number" ? parsed.marqueeSpeed : marqueeSpeed,
+              marqueePaused: parsed.marqueePaused !== undefined ? Boolean(parsed.marqueePaused) : marqueePaused
             };
             localStorage.setItem(spaceKey, JSON.stringify(cleanBag));
           } catch {}
@@ -3316,7 +3436,9 @@ export default function App() {
       installmentDebts: updatedInstallments,
       payments: updatedPayments,
       expenses: updatedExpenses,
-      expenseCategories: updatedCategories
+      expenseCategories: updatedCategories,
+      marqueeSpeed,
+      marqueePaused
     };
 
     try {
@@ -3333,14 +3455,25 @@ export default function App() {
           userUid: fbUser.uid,
           isPremium: localStorage.getItem("is_premium") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
+          marqueeSpeed,
+          marqueePaused,
           updatedAt: Date.now()
         });
 
-        // Realtime Database: verileri doğrudan kullanicilar/KULLANICI_UID/veriler düğümüne kaydet
+        // Realtime Database & Firestore: verileri kalıcı kaydet
         await Promise.all([
           set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
-          set(ref(db, `users/${fbUser.uid}/veriler`), payload)
+          set(ref(db, `users/${fbUser.uid}/veriler`), payload),
+          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed),
+          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), marqueePaused)
         ]);
+        try {
+          await setDoc(doc(firestore, "users", fbUser.uid), {
+            marqueeSpeed,
+            marqueePaused,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (_) {}
         setIsOfflineMode(false);
       }
       if (!silent) {
@@ -7056,6 +7189,23 @@ export default function App() {
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
               <span className="animate-pulse tracking-tight hidden sm:inline whitespace-nowrap">VADE UYARILARI ⏰</span>
               <span className="animate-pulse tracking-tight sm:hidden text-[8.5px] whitespace-nowrap">VADE ⏰</span>
+
+              {/* Quick Speed Settings Button */}
+              <button
+                type="button"
+                id="btnMarqueeSpeedSettings"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setIsMarqueeSpeedModalOpen(true);
+                }}
+                title="Vade Bandı Hız Ayarları ⚡"
+                className="ml-0.5 p-1 px-1.5 rounded-lg bg-white/20 hover:bg-white/35 text-white transition-all duration-200 cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95 z-40 border border-white/30"
+              >
+                <Sliders className="w-3 h-3 text-amber-200" />
+                <span className="hidden xl:inline text-[9px] font-bold">{marqueeSpeed}s</span>
+              </button>
+
               <button
                 type="button"
                 id="btnMarqueeToggle"
@@ -7067,7 +7217,7 @@ export default function App() {
                   triggerToast(next ? "Bant Akışı Duraklatıldı ⏸️" : "Bant Akışı Başlatıldı ▶️");
                 }}
                 title={marqueePaused ? "Akışı Başlat (Oynat)" : "Akışı Duraklat"}
-                className={`ml-1 px-2 py-0.5 rounded-lg text-[9.5px] sm:text-[10.5px] font-bold transition-all duration-200 cursor-pointer flex items-center gap-1 shadow-xs active:scale-95 z-40 ${
+                className={`ml-0.5 px-2 py-0.5 rounded-lg text-[9.5px] sm:text-[10.5px] font-bold transition-all duration-200 cursor-pointer flex items-center gap-1 shadow-xs active:scale-95 z-40 ${
                   marqueePaused
                     ? "bg-emerald-500 hover:bg-emerald-600 text-white ring-1 ring-white/60 animate-pulse"
                     : "bg-white/25 hover:bg-white/35 text-white"
@@ -11357,6 +11507,168 @@ export default function App() {
             </motion.div>
           </div>
         )}
+        {/* Vade Uyarı Bandı Hız & Akış Hızlı Ayar Modalı */}
+        <AnimatePresence>
+          {isMarqueeSpeedModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+              >
+                {/* Header */}
+                <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-amber-500/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20">
+                      <Sliders className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[9.5px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">
+                        CANLI BANT AYARI
+                      </span>
+                      <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">
+                        Vade Bandı Hız & Akış Ayarı
+                      </h2>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsMarqueeSpeedModalOpen(false)}
+                    className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-5 sm:p-6 space-y-5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Üst kısımdaki kayan vade uyarı bandının akış hızını dilediğiniz gibi ayarlayın. Tercihiniz hesabınıza anlık olarak kaydedilir, böylece uygulamayı silip yükleseniz veya başka cihazdan giriş yapsanız dahi hız ayarınız korunur.
+                  </p>
+
+                  {/* Speed Indicator Card */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Seçili Akış Süresi</span>
+                      <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                        {marqueeSpeed} <span className="text-sm font-bold text-slate-500">saniye/tur</span>
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hız Seviyesi</span>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 inline-block mt-0.5">
+                        {marqueeSpeed <= 30
+                          ? "🚀 Çok Hızlı"
+                          : marqueeSpeed <= 45
+                          ? "⚡ Hızlı"
+                          : marqueeSpeed <= 70
+                          ? "✨ Dengeli (Önerilen)"
+                          : marqueeSpeed <= 100
+                          ? "🐢 Sakin / Rahat"
+                          : "☕ Çok Yavaş"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Slider */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                      <span>Çok Hızlı (20s)</span>
+                      <span>Standart (55s)</span>
+                      <span>Çok Yavaş (240s)</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="240"
+                      step="5"
+                      value={marqueeSpeed}
+                      onChange={(e) => handleUpdateMarqueeSpeed(parseInt(e.target.value, 10))}
+                      className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-800 rounded-lg"
+                    />
+                  </div>
+
+                  {/* Preset Chips */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Hazır Hız Şablonları</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { val: 25, label: "🚀 Çok Hızlı (25s)" },
+                        { val: 40, label: "⚡ Hızlı (40s)" },
+                        { val: 55, label: "✨ Dengeli (55s)" },
+                        { val: 80, label: "🐢 Sakin (80s)" }
+                      ].map((p) => (
+                        <button
+                          key={p.val}
+                          type="button"
+                          onClick={() => handleUpdateMarqueeSpeed(p.val, p.label)}
+                          className={`py-2 px-2 rounded-xl text-[10.5px] font-black transition cursor-pointer border ${
+                            marqueeSpeed === p.val
+                              ? "bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/20"
+                              : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Play / Pause Controller in Modal */}
+                  <div className="p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">{marqueePaused ? "⏸️" : "▶️"}</span>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                          {marqueePaused ? "Bant Akışı Duraklatıldı" : "Bant Akışı Aktif (Oynatılıyor)"}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-medium">İstediğiniz zaman bant akışını duraklatabilirsiniz</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !marqueePaused;
+                        handleSetMarqueePaused(next);
+                        triggerToast(next ? "Bant Akışı Duraklatıldı ⏸️" : "Bant Akışı Başlatıldı ▶️");
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-xs ${
+                        marqueePaused
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "bg-rose-600 hover:bg-rose-700 text-white"
+                      }`}
+                    >
+                      {marqueePaused ? "▶ Başlat" : "⏸ Durdur"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMarqueeSpeedModalOpen(false);
+                      setActiveTab("settings");
+                    }}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Settings className="w-3.5 h-3.5" /> Tüm Ayarları Aç
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMarqueeSpeedModalOpen(false)}
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
+                  >
+                    Tamam ✓
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
     </div>
   );

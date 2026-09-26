@@ -35,7 +35,8 @@ import {
   Upload,
   ChevronDown,
   Sparkles,
-  UserCheck
+  UserCheck,
+  Copy
 } from "lucide-react";
 
 import { t } from "../utils/translations";
@@ -915,7 +916,7 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
           </div>
 
           {/* Directory Contact List Items */}
-          <div className="space-y-2 max-h-[340px] overflow-y-auto overscroll-contain pr-1">
+          <div className="space-y-3 max-h-[650px] overflow-y-auto overscroll-contain pr-1">
             {filteredContacts.length === 0 ? (
               <div className="p-6 text-center text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700 font-bold text-xs italic">
                 {contacts.length === 0 ? "Henüz kişi eklenmedi. 'Rehberden Seç' veya 'Manuel' ile ekleyin." : "Arama kriterlerine uygun kişi bulunamadı."}
@@ -925,572 +926,588 @@ export const ContactsDebtPanel: React.FC<ContactsDebtPanelProps> = ({
                 const totals = getContactTotals(contact.id);
                 const isSelected = selectedContactId === contact.id;
 
+                const cTxs = transactions.filter((t) => t.contactId === contact.id);
+                const activeTxs = cTxs.filter((t) => !t.isPaid);
+                const firstItem = activeTxs.length > 0
+                  ? activeTxs[0]
+                  : { description: "borç", amount: 1000, dueDate: "2026-10-02" };
+                const waPhone = contact.phone.replace(/[^0-9]/g, "");
+
+                const templates = [
+                  {
+                    title: "✍️ Nazik / Standart",
+                    desc: "Gündelik ve kibar hatırlatıcı üslubu.",
+                    text: `Merhaba ${contact.name}, umarım iyisin. Bütçe hesaplarımızı güncelliyordum da, ${firstItem.description} konusundaki ${format(firstItem.amount)} tutarındaki ödemeyi müsaitsen yapabilir misin? Çok teşekkürler!`
+                  },
+                  {
+                    title: "🤝 Samimi / Yakın Dost",
+                    desc: "Yakın arkadaşlar ve tanıdıklar için samimi dil.",
+                    text: `Selam ${contact.name} kanka, ufak bir bütçe sıkışıklığım vardı da, seninle olan ${firstItem.description} (${format(firstItem.amount)}) alacağını müsait bir anında gönderebilirsen çok memnun olurum. Sağ olasın!`
+                  },
+                  {
+                    title: "🔒 Resmi / Ticari Şablon",
+                    desc: "İş ortakları veya resmi alacak ilişkileri.",
+                    text: `Sayın ${contact.name}, sistem kayıtlarımıza göre ${firstItem.dueDate} vadeli ${firstItem.description} işlemine ait ${format(firstItem.amount)} tutarındaki alacağımız henüz tahsil edilmemiştir. İlgili tutarın hesabımıza havale edilmesini önemle rica eder, iyi çalışmalar dileriz.`
+                  }
+                ];
+
                 return (
-                  <motion.div
-                    key={contact.id}
-                    onClick={() => handleSelectContact(contact.id)}
-                    className={`p-3 bg-white dark:bg-slate-800 rounded-2xl border transition duration-200 cursor-pointer flex flex-col xs:flex-row xs:items-center justify-between gap-3 group active:scale-98 ${
-                      isSelected
-                        ? "border-indigo-600 ring-2 ring-indigo-500/20 shadow-md bg-indigo-50/30 dark:bg-indigo-950/25"
-                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {/* Avatar with photo or colorful initial letter */}
-                      <div className="relative group/avatar shrink-0">
-                        {contact.avatarImage ? (
-                          <img
-                            src={contact.avatarImage}
-                            alt={contact.name}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-indigo-400/40 shadow-xs"
-                          />
-                        ) : (
-                          <div className={`w-10 h-10 rounded-full bg-gradient-to-tr ${contact.avatarColor} text-white flex items-center justify-center font-black text-xs shadow-xs uppercase`}>
-                            {contact.name.charAt(0)}
-                          </div>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            triggerQuickPhotoUpload(contact.id);
-                          }}
-                          type="button"
-                          className="absolute -bottom-1 -right-1 p-0.5 bg-slate-900 text-white rounded-full shadow hover:bg-indigo-600 transition"
-                          title="Fotoğraf Ekle / Değiştir 📷"
-                        >
-                          <Camera className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-
-                      <div className="min-w-0 leading-tight">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                            {contact.name}
-                          </h4>
-                          <span className="shrink-0 p-0.5 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-100 dark:border-slate-800">
-                            {getCategoryIcon(contact.category)}
-                          </span>
-                        </div>
-                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-mono pt-0.5 truncate">
-                          📞 {contact.phone}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end xs:self-center shrink-0">
-                      <div className="text-right leading-none min-w-[70px]">
-                        <div className="text-[10px] font-mono leading-tight">
-                          {totals.net !== 0 ? (
-                            <span className={`font-black ${totals.net > 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                              {totals.net > 0 ? "Alacak: " : "Borç: "}{format(Math.abs(totals.net))}
-                            </span>
+                  <div key={contact.id} className="space-y-2.5">
+                    <motion.div
+                      onClick={() => handleSelectContact(contact.id)}
+                      className={`p-3.5 bg-white dark:bg-slate-800 rounded-2xl border transition duration-200 cursor-pointer flex flex-col xs:flex-row xs:items-center justify-between gap-3 group active:scale-98 shadow-xs ${
+                        isSelected
+                          ? "border-indigo-600 ring-2 ring-indigo-500/30 shadow-md bg-indigo-50/40 dark:bg-indigo-950/35"
+                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Avatar with photo or colorful initial letter */}
+                        <div className="relative group/avatar shrink-0">
+                          {contact.avatarImage ? (
+                            <img
+                              src={contact.avatarImage}
+                              alt={contact.name}
+                              className="w-11 h-11 rounded-full object-cover border-2 border-indigo-500/60 shadow-xs"
+                            />
                           ) : (
-                            <span className="text-slate-600 dark:text-slate-300 font-extrabold text-[9px] uppercase tracking-wide">
-                              DENGELİ ✔️
-                            </span>
+                            <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${contact.avatarColor} text-white flex items-center justify-center font-black text-sm shadow-xs uppercase`}>
+                              {contact.name.charAt(0)}
+                            </div>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerQuickPhotoUpload(contact.id);
+                            }}
+                            type="button"
+                            className="absolute -bottom-1 -right-1 p-1 bg-slate-900 hover:bg-indigo-600 text-white rounded-full shadow-md transition cursor-pointer"
+                            title="Fotoğraf Ekle / Değiştir 📷"
+                          >
+                            <Camera className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        <div className="min-w-0 leading-tight">
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">
+                              {contact.name}
+                            </h4>
+                            <span className="shrink-0 p-0.5 px-1 bg-slate-100 dark:bg-slate-900 text-[10px] rounded-md border border-slate-200/60 dark:border-slate-800 font-bold">
+                              {getCategoryIcon(contact.category)} {getCategoryLabel(contact.category)}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono pt-1 truncate">
+                            📞 {contact.phone}
+                          </p>
                         </div>
                       </div>
 
-                      {/* Quick Borç/Alacak Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectContact(contact.id, true);
-                        }}
-                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 rounded-lg text-[9.5px] font-black uppercase tracking-tight flex items-center gap-0.5 transition cursor-pointer active:scale-95 shadow-2xs border border-indigo-200/40"
-                        title="Bu kişiye borç/alacak ekle"
-                      >
-                        <Plus className="w-3 h-3" /> Borç Ekle
-                      </button>
+                      <div className="flex items-center gap-2 self-end xs:self-center shrink-0">
+                        <div className="text-right leading-none min-w-[70px]">
+                          <div className="text-[10.5px] font-mono leading-tight">
+                            {totals.net !== 0 ? (
+                              <span className={`font-black ${totals.net > 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                                {totals.net > 0 ? "Alacak: " : "Borç: "}{format(Math.abs(totals.net))}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 dark:text-slate-400 font-extrabold text-[9px] uppercase tracking-wide">
+                                DENGELİ ✔️
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                      {/* Card Action Buttons (Edit and Delete) */}
-                      <div className="flex items-center gap-1">
+                        {/* Quick Borç/Alacak Button */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setContactToEdit(contact);
-                            setEditName(contact.name);
-                            setEditPhone(contact.phone === "Belirtilmemiş 📞" ? "" : contact.phone);
-                            setEditCategory(contact.category);
-                            setEditAvatarImage(contact.avatarImage || null);
+                            handleSelectContact(contact.id, true);
                           }}
-                          className="p-1 px-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 transition cursor-pointer flex items-center justify-center text-xs"
-                          title="Kişiyi Düzenle 📝"
+                          className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-xs border ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-600/20"
+                              : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border-indigo-200/50"
+                          }`}
+                          title="Bu kişiye borç veya alacak ekle"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{isSelected ? "Borç/Alacak Açık" : "Borç/Alacak Ekle"}</span>
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setContactToDeleteId(contact.id);
-                          }}
-                          className="p-1 px-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:hover:bg-rose-900/30 dark:text-rose-400 transition cursor-pointer flex items-center gap-0.5 text-xs"
-                          title="Kişiyi Sil 🗑️"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+
+                        {/* Card Action Buttons (Photo, Edit and Delete) */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerQuickPhotoUpload(contact.id);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 transition cursor-pointer"
+                            title="Resim / Fotoğraf Ekle 📷"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContactToEdit(contact);
+                              setEditName(contact.name);
+                              setEditPhone(contact.phone === "Belirtilmemiş 📞" ? "" : contact.phone);
+                              setEditCategory(contact.category);
+                              setEditAvatarImage(contact.avatarImage || null);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 transition cursor-pointer"
+                            title="Kişiyi Düzenle 📝"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContactToDeleteId(contact.id);
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:hover:bg-rose-900/30 dark:text-rose-400 transition cursor-pointer"
+                            title="Kişiyi Sil 🗑️"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+
+                    {/* INLINE EXPANDED SECTION: Rendered IMMEDIATELY right below the selected contact */}
+                    <AnimatePresence>
+                      {isSelected && (
+                        <motion.div
+                          ref={selectedContactRef}
+                          initial={{ opacity: 0, height: 0, y: -8 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: -8 }}
+                          transition={{ duration: 0.22 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-indigo-500/50 dark:border-indigo-500/40 p-4 sm:p-5 space-y-4 shadow-xl relative overflow-hidden">
+                            {/* Selected Indicator Top Strip */}
+                            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
+
+                            {/* Profile Header & Photo Manager */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 pt-1">
+                              <div className="flex items-center gap-3">
+                                {/* Interactive Photo Avatar */}
+                                <div className="relative group cursor-pointer" onClick={() => triggerQuickPhotoUpload(contact.id)}>
+                                  {contact.avatarImage ? (
+                                    <img
+                                      src={contact.avatarImage}
+                                      alt={contact.name}
+                                      className="w-13 h-13 rounded-full object-cover border-2 border-indigo-500 shadow-md transition group-hover:opacity-90"
+                                    />
+                                  ) : (
+                                    <div className={`w-13 h-13 rounded-full bg-gradient-to-tr ${contact.avatarColor} text-white flex items-center justify-center font-black text-base uppercase shadow-md`}>
+                                      {contact.name.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Camera className="w-4 h-4 text-white" />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">
+                                      SEÇİLİ KİŞİ CARİ HESABI
+                                    </span>
+                                  </div>
+                                  <h3 className="text-base font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                                    {contact.name}
+                                  </h3>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                    📞 {contact.phone}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* Direct Photo Upload Button */}
+                                <button
+                                  onClick={() => triggerQuickPhotoUpload(contact.id)}
+                                  type="button"
+                                  className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl transition active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs font-black border border-indigo-200/50 dark:border-indigo-800"
+                                  title="Fotoğraf Ekle veya Güncelle 📷"
+                                >
+                                  <Camera className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                  <span>{contact.avatarImage ? "Fotoğrafı Değiştir" : "📷 Fotoğraf Ekle"}</span>
+                                </button>
+
+                                {contact.avatarImage && (
+                                  <button
+                                    onClick={() => {
+                                      const updated = contacts.map(c => c.id === contact.id ? { ...c, avatarImage: undefined } : c);
+                                      saveContactsData(updated);
+                                      showLocalToast("Kişi fotoğrafı kaldırıldı 🗑️");
+                                    }}
+                                    type="button"
+                                    className="p-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 text-[10px] font-bold rounded-xl transition cursor-pointer"
+                                    title="Fotoğrafı Kaldır"
+                                  >
+                                    Kaldır ✕
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => {
+                                    setContactToEdit(contact);
+                                    setEditName(contact.name);
+                                    setEditPhone(contact.phone === "Belirtilmemiş 📞" ? "" : contact.phone);
+                                    setEditCategory(contact.category);
+                                    setEditAvatarImage(contact.avatarImage || null);
+                                  }}
+                                  className="p-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl transition text-xs font-bold"
+                                  title="Bilgileri Düzenle 📝"
+                                >
+                                  <Edit className="w-3.5 h-3.5 inline mr-1" /> Düzenle
+                                </button>
+
+                                <button
+                                  onClick={() => setSelectedContactId(null)}
+                                  className="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl text-xs font-bold"
+                                  title="Kapat"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Balance Summary Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
+                                <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Kişiden Alacağımız</span>
+                                <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono block mt-0.5">
+                                  {format(totals.receivable)}
+                                </span>
+                              </div>
+
+                              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50">
+                                <span className="text-[9px] font-black text-rose-700 dark:text-rose-400 uppercase block tracking-wider">Kişiye Borcumuz</span>
+                                <span className="text-base font-black text-rose-600 dark:text-rose-400 font-mono block mt-0.5">
+                                  {format(totals.payable)}
+                                </span>
+                              </div>
+
+                              <div className={`p-3 rounded-2xl border ${
+                                totals.net > 0
+                                  ? "bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
+                                  : totals.net < 0
+                                  ? "bg-rose-500/10 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300"
+                                  : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                              }`}>
+                                <span className="text-[9px] font-black uppercase block tracking-wider">Net Bakiye</span>
+                                <span className="text-base font-black font-mono block mt-0.5">
+                                  {totals.net > 0 ? "+" : ""}{format(totals.net)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Borç / Alacak Ekleme Bölümü */}
+                            <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200/70 dark:border-indigo-800/60 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                                    <DollarSign className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                    {contact.name} İçin Borç / Alacak Ekle
+                                  </h4>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Bu kişiye ait yeni bir alacak kaydı veya borç taahhüdü girin</p>
+                                </div>
+
+                                <button
+                                  onClick={() => setIsAddingTx((prev) => !prev)}
+                                  type="button"
+                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> {isAddingTx ? "Formu Gizle" : "+ Yeni İşlem Ekle"}
+                                </button>
+                              </div>
+
+                              <AnimatePresence>
+                                {isAddingTx && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden pt-1"
+                                  >
+                                    <form
+                                      onSubmit={handleAddTxSubmit}
+                                      className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800/70 space-y-3 shadow-sm"
+                                    >
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                          <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">İşlem Yönü</label>
+                                          <select
+                                            value={newTxType}
+                                            onChange={(e) => setNewTxType(e.target.value as any)}
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                          >
+                                            <option value="receivable">🟢 Alacak Senedi (Kişiye Borç Verdim / Alacağım Var)</option>
+                                            <option value="payable">🔴 Borç Taahhüdü (Kişiden Borç Aldım / Ödeyeceğim)</option>
+                                          </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Toplam Tutar (TL)</label>
+                                          <div className="relative">
+                                            <input
+                                              required
+                                              type="number"
+                                              step="any"
+                                              min="0.1"
+                                              value={newTxAmount}
+                                              onChange={(e) => setNewTxAmount(e.target.value)}
+                                              placeholder="0.00"
+                                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white placeholder-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-black font-mono text-base"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Quick Amount Chips */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Hızlı:</span>
+                                        {[100, 250, 500, 1000, 2500, 5000].map((amt) => (
+                                          <button
+                                            key={amt}
+                                            type="button"
+                                            onClick={() => setNewTxAmount(amt.toString())}
+                                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-mono font-bold rounded-md transition cursor-pointer"
+                                          >
+                                            +{amt} ₺
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                          <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Açıklama / Detay</label>
+                                          <input
+                                            type="text"
+                                            value={newTxDesc}
+                                            onChange={(e) => setNewTxDesc(e.target.value)}
+                                            placeholder="Örn: Elden nakit, yemek hesabı, iş ödemesi"
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white placeholder-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                                          />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Ödeme Vadesi</label>
+                                          <input
+                                            required
+                                            type="date"
+                                            value={newTxDueDate}
+                                            onChange={(e) => setNewTxDueDate(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono font-bold"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 pt-1">
+                                        <button
+                                          type="submit"
+                                          className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
+                                        >
+                                          <Check className="w-4 h-4" /> İşlemi Kaydet & Deftere Ekle
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setIsAddingTx(false)}
+                                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
+                                        >
+                                          Kapat
+                                        </button>
+                                      </div>
+                                    </form>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+
+                            {/* Transaction History for Selected Contact */}
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                  📜 {contact.name} İŞLEM GEÇMİŞİ ({cTxs.length})
+                                </h4>
+                              </div>
+
+                              {cTxs.length === 0 ? (
+                                <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 space-y-2">
+                                  <p className="text-xs font-bold italic">Bu kişiye ait henüz kayıtlı borç veya alacak işlemi bulunmuyor.</p>
+                                  <button
+                                    onClick={() => setIsAddingTx(true)}
+                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-sm"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" /> İlk İşlemi Ekle
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                                  {cTxs.map((tx) => (
+                                    <div
+                                      key={tx.id}
+                                      className={`p-3 rounded-2xl border transition duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                                        tx.isPaid
+                                          ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-60"
+                                          : tx.type === "receivable"
+                                          ? "bg-emerald-500/[0.03] border-emerald-200/60 dark:border-emerald-900/30"
+                                          : "bg-rose-500/[0.03] border-rose-200/60 dark:border-rose-900/30"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className={`p-1.5 rounded-xl shrink-0 ${
+                                          tx.type === "receivable"
+                                            ? "bg-emerald-500/10 text-emerald-600"
+                                            : "bg-rose-500/10 text-rose-500"
+                                        }`}>
+                                          {tx.type === "receivable" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                                        </div>
+
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md ${
+                                              tx.type === "receivable"
+                                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                                : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                            }`}>
+                                              {tx.type === "receivable" ? "ALACAK" : "BORÇ"}
+                                            </span>
+                                            <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                                              {tx.description}
+                                            </h5>
+                                          </div>
+                                          <p className="text-[9.5px] text-slate-400 font-mono mt-0.5">
+                                            Vade: {tx.dueDate} {tx.isPaid && "• Ödendi / Kapatıldı"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                                        <span className={`text-xs sm:text-sm font-black font-mono ${
+                                          tx.type === "receivable" ? "text-emerald-600" : "text-rose-500"
+                                        }`}>
+                                          {format(tx.amount)}
+                                        </span>
+
+                                        <div className="flex items-center gap-1">
+                                          {/* Mark Paid Toggle */}
+                                          <button
+                                            onClick={() => handleToggleTxPaid(tx.id)}
+                                            className={`p-1 px-2 rounded-lg text-[9.5px] font-black uppercase tracking-tight transition cursor-pointer flex items-center gap-1 ${
+                                              tx.isPaid
+                                                ? "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            }`}
+                                            title={tx.isPaid ? "Ödenmedi olarak işaretle" : "Ödendi olarak kapat"}
+                                          >
+                                            <Check className="w-3 h-3" />
+                                            {tx.isPaid ? "Geri Al" : "Ödendi"}
+                                          </button>
+
+                                          {/* Set Reminder */}
+                                          {onAddAlarm && !tx.isPaid && (
+                                            <button
+                                              onClick={() => setReminderTx(tx)}
+                                              className="p-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 transition cursor-pointer"
+                                              title="Hatırlatıcı / Alarm Kur ⏰"
+                                            >
+                                              <Bell className="w-3 h-3" />
+                                            </button>
+                                          )}
+
+                                          {/* Delete */}
+                                          <button
+                                            onClick={() => handleDeleteTx(tx.id)}
+                                            className="p-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 transition cursor-pointer"
+                                            title="İşlemi Sil"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* WhatsApp Hazır Mesaj Şablonları */}
+                            <div className="p-3.5 bg-indigo-50/50 dark:bg-slate-950/60 rounded-2xl border border-indigo-150/40 dark:border-indigo-950/40 space-y-2.5">
+                              <div className="flex items-center gap-1.5 border-b border-indigo-100/40 dark:border-indigo-950/40 pb-1.5">
+                                <BellRing className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                                <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
+                                  HAZIR ALACAK HATIRLATMA MESAJLARI (WHATSAPP)
+                                </h4>
+                              </div>
+                              <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-semibold leading-snug">
+                                <strong>{firstItem.description} ({format(firstItem.amount)})</strong> kaydı için hazırlanmış şablonlar:
+                              </p>
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                {templates.map((tpl, tIdx) => {
+                                  const waLink = `https://wa.me/${waPhone || "90"}?text=${encodeURIComponent(tpl.text)}`;
+                                  return (
+                                    <div
+                                      key={tIdx}
+                                      className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between space-y-2.5 shadow-2xs"
+                                    >
+                                      <div className="space-y-1">
+                                        <span className="text-[11px] font-black text-slate-900 dark:text-slate-100 block">
+                                          {tpl.title}
+                                        </span>
+                                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                                          {tpl.desc}
+                                        </p>
+                                        <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-[9.5px] text-slate-700 dark:text-slate-200 font-medium select-all border border-slate-200/80 dark:border-slate-800 line-clamp-4 leading-relaxed">
+                                          {tpl.text}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/80">
+                                        {/* High contrast copy button with dark background in light mode, light background in dark mode */}
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(tpl.text);
+                                            showLocalToast("Kopya Başarılı! 📋");
+                                          }}
+                                          type="button"
+                                          className="flex-1 py-1.5 px-2 bg-slate-900 hover:bg-black text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-[10px] font-black rounded-xl cursor-pointer transition active:scale-95 text-center flex items-center justify-center gap-1 shadow-xs"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                          <span>KOPYALA</span>
+                                        </button>
+                                        {waPhone && (
+                                          <a
+                                            href={waLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-xl text-center uppercase flex items-center justify-center gap-1 shadow-md shadow-emerald-600/20 active:scale-95 transition"
+                                          >
+                                            WP GÖNDER 💬
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 );
               })
             )}
           </div>
         </div>
-      </div>
-
-      {/* SECTION 2: SELECTED CONTACT CARI HESABI & BORÇ/ALACAK EKLEME (Placed immediately under the contacts list!) */}
-      <div ref={selectedContactRef} className="w-full scroll-mt-20">
-        <AnimatePresence mode="wait">
-          {selectedContactId && selectedContact ? (() => {
-            const contact = selectedContact;
-            const cTxs = transactions.filter((t) => t.contactId === contact.id);
-            const activeTxs = cTxs.filter((t) => !t.isPaid);
-            const totals = getContactTotals(contact.id);
-
-            const firstItem = activeTxs.length > 0
-              ? activeTxs[0]
-              : { description: "borç", amount: 1000, dueDate: "2026-10-02" };
-            const waPhone = contact.phone.replace(/[^0-9]/g, "");
-
-            const templates = [
-              {
-                title: "✍️ Nazik / Standart",
-                desc: "Gündelik ve kibar hatırlatıcı üslubu.",
-                text: `Merhaba ${contact.name}, umarım iyisin. Bütçe hesaplarımızı güncelliyordum da, ${firstItem.description} konusundaki ${format(firstItem.amount)} tutarındaki ödemeyi müsaitsen yapabilir misin? Çok teşekkürler!`
-              },
-              {
-                title: "🤝 Samimi / Yakın Dost",
-                desc: "Yakın arkadaşlar ve tanıdıklar için samimi dil.",
-                text: `Selam ${contact.name} kanka, ufak bir bütçe sıkışıklığım vardı da, seninle olan ${firstItem.description} (${format(firstItem.amount)}) alacağını müsait bir anında gönderebilirsen çok memnun olurum. Sağ olasın!`
-              },
-              {
-                title: "🔒 Resmi / Ticari Şablon",
-                desc: "İş ortakları veya resmi alacak ilişkileri.",
-                text: `Sayın ${contact.name}, sistem kayıtlarımıza göre ${firstItem.dueDate} vadeli ${firstItem.description} işlemine ait ${format(firstItem.amount)} tutarındaki alacağımız henüz tahsil edilmemiştir. İlgili tutarın hesabımıza havale edilmesini önemle rica eder, iyi çalışmalar dileriz.`
-              }
-            ];
-
-            return (
-              <motion.div
-                key={contact.id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                className="bg-white dark:bg-slate-800 rounded-3xl border-2 border-indigo-500/40 dark:border-indigo-500/30 p-5 space-y-5 shadow-lg relative overflow-hidden"
-              >
-                {/* Selected Indicator Top Strip */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
-
-                {/* Selected contact profile header */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 pb-4 pt-1">
-                  <div className="flex items-center gap-3.5">
-                    {/* Interactive Photo Avatar */}
-                    <div className="relative group cursor-pointer" onClick={() => triggerQuickPhotoUpload(contact.id)}>
-                      {contact.avatarImage ? (
-                        <img
-                          src={contact.avatarImage}
-                          alt={contact.name}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500 shadow-md transition group-hover:opacity-90"
-                        />
-                      ) : (
-                        <div className={`w-14 h-14 rounded-full bg-gradient-to-tr ${contact.avatarColor} text-white flex items-center justify-center font-black text-lg uppercase shadow-md`}>
-                          {contact.name.charAt(0)}
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">
-                          SEÇİLİ CARİ HESAP
-                        </span>
-                        <span className="text-[9.5px] font-black uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md">
-                          {getCategoryLabel(contact.category)}
-                        </span>
-                      </div>
-                      <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                        {contact.name}
-                      </h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        📞 {contact.phone}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => triggerQuickPhotoUpload(contact.id)}
-                      type="button"
-                      className="p-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-                      title="Fotoğraf Yükle / Değiştir"
-                    >
-                      <Camera className="w-4 h-4 text-indigo-500" />
-                      <span>{contact.avatarImage ? "Fotoğrafı Değiştir" : "Fotoğraf Ekle"}</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setContactToEdit(contact);
-                        setEditName(contact.name);
-                        setEditPhone(contact.phone === "Belirtilmemiş 📞" ? "" : contact.phone);
-                        setEditCategory(contact.category);
-                        setEditAvatarImage(contact.avatarImage || null);
-                      }}
-                      className="p-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-150/10 rounded-xl transition active:scale-95 cursor-pointer flex items-center gap-1 text-xs font-bold"
-                      title="Bilgileri Düzenle 📝"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>Düzenle</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleDeleteContact(contact.id)}
-                      className="p-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-100/30 rounded-xl transition active:scale-95 cursor-pointer flex items-center gap-1 text-xs font-bold"
-                      title="Kişiyi & Defteri Sil ⚠️"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Sil</span>
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedContactId(null)}
-                      className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-500 rounded-xl text-xs font-bold"
-                      title="Seçimi Kapat"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Contact Debt/Credit totals balance strip */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
-                    <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Kişiden Alacağımız Var</span>
-                    <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono block mt-1">
-                      {format(totals.receivable)}
-                    </span>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50">
-                    <span className="text-[9px] font-black text-rose-700 dark:text-rose-400 uppercase block tracking-wider">Kişiye Borcumuz Var</span>
-                    <span className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 font-mono block mt-1">
-                      {format(totals.payable)}
-                    </span>
-                  </div>
-
-                  <div className={`p-3.5 rounded-2xl border ${
-                    totals.net > 0
-                      ? "bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
-                      : totals.net < 0
-                      ? "bg-rose-500/10 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300"
-                      : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  }`}>
-                    <span className="text-[9px] font-black uppercase block tracking-wider">Net Bakiye Durumu</span>
-                    <span className="text-base sm:text-lg font-black font-mono block mt-1">
-                      {totals.net > 0 ? "+" : ""}{format(totals.net)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Primary Action Button: Borç/Alacak Ekle Form Toggle */}
-                <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200/60 dark:border-indigo-800/50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                        <DollarSign className="w-4 h-4 text-indigo-600" />
-                        {contact.name} İÇİN BORÇ VEYA ALACAK EKLE
-                      </h3>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Bu kişiye yeni bir alacak kaydı veya borç taahhüdü tanımlayın</p>
-                    </div>
-
-                    <button
-                      onClick={() => setIsAddingTx((prev) => !prev)}
-                      type="button"
-                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
-                    >
-                      <Plus className="w-4 h-4" /> {isAddingTx ? "Formu Kapat" : "Yeni İşlem Ekle"}
-                    </button>
-                  </div>
-
-                  {/* Transaction additions form */}
-                  <AnimatePresence>
-                    {isAddingTx && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden pt-2"
-                      >
-                        <form
-                          onSubmit={handleAddTxSubmit}
-                          className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800/70 space-y-3 shadow-sm"
-                        >
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">İşlem Yönü</label>
-                              <select
-                                value={newTxType}
-                                onChange={(e) => setNewTxType(e.target.value as any)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-                              >
-                                <option value="receivable">🟢 Alacak Senedi (Kişiye Borç Verdim / Alacağım Var)</option>
-                                <option value="payable">🔴 Borç Taahhüdü (Kişiden Borç Aldım / Ödeyeceğim)</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Toplam Tutar (TL)</label>
-                              <div className="relative">
-                                <input
-                                  required
-                                  type="number"
-                                  step="any"
-                                  min="0.1"
-                                  value={newTxAmount}
-                                  onChange={(e) => setNewTxAmount(e.target.value)}
-                                  placeholder="0.00"
-                                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white placeholder-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-black font-mono text-base"
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Quick Amount Chips */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">Hızlı:</span>
-                            {[100, 250, 500, 1000, 2500, 5000].map((amt) => (
-                              <button
-                                key={amt}
-                                type="button"
-                                onClick={() => setNewTxAmount(amt.toString())}
-                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-mono font-bold rounded-md transition cursor-pointer"
-                              >
-                                +{amt} ₺
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Açıklama / Detay</label>
-                              <input
-                                type="text"
-                                value={newTxDesc}
-                                onChange={(e) => setNewTxDesc(e.target.value)}
-                                placeholder="Örn: Elden nakit, yemek hesabı, iş ödemesi"
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white placeholder-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[9.5px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Ödeme Vadesi</label>
-                              <input
-                                required
-                                type="date"
-                                value={newTxDueDate}
-                                onChange={(e) => setNewTxDueDate(e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono font-bold"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-2">
-                            <button
-                              type="submit"
-                              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
-                            >
-                              <Check className="w-4 h-4" /> İşlemi Kaydet & Deftere Ekle
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsAddingTx(false)}
-                              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
-                            >
-                              Kapat
-                            </button>
-                          </div>
-                        </form>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Transaction list for selected contact */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      📜 {contact.name} İŞLEM GEÇMİŞİ ({cTxs.length})
-                    </h3>
-                  </div>
-
-                  {cTxs.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 space-y-2">
-                      <p className="text-xs font-bold italic">Bu kişiye ait henüz kayıtlı borç veya alacak işlemi bulunmuyor.</p>
-                      <button
-                        onClick={() => setIsAddingTx(true)}
-                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> İlk İşlemi Ekle
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                      {cTxs.map((tx) => (
-                        <div
-                          key={tx.id}
-                          className={`p-3.5 rounded-2xl border transition duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                            tx.isPaid
-                              ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-60"
-                              : tx.type === "receivable"
-                              ? "bg-emerald-500/[0.03] border-emerald-200/60 dark:border-emerald-900/30"
-                              : "bg-rose-500/[0.03] border-rose-200/60 dark:border-rose-900/30"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`p-2 rounded-xl shrink-0 ${
-                              tx.type === "receivable"
-                                ? "bg-emerald-500/10 text-emerald-600"
-                                : "bg-rose-500/10 text-rose-500"
-                            }`}>
-                              {tx.type === "receivable" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md ${
-                                  tx.type === "receivable"
-                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                                    : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
-                                }`}>
-                                  {tx.type === "receivable" ? "ALACAK" : "BORÇ"}
-                                </span>
-                                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                                  {tx.description}
-                                </h4>
-                              </div>
-                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                Vade: {tx.dueDate} {tx.isPaid && "• Ödendi / Kapatıldı"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
-                            <span className={`text-sm font-black font-mono ${
-                              tx.type === "receivable" ? "text-emerald-600" : "text-rose-500"
-                            }`}>
-                              {format(tx.amount)}
-                            </span>
-
-                            <div className="flex items-center gap-1">
-                              {/* Mark Paid Toggle */}
-                              <button
-                                onClick={() => handleToggleTxPaid(tx.id)}
-                                className={`p-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-tight transition cursor-pointer flex items-center gap-1 ${
-                                  tx.isPaid
-                                    ? "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-                                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                }`}
-                                title={tx.isPaid ? "Ödenmedi olarak işaretle" : "Ödendi olarak kapat"}
-                              >
-                                <Check className="w-3 h-3" />
-                                {tx.isPaid ? "Geri Al" : "Ödendi"}
-                              </button>
-
-                              {/* Set Reminder */}
-                              {onAddAlarm && !tx.isPaid && (
-                                <button
-                                  onClick={() => setReminderTx(tx)}
-                                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 transition cursor-pointer"
-                                  title="Hatırlatıcı / Alarm Kur ⏰"
-                                >
-                                  <Bell className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-
-                              {/* Delete */}
-                              <button
-                                onClick={() => handleDeleteTx(tx.id)}
-                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 transition cursor-pointer"
-                                title="İşlemi Sil"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* WhatsApp Ready Templates Section */}
-                <div className="p-4 bg-indigo-50/50 dark:bg-slate-900/40 rounded-2xl border border-indigo-150/40 dark:border-indigo-950/40 space-y-3 mt-1">
-                  <div className="flex items-center gap-1.5 border-b border-indigo-100/30 dark:border-indigo-950/40 pb-2">
-                    <BellRing className="w-4 h-4 text-indigo-500 animate-pulse" />
-                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
-                      HAZIR ALACAK HATIRLATMA MESAJLARI
-                    </h4>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-                    Seçilen kişi adıyla ve en yakın alacak kaydı olan <strong>{firstItem.description} ({format(firstItem.amount)})</strong> bilgisi ile optimize edilmiş mesaj şablonları:
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {templates.map((tpl, tIdx) => {
-                      const waLink = `https://wa.me/${waPhone || "90"}?text=${encodeURIComponent(tpl.text)}`;
-                      return (
-                        <div
-                          key={tIdx}
-                          className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between space-y-3 shadow-xs"
-                        >
-                          <div className="space-y-1.5">
-                            <span className="text-xs font-black text-slate-900 dark:text-slate-100 block">
-                              {tpl.title}
-                            </span>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-snug">
-                              {tpl.desc}
-                            </p>
-                            <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl text-[10px] text-slate-700 dark:text-slate-200 font-medium select-all border border-slate-200/80 dark:border-slate-800 line-clamp-5 leading-relaxed">
-                              {tpl.text}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/80">
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(tpl.text);
-                                showLocalToast("Kopya Başarılı! 📋");
-                              }}
-                              type="button"
-                              className="flex-1 py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-[10px] font-black rounded-xl cursor-pointer transition active:scale-95 text-center flex items-center justify-center gap-1 shadow-xs"
-                            >
-                              KOPYALA 📋
-                            </button>
-                            {waPhone && (
-                              <a
-                                href={waLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-xl text-center uppercase flex items-center justify-center gap-1 shadow-md shadow-emerald-600/20 active:scale-95 transition"
-                              >
-                                WP GÖNDER 💬
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })() : null}
-        </AnimatePresence>
       </div>
 
       {/* SECTION 3: Summary Dashboard Widgets */}
