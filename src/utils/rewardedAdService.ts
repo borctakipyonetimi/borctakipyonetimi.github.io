@@ -24,9 +24,48 @@ export function getFeaturePassKey(feature: RewardedFeatureType | string = "any")
 }
 
 /**
- * Checks if the user currently has an active 24-hour pass for a SPECIFIC feature,
- * or has permanent PRO status. Watching an ad for one feature (e.g. AI) only unlocks
- * that specific feature and does NOT unlock others (e.g. Export or Import).
+ * Checks strictly if a temporary pass is active from watching a rewarded video ad
+ * (independent of permanent premium status).
+ */
+export function isTemporaryPassActive(feature: RewardedFeatureType | string = "any"): boolean {
+  if (typeof window === "undefined") return false;
+  // If the user has a permanent PRO status, they don't have a temporary ad pass
+  if (localStorage.getItem("is_premium") === "true") {
+    return false;
+  }
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  const key = getFeaturePassKey(cleanFeature);
+  const expiry = Number(localStorage.getItem(key) || 0);
+  return Date.now() < expiry;
+}
+
+/**
+ * Gets formatted remaining time string strictly for a temporary pass (e.g., "23 saat 45 dk kaldı").
+ * Returns null if the user is permanent Premium or the pass has expired.
+ */
+export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | string = "any"): string | null {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem("is_premium") === "true") return null;
+
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  const key = getFeaturePassKey(cleanFeature);
+  const expiry = Number(localStorage.getItem(key) || 0);
+  const diff = expiry - Date.now();
+  if (diff <= 0) return null;
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) {
+    return `${hours} saat ${minutes > 0 ? `${minutes} dk ` : ""}kaldı`;
+  }
+  return `${minutes} dakika kaldı`;
+}
+
+/**
+ * Checks if the user currently has active access for a SPECIFIC feature,
+ * either because they have permanent PRO status or an active 24-hour pass.
+ * Watching an ad for one feature (e.g. AI) only unlocks that specific feature.
  */
 export function isPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
@@ -44,7 +83,8 @@ export function isPassActive(feature: RewardedFeatureType | string = "any"): boo
 }
 
 /**
- * Gets formatted remaining time string for a specific feature (e.g., "23 saat 45 dk kaldı")
+ * Gets formatted remaining time string for a specific feature (e.g., "23 saat 45 dk kaldı").
+ * For permanent PRO users returns "Sınırsız (Premium)".
  */
 export function getRemainingPassTimeFormatted(feature: RewardedFeatureType | string = "any"): string | null {
   if (typeof window === "undefined") return null;

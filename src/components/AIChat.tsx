@@ -20,7 +20,8 @@ import {
   ShieldCheck, 
   Zap, 
   ArrowRight,
-  TrendingDown
+  TrendingDown,
+  Crown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Debt, Income, Expense, InstallmentDebt, FinancialStats } from "../types";
@@ -29,7 +30,12 @@ import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
 import { useCurrency } from "../utils/CurrencyContext";
 import { LiveMarketCenterWidget } from "./LiveMarketCenterWidget";
-import { getRemainingPassTimeFormatted, isPassActive } from "../utils/rewardedAdService";
+import { 
+  getRemainingPassTimeFormatted, 
+  isPassActive, 
+  isTemporaryPassActive, 
+  getTemporaryPassTimeRemaining 
+} from "../utils/rewardedAdService";
 
 interface ChatMessage {
   sender: "user" | "bot";
@@ -49,6 +55,7 @@ interface AIChatProps {
   language?: "tr" | "en";
   currentUser?: string | null;
   onTriggerToast?: (msg: string) => void;
+  isPremium?: boolean;
 }
 
 const TURKISH_MONTHS = [
@@ -246,6 +253,7 @@ export const AIChat: React.FC<AIChatProps> = ({
   language = "tr",
   currentUser,
   onTriggerToast,
+  isPremium,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   
@@ -309,20 +317,43 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [effectiveIsPremium, setEffectiveIsPremium] = useState<boolean>(() => {
+    if (typeof isPremium === "boolean") return isPremium;
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("is_premium") === "true";
+    }
+    return false;
+  });
   const [passRemaining, setPassRemaining] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof isPremium === "boolean") {
+      setEffectiveIsPremium(isPremium);
+    }
+  }, [isPremium]);
+
+  useEffect(() => {
     const updatePass = () => {
-      setPassRemaining(getRemainingPassTimeFormatted("ai"));
+      const storedPremium = localStorage.getItem("is_premium") === "true";
+      setEffectiveIsPremium((prev) => (typeof isPremium === "boolean" ? isPremium : storedPremium));
+      
+      // If user is premium, passRemaining is not needed (they have permanent unlimited access)
+      if (isPremium || storedPremium) {
+        setPassRemaining(null);
+      } else {
+        setPassRemaining(getTemporaryPassTimeRemaining("ai"));
+      }
     };
     updatePass();
     window.addEventListener("rewarded_pass_updated", updatePass);
     window.addEventListener("storage", updatePass);
+    window.addEventListener("premium_status_changed", updatePass);
     return () => {
       window.removeEventListener("rewarded_pass_updated", updatePass);
       window.removeEventListener("storage", updatePass);
+      window.removeEventListener("premium_status_changed", updatePass);
     };
-  }, []);
+  }, [isPremium]);
   
   // Custom scroll refs to target ONLY the scrollable chat container
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -1072,18 +1103,34 @@ ${installmentDetailsStr}`;
           </div>
         </div>
 
-        {/* 24-Hour Pass Status Banner */}
-        {passRemaining && (
+        {/* Status Section: Clean Premium Badge OR 24-Hour Temporary Pass Warning */}
+        {effectiveIsPremium ? (
+          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/25 via-yellow-500/25 to-amber-600/25 text-amber-300 font-black text-xs border border-amber-400/40 shadow-xs">
+                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400/40" />
+                👑 Premium Üye
+              </span>
+              <span className="text-[11px] text-indigo-200/90 font-medium hidden sm:inline">
+                Yapay Zeka Finans Koçu sınırsız kullanımınızda
+              </span>
+            </div>
+            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-1 rounded-lg border border-amber-400/30 text-[11px] flex items-center gap-1.5 shadow-xs">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              Sınırsız Premium
+            </span>
+          </div>
+        ) : passRemaining ? (
           <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-bold text-emerald-300">
               <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
-              24 Saatlik Ücretsiz AI Erişiminiz Aktif
+              ✨ 24 Saatlik Ücretsiz AI Erişiminiz Aktif
             </span>
             <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30">
               {passRemaining}
             </span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}

@@ -37,6 +37,7 @@ interface RewardedAdModalProps {
   targetFeature?: RewardedFeatureType;
   onRewardGranted?: () => void;
   onUpgradeClick?: () => void;
+  isPremium?: boolean;
 }
 
 // Live High-Definition Video Creatives
@@ -54,7 +55,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   onClose,
   targetFeature = "any",
   onRewardGranted,
-  onUpgradeClick
+  onUpgradeClick,
+  isPremium
 }) => {
   const [isPlayingAd, setIsPlayingAd] = useState(false);
   const [countdown, setCountdown] = useState(REQUIRED_WATCH_SECONDS);
@@ -69,9 +71,21 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   const timerRef = useRef<any>(null);
   const prevOpenRef = useRef(false);
 
+  const effectiveIsPremium = 
+    isPremium || 
+    (typeof window !== "undefined" && localStorage.getItem("is_premium") === "true");
+
+  // Premium users NEVER see rewarded ads - immediately grant access and close
+  useEffect(() => {
+    if (isOpen && effectiveIsPremium) {
+      if (onRewardGranted) onRewardGranted();
+      onClose();
+    }
+  }, [isOpen, effectiveIsPremium, onRewardGranted, onClose]);
+
   // Initialize ONLY when the modal transitions from closed to open
   useEffect(() => {
-    if (isOpen && !prevOpenRef.current) {
+    if (isOpen && !effectiveIsPremium && !prevOpenRef.current) {
       setIsPlayingAd(false);
       setCountdown(REQUIRED_WATCH_SECONDS);
       setAdFinished(false);
@@ -87,7 +101,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       }
     }
     prevOpenRef.current = isOpen;
-  }, [isOpen, targetFeature]);
+  }, [isOpen, targetFeature, effectiveIsPremium]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -221,7 +235,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }, 500);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || effectiveIsPremium) return null;
 
   const featureTitleMap: Record<string, { 
     title: string; 
