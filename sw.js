@@ -22,7 +22,8 @@ self.addEventListener("activate", (event) => {
       self.clients.claim(),
       loadAndScheduleCachedAlarms(),
       loadCachedDebts(),
-      loadCachedInstallments()
+      loadCachedInstallments(),
+      loadPushSettingsFromCache()
     ])
   );
 });
@@ -85,7 +86,106 @@ function getDebtCategoryEmoji(name = "", category = "") {
   return "💳";
 }
 
-// Reschedule the scheduled alarms inside the Service Worker thread
+/**
+ * Ödenmemiş tüm borçlar için son ödeme tarihine 3 gün kaladan son güne kadar
+ * her gün saat 09:30'a otomatik yerel alarm nesneleri üretir.
+ */
+function buildAutoDebtAlarms() {
+  const autoAlarms = [];
+  const now = Date.now();
+
+  // 1. Normal Borçlar İçin Otomatik Alarm
+  if (Array.isArray(activeDebts)) {
+    activeDebts.forEach((debt) => {
+      if (!debt) return;
+      const isPaid = debt.isPaid === true || debt.durum === "odendi" || debt.status === "paid" || Number(debt.paid || 0) >= Number(debt.amount || 0);
+      if (isPaid) return;
+      const remaining = (Number(debt.amount) || 0) - (Number(debt.paid) || 0);
+      if (remaining <= 0) return;
+
+      if (debt.dueDate) {
+        const dueTime = parseDateRobust(debt.dueDate);
+        if (!isNaN(dueTime)) {
+          // Son 3 gün kaladan (3, 2, 1) son güne (0) kadar her gün için
+          for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
+            const targetDate = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
+            targetDate.setHours(9, 30, 0, 0);
+            const triggerTime = targetDate.getTime();
+
+            if (triggerTime > now) {
+              const debtName = debt.name || "Borç";
+              const title = dayOffset === 0
+                ? `🚨 Son Ödeme Günü Bugün! (${debtName})`
+                : `⏰ Son ${dayOffset} Gün Kaldı! (${debtName})`;
+              const body = `${debtName} için son ${dayOffset === 0 ? "gün bugün" : dayOffset + " gün kaldı"}. Tutar: ${Math.round(remaining).toLocaleString("tr-TR")} TL`;
+
+              autoAlarms.push({
+                id: `auto-debt-${debt.id || Math.random()}-${dayOffset}`,
+                debtId: debt.id,
+                title,
+                body,
+                date: new Date(triggerTime).toISOString(),
+                timestamp: triggerTime,
+                isAuto: true,
+                silent: false
+              });
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 2. Taksitli Borçlar İçin Otomatik Alarm
+  if (Array.isArray(activeInstallments)) {
+    activeInstallments.forEach((inst) => {
+      if (!inst) return;
+      const count = Number(inst.installmentCount) || 1;
+      const paid = Number(inst.paidInstallmentCount) || 0;
+      const isPaid = inst.isPaid === true || inst.durum === "odendi" || inst.status === "paid" || paid >= count;
+      if (isPaid) return;
+      const total = Number(inst.totalAmount) || 0;
+      const perInst = count > 0 ? total / count : 0;
+
+      if (paid < count && inst.firstDueDate) {
+        const bDate = new Date(inst.firstDueDate);
+        if (!isNaN(bDate.getTime())) {
+          bDate.setMonth(bDate.getMonth() + paid);
+          const dueTime = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate()).getTime();
+          const instTitle = `${inst.title || inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+
+          for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
+            const targetDate = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
+            targetDate.setHours(9, 30, 0, 0);
+            const triggerTime = targetDate.getTime();
+
+            if (triggerTime > now) {
+              const title = dayOffset === 0
+                ? `🚨 Taksit Günü Bugün! (${instTitle})`
+                : `⏰ Taksite Son ${dayOffset} Gün! (${instTitle})`;
+              const body = `${instTitle} taksit ödemeniz için son gün yaklaştı. Tutar: ${Math.round(perInst).toLocaleString("tr-TR")} TL`;
+
+              autoAlarms.push({
+                id: `auto-inst-${inst.id || Math.random()}-${dayOffset}`,
+                debtId: inst.id,
+                title,
+                body,
+                date: new Date(triggerTime).toISOString(),
+                timestamp: triggerTime,
+                isAuto: true,
+                silent: false
+              });
+            }
+          }
+        }
+      }
+    });
+  }
+
+  return autoAlarms;
+}
+
+// Reschedule both manual and automatic scheduled alarms inside the Service Worker thread
 function rescheduleAlarms() {
   alarmTimers.forEach(t => clearTimeout(t));
   alarmTimers = [];
@@ -93,10 +193,14 @@ function rescheduleAlarms() {
   const now = Date.now();
   const appIcon = self.location.origin + "/logo.png";
 
-  activeAlarms.forEach((alarm) => {
+  // Manuel alarmlar ile borçlardan otomatik türetilen 3 günlük alarmları birleştir
+  const autoDebtAlarms = buildAutoDebtAlarms();
+  const allAlarmsToSchedule = [...(activeAlarms || []), ...autoDebtAlarms];
+
+  allAlarmsToSchedule.forEach((alarm) => {
     if (!alarm || !alarm.date) return;
 
-    const alarmTime = parseDateRobust(alarm.date);
+    const alarmTime = alarm.timestamp || parseDateRobust(alarm.date);
     if (isNaN(alarmTime)) return;
 
     const delay = alarmTime - now;
@@ -104,14 +208,14 @@ function rescheduleAlarms() {
     // 1. Check if Notification Triggers are natively supported (PWA offline scheduled notifications when closed)
     if (delay > 0 && 'showTrigger' in self.Notification.prototype && typeof self.TimestampTrigger !== 'undefined') {
       try {
-        self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
-          body: alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
+        self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
+          body: alarm.body || alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
           icon: appIcon,
-          vibrate: [200, 100, 200, 100, 300],
+          vibrate: alarm.silent ? [] : [200, 100, 200, 100, 300],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
-          requireInteraction: true,
-          silent: false,
+          requireInteraction: !alarm.silent,
+          silent: !!alarm.silent,
           timestamp: alarmTime,
           actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
           data: { url: "/?tab=notifications" },
@@ -124,16 +228,16 @@ function rescheduleAlarms() {
     }
 
     // 2. Active background setTimeout fallback
-    if (delay > 0) {
+    if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
       const timerId = setTimeout(() => {
-        self.registration.showNotification("🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
-          body: alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
+        self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
+          body: alarm.body || alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
           icon: appIcon,
-          vibrate: [300, 100, 300, 100, 400],
+          vibrate: alarm.silent ? [] : [300, 100, 300, 100, 400],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
-          requireInteraction: true,
-          silent: false,
+          requireInteraction: !alarm.silent,
+          silent: !!alarm.silent,
           timestamp: Date.now(),
           actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
           data: { url: "/?tab=notifications" }
@@ -235,23 +339,39 @@ const SETTINGS_URL = "/push-settings.json";
 const LAST_NOTIF_TIME_URL = "/last-general-notif-time.json";
 const LAST_TWICE_DAILY_NOTIF_TIME_URL = "/last-twice-daily-notif-time.json";
 
+/**
+ * Ayarlar kısmındaki sıklık seçimine göre bildirim aralığını if-else ile belirler
+ */
 function getNotificationPeriodMs(frequency) {
-  if (!frequency) return 12 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez = 12 saat = 43.200.000 ms
+  if (!frequency) return 12 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez = 12 saat
   const str = String(frequency).trim().toLowerCase();
-  if (str === "2") return 12 * 60 * 60 * 1000; // 12 saat = 43.200.000 ms (12 Saat Kilidi)
-  if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
-  if (str === "3") return 8 * 60 * 60 * 1000;  // 8 saat = 28.800.000 ms
-  if (str === "4") return 6 * 60 * 60 * 1000;  // 6 saat = 21.600.000 ms
-  if (str === "hourly") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
-  const num = parseFloat(str);
-  if (!isNaN(num) && num > 0) {
-    if (num === 2) return 12 * 60 * 60 * 1000;
-    if (num === 1) return 24 * 60 * 60 * 1000;
-    if (num === 3) return 8 * 60 * 60 * 1000;
-    if (num === 4) return 6 * 60 * 60 * 1000;
-    return num * 60 * 60 * 1000;
+
+  if (str === "1") {
+    // Günde 1 Kez = 24 saat
+    return 24 * 60 * 60 * 1000;
+  } else if (str === "2") {
+    // Günde 2 Kez = 12 saat
+    return 12 * 60 * 60 * 1000;
+  } else if (str === "3") {
+    // Günde 3 Kez = 8 saat
+    return 8 * 60 * 60 * 1000;
+  } else if (str === "4") {
+    // Günde 4 Kez = 6 saat
+    return 6 * 60 * 60 * 1000;
+  } else if (str === "hourly") {
+    // Saatlik / 2 saatte bir
+    return 2 * 60 * 60 * 1000;
+  } else {
+    const num = parseFloat(str);
+    if (!isNaN(num) && num > 0) {
+      if (num === 1) return 24 * 60 * 60 * 1000;
+      else if (num === 2) return 12 * 60 * 60 * 1000;
+      else if (num === 3) return 8 * 60 * 60 * 1000;
+      else if (num === 4) return 6 * 60 * 60 * 1000;
+      else return (24 / num) * 60 * 60 * 1000;
+    }
+    return 12 * 60 * 60 * 1000;
   }
-  return 12 * 60 * 60 * 1000; // 43.200.000 ms
 }
 
 async function saveCachedLastTwiceDailyNotificationTime(timestamp) {
@@ -373,13 +493,13 @@ async function getCachedLastGeneralNotificationTime() {
 async function handleBackgroundSync(tag) {
   console.log(`[Service Worker] Executing background sync listener for tag: "${tag}"`);
 
-  // If push notifications are turned off by user, do not send any alerts
+  // Push bildirimleri kapalıysa işlem yapma
   if (pushSettings && pushSettings.enabled === false) {
     console.log("[Service Worker] Push notifications are disabled by user, skipping sync alerts.");
     return;
   }
 
-  // 1. Reload latest cached alarms, debts, installments, and settings
+  // 1. En son verileri yükle
   await Promise.all([
     loadAndScheduleCachedAlarms(),
     loadCachedDebts(),
@@ -393,23 +513,24 @@ async function handleBackgroundSync(tag) {
   const todayEnd = todayStart + 24 * 60 * 60 * 1000;
   const appIcon = self.location.origin + "/logo.png";
 
-  // 2. Check for any active alarms due right now (Özel Alarmlar)
-  // Sabit ve benzersiz id parametresi verilir; mükerrer basımı engeller
+  // 2. Tam vadesi gelen manuel/otomatik alarmları göster
   let triggeredAlarmCount = 0;
-  if (Array.isArray(activeAlarms)) {
-    activeAlarms.forEach((alarm) => {
+  const allCurrentAlarms = [...(activeAlarms || []), ...buildAutoDebtAlarms()];
+
+  if (Array.isArray(allCurrentAlarms)) {
+    allCurrentAlarms.forEach((alarm) => {
       if (!alarm || !alarm.date) return;
-      const alarmTime = parseDateRobust(alarm.date);
+      const alarmTime = alarm.timestamp || parseDateRobust(alarm.date);
       if (!isNaN(alarmTime) && alarmTime <= now && (now - alarmTime < 2 * 60 * 60 * 1000)) {
         const safeAlarmId = Math.abs(Number(alarm.debtId || alarm.id)) || 1;
-        self.registration.showNotification("Bütçem Pro Hatırlatıcı ⏰", {
-          body: alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
+        self.registration.showNotification(alarm.title || "Bütçem Pro Hatırlatıcı ⏰", {
+          body: alarm.body || alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
           icon: appIcon,
-          vibrate: [300, 100, 300, 100, 400],
+          vibrate: alarm.silent ? [] : [300, 100, 300, 100, 400],
           tag: `alarm-${safeAlarmId}`,
-          renotify: false, // Ekrana aynı anda 2 defa düşmesini engeller
-          requireInteraction: true,
-          silent: false,
+          renotify: false,
+          requireInteraction: !alarm.silent,
+          silent: !!alarm.silent,
           actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
           data: { url: "/?tab=notifications", alarmId: safeAlarmId }
         });
@@ -418,35 +539,20 @@ async function handleBackgroundSync(tag) {
     });
   }
 
-  // --- 3. AKILLI ENGEL & 12 SAAT KİLİDİ: 'Günde 2 Kez' Seçeneğinde Kesin 12 Saat Engelini Uygula ---
-  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 ms
-  const isTwiceDaily = !pushSettings.frequency || pushSettings.frequency === "2";
-  const lastTwiceDailyTime = await getCachedLastTwiceDailyNotificationTime();
-
-  if (isTwiceDaily && lastTwiceDailyTime > 0 && (now - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
-    const remainingWaitMin = Math.ceil((TWELVE_HOURS_MS - (now - lastTwiceDailyTime)) / 60000);
-    console.log(`[SW 12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingWaitMin} dk / ${(remainingWaitMin / 60).toFixed(1)} saat kaldı). Bildirim gönderme KESİNLİKLE İPTAL EDİLDİ ve uykuya dönüldü.`);
-    return;
-  }
-
-  // Kullanıcının seçtiği bildirim periyodu saatini (ör. Günde 2 Kez = 12 saat = 43.200.000 ms) milisaniye cinsinden oku
+  // --- 3. AYARLANAN BİLDİRİM SIKLIĞI KONTROLÜ (İF-ELSE PERİYOT LİMİTİ) ---
   const selectedPeriodMs = getNotificationPeriodMs(pushSettings.frequency || "2");
   const lastGeneralTime = await getCachedLastGeneralNotificationTime();
 
-  // Arka plan servisi Android yüzünden 15 dakikada bir uyandığında kontrol et:
-  // Şimdiki Zaman - sonGenelBildirimZamani.
-  // Eğer aradan geçen süre kullanıcının seçtiği saat periyodundan az ise
-  // bildirim fırlatma fonksiyonunu doğrudan İPTAL ET ve uykuya dön!
   if (lastGeneralTime > 0 && (now - lastGeneralTime) < selectedPeriodMs) {
     const remainingWaitMin = Math.ceil((selectedPeriodMs - (now - lastGeneralTime)) / 60000);
-    console.log(`[SW Akıllı Engel] Arka plan servisi 15 dk döngüsünde uyandı fakat seçilen periyot dolmadı (${remainingWaitMin} dk kaldı). Bildirim fırlatma İPTAL EDİLDİ ve uykuya dönüldü.`);
+    console.log(`[SW Sıklık Kontrolü] Ayarlanan periyot (${selectedPeriodMs / 3600000} saat) henüz dolmadı (${remainingWaitMin} dk kaldı). Bildirim gönderme ertelendi.`);
     return;
   }
 
-  // 4. Check standard debts
-  const overdueMoreThanWeekList = [];
-  const recentOverdueList = [];
+  // 4. Normal borçları grupla (Vadesi bugün olanlar, son 3 gün kalanlar, vadesi geçmiş olanlar)
+  const overdueList = [];
   const dueTodayList = [];
+  const upcomingThreeDaysList = [];
 
   if (Array.isArray(activeDebts)) {
     activeDebts.forEach((debt) => {
@@ -460,21 +566,22 @@ async function handleBackgroundSync(tag) {
         const dueTime = parseDateRobust(debt.dueDate);
         if (!isNaN(dueTime)) {
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, sonBildirimZamani: debt.sonBildirimZamani });
+            dueTodayList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining });
           } else if (dueTime < todayStart) {
+            // Vadesi geçmiş borç
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
-            if (daysLate > 7) {
-              overdueMoreThanWeekList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLate, sonGecikmeBildirimZamani: debt.sonGecikmeBildirimZamani });
-            } else {
-              recentOverdueList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLate, sonBildirimZamani: debt.sonBildirimZamani });
-            }
+            overdueList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLate, isOverdue: true });
+          } else if (dueTime >= todayEnd && dueTime <= (todayStart + 3 * 24 * 60 * 60 * 1000)) {
+            // Son 3 gün kalmış borç
+            const daysLeft = Math.ceil((dueTime - todayStart) / (1000 * 60 * 60 * 24));
+            upcomingThreeDaysList.push({ name: debt.name || "Borç", category: debt.category || "", amount: remaining, daysLeft });
           }
         }
       }
     });
   }
 
-  // 5. Check installment debts (taksitli borçlar)
+  // 5. Taksitli borçları grupla
   if (Array.isArray(activeInstallments)) {
     activeInstallments.forEach((inst) => {
       if (!inst) return;
@@ -493,52 +600,69 @@ async function handleBackgroundSync(tag) {
           const instTitle = `${inst.title || inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
 
           if (dueTime >= todayStart && dueTime < todayEnd) {
-            dueTodayList.push({ name: instTitle, category: "taksit", amount: perInst, sonBildirimZamani: inst.sonBildirimZamani });
+            dueTodayList.push({ name: instTitle, category: "taksit", amount: perInst });
           } else if (dueTime < todayStart) {
             const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
-            if (daysLate > 7) {
-              overdueMoreThanWeekList.push({ name: instTitle, category: "taksit", amount: perInst, daysLate, sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani });
-            } else {
-              recentOverdueList.push({ name: instTitle, category: "taksit", amount: perInst, daysLate, sonBildirimZamani: inst.sonBildirimZamani });
-            }
+            overdueList.push({ name: instTitle, category: "taksit", amount: perInst, daysLate, isOverdue: true });
+          } else if (dueTime >= todayEnd && dueTime <= (todayStart + 3 * 24 * 60 * 60 * 1000)) {
+            const daysLeft = Math.ceil((dueTime - todayStart) / (1000 * 60 * 60 * 24));
+            upcomingThreeDaysList.push({ name: instTitle, category: "taksit", amount: perInst, daysLeft });
           }
         }
       }
     });
   }
 
-  // 6. Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat
-  const allDueItems = [...dueTodayList, ...recentOverdueList, ...overdueMoreThanWeekList];
-  if (allDueItems.length > 0) {
-    const topItems = allDueItems.slice(0, 4);
-    const totalDue = allDueItems.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  // --- 6. VADESİ GEÇMİŞ BORÇLAR İÇİN SESSİZ GÜN İÇİ HATIRLATMA ---
+  // Borcun günü geçmesine rağmen hâlâ ödenmediyse, gün içinde hatırlatma yapmaya sessizce devam eder
+  if (overdueList.length > 0) {
+    const overdueTotal = overdueList.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const overdueSummary = overdueList.slice(0, 3).map(d => {
+      const emoji = getDebtCategoryEmoji(d.name, d.category);
+      return `${emoji} ${d.name}: ${Math.round(Number(d.amount)).toLocaleString("tr-TR")} TL (${d.daysLate} gün gecikti)`;
+    }).join("\n");
+
+    await self.registration.showNotification("⚠️ Bütçem Pro: Vadesi Geçmiş Ödemeler", {
+      body: `Ödenmemiş vadesi geçmiş ${overdueList.length} adet borcunuz bulunmaktadır:\n${overdueSummary}\nToplam Geciken: ${Math.round(overdueTotal).toLocaleString("tr-TR")} TL\nFaiz ve cezalardan kaçınmak için kontrol ediniz.`,
+      icon: appIcon,
+      vibrate: [], // Sessiz, titreşimsiz
+      tag: "butcempro-silent-overdue-reminder",
+      renotify: false,
+      requireInteraction: false,
+      silent: true, // Sessizce gün içinde hatırlatma
+      actions: [{ action: "open_app", title: "Borçları Gör" }],
+      data: { url: "/?tab=debts" }
+    });
+  }
+
+  // --- 7. VADESİ BUGÜN VEYA SON 3 GÜN KALAN BORÇLARIN GENEL ÖZETİ ---
+  const activeAlerts = [...dueTodayList, ...upcomingThreeDaysList];
+  if (activeAlerts.length > 0) {
+    const topItems = activeAlerts.slice(0, 4);
+    const totalDue = activeAlerts.reduce((s, d) => s + (Number(d.amount) || 0), 0);
     const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
     const dateFormatted = today.toLocaleDateString("tr-TR");
-    
-    // Kullanıcının kayıtlı ismi veya e-postasına göre hitap et
+
     const userProfile = await loadCachedUserProfile();
     const rawName = (userProfile && userProfile.name ? userProfile.name.trim() : "") || (userProfile && userProfile.email ? userProfile.email.trim() : "");
-    const safeUser = rawName ? rawName.toUpperCase() : "SERKAN SAĞLAM";
+    const safeUser = rawName ? rawName.toUpperCase() : "BÜTÇEM PRO KULLANICISI";
 
     const borcListesiMetni = topItems
       .map((d) => {
         const emoji = getDebtCategoryEmoji(d.name, d.category);
-        const statusText = d.daysLate ? `${d.daysLate} gün gecikti` : "Vadesi BUGÜN";
+        const statusText = d.daysLeft ? `Son ${d.daysLeft} gün` : "Vadesi BUGÜN";
         return `${emoji} ${d.name}: ${Math.round(Number(d.amount)).toLocaleString("tr-TR")} TL (${statusText})`;
       })
-      .concat(allDueItems.length > topItems.length ? [`...ve ${allDueItems.length - topItems.length} adet daha`] : [])
+      .concat(activeAlerts.length > topItems.length ? [`...ve ${activeAlerts.length - topItems.length} adet daha`] : [])
       .join("\n");
 
-    // Başlık alanını net ve tek bir defa tanımlıyoruz
-    const bildirimBasligi = "📊 Bütçem Pro: Güncel Vade Özeti";
-
-    // İçerik alanını jilet gibi alt alta emojilerle grupluyoruz
+    const bildirimBasligi = "📊 Bütçem Pro: Yaklaşan Ödeme Bildirimi";
     const bildirimIcerigi = `👤 SN. ${safeUser}\n` +
-      `📅 Rapor Tarihi: ${dateFormatted}\n\n` +
-      `📌 AKTİF BORÇ LİSTENİZ:\n` +
+      `📅 Tarih: ${dateFormatted}\n\n` +
+      `📌 YAKLAŞAN / BUGÜNKÜ ÖDEMELERİNİZ:\n` +
       `${borcListesiMetni}\n\n` +
-      `💰 Toplam Geciken/Vadesi Gelen: ${toplamMiktar} TL\n\n` +
-      `⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
+      `💰 Toplam Tutar: ${toplamMiktar} TL\n\n` +
+      `⚠️ Son ödeme tarihini kaçırmamak için ödemenizi yapmayı unutmayınız.`;
 
     await self.registration.showNotification(bildirimBasligi, {
       body: bildirimIcerigi,
@@ -551,21 +675,20 @@ async function handleBackgroundSync(tag) {
       actions: [{ action: "open_app", title: "Ödemeyi Gör" }],
       data: { url: "/?tab=debts" }
     });
-
-    // Damgayı kaydet
-    await saveCachedLastGeneralNotificationTime(now);
-    await saveCachedLastTwiceDailyNotificationTime(now);
-
-    // İstemcileri bilgilendir
-    const allClients = await self.clients.matchAll();
-    allClients.forEach(c => {
-      c.postMessage({ type: "UPDATE_LAST_NOTIFICATION_TIME", timestamp: now, isTwiceDaily: true });
-    });
   }
 
-  // 7. Update App icon badge count
+  // Zaman damgalarını güncelle
+  await saveCachedLastGeneralNotificationTime(now);
+  await saveCachedLastTwiceDailyNotificationTime(now);
+
+  const allClients = await self.clients.matchAll();
+  allClients.forEach(c => {
+    c.postMessage({ type: "UPDATE_LAST_NOTIFICATION_TIME", timestamp: now });
+  });
+
+  // 8. Update App icon badge count
   if (self.navigator && self.navigator.setAppBadge) {
-    const totalBadge = (triggeredAlarmCount > 0 ? triggeredAlarmCount : 0) + (allDueItems.length > 0 ? allDueItems.length : 0);
+    const totalBadge = (triggeredAlarmCount > 0 ? triggeredAlarmCount : 0) + overdueList.length + activeAlerts.length;
     if (totalBadge > 0) {
       self.navigator.setAppBadge(totalBadge).catch(() => {});
     }
@@ -589,11 +712,6 @@ self.addEventListener("message", (event) => {
   if (!event.data) return;
 
   if (event.data.type === "SYNC_ALL_DATA") {
-    if (event.data.alarms) {
-      activeAlarms = event.data.alarms;
-      rescheduleAlarms();
-      saveAlarmsToCache(activeAlarms);
-    }
     if (event.data.debts) {
       activeDebts = event.data.debts;
       saveDebtsToCache(activeDebts);
@@ -602,22 +720,29 @@ self.addEventListener("message", (event) => {
       activeInstallments = event.data.installmentDebts;
       saveInstallmentsToCache(activeInstallments);
     }
+    if (event.data.alarms) {
+      activeAlarms = event.data.alarms;
+      saveAlarmsToCache(activeAlarms);
+    }
+    rescheduleAlarms();
   }
 
   if (event.data.type === "SYNC_ALARMS") {
     activeAlarms = event.data.alarms || [];
-    rescheduleAlarms();
     saveAlarmsToCache(activeAlarms);
+    rescheduleAlarms();
   }
 
   if (event.data.type === "SYNC_DEBTS") {
     activeDebts = event.data.debts || [];
     saveDebtsToCache(activeDebts);
+    rescheduleAlarms();
   }
 
   if (event.data.type === "SYNC_INSTALLMENTS") {
     activeInstallments = event.data.installmentDebts || [];
     saveInstallmentsToCache(activeInstallments);
+    rescheduleAlarms();
   }
 
   if (event.data.type === "SYNC_PUSH_SETTINGS") {
@@ -679,15 +804,14 @@ self.addEventListener("push", (event) => {
   const appIcon = self.location.origin + "/logo.png";
   const targetUrl = data.url || "/?tab=notifications";
 
-  // Build high-urgency lockscreen notification options
   const notifOptions = {
     body: data.body || "Planlanmış alarm / ödeme hatırlatması! ⏰",
     icon: data.icon || appIcon,
-    vibrate: data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500],
+    vibrate: data.silent ? [] : (data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500]),
     tag: data.tag || `alarm-${data.alarmId || Date.now()}`,
     renotify: true,
-    requireInteraction: true,
-    silent: false,
+    requireInteraction: !data.silent,
+    silent: !!data.silent,
     timestamp: Date.now(),
     actions: [
       { action: "open_app", title: "Uygulamayı Aç" },
@@ -700,26 +824,22 @@ self.addEventListener("push", (event) => {
     }
   };
 
-  // STEP 1: Immediately show notification to the device lock screen & notification drawer
   const notificationPromise = self.registration.showNotification(
     data.title || "Bütçem Pro: Ödeme Vakti Geldi! ⏰",
     notifOptions
   ).then(() => {
-    console.log("[Service Worker] Lockscreen alarm notification displayed successfully:", data.title);
+    console.log("[Service Worker] Notification displayed successfully:", data.title);
   }).catch((err) => {
     console.error("[Service Worker] Failed to display notification:", err);
   });
 
-  // STEP 2: Background state updates (App badge, removing triggered alarm from cache, background debt sync)
   const backgroundPromise = (async () => {
-    // 2.1 Update device app icon badge
     if (self.navigator && self.navigator.setAppBadge) {
       try {
         await self.navigator.setAppBadge(1);
       } catch (e) {}
     }
 
-    // 2.2 If this was a specific alarm, remove it from active alarms cache to prevent duplicates
     if (data.alarmId) {
       try {
         activeAlarms = activeAlarms.filter(a => String(a.id) !== String(data.alarmId));
@@ -729,7 +849,6 @@ self.addEventListener("push", (event) => {
       }
     }
 
-    // 2.3 If server triggered a background sync tag, run background sync safely
     if (data.action === "trigger-sync" || data.syncTag) {
       try {
         await handleBackgroundSync(data.syncTag || "push-sync");
@@ -754,7 +873,6 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // If a window client is already open, focus and navigate it
       for (const client of clientList) {
         if ("focus" in client) {
           if ("navigate" in client && targetUrl) {
@@ -763,7 +881,6 @@ self.addEventListener("notificationclick", (event) => {
           return client.focus();
         }
       }
-      // Otherwise open a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }
