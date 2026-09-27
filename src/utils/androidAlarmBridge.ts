@@ -263,6 +263,7 @@ export async function scheduleCapacitorAlarm(
           channelId: "debt_reminders",
           autoCancel: true,
           smallIcon: 'ic_stat_notify',
+          largeIcon: 'ic_stat_notify_large',
           iconColor: '#10B981',
           android: {
             summaryText: summaryText,
@@ -333,6 +334,7 @@ export async function sendInstantCapacitorNotification(
           channelId: "debt_reminders",
           autoCancel: true,
           smallIcon: "ic_stat_notify",
+          largeIcon: "ic_stat_notify_large",
           iconColor: "#10B981",
           android: {
             summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",

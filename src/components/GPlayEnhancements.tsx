@@ -760,45 +760,87 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
           </div>
         </div>
 
-        {/* Sync Sub-Tabs */}
-        <div className="flex items-center gap-2 flex-wrap border-b border-slate-100 dark:border-slate-700/60 pb-3 relative z-10">
+        {/* Sync Sub-Tabs: 3 Düzenli ve Butonlu Navigasyon */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 relative z-10 mb-4">
           <button
             type="button"
             onClick={() => setCloudActiveTab("sync")}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
               cloudActiveTab === "sync"
-                ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                : "bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
             }`}
           >
-            <Cloud className="w-3.5 h-3.5" />
-            <span>1. Firebase Canlı Bulut Eşitleme</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                cloudActiveTab === "sync" ? "bg-white/20 text-white" : "bg-sky-500/10 text-sky-500 dark:text-sky-400"
+              }`}>
+                <Cloud className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight">1. Bulut Eşitleme</div>
+                <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "sync" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                  Firebase Canlı Senkron
+                </div>
+              </div>
+            </div>
+            {cloudActiveTab === "sync" && (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setCloudActiveTab("drive")}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
               cloudActiveTab === "drive"
-                ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                : "bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
             }`}
           >
-            <HardDrive className="w-3.5 h-3.5" />
-            <span>2. Google Drive & Dosya İndirme</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                cloudActiveTab === "drive" ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+              }`}>
+                <HardDrive className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight">2. Google Drive</div>
+                <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "drive" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                  Dışa Aktar & Paylaş
+                </div>
+              </div>
+            </div>
+            {cloudActiveTab === "drive" && (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setCloudActiveTab("restore")}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
               cloudActiveTab === "restore"
-                ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                : "bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
             }`}
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>3. Yedeği Geri Yükle & İçe Aktar</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                cloudActiveTab === "restore" ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-500 dark:text-amber-400"
+              }`}>
+                <Upload className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight">3. Yedeği Geri Yükle</div>
+                <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "restore" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                  JSON Dosyası Yükle
+                </div>
+              </div>
+            </div>
+            {cloudActiveTab === "restore" && (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+            )}
           </button>
         </div>
 

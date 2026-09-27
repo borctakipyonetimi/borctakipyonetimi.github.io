@@ -4891,6 +4891,7 @@ export default function App() {
               },
               channelId: "debt_reminders",
               smallIcon: 'ic_stat_notify',
+              largeIcon: 'ic_stat_notify_large',
               iconColor: '#10B981',
               autoCancel: true,
               android: {
@@ -6886,11 +6887,11 @@ export default function App() {
                 }
               }}
               title={`Bildirimler ve Alarmlar (${notifications.length})`}
-              className="p-1.5 sm:p-2 lg:p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
+              className="p-2 sm:p-2.5 lg:p-3 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
             >
-              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-300" />
+              <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300 hover:text-white transition-colors" />
               {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] sm:text-[9px] font-black h-3.5 min-w-[14px] px-1 rounded-full flex items-center justify-center ring-1 ring-slate-900">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[9px] sm:text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center ring-2 ring-slate-900 shadow-md">
                   {notifications.length}
                 </span>
               )}

@@ -512,19 +512,21 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 <Cloud className="w-6 h-6" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2.5">
+                  <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100 leading-snug">
                     {language === "tr" ? "Bulut ve Yedekleme (Firebase & Google Drive)" : "Cloud & Backup"}
                   </h3>
-                  {!isPremium ? (
-                    <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                      <Lock className="w-2.5 h-2.5 text-slate-950" /> PRO KİLİTLİ
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
-                      <span>👑</span> PRO AKTİF
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {!isPremium ? (
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs shrink-0">
+                        <Lock className="w-2.5 h-2.5 text-slate-950" /> PRO KİLİTLİ
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
+                        <span>👑</span> PRO AKTİF
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
                   {language === "tr"
@@ -579,45 +581,87 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 </div>
               )}
 
-          {/* Sub-Tabs Selector */}
-          <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
+          {/* Sub-Tabs Selector: 3 Düzenli ve Butonlu Navigasyon */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
             <button
               type="button"
               onClick={() => setCloudActiveTab("sync")}
-              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+              className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
                 cloudActiveTab === "sync"
-                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                  : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
               }`}
             >
-              <Cloud className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Bulut Eşitleme (Firebase)</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  cloudActiveTab === "sync" ? "bg-white/20 text-white" : "bg-sky-500/10 text-sky-500 dark:text-sky-400"
+                }`}>
+                  <Cloud className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-black leading-tight">1. Bulut Eşitleme</div>
+                  <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "sync" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                    Firebase Canlı Senkron
+                  </div>
+                </div>
+              </div>
+              {cloudActiveTab === "sync" && (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+              )}
             </button>
 
             <button
               type="button"
               onClick={() => setCloudActiveTab("drive")}
-              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+              className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
                 cloudActiveTab === "drive"
-                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                  : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
               }`}
             >
-              <HardDrive className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Google Drive & Dışa Aktar</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  cloudActiveTab === "drive" ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+                }`}>
+                  <HardDrive className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-black leading-tight">2. Google Drive</div>
+                  <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "drive" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                    Dışa Aktar & Paylaş
+                  </div>
+                </div>
+              </div>
+              {cloudActiveTab === "drive" && (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+              )}
             </button>
 
             <button
               type="button"
               onClick={() => setCloudActiveTab("restore")}
-              className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+              className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-center gap-2.5 cursor-pointer select-none active:scale-[0.98] ${
                 cloudActiveTab === "restore"
-                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/50"
+                  : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
               }`}
             >
-              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Yedeği Geri Yükle</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  cloudActiveTab === "restore" ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-500 dark:text-amber-400"
+                }`}>
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-black leading-tight">3. Yedeği Geri Yükle</div>
+                  <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${cloudActiveTab === "restore" ? "text-sky-100" : "text-slate-400 dark:text-slate-500"}`}>
+                    JSON Dosyası Yükle
+                  </div>
+                </div>
+              </div>
+              {cloudActiveTab === "restore" && (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 sm:hidden animate-pulse" />
+              )}
             </button>
           </div>
 
@@ -795,75 +839,108 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleTriggerDriveExport("drive")}
-                  className="p-5 bg-gradient-to-br from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-3xl text-left shadow-lg shadow-indigo-600/15 transition-all flex flex-col justify-between space-y-3 cursor-pointer group active:scale-95"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white">
-                      <Folder className="w-5 h-5" />
+                {/* 1. Google Drive Bulut Kaydet */}
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-indigo-700 via-sky-700 to-indigo-900 text-white rounded-3xl shadow-lg shadow-indigo-600/20 border border-sky-400/30 flex flex-col justify-between space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-xs">
+                        <Folder className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md flex items-center gap-1">
+                        {!isPremium && <Lock className="w-2.5 h-2.5" />} GOOGLE DRIVE (PRO)
+                      </span>
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/20 flex items-center gap-1">
-                      {!isPremium && <Lock className="w-2.5 h-2.5" />} GOOGLE DRIVE (PRO)
-                    </span>
+                    <div>
+                      <h4 className="text-base font-black text-white flex items-center gap-1.5">
+                        <span>Google Drive Bulut Depolama</span>
+                        {!isPremium && <span className="text-xs">🔒</span>}
+                      </h4>
+                      <p className="text-xs text-sky-100 font-medium mt-1 leading-relaxed">
+                        Yedek dosyanızı doğrudan Google Drive bulut klasörünüze aktarır ve güvenle arşivler.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-black text-white flex items-center gap-1.5">
-                      <span>📁 Google Drive'a Kaydet & Yükle</span>
-                      {!isPremium && <span className="text-xs">🔒</span>}
-                    </h4>
-                    <p className="text-xs text-sky-100 font-medium mt-1">
-                      Yedek dosyasını doğrudan Google Drive bulut klasörünüze aktarın.
-                    </p>
-                  </div>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleTriggerDriveExport("download")}
-                  className="p-5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-3xl text-left shadow-xs transition-all flex flex-col justify-between space-y-3 cursor-pointer group active:scale-95"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center">
-                      <Download className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      YEREL İNDİRME
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      💾 Cihaza Dosya Olarak İndir
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                      .json uzantılı veri dosyasını doğrudan telefonunuza veya bilgisayarınıza indirin.
-                    </p>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDriveExport("drive")}
+                    className="w-full py-3 px-4 bg-white hover:bg-sky-50 text-indigo-900 rounded-2xl font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {!isPremium ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>KİLİTLİ 🔒 (PRO'ya Yükselt)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Folder className="w-4 h-4 text-indigo-600" />
+                        <span>Google Drive'a Kaydet & Yükle ☁️</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleTriggerDriveExport("share")}
-                  className="p-5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-3xl text-left shadow-xs transition-all flex flex-col justify-between space-y-3 cursor-pointer group active:scale-95 sm:col-span-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center">
-                      <Share2 className="w-5 h-5" />
+                {/* 2. Cihaza Dosya İndir */}
+                <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs flex flex-col justify-between space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-xs">
+                        <Download className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        YEREL İNDİRME
+                      </span>
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      SİSTEM PAYLAŞIMI
-                    </span>
+                    <div>
+                      <h4 className="text-base font-black text-slate-800 dark:text-slate-100">
+                        Cihaza Yerel Dosya İndir (.json)
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-relaxed">
+                        Veri dosyasını doğrudan telefonunuzun İndirilenler klasörüne veya bilgisayarınıza kaydeder.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      🔗 WhatsApp, E-Posta veya Bluetooth ile Paylaş
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                      Telefonunuzun sistem paylaşım menüsü üzerinden yedeği dilediğiniz uygulamaya gönderin.
-                    </p>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDriveExport("download")}
+                    className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl font-black text-xs transition-all shadow-xs active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-slate-200/80 dark:border-slate-700/80"
+                  >
+                    <Download className="w-4 h-4 text-sky-500" />
+                    <span>Cihaza Dosya Olarak İndir 💾</span>
+                  </button>
+                </div>
+
+                {/* 3. Sistem Paylaşımı */}
+                <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs flex flex-col justify-between space-y-4 sm:col-span-2">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-xs">
+                        <Share2 className="w-5 h-5 text-emerald-500" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        SİSTEM PAYLAŞIMI
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-base font-black text-slate-800 dark:text-slate-100">
+                        WhatsApp, E-Posta veya Bluetooth ile Paylaş
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-relaxed">
+                        Telefonunuzun standart sistem paylaşım ekranını açarak yedeği WhatsApp, Gmail, Telegram veya diğer uygulamalara gönderir.
+                      </p>
+                    </div>
                   </div>
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDriveExport("share")}
+                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs transition-all shadow-md shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Paylaşım Menüsünü Aç 🔗</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

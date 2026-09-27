@@ -89,8 +89,8 @@ jobs:
 
       - name: Inject Black and White Notification Icon
         run: |
-          for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
-          for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; done
+          for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true; done
+          for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true; done
 
       - name: Setup System Styles and Permissions
         run: |
