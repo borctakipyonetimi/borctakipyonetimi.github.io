@@ -97,8 +97,16 @@ jobs:
           STYLE_FILE="android/app/src/main/res/values/styles.xml"
           STYL_V31_FILE="android/app/src/main/res/values-v31/styles.xml"
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$STYLE_FILE" ]; then sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_FILE || true; sed -i 's/drawable\/splash/@android:color\/black/g' $STYLE_FILE || true; fi
-          if [ -f "$STYL_V31_FILE" ]; then sed -i '/windowSplashScreenAnimatedIcon/d' $STYL_V31_FILE || true; sed -i 's/drawable\/splash/@android:color\/black/g' $STYL_V31_FILE || true; fi
+          if [ -f "$STYLE_FILE" ]; then 
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYLE_FILE || true
+            sed -i 's/drawable\/splash/@android:color\/black/g' $STYLE_FILE || true
+            sed -i 's/<\/style>/    <item name="android:statusBarColor">#0b132b<\/item>\n        <item name="android:windowLightStatusBar">false<\/item>\n        <item name="android:navigationBarColor">#020617<\/item>\n        <item name="android:windowLightNavigationBar">false<\/item>\n    <\/style>/g' $STYLE_FILE || true
+          fi
+          if [ -f "$STYL_V31_FILE" ]; then 
+            sed -i '/windowSplashScreenAnimatedIcon/d' $STYL_V31_FILE || true
+            sed -i 's/drawable\/splash/@android:color\/black/g' $STYL_V31_FILE || true
+            sed -i 's/<\/style>/    <item name="android:statusBarColor">#0b132b<\/item>\n        <item name="android:windowLightStatusBar">false<\/item>\n        <item name="android:navigationBarColor">#020617<\/item>\n        <item name="android:windowLightNavigationBar">false<\/item>\n    <\/style>/g' $STYL_V31_FILE || true
+          fi
           if [ -f "$MANIFEST_PATH" ]; then
             # Android Manifest içine Kamera, Exact Alarm, Mikrofon, Ses Kayıt ve Biyometrik (Parmak İzi) izinlerini kesin olarak enjekte ediyoruz
             sed -i '/<manifest/a \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.USE_BIOMETRIC" />\n    <uses-permission android:name="android.permission.USE_FINGERPRINT" />' $MANIFEST_PATH
@@ -112,6 +120,14 @@ jobs:
       - name: Sync and Build APK
         run: |
           npx cap sync android
+          # Cap sync sonrası styles dosyasını tekrar garantiye alıyoruz
+          for s_file in android/app/src/main/res/values*/styles.xml; do
+            if [ -f "$s_file" ]; then
+              sed -i 's/<item name="android:statusBarColor">.*<\/item>//g' "$s_file" || true
+              sed -i 's/<item name="android:windowLightStatusBar">.*<\/item>//g' "$s_file" || true
+              sed -i 's/<\/style>/    <item name="android:statusBarColor">#0b132b<\/item>\n        <item name="android:windowLightStatusBar">false<\/item>\n        <item name="android:navigationBarColor">#020617<\/item>\n        <item name="android:windowLightNavigationBar">false<\/item>\n    <\/style>/g' "$s_file" || true
+            fi
+          done
           cd android
           ./gradlew assembleDebug
           cd ..

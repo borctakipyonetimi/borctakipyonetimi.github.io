@@ -162,6 +162,7 @@ import {
   openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
@@ -2611,6 +2612,17 @@ export default function App() {
     // böylece telefonun pil göstergesi (99%), saat ve sinyal simgeleri bembeyaz ve kristal netliğinde görünür
     const statusBarColor = darkMode ? "#020617" : "#0b132b";
     metaThemeColor.setAttribute("content", statusBarColor);
+
+    // Native Capacitor Status Bar Senkronizasyonu (Android / iOS)
+    if (Capacitor.isPluginAvailable("StatusBar")) {
+      try {
+        StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
+        StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+      } catch (e) {
+        // Web ortamı için güvenle yutulur
+      }
+    }
 
     if (darkMode) {
       document.documentElement.classList.add("dark");
