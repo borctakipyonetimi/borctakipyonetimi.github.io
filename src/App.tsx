@@ -4,7 +4,7 @@
  * Bütçem Pro - Kişisel Finans & Borç Takip Yönetimi
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useTransition, useCallback } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
 import { 
   auth, 
@@ -976,9 +976,8 @@ export default function App() {
   const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
   const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
 
-  // Live Timer states
-  const [liveClock, setLiveClock] = useState("--:--:--");
-  const [isClockVisible, setIsClockVisible] = useState(true);
+  // Smooth concurrent tab transition state
+  const [isNavPending, startNavTransition] = useTransition();
 
   // Design palettes state - defaults with automatic phone/system adaptation
   const [themeMode, setThemeMode] = useState<"auto" | "dark" | "light">(() => {
@@ -2014,11 +2013,6 @@ export default function App() {
     };
   }, []);
 
-  // Automatically scroll to the very top of the window when switching active tabs
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [activeTab]);
-
   // Listen for global custom event toasts
   useEffect(() => {
     const handleGlobalToast = (e: Event) => {
@@ -2038,22 +2032,6 @@ export default function App() {
     };
     window.addEventListener("contacts-updated", handleContactsUpdate);
     return () => window.removeEventListener("contacts-updated", handleContactsUpdate);
-  }, []);
-
-  // Live Clock loop
-  useEffect(() => {
-    const handleClock = () => {
-      const d = new Date();
-      setLiveClock(
-        `${d.getHours().toString().padStart(2, "0")}:${d
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`
-      );
-    };
-    handleClock();
-    const timer = setInterval(handleClock, 1000);
-    return () => clearInterval(timer);
   }, []);
 
   // Read APK Sync Code on mount
@@ -6064,20 +6042,6 @@ export default function App() {
     return () => window.removeEventListener("nav-to-ai", handleNavToAi);
   }, []);
 
-  // Scroll back to top on navigation to prevent scroll restoration issues inside Web/iFrame environments and ensure all page content is visible
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      
-      const mainElement = document.querySelector("main");
-      if (mainElement) {
-        mainElement.scrollTop = 0;
-      }
-    }
-  }, [activeTab, showPublicView]);
-
   // Navigation target mappings
   const sidebarItems = [
     { id: "overview", label: "GENEL BAKIŞ", icon: LayoutDashboard },
@@ -6102,28 +6066,28 @@ export default function App() {
   ];
 
   const handleNavClick = (tabId: string) => {
+    if (isSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+
     if (tabId === "public_landing") {
       setShowPublicView("landing");
-      setIsSidebarOpen(false);
       return;
     }
 
     if (tabId === "security" || tabId === "security_settings" || tabId === "settings") {
-      setActiveTab("settings");
-      setIsSidebarOpen(false);
+      startNavTransition(() => setActiveTab("settings"));
       return;
     }
 
     if (tabId === "voice_assistant" || tabId === "voice") {
       setVoiceAssistantEnabled(true);
       triggerToast("🎙️ Sesli Finans Asistanı aktif edildi! Sağ alt taraftaki mikrofon butonuna basıp konuşabilirsiniz.");
-      setIsSidebarOpen(false);
       return;
     }
 
     if (tabId === "currency" || tabId === "markets") {
-      setActiveTab("gplay_enhancements");
-      setIsSidebarOpen(false);
+      startNavTransition(() => setActiveTab("gplay_enhancements"));
       setTimeout(() => {
         const el = document.getElementById("live-currency-converter-widget");
         if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -6132,21 +6096,18 @@ export default function App() {
     }
 
     if (tabId === "cloud_sync" || tabId === "cloud" || tabId === "backup_cloud") {
-      setActiveTab("settings");
-      setIsSidebarOpen(false);
+      startNavTransition(() => setActiveTab("settings"));
       return;
     }
 
     if (tabId === "aiStrategy") {
       if (!isPremium && !isPassActive("ai")) {
         openRewardedModal("ai", () => {
-          setActiveTab("aiStrategy");
-          setIsSidebarOpen(false);
+          startNavTransition(() => setActiveTab("aiStrategy"));
         });
         return;
       }
-      setActiveTab("aiStrategy");
-      setIsSidebarOpen(false);
+      startNavTransition(() => setActiveTab("aiStrategy"));
       return;
     }
 
@@ -6157,8 +6118,9 @@ export default function App() {
       return;
     }
 
-    setActiveTab(tabId);
-    setIsSidebarOpen(false);
+    startNavTransition(() => {
+      setActiveTab(tabId);
+    });
   };
 
   if (showPublicView === "landing") {
@@ -7374,50 +7336,52 @@ export default function App() {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Animated fluid floating vector blobs for premium backdrop depth */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.08] dark:opacity-[0.14] z-0">
-          <motion.div
-            animate={{
-              x: [0, 24, -14, 0],
-              y: [0, -35, 25, 0],
-              scale: [1, 1.18, 0.92, 1],
-              rotate: [0, 90, 180, 0]
-            }}
-            transition={{
-              duration: 18,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-gradient-to-tr from-indigo-500 to-sky-400 blur-2xl"
-          />
-          <motion.div
-            animate={{
-              x: [0, -28, 18, 0],
-              y: [0, 30, -22, 0],
-              scale: [1, 0.88, 1.12, 1],
-              rotate: [0, -90, -180, 0]
-            }}
-            transition={{
-              duration: 22,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: 3
-            }}
-            className="absolute top-1/3 -right-12 w-48 h-48 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 blur-2xl"
-          />
-          <motion.div
-            animate={{
-              y: [0, 50, -35, 0],
-              scale: [0.93, 1.16, 0.93]
-            }}
-            transition={{
-              duration: 25,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="absolute bottom-12 left-6 w-38 h-38 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 blur-2xl"
-          />
-        </div>
+        {/* Animated fluid floating vector blobs for premium backdrop depth (only rendered when sidebar is open to conserve performance) */}
+        {isSidebarOpen && (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.08] dark:opacity-[0.14] z-0">
+            <motion.div
+              animate={{
+                x: [0, 24, -14, 0],
+                y: [0, -35, 25, 0],
+                scale: [1, 1.18, 0.92, 1],
+                rotate: [0, 90, 180, 0]
+              }}
+              transition={{
+                duration: 18,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-gradient-to-tr from-indigo-500 to-sky-400 blur-2xl"
+            />
+            <motion.div
+              animate={{
+                x: [0, -28, 18, 0],
+                y: [0, 30, -22, 0],
+                scale: [1, 0.88, 1.12, 1],
+                rotate: [0, -90, -180, 0]
+              }}
+              transition={{
+                duration: 22,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 3
+              }}
+              className="absolute top-1/3 -right-12 w-48 h-48 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 blur-2xl"
+            />
+            <motion.div
+              animate={{
+                y: [0, 50, -35, 0],
+                scale: [0.93, 1.16, 0.93]
+              }}
+              transition={{
+                duration: 25,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute bottom-12 left-6 w-38 h-38 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 blur-2xl"
+            />
+          </div>
+        )}
 
         <div className="p-4 sm:p-5 space-y-4 relative z-10">
           {/* Workspace Title & Close Header */}
@@ -7570,7 +7534,7 @@ export default function App() {
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSidebarDeviceLogin}
-                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-850 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-amber-400/70 shadow-lg shadow-amber-600/20 transition-all cursor-pointer overflow-hidden text-left"
+                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-amber-400/70 shadow-lg shadow-amber-600/20 transition-all cursor-pointer overflow-hidden text-left"
                   >
                     <motion.div
                       animate={{ x: ["-100%", "240%"] }}
@@ -7672,7 +7636,7 @@ export default function App() {
                               const base64Svg = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`;
                               handleSaveAvatar(base64Svg);
                             }}
-                            className={`w-3.5 h-3.5 rounded-full bg-gradient-to-tr ${grad} border border-white dark:border-slate-850 shadow-xs cursor-pointer active:scale-90 transition`}
+                            className={`w-3.5 h-3.5 rounded-full bg-gradient-to-tr ${grad} border border-white dark:border-slate-800 shadow-xs cursor-pointer active:scale-90 transition`}
                           />
                         ))}
                       </div>
@@ -10171,7 +10135,7 @@ export default function App() {
                           </p>
                         </div>
 
-                        <div className="p-3.5 bg-slate-50 dark:bg-slate-950 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-medium rounded-2xl border border-slate-200 dark:border-slate-850">
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-950 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-medium rounded-2xl border border-slate-200 dark:border-slate-800">
                           Google Play siparişiniz başarıyla saptanmış ve cihazınızın ödeme durum tablosu güncellenmiştir. Artık tüm reklamlar kaldırılmış, AI finansal koçu ve sınırsız PDF/Excel raporları aktiftir.
                         </div>
 
@@ -10241,78 +10205,76 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - Sadece Misafir/Ziyaretçi anonim kullanıcılara 7 günlük deneme butonunu gösterir */}
-                    {!isPremium && !currentUser && (!trialStatus || !trialStatus.hasTrial) && (
-                      <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
-                        <div className="text-center space-y-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
-                            🔒 KISITLI ÖZELLİK ERİŞİMİ
-                          </span>
-                          <h4 className="text-sm font-black text-slate-800 dark:text-white">
-                            {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
-                          </h4>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                            Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - Sadece Anonim Misafirler İçin */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUpgradeModalOpen(false);
-                              setProviderLoginInitialTab("guest_trial");
-                              setProviderLoginInitialSubMode("register");
-                              setProviderLoginOpen(true);
-                            }}
-                            className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xl">🎁</span>
-                              <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                Ücretsiz
-                              </span>
-                            </div>
-                            <div>
-                              <div className="text-xs font-black leading-tight">
-                                7 Günlük Deneme Başlat
-                              </div>
-                              <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
-                                E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
-                              </div>
-                            </div>
-                          </button>
-
-                          {/* Seçenek 2: Premium Satın Al */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const el = document.getElementById("premium-plans-section");
-                              if (el) {
-                                el.scrollIntoView({ behavior: "smooth" });
-                              }
-                            }}
-                            className="p-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl shadow-md shadow-amber-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-amber-400/40"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xl">👑</span>
-                              <span className="text-[9px] font-black bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                Limitsiz
-                              </span>
-                            </div>
-                            <div>
-                              <div className="text-xs font-black leading-tight">
-                                Premium Satın Al
-                              </div>
-                              <div className="text-[10px] text-amber-950/80 font-semibold mt-0.5 leading-snug">
-                                Aylık, Yıllık veya Limitsiz paketle tüm sınırlamaları kalıcı olarak kaldırın.
-                              </div>
-                            </div>
-                          </button>
-                        </div>
+                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - Her zaman modalın başında gösterilir */}
+                    <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
+                      <div className="text-center space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
+                          🔒 KISITLI ÖZELLİK ERİŞİMİ
+                        </span>
+                        <h4 className="text-sm font-black text-slate-800 dark:text-white">
+                          {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
+                        </h4>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                          Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
+                        </p>
                       </div>
-                    )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUpgradeModalOpen(false);
+                            setProviderLoginInitialTab("guest_trial");
+                            setProviderLoginInitialSubMode("register");
+                            setProviderLoginOpen(true);
+                          }}
+                          className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl">🎁</span>
+                            <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              Ücretsiz
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-black leading-tight">
+                              7 Günlük Deneme Başlat
+                            </div>
+                            <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
+                              E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Seçenek 2: Premium Satın Al */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById("premium-plans-section");
+                            if (el) {
+                              el.scrollIntoView({ behavior: "smooth" });
+                            }
+                          }}
+                          className="p-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl shadow-md shadow-amber-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-amber-400/40"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl">👑</span>
+                            <span className="text-[9px] font-black bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              Limitsiz
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-black leading-tight">
+                              Premium Satın Al
+                            </div>
+                            <div className="text-[10px] text-amber-950/80 font-semibold mt-0.5 leading-snug">
+                              Aylık, Yıllık veya Limitsiz paketle tüm sınırlamaları kalıcı olarak kaldırın.
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
 
                     {/* Features list */}
                         <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -10340,70 +10302,105 @@ export default function App() {
                           <p className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-500 tracking-widest text-center flex items-center justify-center gap-2">
                             <span className="w-6 h-px bg-amber-500/30" /> 👑 PREMİUM PLANLAR <span className="w-6 h-px bg-amber-500/30" />
                           </p>
-                          <div className="grid grid-cols-3 gap-2.5">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
                             {[
                               {
                                 planKey: "monthly" as const,
                                 id: "butcem_pro_aylik" as const,
                                 label: "AYLIK",
+                                icon: "⚡",
                                 product: (dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik,
                                 badge: "ESNEK",
-                                period: "Aylık Yenilenen"
+                                period: "Aylık Yenilenen",
+                                fallbackPrice: "₺49,99 / Ay"
                               },
                               {
                                 planKey: "yearly" as const,
                                 id: "butcem_pro_yillik" as const,
                                 label: "YILLIK",
+                                icon: "🔥",
                                 product: (dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik,
                                 badge: "EN POPÜLER",
+                                badgeSub: "%45 TASARRUF",
                                 period: "Tasarruf: %45",
-                                isPopular: true
+                                isPopular: true,
+                                fallbackPrice: "₺349,99 / Yıl"
                               },
                               {
                                 planKey: "lifetime" as const,
                                 id: "butcem_pro_sinirsiz" as const,
                                 label: "LİMİTSİZ",
+                                icon: "💎",
                                 product: (dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz,
                                 badge: "ÖMÜR BOYU",
-                                period: "Tek Ödeme",
-                                isLifetime: true
+                                period: "Tek Ödeme • Kalıcı",
+                                isLifetime: true,
+                                fallbackPrice: "₺699,99"
                               }
                             ].map((pkg) => {
                               const isSelected = selectedPlan === pkg.planKey;
+                              const priceDisplay = pkg.product?.priceString || pkg.fallbackPrice;
+
                               return (
                                 <div
                                   key={pkg.id}
                                   onClick={() => setSelectedPlan(pkg.planKey)}
-                                  className={`p-3 rounded-2xl text-center relative overflow-hidden transition-all duration-200 select-none cursor-pointer ${
-                                    pkg.isPopular ? "pt-6.5" : ""
+                                  className={`group relative rounded-2xl p-2.5 sm:p-3 text-center flex flex-col justify-between overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out transform active:scale-95 ${
+                                    pkg.isPopular ? "pt-6 sm:pt-6.5" : "pt-4"
                                   } ${
                                     isSelected
                                       ? pkg.isLifetime
-                                        ? "bg-indigo-650 text-white border-2 border-indigo-400 ring-4 ring-indigo-500/25 scale-[1.04] z-20 shadow-xl shadow-indigo-500/20"
-                                        : "bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500 ring-4 ring-amber-500/10 scale-[1.04] z-20 shadow-xl shadow-amber-500/10"
-                                      : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm opacity-70 hover:opacity-100 hover:border-slate-350 dark:hover:border-slate-600"
+                                        ? "bg-purple-50/60 dark:bg-slate-800 border-2 border-indigo-500 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
+                                        : pkg.isPopular
+                                        ? "bg-amber-50/60 dark:bg-slate-800 border-2 border-amber-500 dark:border-amber-400 ring-4 ring-amber-500/20 scale-[1.03] z-20 shadow-xl shadow-amber-500/15"
+                                        : "bg-indigo-50/60 dark:bg-slate-800 border-2 border-indigo-600 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
+                                      : "bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:border-slate-350 dark:hover:border-slate-600 hover:shadow-md hover:scale-[1.02]"
                                   }`}
                                 >
+                                  {/* Top Ribbon Badge for Popular */}
                                   {pkg.isPopular && (
-                                    <div className="absolute top-0 right-0 left-0 bg-amber-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none">
-                                      {pkg.badge}
+                                    <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none flex items-center justify-center gap-1 shadow-xs">
+                                      <span className="animate-pulse">🔥</span> {pkg.badge}
                                     </div>
                                   )}
-                                  <p className={`text-[9px] font-black uppercase tracking-tight ${
-                                    isSelected ? (pkg.isLifetime ? "text-indigo-200" : "text-amber-600 dark:text-amber-400") : "text-slate-500"
-                                  }`}>
-                                    {pkg.label}
-                                  </p>
-                                  <p className={`text-base font-black mt-1 ${
-                                    isSelected ? (pkg.isLifetime ? "text-white" : "text-slate-950 dark:text-white") : "text-slate-700 dark:text-slate-200"
-                                  }`}>
-                                    {pkg.product?.priceString}
-                                  </p>
-                                  <p className={`text-[8px] font-black uppercase mt-1 leading-none ${
-                                    isSelected ? (pkg.isLifetime ? "text-white/80" : "text-amber-600/80") : "text-slate-400"
-                                  }`}>
-                                    {pkg.period}
-                                  </p>
+
+                                  {/* Header Label */}
+                                  <div className="flex items-center justify-center gap-1">
+                                    <p className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider ${
+                                      isSelected
+                                        ? pkg.isLifetime
+                                          ? "text-indigo-600 dark:text-indigo-400"
+                                          : pkg.isPopular
+                                          ? "text-amber-600 dark:text-amber-400"
+                                          : "text-indigo-600 dark:text-indigo-400"
+                                        : "text-slate-500 dark:text-slate-400"
+                                    }`}>
+                                      {pkg.label}
+                                    </p>
+                                  </div>
+
+                                  {/* Price Tag with Guaranteed Contrast in Both Light and Dark Modes */}
+                                  <div className="my-1.5 sm:my-2">
+                                    <p className="text-[15px] sm:text-base font-black tracking-tight leading-tight text-slate-900 dark:text-white">
+                                      {priceDisplay}
+                                    </p>
+                                  </div>
+
+                                  {/* Subtitle / Period Tag */}
+                                  <div>
+                                    <span className="inline-block text-[8px] sm:text-[8.5px] font-bold uppercase text-slate-500 dark:text-slate-400 leading-none">
+                                      {pkg.period}
+                                    </span>
+                                  </div>
+
+                                  {/* Selected Checkmark Badge */}
+                                  {isSelected && (
+                                    <div className={`absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${
+                                      pkg.isLifetime ? "bg-indigo-500 text-white" : pkg.isPopular ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
+                                    } shadow-xs text-[8px] font-black`}>
+                                      ✓
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -10411,116 +10408,62 @@ export default function App() {
                         </div>
 
                         <div className="space-y-3 pt-1">
-                          {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
-                          {/* 2. Madde Kuralı: Premium üyeler veya gerçek kullanıcılar için Deneme butonu tamamen gizli (display: none). Sadece anonim misafir modunda görünür. */}
-                          {!isPremium && !currentUser && (!trialStatus || !trialStatus.hasTrial) && (
-                            <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
-                                <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
-                              </div>
-                              <div className="space-y-2">
-                                <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                                  Kredi kartı gerekmeden 7 gün boyunca Bütçem Pro Premium'un tüm ayrıcalıklı özelliklerini ücretsiz kullanabilirsiniz.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={handleActivateTrial}
-                                  className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
-                                >
-                                  🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
-                                </button>
-                              </div>
+                          {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) - Resim 2'deki gibi her zaman görünür */}
+                          <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
+                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
                             </div>
-                          )}
+                            <div className="space-y-2">
+                              <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
+                                KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleActivateTrial}
+                                className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
+                              >
+                                🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
+                              </button>
+                            </div>
+                          </div>
 
                           {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
                           {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (
-                            <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-sm">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 DENEME SÜRÜMÜ DETAYLARI</span>
-                                <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">AKTİF</span>
-                              </div>
-                              <div className="space-y-2.5 text-center bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
-                                <p className="text-[11px] font-black text-indigo-750 dark:text-indigo-300 uppercase leading-none">
-                                  ✨ DENEME SÜRÜMÜNÜZ AKTİF
-                                </p>
-                                <p className="text-[10px] text-indigo-600 dark:text-indigo-450 font-bold">
-                                  Kalan Süre: <span className="font-extrabold text-xs">{trialStatus.daysRemaining} Gün</span>
-                                </p>
-                                <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
-                                  Sona Erme: {trialStatus.endDate ? new Date(trialStatus.endDate).toLocaleDateString("tr-TR") : "-"}
-                                </p>
-                                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
-                                  7 günlük deneme süresi tek seferliktir ve yenilenmez. Süre dolduğunda otomatik olarak reklamlı ve kısıtlı ücretsiz plan ile devam edilir.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelTrial}
-                                  className="w-full mt-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-black text-[10px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 active:scale-97"
-                                >
-                                  ✕ Deneme Sürümünü İptal Et
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Süresi Dolan Deneme Sürümü Uyarısı */}
-                          {trialStatus && trialStatus.hasTrial && !trialStatus.isActive && !isPremium && (
-                            <div className="p-4 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5 shadow-sm">
-                              <div className="space-y-2 text-center">
-                                <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase leading-none">
-                                  ⏳ DENEME SÜRÜNÜZ SONA ERDİ
-                                </p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                                  7 günlük ücretsiz deneme hakkınız tamamlanmıştır. Şu anda <strong>reklamlı ve kısıtlı ücretsiz plan</strong> ile devam etmektesiniz.
-                                </p>
-                                <div className="pt-1">
-                                  <span className="inline-block text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-2.5 py-1 rounded-md">
-                                    🛡️ Reklamlı ve Kısıtlı Ücretsiz Plan Aktif
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {isPremium && localStorage.getItem("premium_source") !== "trial" ? (
-                            <div className="space-y-2.5">
-                              <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-center font-bold text-xs uppercase tracking-tight flex flex-col items-center justify-center gap-1 font-sans">
-                                <span className="font-extrabold text-[12px] tracking-wide">
-                                  👑 LİSANSLI PRO SÜRÜM AKTİF
-                                </span>
-                                <span className="text-[10px] bg-emerald-500/10 px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-                                  Paket: {selectedPlan === "monthly" ? "Bütçem Pro - Aylık" : selectedPlan === "yearly" ? "Bütçem Pro - Yıllık" : "Bütçem Pro - Sınırsız (Ömür Boyu)"}
-                                </span>
-                              </div>
+                            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1.5 text-center">
+                              <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase leading-none">
+                                ✨ DENEME SÜRÜMÜNÜZ AKTİF • {trialStatus.daysRemaining} Gün Kaldı
+                              </p>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  savePremiumStatusAndSync(false, "yearly");
-                                  localStorage.removeItem("premium_source");
-                                  triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
-                                }}
-                                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-97 border border-dashed border-slate-300 dark:border-slate-700"
+                                onClick={handleCancelTrial}
+                                className="text-[10px] text-rose-500 underline font-bold cursor-pointer"
                               >
-                                Lisansı Devre Dışı Bırak (Test)
+                                Deneme Sürümünü İptal Et
                               </button>
                             </div>
-                          ) : !isPremium ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handlePurchase(selectedPlan);
-                              }}
-                              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-650 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer active:scale-97"
-                            >
-                              <span>
-                                {selectedPlan === "monthly" && `AYLIK PLANI ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString}) ⚡`}
-                                {selectedPlan === "yearly" && `YILLIK PLANI ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString}) ⚡`}
-                                {selectedPlan === "lifetime" && `SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR (${((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString}) ⚡`}
-                              </span>
-                            </button>
-                          ) : null}
+                          )}
+
+                          {/* ANA SATIN ALMA BUTONU - Resim 2'deki gibi her zaman yerindedir */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handlePurchase(selectedPlan);
+                            }}
+                            className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-97 hover:scale-[1.01]"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {selectedPlan === "monthly" && (
+                                <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString || "₺49,99 / Ay"}) ⚡</>
+                              )}
+                              {selectedPlan === "yearly" && (
+                                <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString || "₺349,99 / Yıl"}) ⚡</>
+                              )}
+                              {selectedPlan === "lifetime" && (
+                                <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString || "₺699,99"}) ⚡</>
+                              )}
+                            </span>
+                          </button>
 
                           {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
                           <button
@@ -10534,7 +10477,7 @@ export default function App() {
                             }}
                             className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                           >
-                            🔑 Zaten Hesabım Var (E-Posta / Bulut Girişi)
+                            🔑 ZATEN HESABIM VAR (E-POSTA / BULUT GİRİŞİ)
                           </button>
 
                           {/* GOOGLE PLAY RESTORE BUTTON */}
@@ -10546,8 +10489,25 @@ export default function App() {
                             }}
                             className="w-full py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                           >
-                            🔄 Google Play'den Satın Alımları Geri Yükle
+                            🔄 GOOGLE PLAY'DEN SATIN ALIMLARI GERİ YÜKLE
                           </button>
+
+                          {/* Test Lisansı Aktifken Test Butonu */}
+                          {isPremium && (
+                            <div className="pt-1 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  savePremiumStatusAndSync(false, "yearly");
+                                  localStorage.removeItem("premium_source");
+                                  triggerToast("Ücretsiz plana geçiş yapıldı ⭐");
+                                }}
+                                className="text-[10px] text-slate-400 hover:text-rose-500 underline transition cursor-pointer"
+                              >
+                                Lisansı Devre Dışı Bırak (Test)
+                              </button>
+                            </div>
+                          )}
 
                           {isTrialExpiredLocked ? (
                             <div className="pt-2 text-center space-y-2">
@@ -10638,7 +10598,7 @@ export default function App() {
               className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden text-left"
             >
               {/* Google Play top badge bar */}
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 border-b border-slate-100 dark:border-slate-850 flex items-center justify-between">
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 flex items-center justify-center bg-transparent shrink-0">
                     <svg viewBox="0 0 24 24" className="w-full h-full">
@@ -10702,7 +10662,7 @@ export default function App() {
                 </div>
 
                 {/* Account Details */}
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 flex items-center justify-between gap-2">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-grow min-w-0">
                     <div className="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-black uppercase shrink-0">
                       {(playAccountEmail?.[0] || "U").toUpperCase()}
@@ -10747,7 +10707,7 @@ export default function App() {
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">ÖDEME SEÇENEĞİ</span>
                   <div
                     onClick={() => setIsChangingPaymentMethod(!isChangingPaymentMethod)}
-                    className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 flex items-center justify-between cursor-pointer hover:border-slate-350 dark:hover:border-slate-800 transition select-none"
+                    className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-350 dark:hover:border-slate-800 transition select-none"
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-xl">{selectedPaymentMethod.icon}</span>
@@ -10843,7 +10803,7 @@ export default function App() {
                             className={`flex-1 py-1 px-2 font-black text-[9px] uppercase tracking-wider rounded-lg border transition text-center select-none ${
                               paymentFormType === "mobile"
                                 ? "bg-amber-500 text-white border-amber-550"
-                                : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/65 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200/50 dark:border-slate-700"
+                                : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/65 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/50 dark:border-slate-700"
                             }`}
                           >
                             📱 Mobil No Değiştir
@@ -10977,7 +10937,7 @@ export default function App() {
                                   value={newMobileNoValue}
                                   onChange={(e) => setNewMobileNoValue(e.target.value)}
                                   placeholder="5xx xxx xx xx"
-                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-850 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
                               <p className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold mt-1">Simüle operatör onay kodu bu numaraya iletilir.</p>
