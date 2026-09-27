@@ -2496,8 +2496,9 @@ app.post("/api/trigger-overdue-push", async (req, res) => {
     title,
     body,
     tag: "overdue-alert-" + Date.now(),
-    icon: "/logo.png",
-    badge: "/logo.png",
+    icon: "/notification-icon.png",
+    badge: "/notification-icon.png",
+    image: "/notification-icon.png",
     url: "/?tab=debts"
   });
   try {
@@ -2524,8 +2525,9 @@ app.post("/api/send-test-push", async (req, res) => {
       title: "B\xFCt\xE7em Pro Alarm Sinyali \u23F0",
       body: "Harika! Telefon kapal\u0131yken bile Web Push ve Service Worker bildirim sistemi kusursuz \xE7al\u0131\u015F\u0131yor! \u{1F514}",
       tag: "test-push-alarm-" + Date.now(),
-      icon: "/logo.png",
-      badge: "/logo.png",
+      icon: "/notification-icon.png",
+      badge: "/notification-icon.png",
+      image: "/notification-icon.png",
       url: "/?tab=notifications"
     });
     try {
@@ -3664,8 +3666,9 @@ setInterval(async () => {
               tag: `alarm-${alarm.id || Date.now()}`,
               action: "alarm-trigger",
               syncTag: "server-cron-sync",
-              icon: "/logo.png",
-              badge: "/logo.png",
+              icon: "/notification-icon.png",
+              badge: "/notification-icon.png",
+              image: "/notification-icon.png",
               vibrate: [500, 150, 500, 150, 450, 150, 600],
               requireInteraction: true,
               silent: false,
@@ -3718,8 +3721,9 @@ setInterval(async () => {
             tag: "overdue-periodic-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
             action: "trigger-sync",
             syncTag: "server-cron-sync",
-            icon: "/logo.png",
-            badge: "/logo.png",
+            icon: "/notification-icon.png",
+            badge: "/notification-icon.png",
+            image: "/notification-icon.png",
             url: "/?tab=debts"
           });
           try {

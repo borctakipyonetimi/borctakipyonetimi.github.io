@@ -191,7 +191,7 @@ function rescheduleAlarms() {
   alarmTimers = [];
 
   const now = Date.now();
-  const appIcon = self.location.origin + "/logo.png";
+  const appIcon = self.location.origin + "/notification-icon.png";
 
   // Manuel alarmlar ile borçlardan otomatik türetilen 3 günlük alarmları birleştir
   const autoDebtAlarms = buildAutoDebtAlarms();
@@ -211,6 +211,8 @@ function rescheduleAlarms() {
         self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.body || alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
           icon: appIcon,
+          badge: appIcon,
+          image: appIcon,
           vibrate: alarm.silent ? [] : [200, 100, 200, 100, 300],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -233,6 +235,8 @@ function rescheduleAlarms() {
         self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.body || alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
           icon: appIcon,
+          badge: appIcon,
+          image: appIcon,
           vibrate: alarm.silent ? [] : [300, 100, 300, 100, 400],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -511,7 +515,7 @@ async function handleBackgroundSync(tag) {
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-  const appIcon = self.location.origin + "/logo.png";
+  const appIcon = self.location.origin + "/notification-icon.png";
 
   // 2. Tam vadesi gelen manuel/otomatik alarmları göster
   let triggeredAlarmCount = 0;
@@ -526,6 +530,8 @@ async function handleBackgroundSync(tag) {
         self.registration.showNotification(alarm.title || "Bütçem Pro Hatırlatıcı ⏰", {
           body: alarm.body || alarm.title || "Vadesi gelen ödeme / alarm hatırlatması!",
           icon: appIcon,
+          badge: appIcon,
+          image: appIcon,
           vibrate: alarm.silent ? [] : [300, 100, 300, 100, 400],
           tag: `alarm-${safeAlarmId}`,
           renotify: false,
@@ -625,6 +631,8 @@ async function handleBackgroundSync(tag) {
     await self.registration.showNotification("⚠️ Bütçem Pro: Vadesi Geçmiş Ödemeler", {
       body: `Ödenmemiş vadesi geçmiş ${overdueList.length} adet borcunuz bulunmaktadır:\n${overdueSummary}\nToplam Geciken: ${Math.round(overdueTotal).toLocaleString("tr-TR")} TL\nFaiz ve cezalardan kaçınmak için kontrol ediniz.`,
       icon: appIcon,
+      badge: appIcon,
+      image: appIcon,
       vibrate: [], // Sessiz, titreşimsiz
       tag: "butcempro-silent-overdue-reminder",
       renotify: false,
@@ -667,6 +675,8 @@ async function handleBackgroundSync(tag) {
     await self.registration.showNotification(bildirimBasligi, {
       body: bildirimIcerigi,
       icon: appIcon,
+      badge: appIcon,
+      image: appIcon,
       vibrate: [300, 100, 300, 100, 400],
       tag: "butcempro-general-summary",
       renotify: false,
@@ -801,12 +811,14 @@ self.addEventListener("push", (event) => {
     }
   }
 
-  const appIcon = self.location.origin + "/logo.png";
+  const appIcon = self.location.origin + "/notification-icon.png";
   const targetUrl = data.url || "/?tab=notifications";
 
   const notifOptions = {
     body: data.body || "Planlanmış alarm / ödeme hatırlatması! ⏰",
     icon: data.icon || appIcon,
+    badge: data.badge || appIcon,
+    image: data.image || appIcon,
     vibrate: data.silent ? [] : (data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500]),
     tag: data.tag || `alarm-${data.alarmId || Date.now()}`,
     renotify: true,
