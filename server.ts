@@ -743,65 +743,228 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
 
   } else if (q.includes("risk") || q.includes("analiz") || q.includes("durum") || q.includes("bütçe") || q.includes("butce") || q.includes("genel") || q.includes("karne") || q.includes("sağlık") || q.includes("saglik") || q.includes("rapor")) {
     // GENEL FİNANSAL SAĞLIK VE KARNE ANALİZİ
-    advice += `📊 **Kişiselleştirilmiş Bütçe Karnesi ve Risk Analizi**\n\n`;
-    advice += `Aylık kayıtlı hesap parametreleriniz üzerinden gerçekleştirdiğim finansal sağlık taraması çıktısı:\n\n`;
-    advice += `| Mali Metrik | Değer | Bütçe Oran Payı | Durum |\n`;
-    advice += `| :--- | :--- | :--- | :---: |\n`;
-    advice += `| **Aylık Gelir** | ₺${stats.totalIncome.toLocaleString("tr-TR")} | %100 | Nakit Girişi |\n`;
-    advice += `| **Aylık Gider** | ₺${stats.totalExpense.toLocaleString("tr-TR")} | %${expensePercentage.toFixed(1)} | Harcama Oranı |\n`;
-    advice += `| **Net Bakiye** | ₺${stats.netIncome.toLocaleString("tr-TR")} | %${savingsRate.toFixed(1)} | Aylık Tasarruf |\n`;
-    advice += `| **Kalan Borç** | ₺${stats.remaining.toLocaleString("tr-TR")} | %${dRatioPerc.toFixed(0)} | Borç/Gelir Yükü |\n\n`;
-
-    advice += `🚨 **Cari Borç Risk Seviyeniz**: `;
-    if (dRatio > 5) {
-      advice += `⚡ **KIRMIZI ALARM (YÜKSEK MALI RİSK)**\n`;
-      advice += `Mevcut toplam borç yükünüz, aylık gelirinizin **${dRatio.toFixed(1)} katı**! Finansal güvenliğiniz tehlikede. Harcamalarınızı acilen dondurmalı, taksitli borçlanmayı durdurmalı ve tüm bütçe fazlasını en küçük borca kanalize etmelisiniz.\n\n`;
-    } else if (dRatio > 2.5) {
-      advice += `⚖️ **SARI ALARM (ORTA SEVİYE RİSK)**\n`;
-      advice += `Geri ödenmesi gereken borç portföyünüz aylık gelirinizin **${dRatio.toFixed(1)} katı** düzeyinde. Bütçeniz kontrol edilebilir durumda ancak yeni taksitler eklemek sizi yüksek risk sınırına itecektir. Kar topu stratejisiyle acilen borç kapatmaya odaklanın.\n\n`;
-    } else {
-      advice += `🟢 **YEŞİL BÖLGE (GÜVENLİ VE RESİLİENT)**\n`;
-      advice += `Toplam borç yükünüz aylık gelirinizin **${dRatio.toFixed(1)} katı** seviyesinde ve oldukça güvenli sınırda. Mevcut bütçe planınızı koruyarak borçlarınızı takvimine göre sıfırlayabilirsiniz.\n\n`;
-    }
-
-    advice += `💪 **Mali Güçlenme Tavsiyeleriniz**:\n`;
-    if (savingsRate < 10) {
-      advice += `- **Tasarruf Sızıntısı**: Aylık tasarruf oranınız (%${savingsRate.toFixed(1)}) çok düşük. Acil durum fonu oluşturmak için aylık gider bütçenizden en az **%15 kısıntı** planlamalıyız.\n`;
-    } else {
-      advice += `- **Yüksek Likidite Gücü**: Aylık tasarruf oranınız (%${savingsRate.toFixed(1)}) son derece güçlü. Biriktirdiğiniz bu net bakiye fazlasını borç kapatma hızlandırıcısı olarak asgari ödemelerin üzerine ekleyin.\n`;
-    }
-    if (installmentDebts.length > 2) {
-      advice += `- **Taksit Blokajı**: Devam eden **${installmentDebts.length} aktif taksitiniz** gelecekteki nakit akışınızı rehin tutuyor. Gelecek aylarda yeni taksitli işlem yapmayacağınıza dair kendinize söz verin.\n`;
-    }
-
-  } else if (q.includes("borç") || q.includes("borc") || q.includes("kapat") || q.includes("erit") || q.includes("strateji") || q.includes("kartopu") || q.includes("avalanche") || q.includes("çığ") || q.includes("cig") || q.includes("öde")) {
-    // BORÇ KAPATMA VE ERİTME TEKNİK SİMÜLASYONU
-    advice += `🚀 **Akıllı Borç Sıfırlama ve Yapılandırma Stratejisi**\n\n`;
+    const tIncome = stats.totalIncome || 0;
+    const tExpense = stats.totalExpense || 0;
     
-    if (debts.length === 0) {
-      advice += `Şu anda sistemde kayıtlı aktif nakit borç kaleminiz bulunmuyor. Yeni borçlar ekleyerek asistanın gerçek-zamanlı kar topu simülasyonunu başlatabilirsiniz!\n\n`;
+    // Calculate monthly installment obligations
+    let monthlyInstBurden = 0;
+    (installmentDebts || []).forEach((inst: any) => {
+      const total = Number(inst.totalAmount) || 0;
+      const count = Math.max(1, Number(inst.installmentCount) || 1);
+      const paidCount = Math.max(0, Number(inst.paidInstallmentCount) || 0);
+      if (paidCount < count) {
+        monthlyInstBurden += (total / count);
+      }
+    });
+
+    const thisMonthDebtDue = stats.thisMonthKalanBorc > 0 ? stats.thisMonthKalanBorc : monthlyInstBurden;
+    const netFreeCashflow = tIncome - tExpense - thisMonthDebtDue;
+    const overallDebt = stats.remaining || 0;
+    const dRatio = tIncome > 0 ? (overallDebt / tIncome) : 0;
+    const freeRate = tIncome > 0 ? ((netFreeCashflow / tIncome) * 100) : 0;
+
+    advice += `### 🔍 Bütçe Risk ve Genel Sağlık Değerlendirmesi\n\n`;
+    advice += `Aylık gelir, gider ve tüm borç portföyünüz taranarak hazırlanan finansal sağlık tablosu:\n\n`;
+    advice += `• **Aylık Toplam Gelir**: ₺${Math.round(tIncome).toLocaleString("tr-TR")}\n`;
+    advice += `• **Aylık Yaşamsal Gider**: ₺${Math.round(tExpense).toLocaleString("tr-TR")}\n`;
+    advice += `• **Bu Ayki Borç ve Taksit Ödemeleri**: ₺${Math.round(thisMonthDebtDue).toLocaleString("tr-TR")}\n`;
+    advice += `• **Net Kullanılabilir Bakiye**: ₺${Math.round(netFreeCashflow).toLocaleString("tr-TR")} (Gelirin %${freeRate.toFixed(0)} kadarı tasarruf marjı)\n`;
+    advice += `• **Genel Toplam Kalan Borç**: ₺${Math.round(overallDebt).toLocaleString("tr-TR")}\n\n`;
+
+    // 1. Dimension: Monthly Cashflow Health
+    advice += `### 📊 1. Aylık Nakit Akışı Değerlendirmesi\n`;
+    if (netFreeCashflow < 0) {
+      advice += `🔴 **Yüksek Nakit Akışı Riski**: Aylık giderleriniz ve bu ayki borç ödemeleriniz gelirinizi aşıyor. Her ay **₺${Math.abs(Math.round(netFreeCashflow)).toLocaleString("tr-TR")}** açık veriyorsunuz. Acilen isteğe bağlı harcamaları dondurmalı ve bütçeyi dengelemelisiniz.\n\n`;
+    } else if (netFreeCashflow < tIncome * 0.15) {
+      advice += `⚖️ **Orta Seviye Nakit Akışı (Dar Tasarruf Marjı)**: Bütçeniz pozitif bakiye veriyor fakat tasarruf marjınız (%${freeRate.toFixed(0)}) dar. Beklenmedik masraflara karşı acil durum fonu oluşturmalısınız.\n\n`;
     } else {
-      advice += `Mevcut **${debts.length} adet** borç kaleminiz analiz edilerek borçsuz bir yaşama en hızlı ulaşmanızı sağlayacak iki temel metodoloji simüle edilmiştir:\n\n`;
+      advice += `🟢 **Güçlü Aylık Nakit Akışı**: Aylık giderler ve cari borç ödemeleri çıktıktan sonra gelirinizin **%${freeRate.toFixed(0)}** kadarı (₺${Math.round(netFreeCashflow).toLocaleString("tr-TR")}) elinizde kalıyor.\n\n`;
+    }
+
+    // 2. Dimension: Overall Total Debt Burden (DTI)
+    advice += `### 🚨 2. Genel Borç Yükü ve Kapatma Süresi\n`;
+    if (dRatio > 10) {
+      const monthsNeeded = netFreeCashflow > 0 ? (overallDebt / netFreeCashflow) : Infinity;
+      const yearsNeeded = (monthsNeeded / 12).toFixed(1);
+      advice += `⚠️ **Kritik Genel Borç Yükü (Kırmızı Bölge)**:\n`;
+      advice += `Genel toplam kalan borcunuz (₺${Math.round(overallDebt).toLocaleString("tr-TR")}), aylık gelirinizin **${dRatio.toFixed(1)} katı** seviyesindedir. Aylık nakit akışınız pozitif olsa dahi, genel borç portföyünüzün büyüklüğü nedeniyle borçların tamamen kapanması mevcut aylık tasarrufla yaklaşık **${yearsNeeded} yıl (${Math.round(monthsNeeded)} ay)** sürecektir. Yeni borçlanmadan kaçınmalı ve tasarruf fazlasını agresif borç kapatmaya yönlendirmelisiniz.\n\n`;
+    } else if (dRatio > 3) {
+      const monthsNeeded = netFreeCashflow > 0 ? (overallDebt / netFreeCashflow) : Infinity;
+      advice += `⚖️ **Orta Seviye Borç Yükü (Sarı Bölge)**:\n`;
+      advice += `Toplam borcunuz aylık gelirinizin **${dRatio.toFixed(1)} katı** düzeyinde. Mevcut net tasarrufunuzla borçlarınızı yaklaşık **${Math.round(monthsNeeded)} ayda** sıfırlayabilirsiniz.\n\n`;
+    } else if (overallDebt > 0) {
+      advice += `🟢 **Düşük ve Yönetilebilir Borç Yükü (Yeşil Bölge)**:\n`;
+      advice += `Toplam borcunuz aylık gelirinizin **${dRatio.toFixed(1)} katı** seviyesinde ve oldukça güvenli sınırda.\n\n`;
+    } else {
+      advice += `🎉 **Tebrikler! Sıfır Borç**: Kayıtlı hiçbir açık borcunuz bulunmuyor. Birikimlerinizi yatırıma yönlendirebilirsiniz.\n\n`;
+    }
+
+    advice += `💡 **Finans Koçu Eylem Tavsiyesi**:\n`;
+    advice += `• Aylık net ₺${Math.round(Math.max(0, netFreeCashflow)).toLocaleString("tr-TR")} tasarrufunuzu biriktirmek yerine, en küçük borcunuza ek ödeme olarak yatırarak borç kapatma sürenizi kısaltabilirsiniz.\n`;
+
+  } else if (
+    q.includes("öncelik") || 
+    q.includes("oncelik") || 
+    q.includes("ödemeliyim") || 
+    q.includes("odemeliyim") || 
+    q.includes("hangi borc") || 
+    q.includes("hangi borcumu") || 
+    q.includes("önce hangi") || 
+    q.includes("borç") || 
+    q.includes("borc") || 
+    q.includes("kapat") || 
+    q.includes("erit") || 
+    q.includes("strateji") || 
+    q.includes("kartopu") || 
+    q.includes("avalanche") || 
+    q.includes("çığ") || 
+    q.includes("cig") || 
+    q.includes("öde")
+  ) {
+    // BORÇ ÖNCELİĞİ VE AKILLI BORÇ KAPATMA SIRALAMASI
+    const allDebtItems: Array<{
+      name: string;
+      remaining: number;
+      category: string;
+      type: "standard" | "installment" | "contact";
+      dueDateStr?: string;
+      monthlyPayment?: number;
+      remCount?: number;
+      totalCount?: number;
+      isOverdue?: boolean;
+      daysLate?: number;
+    }> = [];
+
+    const now = new Date();
+    const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    // 1. Standard single debts
+    (debts || []).forEach((d: any) => {
+      const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      if (rem <= 0) return;
+      const dName = d.name || "Standart Borç";
+      const dCategory = d.category || "Genel";
+      let isOverdue = false;
+      let daysLate = 0;
+      let dueDateStr = d.dueDate || d.date || "";
+
+      if (dueDateStr) {
+        const parsed = parseDateRobust(dueDateStr);
+        if (parsed) {
+          const dTime = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+          const diff = Math.round((todayTime - dTime) / (1000 * 60 * 60 * 24));
+          if (diff > 0) {
+            isOverdue = true;
+            daysLate = diff;
+          }
+        }
+      }
+
+      allDebtItems.push({
+        name: dName,
+        remaining: rem,
+        category: dCategory,
+        type: "standard",
+        dueDateStr: dueDateStr || "Tarih Belirtilmedi",
+        isOverdue,
+        daysLate,
+      });
+    });
+
+    // 2. Installments
+    (installmentDebts || []).forEach((inst: any) => {
+      const total = Number(inst.totalAmount) || 0;
+      const count = Math.max(1, Number(inst.installmentCount) || 1);
+      const paidCount = Math.max(0, Number(inst.paidInstallmentCount) || 0);
+      const perInst = total / count;
+      const remCount = Math.max(0, count - paidCount);
+      const remAmount = Math.max(0, total - (paidCount * perInst));
+
+      if (remCount <= 0 || remAmount <= 0) return;
+
+      allDebtItems.push({
+        name: `${inst.name || "Taksitli Borç"} (Taksit)`,
+        remaining: remAmount,
+        category: inst.category || "Taksit",
+        type: "installment",
+        monthlyPayment: perInst,
+        remCount,
+        totalCount: count,
+        dueDateStr: inst.firstDueDate || inst.dueDate || "Aylık Düzenli",
+      });
+    });
+
+    // 3. Contact payables
+    (contactTxs || []).forEach((tx: any) => {
+      if (!tx.isPaid && tx.type === "payable") {
+        const amt = Number(tx.amount) || 0;
+        if (amt > 0) {
+          allDebtItems.push({
+            name: `${tx.personName || "Kişi"} Borcu (Elden/Rehber)`,
+            remaining: amt,
+            category: "Kişi Borcu",
+            type: "contact",
+            dueDateStr: tx.dueDate || tx.date || "Vadesiz",
+          });
+        }
+      }
+    });
+
+    advice += `### ⚖️ Hangi Borcu Öncelikli Ödemelisiniz? (Akıllı Ödeme Planı)\n\n`;
+
+    if (allDebtItems.length === 0) {
+      advice += `🎉 **Tebrikler!** Sisteminizde kayıtlı aktif veya vadesi geçmiş hiçbir borç bulunmamaktadır. Tüm borçlarınız tamamen sıfırlanmış durumdadır.\n`;
+    } else {
+      // Check overdue debts first
+      const overdueList = allDebtItems.filter((d) => d.isOverdue).sort((a, b) => (b.daysLate || 0) - (a.daysLate || 0));
+      // Sort by Snowball (smallest remaining amount first)
+      const snowballRanked = [...allDebtItems].sort((a, b) => a.remaining - b.remaining);
+      // Sort by Avalanche (largest remaining amount first)
+      const avalancheRanked = [...allDebtItems].sort((a, b) => b.remaining - a.remaining);
+
+      const netCash = stats.totalIncome - stats.totalExpense - (stats.thisMonthKalanBorc || 0);
+
+      advice += `Sistemimizdeki **${allDebtItems.length} adet aktif borç ve taksit kaydınız** tek tek incelenerek matematiksel ve psikolojik öncelik sıralaması oluşturulmuştur:\n\n`;
+
+      // Priority 1: Overdue Debts
+      if (overdueList.length > 0) {
+        advice += `### 🚨 1. MUTLAK VE ACİL ÖNCELİK: Vadesi Geçmiş Borçlar\n`;
+        advice += `Gecikme faizi, ceza ve kredi notu kaybını durdurmak için İLK ÖNCE aşağıdaki gecikmiş borçlar ödenmelidir:\n`;
+        overdueList.forEach((d, idx) => {
+          advice += `• **${idx + 1}. ${d.name}**: Kalan **₺${Math.round(d.remaining).toLocaleString("tr-TR")}** (${d.daysLate} gün gecikti 🚨)\n`;
+        });
+        advice += `\n`;
+      }
+
+      // Priority 2: Primary Strategy Recommendation (Kartopu vs Çığ)
+      advice += `### 🎯 2. Önerilen Öncelikli Borç Ödeme Sıralaması\n\n`;
       
-      const sortedSnowball = [...debts].sort((a: any, b: any) => (a.amount - a.paid) - (b.amount - b.paid));
-      const sortedAvalanche = [...debts].sort((a: any, b: any) => (b.amount - b.paid) - (a.amount - a.paid));
+      advice += `**A) 🚀 KARTOPU YÖNTEMİ (ÖNERİLEN - Hızlı Zaferler & Yüksek Motivasyon)**:\n`;
+      advice += `En küçük bakiyeli borcu ilk sıraya alıp tüm bütçe fazlanızla kapatın. Bir borcun tamamen silinmesi finansal özgüveninizi katlar:\n`;
+      snowballRanked.slice(0, 5).forEach((d, idx) => {
+        const extraInfo = d.type === "installment" ? ` (Aylık: ₺${Math.round(d.monthlyPayment || 0).toLocaleString("tr-TR")}, ${d.remCount} taksit kaldı)` : "";
+        advice += `• **${idx + 1}. Öncelik: ${d.name}** ➔ Kalan: **₺${Math.round(d.remaining).toLocaleString("tr-TR")}**${extraInfo}\n`;
+      });
+      advice += `\n`;
 
-      advice += `1️⃣ **Kartopu (Snowball) Stratejisi (Psikolojik & En Hızlı Sonuç)**:\n`;
-      advice += `• Kalan net bakiyesi en düşük olan borca agresif ödeme yapıp onu yok edin, diğerlerine asgari yatırın. Bir borcun tamamen silindiğini görmek sizi inanılmaz motive eder.\n`;
-      advice += `👉 **Kartopu İlk Hedefiniz**: En az kalan borç olan **"${sortedSnowball[0].name}"** borcunu kapatmaya odaklanın. Kalan Ödenecek: **₺${(sortedSnowball[0].amount - sortedSnowball[0].paid).toLocaleString("tr-TR")}**.\n\n`;
+      advice += `**B) 🏔️ ÇIĞ (AVALANCHE) YÖNTEMİ (En Az Faiz ve En Yüksek Maliyetli Borçlar)**:\n`;
+      advice += `Büyük tutarlı veya yüksek faizli borçları ilk sıraya koyarak toplam enflasyonist faiz yükünü minimize edin:\n`;
+      avalancheRanked.slice(0, 3).forEach((d, idx) => {
+        advice += `• **${idx + 1}. Hedef: ${d.name}** ➔ Kalan: **₺${Math.round(d.remaining).toLocaleString("tr-TR")}**\n`;
+      });
+      advice += `\n`;
 
-      advice += `2️⃣ **Çığ (Avalanche) Stratejisi (Matematiksel / En Ekonomik Yol)**:\n`;
-      advice += `• Tutarı veya maliyeti en yüksek olan borca öncelik tanıyın. Böylece toplamda katlanacağınız enflasyonist vade yükünü ve faiz kaybını minimuma indirirsiniz.\n`;
-      advice += `👉 **Çığ İlk Hedefiniz**: En büyük kalan borç olan **"${sortedAvalanche[0].name}"** borcuna odaklanın. Kalan Ödenecek: **₺${(sortedAvalanche[0].amount - sortedAvalanche[0].paid).toLocaleString("tr-TR")}**.\n\n`;
+      // Step by Step Execution Plan
+      const targetDebt = overdueList.length > 0 ? overdueList[0] : snowballRanked[0];
+      advice += `### 📋 Adım Adım Uygulama Reçetesi:\n`;
+      advice += `1. **İlk Hedefe Odaklanın**: Bu ay tüm ekstra paranızı doğrudan **"${targetDebt.name}"** borcuna yatırın (Kalan Tutar: **₺${Math.round(targetDebt.remaining).toLocaleString("tr-TR")}**).\n`;
+      advice += `2. **Diğer Borçların Sadece Asgarisini / Taksitini Ödeyin**: Diğer taksitli borçların aylık rutin taksitlerini ödeyip ekstra ödemeyi 1. hedef borca yönlendirin.\n`;
+      advice += `3. **İlk Borç Kapanınca**: "${targetDebt.name}" borcu sıfırlandığında, boşa çıkan aylık ödeme tutarını 2. sıradaki borca ekleyerek kartopu etkisini büyütün.\n\n`;
 
-      // Kalkülatif Tahmin
-      const monthlyReserve = stats.netIncome;
-      advice += `⏱️ **Borç Eritme Zaman Projeksiyonu**:\n`;
-      if (monthlyReserve > 100) {
-        const monthsNeeded = stats.remaining / monthlyReserve;
-        advice += `• Her ay biriktirdiğiniz **₺${monthlyReserve.toLocaleString("tr-TR")}** tasarruf fazlasının tamamını borç kapatmaya yönlendirirseniz, teorik olarak **${monthsNeeded.toFixed(1)} ay sonra** tamamen borçsuz ve özgür bir hayata kavuşabilirsiniz! 🎉\n\n`;
+      if (netCash > 0) {
+        advice += `💡 **Nakit Akışı Gücünüz**: Bu ay harcamalar ve cari taksitler sonrası elinizde **₺${Math.round(netCash).toLocaleString("tr-TR")} net bakiye** kalmaktadır. Bu tutarın tamamını 1. hedef borcunuza yatırarak borcunuzu hızla eritebilirsiniz!\n`;
       } else {
-        advice += `• ⚠️ Aylık kullanılabilir tasarruf rezerviniz yetersiz (Negatif veya çok düşük nakit akışı). Borçlarınızı planlı sürede sıfırlayabilmek için aylık harcamalarınızı kısmalı veya acilen ek gelir yaratmalısınız. Giderleri azaltmadan borçların azalması matematiksel olarak imkansızdır.\n\n`;
+        advice += `⚠️ **Bütçe Dengeleme Uyarısı**: Aylık kullanılabilir net tasarruf marjınız yetersiz görünüyor. Borçları planlanan sürede kapatabilmek için aylık giderlerinizde en az %15 tasarruf yapmanızı öneririm.\n`;
       }
     }
 
@@ -991,54 +1154,40 @@ app.post("/api/chat", async (req, res) => {
     });
     const sanitizedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remainingAmount - a.remainingAmount);
 
-    const systemPrompt = `Sen "Bütçem Pro" bireysel finans yönetim ve borç takip uygulamasının en güncel "Gemini 3.7 Flash" yapay zeka finans koçu ve uzman analistisin. Türkçe konuşacaksın.
-Kullanıcının ${periodLabel} dönemi güncel bütçe durumu ve mali parametreleri şunlardır:
-- Seçili Dönem: ${periodLabel}
-- Toplam Aylık Gelir: ₺${totalIncome}
-- Toplam Aylık Gider: ₺${totalExpense}
-- Kalan Net Gelir (Bakiye): ₺${netIncome}
-- Bu Ay Vadesi Gelen Kalan Borç: ₺${thisMonthKalanBorc}
-- Bu Ay Ödenen Borç: ₺${thisMonthPaidBorc}
-- Bu Ayki Toplam Borç Yükü: ₺${thisMonthTotalBorc}
-- Genel Toplam Kalan Borç Portföyü (Tüm Vadeler): ₺${remaining}
-- Toplam Borç Kaydı: ₺${totalDebt}
-- Toplam Ödenen Borç: ₺${totalPaid}
-- Tekilleştirilmiş Aktif Standart Borçlar (Yalnızca Ödenmesi Gerekenler): ${JSON.stringify(sanitizedActiveDebts)}
-- Tamamen Ödenmiş/Sıfırlanmış Standart Borç: ${totalPaidDebtsCount} adet (Toplam Kapatılan: ₺${Math.round(totalPaidDebtsSum)})
-- Tekilleştirilmiş Aktif Taksitli Borçlar: ${JSON.stringify(sanitizedActiveInsts)}
-- Giderler Listesi Detayı: ${JSON.stringify(context?.expenses || [])}
-- Rehber Kişi Borçları ve Alacakları: ${JSON.stringify(context?.contactTransactions || [])}
-- Rehber Kişileri Listesi: ${JSON.stringify(context?.contacts || [])}
+    const systemPrompt = `Sen "Bütçem Pro" uygulamasının Baş Finansal Analisti ve Akıllı Akıl Hocasısın (Gemini 3.7 Flash).
 
-ANLIK ANLIK GÜNCEL PİYASA, DÖVİZ VE ALTIN KURLARI (GÜNCEL CANLI VERİLER):
-• Amerikan Doları (USD): ₺${usd.toFixed(2)}
-• Euro (EUR): ₺${eur.toFixed(2)}
-• İngiliz Sterlini (GBP): ₺${gbp.toFixed(2)}
-• Gram Altın (24 Ayar): ₺${Math.round(goldGram).toLocaleString("tr-TR")} TL
-• Çeyrek Altın: ₺${Math.round(goldCeyrek).toLocaleString("tr-TR")} TL
-• Ons Altın ($): $${Math.round(goldOns).toLocaleString("en-US")} USD
-• Bitcoin (BTC): $${Math.round(btcUsd).toLocaleString("en-US")} USD
+GÖREVİN VE AMACIN:
+Kullanıcının gelir, gider, borç, taksitli borçlar ve hatırlatıcı verilerini bütüncül olarak analiz etmek; geçmiş trendlere, gelecek yükümlülüklere ve risklere dayalı "akıllı, nokta atışı ve eyleme geçirilebilir" finansal raporlar ve tavsiyeler sunmaktır.
 
-ÖNEMLİ KURAL: Kullanıcının toplam aylık gelirini (₺${totalIncome}) ve toplam aylık giderini (₺${totalExpense}) doğrudan yukarıdaki resmi istatistiklerden al ve asla 0 TL olarak varsayma. Dolar, Euro, Altın (Gram/Çeyrek/Ons) veya piyasalar sorulduğunda doğrudan yukarıdaki güncel canlı fiyatları ve TL tutarlarını aktar.
+SANA SAĞLANAN GÜNCEL VERİ YAPISI (${periodLabel} Dönemi):
+- GELİRLER: Aylık Toplam Gelir: ₺${totalIncome} | Gelirler Listesi: ${JSON.stringify(context?.incomes || [])}
+- GİDERLER: Aylık Toplam Yaşamsal Gider: ₺${totalExpense} | Giderler Listesi: ${JSON.stringify(context?.expenses || [])}
+- BU AY VADESİ GELEN BORÇ/TAKSİT: ₺${thisMonthKalanBorc} (Bu Ay Ödenen: ₺${thisMonthPaidBorc}, Toplam Bu Ayki Yük: ₺${thisMonthTotalBorc})
+- AYLIK NET KULLANILABİLİR BAKİYE: ₺${netIncome} (Formül: Gelir - Yaşamsal Gider - Bu Ayki Borçlar)
+- GENEL ÖZET & TOPLAM BORÇ PORTFÖYÜ: ₺${remaining} (Tüm Vadeler Toplam Kalan Borç)
+- TEK SEFERLİK / STANDART BORÇLAR (Ödenmesi Gerekenler): ${JSON.stringify(sanitizedActiveDebts)}
+- TAMAMEN KAPANMIŞ BORÇLAR: ${totalPaidDebtsCount} adet (Toplam Kapatılan: ₺${Math.round(totalPaidDebtsSum)})
+- TAKSİTLİ BORÇLAR (Aylık Taksit, Kalan Taksit, Kalan Tutar): ${JSON.stringify(sanitizedActiveInsts)}
+- REHBER KİŞİ İŞLEMLERİ (Borç/Alacak): ${JSON.stringify(context?.contactTransactions || [])}
+- GÜNCEL CANLI PİYASA KURLARI: USD: ₺${usd.toFixed(2)} | EUR: ₺${eur.toFixed(2)} | GBP: ₺${gbp.toFixed(2)} | Gram Altın: ₺${Math.round(goldGram).toLocaleString("tr-TR")} | Çeyrek: ₺${Math.round(goldCeyrek).toLocaleString("tr-TR")} | BTC: $${Math.round(btcUsd).toLocaleString("en-US")}
 
-Görevlerin ve Davranış Kuralların:
-1. Gelir/gider dengesini ve kalan borç durumunu analiz et, kullanıcının risk seviyesini (Yüksek Risk, Orta Seviye, Güvenli) belirle ve rasyonel yorumlar yap.
-2. Tasarruf yöntemleri, borç kapatma stratejileri (Kartopu / Çığ yöntemleri vb.) hakkında son derece açıklayıcı, somut, adım adım finansal öneriler sun.
-3. Kullanıcının sorduğu soruları bu finansal verileri göz ardı etmeden detaylı ve cesaretlendirici bir dille cevapla.
-4. MOBİL VE DÜZENLİ GÖRÜNÜM KURALI: Mobil ekranlarda yazıların alt alta ve son derece belirgin, ferah ve tertipli okunması için:
-   - Yanıtlarını net alt başlıklara ayır (### veya 📊, 🚀, 💡, 🎯, 💰 gibi emojilerle).
-   - Maddeleri alt alta açıkça sırala (• veya - kullanarak).
-   - Numaralı adımları (1., 2., 3.) tek tek ayrı satırlarda yaz.
-   - Önemli tutarları ve tavsiyeleri **kalın** vurgula.
-   - Uzun ve karmaşık tek parça blok metinlerden kaçın, her bölüm arasına bir boş satır bırak.
-5. ÇEVRİMİÇİ (ONLINE) SORGULAR VE GÜNCEL BİLGİLER: Kullanıcı döviz kurlarını, güncel altın fiyatlarını, enflasyon veya diğer detayları sorduğunda yukarıdaki anlık canlı piyasa verilerini ve entegre Google Arama (googleSearch) aracını kullan. Kullanıcıya "Bilmiyorum" demek yerine kesin ve şeffaf yanıt ver.
-6. Tamamen profesyonel, yapıcı ve sıcakkanlı bir finans koçu gibi davran.
-7. BORÇ VE TAKSİT LİSTELEME KURALLARI:
-   - Kullanıcı aylık finans/analiz raporu istediğinde veya borçlarını sorduğunda; hem aktif standart borçları hem de aktif taksitli borçları (kalan taksit adedi, aylık taksit tutarı ve toplam kalan borcuyla) EKSİKSİZ şekilde TEK TEK sırala.
-   - ASLA borçları 'Diğer borçlar' veya 've benzeri' adı altında gizleme veya topluca özetleme! Her bir borç ve taksit kalemini tek tek açık döküm olarak listele.
-   - Raporda mutlaka '### 💳 Aktif Standart Borçlar' ve '### 🗓️ Aktif Taksitli Borçlar ve Aylık Ödeme Planı' alt başlıklarını kullan.
-   - Aynı borç adını ASLA 2 veya 3 defa tekrar yazma (tekilleştirilmiş listeyi baz al).
-   - Tamamen ödenmiş (0 TL kalan) borçları tek bir satırda '🟢 Tamamen Kapatılan: X adet borç' şeklinde özetle. Borçları kalan tutarlarına göre büyükten küçüğe sıralı ve temiz maddeler halinde listele.`;
+ANALİZ VE DÜŞÜNME ADIMLARI (BUNLARI HER ANALİZDE TİTİZLİKLE UYGULA):
+1. Nakit Akışı Riski Analizi: Gelirler ile (Giderler + Aylık Taksitler + Yaklaşan Ödemeler) arasındaki dengeyi kontrol et. Bu ay açık var mı? Yoksa artı bakiye mi var?
+2. Bütçe Kaçağı Tespiti: Hangi harcama kategorileri anormal derecede yüksek? (Örn: Dışarıda yemek, abonelikler, market).
+3. Gelecek Projeksiyonu: Kalan taksit sayılarına ve genel borç büyüklüğüne bakarak "X ay sonra taksitler bittiğinde aylık cebine kaç TL kalmaya başlayacak?", "Mevcut net tasarrufla genel borç portföyü kaç ayda/yılda sıfırlanabilir?" hesapla.
+4. Ödeme Son Tarih & Öncelik Alarmı: Gecikme riski olan veya vadesi geçmiş ödemeleri ilk sıraya koy.
+
+YANIT VERME STANDARTLARI (ÇOK ÖNEMLİ):
+- Metin yığını sunma! Yanıtlarını şu ana başlıklarla yapılandır:
+  ### 📊 Özet Durum
+  ### ⚠️ Kritik Uyarılar
+  ### 💡 Tasarruf ve Bütçe Optimizasyon Fırsatları
+  ### 🗺️ Aylık Yol Haritası ve Borç Kapatma Reçetesi
+- Sadece "Borcun çok" veya "Durumun iyi" deme! Kesin matematiksel çözümler sun: "Abonelik ve dışarıda yemek harcamalarını %20 kısıp (₺X tasarruf) en küçük bakiyeli Y borcuna eklerseniz, bu borç Z ay erken bitiyor ve aylık nakit akışınız ₺W rahatlıyor" gibi net, somut hesaplamalar ver.
+- Tonun yapıcı, motive edici, analitik, samimi ve profesyonel bir baş finansal danışman gibi olsun.
+- ASLA hisse senedi, kripto para, döviz alım-satım yönlendirmesi veya yatırım tavsiyesi verme.
+- EĞER SİSTEMDEN VERİ GELMEDİYSE VEYA KULLANICI EKSİK VERİ SORARSA:
+  "Analiz yapabilmem için Bütçem Pro üzerindeki gelir, gider ve taksit verilerinizin senkronize olması gerekir. Lütfen ilgili bölümlerden verilerinizi güncelleyin." diyerek kullanıcıyı ilgili bölümlere yönlendir.`;
 
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {
