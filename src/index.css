@@ -33,6 +33,7 @@ body > canvas {
 html {
   scroll-behavior: smooth;
   height: 100%;
+  background-color: #0b132b;
 }
 
 body {

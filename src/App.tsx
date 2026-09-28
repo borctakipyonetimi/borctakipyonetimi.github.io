@@ -2614,15 +2614,18 @@ export default function App() {
     metaThemeColor.setAttribute("content", statusBarColor);
 
     // Native Capacitor Status Bar Senkronizasyonu (Android / iOS)
-    if (Capacitor.isPluginAvailable("StatusBar")) {
+    const applyNativeStatusBar = async () => {
       try {
-        StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
-        StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+        if (Capacitor.isPluginAvailable("StatusBar")) {
+          await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+          await StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
+          await StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+        }
       } catch (e) {
         // Web ortamı için güvenle yutulur
       }
-    }
+    };
+    applyNativeStatusBar();
 
     if (darkMode) {
       document.documentElement.classList.add("dark");
@@ -6618,7 +6621,10 @@ export default function App() {
       />
 
       {/* Header Container - Premium Glossy Mesh Header */}
-      <header className="sticky top-0 z-30 bg-gradient-to-r from-slate-950 via-[#0b132b] to-[#1c2541] dark:from-slate-950 dark:via-black dark:to-slate-950 border-b border-indigo-500/20 text-white shadow-2xl px-4 sm:px-8 py-5 md:py-6 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between backdrop-blur-lg transition-all duration-300 relative overflow-hidden group">
+      <header 
+        style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
+        className="sticky top-0 z-30 bg-gradient-to-r from-slate-950 via-[#0b132b] to-[#1c2541] dark:from-slate-950 dark:via-black dark:to-slate-950 border-b border-indigo-500/20 text-white shadow-2xl px-4 sm:px-8 pb-5 md:pb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between backdrop-blur-lg transition-all duration-300 relative overflow-hidden group"
+      >
         
         {/* Decorative ambient lighting overlays */}
         <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80 animate-pulse duration-[3000ms]" />
