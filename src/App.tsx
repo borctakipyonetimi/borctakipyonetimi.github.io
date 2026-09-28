@@ -892,8 +892,46 @@ export default function App() {
   const [restoreStatusLog, setRestoreStatusLog] = useState("");
   const [promoFeature, setPromoFeature] = useState<string | null>(null);
 
+  const [subscriptionType, setSubscriptionType] = useState<"monthly" | "yearly" | "lifetime">(() => {
+    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (savedUser === "info.borcodemetakip@gmail.com") return "lifetime";
+    const stored = (localStorage.getItem("premium_type") || localStorage.getItem("premium_plan") || "yearly") as "monthly" | "yearly" | "lifetime";
+    return (stored === "monthly" || stored === "lifetime" || stored === "yearly") ? stored : "yearly";
+  });
+
+  const isSuperAdminAccount = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
+  const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial");
+
+  // Keep subscription status & plan synchronized on modal open and app load
+  useEffect(() => {
+    const savedUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (savedUser === "info.borcodemetakip@gmail.com") {
+      setSubscriptionType("lifetime");
+      setIsPremium(true);
+      return;
+    }
+    const isPrem = localStorage.getItem("is_premium") === "true";
+    const pSource = localStorage.getItem("premium_source");
+    if (isPrem && pSource !== "trial") {
+      setIsPremium(true);
+    }
+    const stored = (localStorage.getItem("premium_type") || localStorage.getItem("premium_plan") || selectedPlan) as "monthly" | "yearly" | "lifetime";
+    if (stored === "monthly" || stored === "lifetime" || stored === "yearly") {
+      setSubscriptionType(stored);
+    }
+  }, [isUpgradeModalOpen, isPremium, selectedPlan, currentUser]);
+
   const openUpgradeModal = (featureName?: string) => {
     setPromoFeature(featureName || null);
+    const savedUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (savedUser === "info.borcodemetakip@gmail.com") {
+      setSubscriptionType("lifetime");
+    } else {
+      const stored = (localStorage.getItem("premium_type") || localStorage.getItem("premium_plan") || selectedPlan) as "monthly" | "yearly" | "lifetime";
+      if (stored === "monthly" || stored === "lifetime" || stored === "yearly") {
+        setSubscriptionType(stored);
+      }
+    }
     setIsUpgradeModalOpen(true);
   };
 
@@ -3526,6 +3564,9 @@ export default function App() {
   const savePremiumStatusAndSync = async (premiumState: boolean, planType: "monthly" | "yearly" | "lifetime") => {
     setIsPremium(premiumState);
     setSelectedPlan(planType);
+    if (premiumState) {
+      setSubscriptionType(planType);
+    }
     localStorage.setItem("is_premium", premiumState ? "true" : "false");
     localStorage.setItem("is_guest", (!premiumState).toString());
     localStorage.setItem("premium_plan", planType);
@@ -10200,22 +10241,28 @@ export default function App() {
                 ) : (
                   <>
                     <div className="text-center space-y-1">
-                      <div className="inline-flex p-3 bg-amber-500/10 dark:bg-amber-500/20 rounded-full border border-amber-500/20 text-amber-500 animate-bounce">
+                      <div className={`inline-flex p-3 rounded-full border shadow-sm ${
+                        isPaidPremium
+                          ? "bg-gradient-to-br from-amber-500/20 to-emerald-500/20 border-amber-500/30 text-amber-500 shadow-amber-500/10"
+                          : "bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-500 animate-bounce"
+                      }`}>
                         <Sparkles className="w-8 h-8 text-amber-500" />
                       </div>
-                      <h3 className="text-xs font-black uppercase tracking-widest text-amber-500">
-                        BÜTÇEM PRO PREMIUM
+                      <h3 className={`text-xs font-black uppercase tracking-widest ${isPaidPremium ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500"}`}>
+                        {isPaidPremium ? "BÜTÇEM PRO PREMİUM ÜYELİK" : "BÜTÇEM PRO PREMIUM"}
                       </h3>
                       <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
-                        Sınırları Ortadan Kaldırın 👑
+                        {isPaidPremium ? "👑 Premium Üyesiniz" : "Sınırları Ortadan Kaldırın 👑"}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-medium px-4 leading-relaxed">
-                        Finansal bütçe yönetimini profesyonel seviyeye yükselten gelişmiş özellikleri keşfedin.
+                        {isPaidPremium
+                          ? "Tüm profesyonel bütçe yönetimi, yapay zeka koçu ve sınırsız ayrıcalıklarınız aktiftir."
+                          : "Finansal bütçe yönetimini profesyonel seviyeye yükselten gelişmiş özellikleri keşfedin."}
                       </p>
                     </div>
 
-                    {/* Trial Expired / Subscription Pending Alert Banner */}
-                    {isTrialExpiredLocked && (
+                    {/* Trial Expired / Subscription Pending Alert Banner (Only for non-paid users) */}
+                    {!isPaidPremium && isTrialExpiredLocked && (
                       <div className="p-3.5 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl text-center space-y-1">
                         <div className="flex items-center justify-center gap-1.5 text-amber-700 dark:text-amber-400 font-black text-xs uppercase tracking-wide">
                           {localStorage.getItem("is_guest") === "false" 
@@ -10232,8 +10279,16 @@ export default function App() {
 
                     {/* Promo Feature notice if navigated specifically */}
                     {promoFeature && (
-                      <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        ⚠️ <span className="font-black text-indigo-600 dark:text-indigo-400">{promoFeature}</span> özelliğine erişmek için Premium üye olmanız gerekmektedir.
+                      <div className={`p-3 rounded-2xl border text-center text-xs font-semibold ${
+                        isPaidPremium
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                          : "bg-amber-500/10 border-amber-500/20 text-slate-700 dark:text-slate-300"
+                      }`}>
+                        {isPaidPremium ? (
+                          <>✨ <span className="font-black text-emerald-700 dark:text-emerald-400">{promoFeature}</span> özelliği aktif üyeliğiniz kapsamında sınırsız olarak açıktır.</>
+                        ) : (
+                          <>⚠️ <span className="font-black text-indigo-600 dark:text-indigo-400">{promoFeature}</span> özelliğine erişmek için Premium üye olmanız gerekmektedir.</>
+                        )}
                       </div>
                     )}
 
@@ -10249,296 +10304,330 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - Her zaman modalın başında gösterilir */}
-                    <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
-                      <div className="text-center space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
-                          🔒 KISITLI ÖZELLİK ERİŞİMİ
-                        </span>
-                        <h4 className="text-sm font-black text-slate-800 dark:text-white">
-                          {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
-                        </h4>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                          Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                        {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsUpgradeModalOpen(false);
-                            setProviderLoginInitialTab("guest_trial");
-                            setProviderLoginInitialSubMode("register");
-                            setProviderLoginOpen(true);
-                          }}
-                          className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xl">🎁</span>
-                            <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                              Ücretsiz
-                            </span>
-                          </div>
-                          <div>
-                            <div className="text-xs font-black leading-tight">
-                              7 Günlük Deneme Başlat
-                            </div>
-                            <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
-                              E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
-                            </div>
-                          </div>
-                        </button>
-
-                        {/* Seçenek 2: Premium Satın Al */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const el = document.getElementById("premium-plans-section");
-                            if (el) {
-                              el.scrollIntoView({ behavior: "smooth" });
-                            }
-                          }}
-                          className="p-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl shadow-md shadow-amber-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-amber-400/40"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xl">👑</span>
-                            <span className="text-[9px] font-black bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                              Limitsiz
-                            </span>
-                          </div>
-                          <div>
-                            <div className="text-xs font-black leading-tight">
-                              Premium Satın Al
-                            </div>
-                            <div className="text-[10px] text-amber-950/80 font-semibold mt-0.5 leading-snug">
-                              Aylık, Yıllık veya Limitsiz paketle tüm sınırlamaları kalıcı olarak kaldırın.
-                            </div>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Features list */}
-                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
-                          {[
-                            { icon: "🤖", title: "AI Finansal Koç", desc: "Harcamalarınızı yapay zeka ile analiz edin ve tasarruf stratejileri geliştirin." },
-                            { icon: "🎙️", title: "Akıllı Sesli Asistan", desc: "Sadece konuşarak bütçe, borç, gelir ve taksitlerinizi saniyeler içinde kaydedin." },
-                            { icon: "💹", title: "Canlı Borsa & Döviz", desc: "Tüm finansal verilerinizi anlık kurlar üzerinden takip edin." },
-                            { icon: "📈", title: "Sınırsız PDF/Excel Rapor", desc: "Finansal verilerinizi dilediğiniz an profesyonel raporlara dönüştürün." },
-                            { icon: "🔐", title: "Biyometrik Güvenlik", desc: "Parmak izi veya FaceID ile bütçe verilerinizi güvence altına alın." },
-                            { icon: "📅", title: "Ödeme Takvimi & Planlar", desc: "Borç vadelerini ve faturaları interaktif takvimden izleyin." },
-                            { icon: "🚫", title: "%100 Reklamsız Deneyim", desc: "Tüm reklamları ve sponsorlu her şeyi tamamen kaldırın." }
-                          ].map((f, i) => (
-                            <div key={i} className="flex items-start gap-3 p-1.5 rounded-xl hover:bg-white dark:hover:bg-slate-900 transition-colors">
-                              <span className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl text-lg leading-none shrink-0 font-bold">{f.icon}</span>
-                              <div className="space-y-0.5">
-                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight leading-none">{f.title}</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-normal">{f.desc}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Simulated Plans Select / Activation block */}
-                        <div id="premium-plans-section" className="space-y-4">
-                          <p className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-500 tracking-widest text-center flex items-center justify-center gap-2">
-                            <span className="w-6 h-px bg-amber-500/30" /> 👑 PREMİUM PLANLAR <span className="w-6 h-px bg-amber-500/30" />
+                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - SADECE Misafir ve Ücretsiz Kullanıcılara Gösterilir */}
+                    {!isPaidPremium && (
+                      <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
+                        <div className="text-center space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
+                            🔒 KISITLI ÖZELLİK ERİŞİMİ
+                          </span>
+                          <h4 className="text-sm font-black text-slate-800 dark:text-white">
+                            {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
+                          </h4>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                            Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
                           </p>
-                          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-                            {[
-                              {
-                                planKey: "monthly" as const,
-                                id: "butcem_pro_aylik" as const,
-                                label: "AYLIK",
-                                icon: "⚡",
-                                product: (dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik,
-                                badge: "ESNEK",
-                                period: "Aylık Yenilenen",
-                                fallbackPrice: "₺49,99 / Ay"
-                              },
-                              {
-                                planKey: "yearly" as const,
-                                id: "butcem_pro_yillik" as const,
-                                label: "YILLIK",
-                                icon: "🔥",
-                                product: (dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik,
-                                badge: "EN POPÜLER",
-                                badgeSub: "%45 TASARRUF",
-                                period: "Tasarruf: %45",
-                                isPopular: true,
-                                fallbackPrice: "₺349,99 / Yıl"
-                              },
-                              {
-                                planKey: "lifetime" as const,
-                                id: "butcem_pro_sinirsiz" as const,
-                                label: "LİMİTSİZ",
-                                icon: "💎",
-                                product: (dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz,
-                                badge: "ÖMÜR BOYU",
-                                period: "Tek Ödeme • Kalıcı",
-                                isLifetime: true,
-                                fallbackPrice: "₺699,99"
-                              }
-                            ].map((pkg) => {
-                              const isSelected = selectedPlan === pkg.planKey;
-                              const priceDisplay = pkg.product?.priceString || pkg.fallbackPrice;
-
-                              return (
-                                <div
-                                  key={pkg.id}
-                                  onClick={() => setSelectedPlan(pkg.planKey)}
-                                  className={`group relative rounded-2xl p-2.5 sm:p-3 text-center flex flex-col justify-between overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out transform active:scale-95 ${
-                                    pkg.isPopular ? "pt-6 sm:pt-6.5" : "pt-4"
-                                  } ${
-                                    isSelected
-                                      ? pkg.isLifetime
-                                        ? "bg-purple-50/60 dark:bg-slate-800 border-2 border-indigo-500 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
-                                        : pkg.isPopular
-                                        ? "bg-amber-50/60 dark:bg-slate-800 border-2 border-amber-500 dark:border-amber-400 ring-4 ring-amber-500/20 scale-[1.03] z-20 shadow-xl shadow-amber-500/15"
-                                        : "bg-indigo-50/60 dark:bg-slate-800 border-2 border-indigo-600 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
-                                      : "bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:border-slate-350 dark:hover:border-slate-600 hover:shadow-md hover:scale-[1.02]"
-                                  }`}
-                                >
-                                  {/* Top Ribbon Badge for Popular */}
-                                  {pkg.isPopular && (
-                                    <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none flex items-center justify-center gap-1 shadow-xs">
-                                      <span className="animate-pulse">🔥</span> {pkg.badge}
-                                    </div>
-                                  )}
-
-                                  {/* Header Label */}
-                                  <div className="flex items-center justify-center gap-1">
-                                    <p className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider ${
-                                      isSelected
-                                        ? pkg.isLifetime
-                                          ? "text-indigo-600 dark:text-indigo-400"
-                                          : pkg.isPopular
-                                          ? "text-amber-600 dark:text-amber-400"
-                                          : "text-indigo-600 dark:text-indigo-400"
-                                        : "text-slate-500 dark:text-slate-400"
-                                    }`}>
-                                      {pkg.label}
-                                    </p>
-                                  </div>
-
-                                  {/* Price Tag with Guaranteed Contrast in Both Light and Dark Modes */}
-                                  <div className="my-1.5 sm:my-2">
-                                    <p className="text-[15px] sm:text-base font-black tracking-tight leading-tight text-slate-900 dark:text-white">
-                                      {priceDisplay}
-                                    </p>
-                                  </div>
-
-                                  {/* Subtitle / Period Tag */}
-                                  <div>
-                                    <span className="inline-block text-[8px] sm:text-[8.5px] font-bold uppercase text-slate-500 dark:text-slate-400 leading-none">
-                                      {pkg.period}
-                                    </span>
-                                  </div>
-
-                                  {/* Selected Checkmark Badge */}
-                                  {isSelected && (
-                                    <div className={`absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${
-                                      pkg.isLifetime ? "bg-indigo-500 text-white" : pkg.isPopular ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
-                                    } shadow-xs text-[8px] font-black`}>
-                                      ✓
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
                         </div>
 
-                        <div className="space-y-3 pt-1">
-                          {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) - Resim 2'deki gibi her zaman görünür */}
-                          <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
-                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
-                            </div>
-                            <div className="space-y-2">
-                              <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                                KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={handleActivateTrial}
-                                className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
-                              >
-                                🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
-                          {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (
-                            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1.5 text-center">
-                              <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase leading-none">
-                                ✨ DENEME SÜRÜMÜNÜZ AKTİF • {trialStatus.daysRemaining} Gün Kaldı
-                              </p>
-                              <button
-                                type="button"
-                                onClick={handleCancelTrial}
-                                className="text-[10px] text-rose-500 underline font-bold cursor-pointer"
-                              >
-                                Deneme Sürümünü İptal Et
-                              </button>
-                            </div>
-                          )}
-
-                          {/* ANA SATIN ALMA BUTONU - Resim 2'deki gibi her zaman yerindedir */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
                           <button
                             type="button"
                             onClick={() => {
-                              handlePurchase(selectedPlan);
-                            }}
-                            className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-97 hover:scale-[1.01]"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              {selectedPlan === "monthly" && (
-                                <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString || "₺49,99 / Ay"}) ⚡</>
-                              )}
-                              {selectedPlan === "yearly" && (
-                                <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString || "₺349,99 / Yıl"}) ⚡</>
-                              )}
-                              {selectedPlan === "lifetime" && (
-                                <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString || "₺699,99"}) ⚡</>
-                              )}
-                            </span>
-                          </button>
-
-                          {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              closeUpgradeModal();
-                              setIsRestoring(false);
-                              setRestoreStep("method");
-                              setSelectedProvider("google");
+                              setIsUpgradeModalOpen(false);
+                              setProviderLoginInitialTab("guest_trial");
+                              setProviderLoginInitialSubMode("register");
                               setProviderLoginOpen(true);
                             }}
-                            className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                            className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
                           >
-                            🔑 ZATEN HESABIM VAR (E-POSTA / BULUT GİRİŞİ)
+                            <div className="flex items-center justify-between">
+                              <span className="text-xl">🎁</span>
+                              <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Ücretsiz
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-black leading-tight">
+                                7 Günlük Deneme Başlat
+                              </div>
+                              <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
+                                E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                              </div>
+                            </div>
                           </button>
 
-                          {/* GOOGLE PLAY RESTORE BUTTON */}
+                          {/* Seçenek 2: Premium Satın Al */}
                           <button
                             type="button"
                             onClick={() => {
-                              setIsRestoring(true);
-                              setRestoreStep("method");
+                              const el = document.getElementById("premium-plans-section");
+                              if (el) {
+                                el.scrollIntoView({ behavior: "smooth" });
+                              }
                             }}
-                            className="w-full py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                            className="p-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl shadow-md shadow-amber-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-amber-400/40"
                           >
-                            🔄 GOOGLE PLAY'DEN SATIN ALIMLARI GERİ YÜKLE
+                            <div className="flex items-center justify-between">
+                              <span className="text-xl">👑</span>
+                              <span className="text-[9px] font-black bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Limitsiz
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-black leading-tight">
+                                Premium Satın Al
+                              </div>
+                              <div className="text-[10px] text-amber-950/80 font-semibold mt-0.5 leading-snug">
+                                Aylık, Yıllık veya Limitsiz paketle tüm sınırlamaları kalıcı olarak kaldırın.
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Features list */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          {isPaidPremium ? "👑 ÜYELİĞİNİZE DAHİL TÜM PRO AYRICALIKLAR" : "✨ PREMIUM AVANTAJLARI"}
+                        </span>
+                        {isPaidPremium && (
+                          <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-bold">
+                            Tam Erişim Aktif
+                          </span>
+                        )}
+                      </div>
+                      {[
+                        { icon: "🤖", title: "AI Finansal Koç", desc: "Harcamalarınızı yapay zeka ile analiz edin ve tasarruf stratejileri geliştirin." },
+                        { icon: "🎙️", title: "Akıllı Sesli Asistan", desc: "Sadece konuşarak bütçe, borç, gelir ve taksitlerinizi saniyeler içinde kaydedin." },
+                        { icon: "💹", title: "Canlı Borsa & Döviz", desc: "Tüm finansal verilerinizi anlık kurlar üzerinden takip edin." },
+                        { icon: "📈", title: "Sınırsız PDF/Excel Rapor", desc: "Finansal verilerinizi dilediğiniz an profesyonel raporlara dönüştürün." },
+                        { icon: "🔐", title: "Biyometrik Güvenlik", desc: "Parmak izi veya FaceID ile bütçe verilerinizi güvence altına alın." },
+                        { icon: "📅", title: "Ödeme Takvimi & Planlar", desc: "Borç vadelerini ve faturaları interaktif takvimden izleyin." },
+                        { icon: "🚫", title: "%100 Reklamsız Deneyim", desc: "Tüm reklamları ve sponsorlu her şeyi tamamen kaldırın." }
+                      ].map((f, i) => (
+                        <div key={i} className="flex items-start gap-3 p-1.5 rounded-xl hover:bg-white dark:hover:bg-slate-900 transition-colors">
+                          <span className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl text-lg leading-none shrink-0 font-bold">{f.icon}</span>
+                          <div className="space-y-0.5">
+                            <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight leading-none">{f.title}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-normal">{f.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Simulated Plans Select / Activation block - SADECE Misafir ve Ücretsiz Kullanıcılara Gösterilir */}
+                    {!isPaidPremium && (
+                      <div id="premium-plans-section" className="space-y-4">
+                        <p className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-500 tracking-widest text-center flex items-center justify-center gap-2">
+                          <span className="w-6 h-px bg-amber-500/30" /> 👑 PREMİUM PLANLAR <span className="w-6 h-px bg-amber-500/30" />
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                          {[
+                            {
+                              planKey: "monthly" as const,
+                              id: "butcem_pro_aylik" as const,
+                              label: "AYLIK",
+                              icon: "⚡",
+                              product: (dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik,
+                              badge: "ESNEK",
+                              period: "Aylık Yenilenen",
+                              fallbackPrice: "₺49,99 / Ay"
+                            },
+                            {
+                              planKey: "yearly" as const,
+                              id: "butcem_pro_yillik" as const,
+                              label: "YILLIK",
+                              icon: "🔥",
+                              product: (dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik,
+                              badge: "EN POPÜLER",
+                              badgeSub: "%45 TASARRUF",
+                              period: "Tasarruf: %45",
+                              isPopular: true,
+                              fallbackPrice: "₺349,99 / Yıl"
+                            },
+                            {
+                              planKey: "lifetime" as const,
+                              id: "butcem_pro_sinirsiz" as const,
+                              label: "LİMİTSİZ",
+                              icon: "💎",
+                              product: (dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz,
+                              badge: "ÖMÜR BOYU",
+                              period: "Tek Ödeme • Kalıcı",
+                              isLifetime: true,
+                              fallbackPrice: "₺699,99"
+                            }
+                          ].map((pkg) => {
+                            const isSelected = selectedPlan === pkg.planKey;
+                            const priceDisplay = pkg.product?.priceString || pkg.fallbackPrice;
+
+                            return (
+                              <div
+                                key={pkg.id}
+                                onClick={() => setSelectedPlan(pkg.planKey)}
+                                className={`group relative rounded-2xl p-2.5 sm:p-3 text-center flex flex-col justify-between overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out transform active:scale-95 ${
+                                  pkg.isPopular ? "pt-6 sm:pt-6.5" : "pt-4"
+                                } ${
+                                  isSelected
+                                    ? pkg.isLifetime
+                                      ? "bg-purple-50/60 dark:bg-slate-800 border-2 border-indigo-500 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
+                                      : pkg.isPopular
+                                      ? "bg-amber-50/60 dark:bg-slate-800 border-2 border-amber-500 dark:border-amber-400 ring-4 ring-amber-500/20 scale-[1.03] z-20 shadow-xl shadow-amber-500/15"
+                                      : "bg-indigo-50/60 dark:bg-slate-800 border-2 border-indigo-600 dark:border-indigo-400 ring-4 ring-indigo-500/20 scale-[1.03] z-20 shadow-xl shadow-indigo-500/15"
+                                    : "bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:border-slate-350 dark:hover:border-slate-600 hover:shadow-md hover:scale-[1.02]"
+                                }`}
+                              >
+                                {pkg.isPopular && (
+                                  <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white text-[8px] font-black py-0.5 uppercase tracking-widest leading-none flex items-center justify-center gap-1 shadow-xs">
+                                    <span className="animate-pulse">🔥</span> {pkg.badge}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-center gap-1">
+                                  <p className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider ${
+                                    isSelected
+                                      ? pkg.isLifetime
+                                        ? "text-indigo-600 dark:text-indigo-400"
+                                        : pkg.isPopular
+                                        ? "text-amber-600 dark:text-amber-400"
+                                        : "text-indigo-600 dark:text-indigo-400"
+                                      : "text-slate-500 dark:text-slate-400"
+                                  }`}>
+                                    {pkg.label}
+                                  </p>
+                                </div>
+
+                                <div className="my-1.5 sm:my-2">
+                                  <p className="text-[15px] sm:text-base font-black tracking-tight leading-tight text-slate-900 dark:text-white">
+                                    {priceDisplay}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <span className="inline-block text-[8px] sm:text-[8.5px] font-bold uppercase text-slate-500 dark:text-slate-400 leading-none">
+                                    {pkg.period}
+                                  </span>
+                                </div>
+
+                                {isSelected && (
+                                  <div className={`absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${
+                                    pkg.isLifetime ? "bg-indigo-500 text-white" : pkg.isPopular ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
+                                  } shadow-xs text-[8px] font-black`}>
+                                    ✓
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ALAN 2: PREMIUM ÜYE VE ÜCRETSİZ/MİSAFİR KULLANICI AYRIMI */}
+                    {isPaidPremium ? (
+                      /* PREMIUM ÜYE OLAN KULLANICILAR İÇİN DURUM KARTI & ROZET (Satın Alma Butonları Kesinlikle Gösterilmez) */
+                      <div className="space-y-4 pt-1">
+                        <div className="relative overflow-hidden p-5 rounded-3xl bg-gradient-to-br from-emerald-500/15 via-amber-500/10 to-teal-500/15 border-2 border-emerald-500/40 dark:border-emerald-400/40 shadow-xl shadow-emerald-500/10 space-y-4">
+                          {/* Arka plan parlama efekti */}
+                          <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl pointer-events-none" />
+                          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-emerald-400/20 rounded-full blur-2xl pointer-events-none" />
+
+                          {/* Başlık ve Rozet */}
+                          <div className="flex items-center justify-between gap-3 relative z-10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-600 flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 ring-2 ring-amber-300/40 shrink-0">
+                                👑
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-xs">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Aktif Üyelik
+                                  </span>
+                                  {subscriptionType === "lifetime" && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                      💎 Ömür Boyu
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white mt-1">
+                                  {subscriptionType === "monthly" && "⚡ Aylık Premium Aktif"}
+                                  {subscriptionType === "yearly" && "🔥 Yıllık Premium Aktif"}
+                                  {subscriptionType === "lifetime" && "💎 Sınırsız (Lifetime) Premium"}
+                                </h3>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Şık Altın/Yeşil Üyelik Detay Kartı */}
+                          <div className="p-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md rounded-2xl border border-emerald-500/20 dark:border-emerald-500/30 space-y-2.5 relative z-10 shadow-sm">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider">Üyelik Statüsü</span>
+                              <span className="font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                ✓ 👑 Premium Üyesiniz
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider">Abonelik Türü</span>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                                {subscriptionType === "monthly" ? "Aylık Abonelik Planı" : subscriptionType === "yearly" ? "Yıllık Avantajlı Plan" : "Sınırsız (Ömür Boyu) Lisans"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider">Geçerlilik</span>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                                {subscriptionType === "lifetime" 
+                                  ? "Süresiz / Ömür Boyu Kalıcı" 
+                                  : localStorage.getItem("premium_expiry_date") 
+                                    ? new Date(localStorage.getItem("premium_expiry_date")!).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })
+                                    : "Otomatik Yenilenen"}
+                              </span>
+                            </div>
+                            {(currentUser || auth.currentUser?.email) && (
+                              <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider">Bağlı Hesap</span>
+                                <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                                  {currentUser || auth.currentUser?.email}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Aktif Ayrıcalıklar Rozet Listesi */}
+                          <div className="space-y-1.5 relative z-10">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Ayrıcalıklarınız</p>
+                            <div className="grid grid-cols-2 gap-1.5 text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
+                              <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
+                                <span className="text-emerald-500 font-black">✓</span> Reklamsız Deneyim
+                              </div>
+                              <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
+                                <span className="text-emerald-500 font-black">✓</span> AI Finansal Koç
+                              </div>
+                              <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
+                                <span className="text-emerald-500 font-black">✓</span> Akıllı Sesli Asistan
+                              </div>
+                              <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
+                                <span className="text-emerald-500 font-black">✓</span> Sınırsız Raporlar
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Satın Alma Butonu Yerine: Uygulamaya Dönme Butonu */}
+                          <button
+                            type="button"
+                            onClick={closeUpgradeModal}
+                            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-97 transition relative z-10 flex items-center justify-center gap-2"
+                          >
+                            <span>✨</span>
+                            <span>Ayrıcalıkların Tadını Çıkarın (Uygulamaya Dön)</span>
                           </button>
 
-                          {/* Test Lisansı Aktifken Test Butonu */}
-                          {isPremium && (
-                            <div className="pt-1 text-center">
+                          {/* Google Play Geri Yükle & Test Butonu */}
+                          <div className="pt-1 flex flex-col gap-2 relative z-10">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsRestoring(true);
+                                setRestoreStep("method");
+                              }}
+                              className="w-full py-2.5 bg-white/70 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-black text-[10.5px] uppercase tracking-wider rounded-xl hover:bg-white dark:hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                            >
+                              🔄 GOOGLE PLAY'DEN SATIN ALIMLARI YENİDEN SORGULA
+                            </button>
+
+                            <div className="text-center pt-1">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -10551,46 +10640,136 @@ export default function App() {
                                 Lisansı Devre Dışı Bırak (Test)
                               </button>
                             </div>
-                          )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* MİSAFİR VE ÜCRETSİZ (FREE) KULLANICILAR İÇİN SATIN ALMA VE DENEME BUTONLARI */
+                      <div className="space-y-3 pt-1">
+                        {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
+                        <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
+                            <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
+                              KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleActivateTrial}
+                              className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
+                            >
+                              🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
+                            </button>
+                          </div>
+                        </div>
 
-                          {isTrialExpiredLocked ? (
-                            <div className="pt-2 text-center space-y-2">
-                              <p className="text-[11px] text-rose-500 dark:text-rose-400 font-bold">
-                                ⚠️ Deneme süreniz dolduğu için paket seçimi zorunludur.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleLogout();
-                                  setIsTrialExpiredLocked(false);
-                                  setIsUpgradeModalOpen(false);
-                                  setProviderLoginOpen(true);
-                                }}
-                                className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
-                              >
-                                Farklı Bir Hesapla Giriş Yap / Çıkış Yap
-                              </button>
-                            </div>
-                          ) : (
+                        {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
+                        {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (
+                          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1.5 text-center">
+                            <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase leading-none">
+                              ✨ DENEME SÜRÜMÜNÜZ AKTİF • {trialStatus.daysRemaining} Gün Kaldı
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleCancelTrial}
+                              className="text-[10px] text-rose-500 underline font-bold cursor-pointer"
+                            >
+                              Deneme Sürümünü İptal Et
+                            </button>
+                          </div>
+                        )}
+
+                        {/* ANA SATIN ALMA BUTONU - SADECE Misafir ve Ücretsiz Kullanıcılara Görünür */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handlePurchase(selectedPlan);
+                          }}
+                          className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-97 hover:scale-[1.01]"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {selectedPlan === "monthly" && (
+                              <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString || "₺49,99 / Ay"}) ⚡</>
+                            )}
+                            {selectedPlan === "yearly" && (
+                              <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString || "₺349,99 / Yıl"}) ⚡</>
+                            )}
+                            {selectedPlan === "lifetime" && (
+                              <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString || "₺699,99"}) ⚡</>
+                            )}
+                          </span>
+                        </button>
+
+                        {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeUpgradeModal();
+                            setIsRestoring(false);
+                            setRestoreStep("method");
+                            setSelectedProvider("google");
+                            setProviderLoginOpen(true);
+                          }}
+                          className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                        >
+                          🔑 ZATEN HESABIM VAR (E-POSTA / BULUT GİRİŞİ)
+                        </button>
+
+                        {/* GOOGLE PLAY RESTORE BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsRestoring(true);
+                            setRestoreStep("method");
+                          }}
+                          className="w-full py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-black text-[10.5px] uppercase tracking-wide rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                        >
+                          🔄 GOOGLE PLAY'DEN SATIN ALIMLARI GERİ YÜKLE
+                        </button>
+
+                        {/* Close / Mandatory Paywall Buttons */}
+                        {isTrialExpiredLocked ? (
+                          <div className="pt-2 text-center space-y-2">
+                            <p className="text-[11px] text-rose-500 dark:text-rose-400 font-bold">
+                              ⚠️ Deneme süreniz dolduğu için paket seçimi zorunludur.
+                            </p>
                             <button
                               type="button"
                               onClick={() => {
-                                closeUpgradeModal();
-                                setIsRestoring(false);
-                                setRestoreStep("method");
+                                handleLogout();
+                                setIsTrialExpiredLocked(false);
+                                setIsUpgradeModalOpen(false);
+                                setProviderLoginOpen(true);
                               }}
-                              className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
+                              className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
                             >
-                              Kapat, Vazgeç
+                              Farklı Bir Hesapla Giriş Yap / Çıkış Yap
                             </button>
-                          )}
-                        </div>
-                      </>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeUpgradeModal();
+                              setIsRestoring(false);
+                              setRestoreStep("method");
+                            }}
+                            className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
+                          >
+                            Kapat, Vazgeç
+                          </button>
+                        )}
+                      </div>
                     )}
                   </>
                 )}
-              </div>
-            </motion.div>
+              </>
+            )}
+          </div>
+        </motion.div>
           </div>
         )}
       </AnimatePresence>
