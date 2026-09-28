@@ -30,7 +30,7 @@ jobs:
         run: |
           if [ ! -f package.json ]; then echo '{"name": "butcem-pro", "version": "1.0.0", "dependencies": {}}' > package.json; fi
           npm install --legacy-peer-deps || npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/status-bar @capacitor/browser capacitor-native-biometric --legacy-peer-deps || npm install @capacitor/core @capacitor/cli @capacitor/local-notifications @capacitor/status-bar @capacitor/browser capacitor-native-biometric
+          npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/local-notifications @capacitor/status-bar @capacitor/browser capacitor-native-biometric --legacy-peer-deps || npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/local-notifications @capacitor/status-bar @capacitor/browser capacitor-native-biometric
 
       - name: Clean and Create Config
         run: |
@@ -117,11 +117,24 @@ jobs:
 
       - name: Inject Black and White Notification Icon
         run: |
-          for dir in android/app/src/main/res/mipmap-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true; done
-          for dir in android/app/src/main/res/drawable-*; do cp notification-icon.png "$dir/ic_stat_notify.png" || true; cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true; done
+          if [ -s notification-icon.png ]; then
+            for dir in android/app/src/main/res/mipmap-* android/app/src/main/res/drawable-*; do
+              if [ -d "$dir" ]; then
+                cp notification-icon.png "$dir/ic_stat_notify.png" || true
+              fi
+            done
+          fi
+          if [ -s public/notification-icon.png ]; then
+            for dir in android/app/src/main/res/mipmap-* android/app/src/main/res/drawable-*; do
+              if [ -d "$dir" ]; then
+                cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true
+              fi
+            done
+          fi
 
       - name: Setup System Styles and Permissions
         run: |
+          mkdir -p android/app/src/main/res/values android/app/src/main/res/values-v31
           STYLE_FILE="android/app/src/main/res/values/styles.xml"
           STYL_V31_FILE="android/app/src/main/res/values-v31/styles.xml"
           COLORS_FILE="android/app/src/main/res/values/colors.xml"
@@ -317,17 +330,19 @@ jobs:
           }
           EOF
           fi
+          chmod +x android/gradlew || true
           cd android
+          chmod +x ./gradlew || true
           ./gradlew assembleDebug
           cd ..
           mkdir -p release_apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/bütçempro.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk || true
+          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcem-pro-debug.apk || true
 
       - name: Upload Final Butcem Pro APK
         uses: actions/upload-artifact@v4
         with:
-          name: bütçempro
+          name: butcempro-apk
           path: release_apk/
 
       - name: Deploy to GitHub Pages 🚀
