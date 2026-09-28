@@ -81,10 +81,11 @@ const stylesV31Xml = `<?xml version="1.0" encoding="utf-8"?>
 fs.writeFileSync(path.join(resValuesV31Dir, 'styles.xml'), stylesV31Xml, 'utf8');
 console.log('✅ Created styles-v31.xml');
 
-// 5. Inject AndroidManifest permissions and configurations
+// 5. Inject AndroidManifest permissions and configurations safely
 const manifestPath = path.resolve('android/app/src/main/AndroidManifest.xml');
 if (fs.existsSync(manifestPath)) {
   let content = fs.readFileSync(manifestPath, 'utf8');
+  
   const perms = [
     '<uses-permission android:name="android.permission.INTERNET" />',
     '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />',
@@ -99,25 +100,44 @@ if (fs.existsSync(manifestPath)) {
     '<uses-permission android:name="android.permission.USE_FINGERPRINT" />'
   ];
 
-  for (const perm of perms) {
-    if (!content.includes(perm)) {
-      content = content.replace('<manifest', '<manifest\n    ' + perm);
+  // Identify any missing permissions/features by android:name attribute
+  const missingPerms = perms.filter(perm => {
+    const match = perm.match(/android:name="([^"]+)"/);
+    if (match && content.includes(match[1])) {
+      return false;
+    }
+    return !content.includes(perm);
+  });
+
+  // Inject permissions directly before <application tag so XML syntax remains 100% valid
+  if (missingPerms.length > 0) {
+    const permsBlock = missingPerms.map(p => '    ' + p).join('\n');
+    content = content.replace(/<application/, permsBlock + '\n\n    <application');
+  }
+
+  // Ensure usesCleartextTraffic is safely added without breaking tag attributes
+  if (!content.includes('android:usesCleartextTraffic')) {
+    content = content.replace(/<application\s*/, '<application\n        android:usesCleartextTraffic="true"\n        ');
+  }
+
+  // Ensure notification meta-data is injected inside the application/activity element
+  if (!content.includes('com.google.firebase.messaging.default_notification_icon')) {
+    const metaBlock = `
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:value="#10B981" />`;
+    if (content.includes('</activity>')) {
+      content = content.replace('</activity>', '</activity>' + metaBlock);
+    } else if (content.includes('</application>')) {
+      content = content.replace('</application>', metaBlock + '\n    </application>');
     }
   }
 
-  if (!content.includes('usesCleartextTraffic')) {
-    content = content.replace('<application', '<application android:usesCleartextTraffic="true"');
-  }
-
-  if (!content.includes('com.google.firebase.messaging.default_notification_icon')) {
-    content = content.replace(
-      '</activity>',
-      '</activity>\n        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_stat_notify" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:value="#10B981" />'
-    );
-  }
-
   fs.writeFileSync(manifestPath, content, 'utf8');
-  console.log('✅ Updated AndroidManifest.xml');
+  console.log('✅ Updated AndroidManifest.xml with clean XML syntax');
 }
 
 // 6. Inject Native Dark StatusBar in MainActivity.java
