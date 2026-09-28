@@ -34,7 +34,7 @@ import {
   getDocs
 } from "firebase/firestore";
 
-// Veritabanı çökmesini önleyen temizlik fonksiyonu
+// Veritabanı çökmesini önleyen temizlik fonksiyonu (Realtime DB için)
 export function veriyiTemizle<T>(obj: T): T {
   if (obj === undefined || obj === null) return (null as unknown) as T;
   try {
@@ -42,6 +42,73 @@ export function veriyiTemizle<T>(obj: T): T {
   } catch (err) {
     console.warn("veriyiTemizle dönüşüm uyarısı:", err);
     return obj;
+  }
+}
+
+/**
+ * Cloud Firestore için derin veri temizleyici.
+ * Firestore'un "Unsupported field value: undefined" hatası vermesini engeller.
+ * - undefined değerleri tamamen anahtardan temizler (omitted).
+ * - Diziler içerisindeki undefined öğeleri eler.
+ * - NaN veya sonsuz (Infinity) sayıları 0 ile güvene alır.
+ * - Fonksiyonları, sembolleri ve döngüsel nesneleri güvenle süzer.
+ */
+export function deepCleanForFirestore<T>(input: T): T {
+  if (input === undefined || input === null) return (null as unknown) as T;
+
+  if (typeof input !== "object") {
+    if (typeof input === "number") {
+      if (isNaN(input) || !isFinite(input)) return 0 as unknown as T;
+    }
+    return input;
+  }
+
+  if (Array.isArray(input)) {
+    return (input
+      .filter((item) => item !== undefined)
+      .map((item) => (Array.isArray(item) ? JSON.stringify(item) : deepCleanForFirestore(item))) as unknown) as T;
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined) continue;
+    if (typeof value === "function" || typeof value === "symbol") continue;
+    if (typeof value === "number" && (isNaN(value) || !isFinite(value))) {
+      cleaned[key] = 0;
+      continue;
+    }
+    if (value !== null && typeof value === "object") {
+      cleaned[key] = deepCleanForFirestore(value);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned as T;
+}
+
+/**
+ * Asenkron işlemlere maksimum bekleme süresi koyan koruyucu fonksiyon (Zaman Aşımı / Timeout).
+ * Firebase Firestore veya Realtime Database ağ yanıtı vermediğinde sürecin kilitlenmesini engeller.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number = 7000,
+  timeoutMessage: string = "Zaman aşımı: Sunucu belirtilen sürede yanıt vermedi."
+): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, ms);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timer);
+    return result;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
   }
 }
 

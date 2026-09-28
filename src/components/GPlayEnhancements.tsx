@@ -180,14 +180,23 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
     setIsCloudSyncing(true);
     setSyncStatusLog("1/3 Yerel veritabanı taranıyor ve paketleniyor...");
     
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 400));
     setSyncStatusLog("2/3 Firebase Firestore 256-Bit SSL/TLS şifreli bulut tüneline aktarılıyor...");
 
     try {
       if (onManualSyncAll) {
-        await onManualSyncAll();
+        // Maksimum 7.5 saniye bekle; ağ gecikmesinde %65'te kilitlenmeyi kesin olarak engelle
+        await Promise.race([
+          onManualSyncAll(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Zaman aşımı: Bulut sunucusuna erişim çok uzun sürdü veya ağ bağlantısı zayıf.")),
+              7500
+            )
+          )
+        ]);
       }
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 500));
       
       const nowStr = `${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
       setLastSyncTime(nowStr);
@@ -197,8 +206,17 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
       triggerToast("☁️ Bulut Senkronizasyonu Başarıyla Tamamlandı! Verileriniz Güvende.");
     } catch (err: any) {
       console.error("Cloud sync error:", err);
-      setSyncStatusLog("⚠️ Senkronizasyon sırasında hata oluştu. Çevrimdışı yerel depolama korundu.");
-      triggerToast("Senkronizasyon hatası: Veriler yerel olarak korundu.");
+      const isTimeout =
+        err?.message?.toLowerCase().includes("zaman aşımı") ||
+        err?.message?.toLowerCase().includes("timeout") ||
+        String(err).toLowerCase().includes("timeout");
+
+      const errorMsg = isTimeout
+        ? "⚠️ Bulut senkronizasyonu zaman aşımına uğradı (Ağ gecikmesi). Verileriniz cihazınızda güvendedir."
+        : `⚠️ Bulut eşitleme uyarısı: ${err?.message || "Bağlantı kurulamadı"}. Verileriniz yerelde korundu.`;
+
+      setSyncStatusLog("⚠️ Senkronizasyon gecikmesi. Çevrimdışı yerel depolama korundu.");
+      triggerToast(errorMsg);
     } finally {
       setTimeout(() => {
         setIsCloudSyncing(false);

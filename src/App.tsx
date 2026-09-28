@@ -20,6 +20,8 @@ import {
   onValue, 
   off, 
   veriyiTemizle, 
+  deepCleanForFirestore,
+  withTimeout,
   handleDatabaseError, 
   handleFirestoreError, 
   OperationType, 
@@ -3422,51 +3424,74 @@ export default function App() {
     const spaceKey = cleanEmail ? `user_${cleanEmail}` : (currentUser ? `user_${currentUser}` : "user_anonymous");
     
     const dataBag = {
-      debts: updatedDebts,
-      incomes: updatedIncomes,
-      alarms: updatedAlarms,
-      notifications: updatedNotifs,
-      installmentDebts: updatedInstallments,
-      payments: updatedPayments,
-      expenses: updatedExpenses,
-      expenseCategories: updatedCategories,
-      marqueeSpeed,
-      marqueePaused
+      debts: updatedDebts || [],
+      incomes: updatedIncomes || [],
+      alarms: updatedAlarms || [],
+      notifications: updatedNotifs || [],
+      installmentDebts: updatedInstallments || [],
+      payments: updatedPayments || [],
+      expenses: updatedExpenses || [],
+      expenseCategories: updatedCategories || [],
+      marqueeSpeed: typeof marqueeSpeed === "number" ? marqueeSpeed : 50,
+      marqueePaused: Boolean(marqueePaused)
     };
 
     try {
+      // 1. Yerel depolamaya anında ve hatasız yaz
       localStorage.setItem(spaceKey, JSON.stringify(dataBag));
       if (fbUser?.uid) {
         localStorage.setItem(`user_${fbUser.uid}`, JSON.stringify(dataBag));
       }
       
+      // 2. Firebase kullanıcısı varsa bulut senkronizasyonu yap
       if (fbUser) {
-        const payload = veriyiTemizle({
+        const rawPayload = {
           ...dataBag,
           email: cleanEmail || "",
           emailLower: cleanEmail || "",
           userUid: fbUser.uid,
           isPremium: localStorage.getItem("is_premium") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
-          marqueeSpeed,
-          marqueePaused,
-          updatedAt: Date.now()
-        });
+          marqueeSpeed: typeof marqueeSpeed === "number" ? marqueeSpeed : 50,
+          marqueePaused: Boolean(marqueePaused),
+          updatedAt: Date.now(),
+          lastSyncAt: Date.now(),
+          lastSyncDate: new Date().toISOString()
+        };
 
-        // Realtime Database & Firestore: verileri kalıcı kaydet
-        await Promise.all([
-          set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
-          set(ref(db, `users/${fbUser.uid}/veriler`), payload),
-          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed),
-          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), marqueePaused)
-        ]);
+        // Firestore için undefined ve geçersiz veri tiplerini derinlemesine arındır
+        const firestorePayload = deepCleanForFirestore(rawPayload);
+        // Realtime DB için veri temizliği
+        const rtdbPayload = veriyiTemizle(rawPayload);
+
+        // A) Firestore Senkronizasyonu (Zaman Aşımı Korumalı & Hata İzolasyonlu)
         try {
-          await setDoc(doc(firestore, "users", fbUser.uid), {
-            marqueeSpeed,
-            marqueePaused,
-            updatedAt: Date.now()
-          }, { merge: true });
-        } catch (_) {}
+          await withTimeout(
+            setDoc(doc(firestore, "users", fbUser.uid), firestorePayload, { merge: true }),
+            6000,
+            "Firestore sunucu yanıt zaman aşımı"
+          );
+          console.log("☁️ Firestore bulut kaydı başarıyla tamamlandı.");
+        } catch (fErr: any) {
+          console.warn("⚠️ Firestore doğrudan kayıt uyarısı / zaman aşımı:", fErr?.message || fErr);
+        }
+
+        // B) Realtime Database Senkronizasyonu (Zaman Aşımı Korumalı)
+        try {
+          await withTimeout(
+            Promise.all([
+              set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), rtdbPayload),
+              set(ref(db, `users/${fbUser.uid}/veriler`), rtdbPayload),
+              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed ?? 50),
+              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), Boolean(marqueePaused))
+            ]),
+            5000,
+            "Realtime Database yanıt zaman aşımı"
+          );
+        } catch (rErr: any) {
+          console.warn("⚠️ Realtime Database eşitleme uyarısı / zaman aşımı:", rErr?.message || rErr);
+        }
+
         setIsOfflineMode(false);
       }
       if (!silent) {

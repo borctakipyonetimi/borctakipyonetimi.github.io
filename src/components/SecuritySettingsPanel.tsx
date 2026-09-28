@@ -136,15 +136,24 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     setSyncStatusStep("1/3 Yerel veritabanı taranıyor ve kayıtlar paketleniyor...");
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       setSyncProgress(65);
       setSyncStatusStep("2/3 Firebase Firestore 256-Bit SSL/TLS şifreli bulut tüneline aktarılıyor...");
 
       if (onManualSyncAll) {
-        await onManualSyncAll();
+        // Maksimum 7.5 saniye bekle; ağ takılmasında %65'te kilitlenmeyi kesin olarak engelle
+        await Promise.race([
+          onManualSyncAll(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Zaman aşımı: Bulut sunucusuna erişim çok uzun sürdü veya ağ bağlantısı zayıf.")),
+              7500
+            )
+          )
+        ]);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setSyncProgress(100);
       setSyncStatusStep("3/3 Senkronizasyon başarıyla tamamlandı!");
 
@@ -155,14 +164,24 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
       onSuccessToast("☁️ Tüm verileriniz Firebase Firestore bulutuna başarıyla senkronize edildi!");
     } catch (err: any) {
-      console.error(err);
-      onSuccessToast("⚠️ Bulut eşitleme sırasında bir sorun oluştu, verileriniz yerelde güvendedir.");
+      console.error("Bulut Senkronizasyon Hatası:", err);
+      const isTimeout =
+        err?.message?.toLowerCase().includes("zaman aşımı") ||
+        err?.message?.toLowerCase().includes("timeout") ||
+        String(err).toLowerCase().includes("timeout");
+
+      const message = isTimeout
+        ? "⚠️ Bulut senkronizasyonu zaman aşımına uğradı (Ağ gecikmesi). Verileriniz cihazınızda güvendedir."
+        : `⚠️ Bulut eşitleme uyarısı: ${err?.message || "Bağlantı kurulamadı"}. Verileriniz yerelde korundu.`;
+
+      setSyncStatusStep("⚠️ Eşitleme gecikmesi: Yerel kayıtlar korundu.");
+      onSuccessToast(message);
     } finally {
       setTimeout(() => {
         setIsCloudSyncing(false);
         setSyncProgress(0);
         setSyncStatusStep("");
-      }, 1200);
+      }, 1500);
     }
   };
 
