@@ -2151,9 +2151,34 @@ export default function App() {
       const now = new Date();
       const nowTime = now.getTime();
       const currentAlarms = alarmsRef.current;
+      const currentDebts = debtsRef.current;
+      const currentInsts = installmentDebtsRef.current;
 
-      // Check for valid active alarms that are due now
-      const dueAlarms = currentAlarms.filter((a) => {
+      // 1. Ödenmiş borçlara veya bitmiş taksitlere ait eski alarmları tespit edip donanımdan iptal et ve listeden arındır
+      const activeUnpaidAlarms = currentAlarms.filter((a) => {
+        if (a.debtId) {
+          const matchingDebt = currentDebts.find((d) => d.id === a.debtId);
+          if (matchingDebt && Number(matchingDebt.paid || 0) >= Number(matchingDebt.amount || 0)) {
+            cancelCapacitorAlarm(a.debtId).catch(() => {});
+            cancelAndroidDebtAlarm(a.debtId);
+            return false;
+          }
+          const matchingInst = currentInsts.find((i) => i.id === a.debtId);
+          if (matchingInst && Number(matchingInst.paidInstallmentCount || 0) >= Number(matchingInst.installmentCount || 1)) {
+            cancelCapacitorAlarm(800000 + a.debtId).catch(() => {});
+            cancelAndroidDebtAlarm(a.debtId);
+            return false;
+          }
+        }
+        return true;
+      });
+
+      if (activeUnpaidAlarms.length !== currentAlarms.length) {
+        setAlarms(activeUnpaidAlarms);
+      }
+
+      // 2. Vadesi gelmiş ve henüz ödenmemiş aktif alarmları filtrele
+      const dueAlarms = activeUnpaidAlarms.filter((a) => {
         if (!a.date) return false;
         const alarmTime = parseLocalOrUTCString(a.date).getTime();
         return !isNaN(alarmTime) && alarmTime <= nowTime;
@@ -2164,7 +2189,7 @@ export default function App() {
         const dueIds = dueAlarms.map((a) => a.id);
         
         // Filter out these fired alarms from active alarms list
-        const remainingAlarms = currentAlarms.filter((a) => !dueIds.includes(a.id));
+        const remainingAlarms = activeUnpaidAlarms.filter((a) => !dueIds.includes(a.id));
         
         let currentNotifs = [...notificationsRef.current];
         
@@ -4622,17 +4647,30 @@ export default function App() {
     } else if (effectivePaid >= effectiveAmount && effectiveId) {
       // Borç tamamen ödendiyse tüm planlanmış yerel alarmları tamamen yok et
       try {
-        LocalNotifications.cancel({ notifications: [{ id: Number(effectiveId) }] }).catch(() => {});
-        LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(effectiveId) }] }).catch(() => {});
-        LocalNotifications.cancel({ notifications: [{ id: 800000 + Number(effectiveId) }] }).catch(() => {});
+        LocalNotifications.cancel({
+          notifications: [
+            { id: Number(effectiveId) },
+            { id: 200000 + Number(effectiveId) },
+            { id: 800000 + Number(effectiveId) }
+          ]
+        }).catch(() => {});
       } catch {}
       cancelCapacitorAlarm(effectiveId).catch(() => {});
       cancelAndroidDebtAlarm(effectiveId);
+
+      // Veritabanı ve aktif hatırlatıcılar listesinden ödenmiş borcun alarmını derhal filtrele/kaldır
+      updatedAlarms = updatedAlarms.filter(
+        (a) => a.debtId !== effectiveId && a.id !== effectiveId && a.id !== (200000 + effectiveId) && !a.title.toLowerCase().includes(debtName.toLowerCase())
+      );
+      setAlarms(updatedAlarms);
+      syncAlarmsWithPushServer(updatedAlarms);
     }
 
     setDebts(updated);
     setPayments(updatedPayments);
+    setAlarms(updatedAlarms);
     saveAllToUser(updated, incomes, updatedAlarms, updatedNotifs, installmentDebts, updatedPayments, expenses, expenseCategories);
+    syncAllDebtsAndAlarmsToAndroid(updatedAlarms, updated, installmentDebts);
     if (shouldCelebrate) {
       triggerConfetti();
     }
@@ -4645,45 +4683,105 @@ export default function App() {
       async () => {
         // Borca bağlı tüm sistem ve Capacitor alarmlarını iptal et
         try {
-          await LocalNotifications.cancel({ notifications: [{ id: Number(id) }] });
-          await LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(id) }] });
+          await LocalNotifications.cancel({
+            notifications: [
+              { id: Number(id) },
+              { id: 200000 + Number(id) },
+              { id: 800000 + Number(id) }
+            ]
+          });
         } catch {}
         cancelCapacitorAlarm(id).catch(() => {});
         cancelAndroidDebtAlarm(id);
 
         const updatedDebts = debts.filter((d) => d.id !== id);
         const updatedPayments = payments.filter((p) => p.debtId !== id);
+        const updatedAlarms = alarms.filter((a) => a.debtId !== id && a.id !== id && a.id !== (200000 + id));
         setDebts(updatedDebts);
         setPayments(updatedPayments);
+        setAlarms(updatedAlarms);
         saveAllToUser(
           updatedDebts,
           incomes,
-          alarms,
+          updatedAlarms,
           notifications,
           installmentDebts,
           updatedPayments,
           expenses,
           expenseCategories
         );
+        syncAlarmsWithPushServer(updatedAlarms);
+        syncAllDebtsAndAlarmsToAndroid(updatedAlarms, updatedDebts, installmentDebts);
       }
     );
   };
 
   const handleToggleDebtPaid = async (id: number) => {
     let updatedPayments = [...payments];
+    let updatedAlarms = [...alarms];
     let shouldCelebrate = false;
     const borcId = Number(id);
 
-    // Borç kullanıcı tarafından 'Ödendi' olarak işaretlendiğinde, o borca ait tüm planlanmış yerel alarmları tamamen yok et
-    try {
-      await LocalNotifications.cancel({ notifications: [{ id: Number(borcId) }] });
-      await LocalNotifications.cancel({ notifications: [{ id: 200000 + Number(borcId) }] });
-      await LocalNotifications.cancel({ notifications: [{ id: 800000 + Number(borcId) }] });
-    } catch (e) {
-      console.warn("[LocalNotifications] cancel error on toggle:", e);
+    const targetDebt = debts.find((d) => d.id === id);
+    const wasPaid = targetDebt ? targetDebt.paid >= targetDebt.amount : false;
+    const isNowPaid = !wasPaid;
+
+    if (isNowPaid) {
+      // Borç kullanıcı tarafından 'Ödendi' olarak işaretlendiğinde, o borca ait tüm planlanmış yerel alarmları otomatik olarak iptal et / sil
+      try {
+        await LocalNotifications.cancel({
+          notifications: [
+            { id: Number(borcId) },
+            { id: 200000 + Number(borcId) },
+            { id: 800000 + Number(borcId) }
+          ]
+        });
+      } catch (e) {
+        console.warn("[LocalNotifications] cancel error on toggle:", e);
+      }
+      cancelCapacitorAlarm(borcId).catch(() => {});
+      cancelAndroidDebtAlarm(borcId);
+
+      // Veritabanı ve aktif hatırlatıcılar listesinden ödenmiş borcun alarmını derhal filtrele/kaldır
+      updatedAlarms = updatedAlarms.filter(
+        (a) => a.debtId !== borcId && a.id !== borcId && a.id !== (200000 + borcId) && !(targetDebt && a.title.toLowerCase().includes(targetDebt.name.toLowerCase()))
+      );
+      setAlarms(updatedAlarms);
+    } else {
+      // Ödeme geri alındığında (Ödenmedi yapıldığında) eğer vade tarihi varsa alarmı tekrar kur
+      if (targetDebt?.dueDate) {
+        const trig = parseAlarmDateToMillis(targetDebt.dueDate);
+        if (trig && trig > Date.now()) {
+          const remaining = targetDebt.amount.toLocaleString("tr-TR");
+          const dateFormatted = new Date(targetDebt.dueDate).toLocaleDateString("tr-TR");
+          const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
+          const richBody = `💰 Borç: ${targetDebt.name}\n💵 Kalan Tutar: ${remaining} TL\n📅 Son Tarih: ${dateFormatted}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
+          scheduleCapacitorAlarm(
+            200000 + borcId,
+            richTitle,
+            trig,
+            richBody,
+            {
+              borcAdi: targetDebt.name,
+              miktar: `${remaining} TL`,
+              tarih: dateFormatted,
+              durum: "Gecikmemesi için lütfen kontrol edin!"
+            }
+          ).catch(() => {});
+
+          const restoredAlarm: Alarm = {
+            id: 200000 + borcId,
+            debtId: borcId,
+            title: `Borç Son Ödeme Tarihi: ${targetDebt.name}`,
+            date: targetDebt.dueDate,
+            timestamp: trig
+          };
+          updatedAlarms = [...updatedAlarms.filter((a) => a.debtId !== borcId && a.id !== borcId && a.id !== (200000 + borcId)), restoredAlarm];
+          setAlarms(updatedAlarms);
+        }
+      }
     }
-    cancelCapacitorAlarm(borcId).catch(() => {});
-    cancelAndroidDebtAlarm(borcId);
 
     const updated = debts.map((d) => {
       if (d.id === id) {
@@ -4704,28 +4802,6 @@ export default function App() {
           };
           updatedPayments.push(newPayment);
           shouldCelebrate = true;
-        } else if (d.dueDate) {
-          // Ödeme geri alındığında alarmı tekrar kur
-          const trig = parseAlarmDateToMillis(d.dueDate);
-          if (trig && trig > Date.now()) {
-            const remaining = (d.amount - newPaid).toLocaleString("tr-TR");
-            const dateFormatted = new Date(d.dueDate).toLocaleDateString("tr-TR");
-            const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
-            const richBody = `💰 Borç: ${d.name}\n💵 Kalan Tutar: ${remaining} TL\n📅 Son Tarih: ${dateFormatted}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
-
-            scheduleCapacitorAlarm(
-              200000 + id,
-              richTitle,
-              trig,
-              richBody,
-              {
-                borcAdi: d.name,
-                miktar: `${remaining} TL`,
-                tarih: dateFormatted,
-                durum: "Gecikmemesi için lütfen kontrol edin!"
-              }
-            ).catch(() => {});
-          }
         }
 
         return {
@@ -4738,7 +4814,11 @@ export default function App() {
 
     setDebts(updated);
     setPayments(updatedPayments);
-    saveAllToUser(updated, incomes, alarms, notifications, installmentDebts, updatedPayments, expenses, expenseCategories);
+    setAlarms(updatedAlarms);
+    saveAllToUser(updated, incomes, updatedAlarms, notifications, installmentDebts, updatedPayments, expenses, expenseCategories);
+    syncAlarmsWithPushServer(updatedAlarms);
+    syncAllDebtsAndAlarmsToAndroid(updatedAlarms, updated, installmentDebts);
+
     if (shouldCelebrate) {
       triggerConfetti();
     }
@@ -4836,6 +4916,7 @@ export default function App() {
   const handleSaveInstallment = (instData: Partial<InstallmentDebt>) => {
     let updated: InstallmentDebt[] = [];
     let updatedPayments = [...payments];
+    let updatedAlarms = [...alarms];
 
     if (instData.id) {
       updated = installmentDebts.map((i) => (i.id === instData.id ? (instData as InstallmentDebt) : i));
@@ -4875,20 +4956,38 @@ export default function App() {
         );
       }
     }
-    setInstallmentDebts(updated);
-    setPayments(updatedPayments);
-    saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
 
-    // Sıradaki taksit ödeme günü için otomatik Capacitor alarmı kur
     const savedInstId = instData.id || (updated.length > 0 ? updated[updated.length - 1].id : 0);
     const targetInst = updated.find((i) => i.id === savedInstId);
-    if (targetInst && targetInst.firstDueDate && (targetInst.paidInstallmentCount || 0) < (targetInst.installmentCount || 1)) {
-      const nextIdx = Number(targetInst.paidInstallmentCount || 0);
-      const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
-      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
-        const trig = nextDate.getTime();
-        if (trig > Date.now()) {
+
+    if (targetInst) {
+      const isCompleted = (targetInst.paidInstallmentCount || 0) >= (targetInst.installmentCount || 1);
+      if (isCompleted) {
+        // Taksit planı tamamen bittiğinde tüm alarmları iptal et ve listeden kaldır
+        try {
+          LocalNotifications.cancel({
+            notifications: [
+              { id: Number(savedInstId) },
+              { id: 800000 + Number(savedInstId) },
+              { id: 200000 + Number(savedInstId) }
+            ]
+          }).catch(() => {});
+        } catch (_) {}
+        cancelCapacitorAlarm(800000 + savedInstId).catch(() => {});
+        cancelCapacitorAlarm(savedInstId).catch(() => {});
+        cancelAndroidDebtAlarm(savedInstId);
+
+        updatedAlarms = updatedAlarms.filter(
+          (a) => a.debtId !== savedInstId && a.id !== savedInstId && a.id !== (800000 + savedInstId) && !a.title.toLowerCase().includes(targetInst.name.toLowerCase())
+        );
+      } else if (targetInst.firstDueDate) {
+        // Gelecek aylara ait kalan taksitlerin bildirimini sıradaki taksit tarihine göre güncelle
+        const nextIdx = Number(targetInst.paidInstallmentCount || 0);
+        const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
+          const trig = nextDate.getTime();
+          const nextDateStr = nextDate.toISOString().slice(0, 10);
           const perMonth = targetInst.installmentCount ? Math.round(Number(targetInst.totalAmount || 0) / Number(targetInst.installmentCount)) : 0;
           const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
           const borcAdi = `${targetInst.name} (${nextIdx + 1}/${targetInst.installmentCount}. Taksit)`;
@@ -4896,21 +4995,58 @@ export default function App() {
           const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
           const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
 
-          scheduleCapacitorAlarm(
-            800000 + targetInst.id,
-            richTitle,
-            trig,
-            richBody,
-            {
-              borcAdi,
-              miktar,
-              tarih,
-              durum: "Gecikmemesi için lütfen kontrol edin!"
-            }
-          ).catch(() => {});
+          cancelCapacitorAlarm(800000 + targetInst.id).catch(() => {});
+          if (trig > Date.now()) {
+            scheduleCapacitorAlarm(
+              800000 + targetInst.id,
+              richTitle,
+              trig,
+              richBody,
+              {
+                borcAdi,
+                miktar,
+                tarih,
+                durum: "Gecikmemesi için lütfen kontrol edin!"
+              }
+            ).catch(() => {});
+            scheduleAndroidDebtAlarm(
+              800000 + targetInst.id,
+              richTitle,
+              trig,
+              richBody
+            );
+          }
+
+          const existingAlarmIdx = updatedAlarms.findIndex(
+            (a) => a.debtId === savedInstId || a.id === (800000 + savedInstId) || a.title.includes(targetInst.name)
+          );
+          if (existingAlarmIdx >= 0) {
+            updatedAlarms[existingAlarmIdx] = {
+              ...updatedAlarms[existingAlarmIdx],
+              debtId: savedInstId,
+              title: `Taksit Son Ödeme: ${borcAdi}`,
+              date: nextDateStr,
+              timestamp: trig
+            };
+          } else if (trig > Date.now()) {
+            updatedAlarms.push({
+              id: 800000 + savedInstId,
+              debtId: savedInstId,
+              title: `Taksit Son Ödeme: ${borcAdi}`,
+              date: nextDateStr,
+              timestamp: trig
+            });
+          }
         }
       }
     }
+
+    setInstallmentDebts(updated);
+    setPayments(updatedPayments);
+    setAlarms(updatedAlarms);
+    saveAllToUser(debts, incomes, updatedAlarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+    syncAlarmsWithPushServer(updatedAlarms);
+    syncAllDebtsAndAlarmsToAndroid(updatedAlarms, debts, updated);
   };
 
   const handleDeleteInstallment = (id: number) => {
@@ -4918,18 +5054,36 @@ export default function App() {
       "Taksit Planını Sil",
       "Taksit planı tamamen silinecektir, devam edilsin mi?",
       () => {
+        try {
+          LocalNotifications.cancel({
+            notifications: [
+              { id: Number(id) },
+              { id: 800000 + Number(id) },
+              { id: 200000 + Number(id) }
+            ]
+          }).catch(() => {});
+        } catch (_) {}
         cancelCapacitorAlarm(800000 + id).catch(() => {});
+        cancelCapacitorAlarm(id).catch(() => {});
+        cancelAndroidDebtAlarm(id);
+
         const updated = installmentDebts.filter((i) => i.id !== id);
         const updatedPayments = payments.filter((p) => !(p.debtId === id && p.type === "installment"));
+        const updatedAlarms = alarms.filter((a) => a.debtId !== id && a.id !== id && a.id !== (800000 + id));
         setInstallmentDebts(updated);
         setPayments(updatedPayments);
-        saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+        setAlarms(updatedAlarms);
+        saveAllToUser(debts, incomes, updatedAlarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+        syncAlarmsWithPushServer(updatedAlarms);
+        syncAllDebtsAndAlarmsToAndroid(updatedAlarms, debts, updated);
       }
     );
   };
 
   const handlePayInstallment = (id: number, customDate?: string) => {
     let updatedPayments = [...payments];
+    let updatedAlarms = [...alarms];
+
     const updated = installmentDebts.map((inst) => {
       if (inst.id === id && inst.paidInstallmentCount < inst.installmentCount) {
         const perMonth = inst.totalAmount / inst.installmentCount;
@@ -4961,29 +5115,47 @@ export default function App() {
       }
       return inst;
     });
-    setInstallmentDebts(updated);
-    setPayments(updatedPayments);
-    saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
 
-    // Taksit ödendikten sonra sıradaki taksit alarmını güncelle veya bittiyse iptal et
+    // 1. Ödenen aya ait bildirimi/alarmı derhal iptal et
+    try {
+      LocalNotifications.cancel({
+        notifications: [
+          { id: Number(id) },
+          { id: 800000 + Number(id) },
+          { id: 200000 + Number(id) }
+        ]
+      }).catch(() => {});
+    } catch (_) {}
+    cancelCapacitorAlarm(800000 + id).catch(() => {});
+    cancelAndroidDebtAlarm(id);
+
+    // 2. Kalan taksitler için sıradaki ayın bildirimini kur veya bittiyse tamamen iptal et
     const targetInst = updated.find((i) => i.id === id);
     if (targetInst) {
       if ((targetInst.paidInstallmentCount || 0) >= (targetInst.installmentCount || 1)) {
+        // Taksit planı bitti: Tüm alarmları kaldır
         cancelCapacitorAlarm(800000 + id).catch(() => {});
+        cancelCapacitorAlarm(id).catch(() => {});
+        cancelAndroidDebtAlarm(id);
+        updatedAlarms = updatedAlarms.filter(
+          (a) => a.debtId !== id && a.id !== id && a.id !== (800000 + id) && !a.title.toLowerCase().includes(targetInst.name.toLowerCase())
+        );
       } else if (targetInst.firstDueDate) {
+        // Dinamik Takvim: Sıradaki taksit ayının tarihini hesapla ve alarmını güncelle
         const nextIdx = Number(targetInst.paidInstallmentCount || 0);
         const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
         if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
           const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
           const trig = nextDate.getTime();
-          if (trig > Date.now()) {
-            const perMonth = targetInst.installmentCount ? Math.round(Number(targetInst.totalAmount || 0) / Number(targetInst.installmentCount)) : 0;
-            const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
-            const borcAdi = `${targetInst.name} (${nextIdx + 1}/${targetInst.installmentCount}. Taksit)`;
-            const tarih = nextDate.toLocaleDateString("tr-TR");
-            const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
-            const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+          const nextDateStr = nextDate.toISOString().slice(0, 10);
+          const perMonth = targetInst.installmentCount ? Math.round(Number(targetInst.totalAmount || 0) / Number(targetInst.installmentCount)) : 0;
+          const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
+          const borcAdi = `${targetInst.name} (${nextIdx + 1}/${targetInst.installmentCount}. Taksit)`;
+          const tarih = nextDate.toLocaleDateString("tr-TR");
+          const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
+          const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
 
+          if (trig > Date.now()) {
             scheduleCapacitorAlarm(
               800000 + targetInst.id,
               richTitle,
@@ -4996,16 +5168,52 @@ export default function App() {
                 durum: "Gecikmemesi için lütfen kontrol edin!"
               }
             ).catch(() => {});
+            scheduleAndroidDebtAlarm(
+              800000 + targetInst.id,
+              richTitle,
+              trig,
+              richBody
+            );
+          }
+
+          const existingAlarmIdx = updatedAlarms.findIndex(
+            (a) => a.debtId === id || a.id === (800000 + id) || a.title.includes(targetInst.name)
+          );
+          if (existingAlarmIdx >= 0) {
+            updatedAlarms[existingAlarmIdx] = {
+              ...updatedAlarms[existingAlarmIdx],
+              debtId: id,
+              title: `Taksit Son Ödeme: ${borcAdi}`,
+              date: nextDateStr,
+              timestamp: trig
+            };
+          } else if (trig > Date.now()) {
+            updatedAlarms.push({
+              id: 800000 + id,
+              debtId: id,
+              title: `Taksit Son Ödeme: ${borcAdi}`,
+              date: nextDateStr,
+              timestamp: trig
+            });
           }
         }
       }
     }
+
+    setInstallmentDebts(updated);
+    setPayments(updatedPayments);
+    setAlarms(updatedAlarms);
+    saveAllToUser(debts, incomes, updatedAlarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+    syncAlarmsWithPushServer(updatedAlarms);
+    syncAllDebtsAndAlarmsToAndroid(updatedAlarms, debts, updated);
 
     triggerToast("Taksit Ödemesi Kaydedildi");
   };
 
   const handleRevertInstallmentPayment = (id: number) => {
     let updatedPayments = [...payments];
+    let updatedAlarms = [...alarms];
+
     const updated = installmentDebts.map((inst) => {
       if (inst.id === id && inst.paidInstallmentCount > 0) {
         const updatedPaidCount = inst.paidInstallmentCount - 1;
@@ -5026,9 +5234,46 @@ export default function App() {
       }
       return inst;
     });
+
+    const targetInst = updated.find((i) => i.id === id);
+    if (targetInst && targetInst.firstDueDate) {
+      const nextIdx = Number(targetInst.paidInstallmentCount || 0);
+      const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const nextDate = new Date(y, (m - 1) + nextIdx, d, 9, 0, 0, 0);
+        const trig = nextDate.getTime();
+        const nextDateStr = nextDate.toISOString().slice(0, 10);
+        const perMonth = targetInst.installmentCount ? Math.round(Number(targetInst.totalAmount || 0) / Number(targetInst.installmentCount)) : 0;
+        const borcAdi = `${targetInst.name} (${nextIdx + 1}/${targetInst.installmentCount}. Taksit)`;
+        if (trig > Date.now()) {
+          scheduleCapacitorAlarm(
+            800000 + targetInst.id,
+            "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
+            trig,
+            `💰 Borç: ${borcAdi}\n💵 Miktar: ${perMonth.toLocaleString("tr-TR")} TL\n📅 Son Tarih: ${nextDate.toLocaleDateString("tr-TR")}`
+          ).catch(() => {});
+        }
+        const existingAlarmIdx = updatedAlarms.findIndex(
+          (a) => a.debtId === id || a.id === (800000 + id) || a.title.includes(targetInst.name)
+        );
+        if (existingAlarmIdx >= 0) {
+          updatedAlarms[existingAlarmIdx] = {
+            ...updatedAlarms[existingAlarmIdx],
+            debtId: id,
+            title: `Taksit Son Ödeme: ${borcAdi}`,
+            date: nextDateStr,
+            timestamp: trig
+          };
+        }
+      }
+    }
+
     setInstallmentDebts(updated);
     setPayments(updatedPayments);
-    saveAllToUser(debts, incomes, alarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+    setAlarms(updatedAlarms);
+    saveAllToUser(debts, incomes, updatedAlarms, notifications, updated, updatedPayments, expenses, expenseCategories);
+    syncAlarmsWithPushServer(updatedAlarms);
+    syncAllDebtsAndAlarmsToAndroid(updatedAlarms, debts, updated);
     triggerToast("Son Ödeme Geri Alındı");
   };
 
