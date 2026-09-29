@@ -28,7 +28,8 @@ import {
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  signOut
 } from "firebase/auth";
 import { auth, firestore, doc, getDoc } from "../utils/firebase";
 import { 
@@ -321,6 +322,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               if (uData?.isGuest === true) {
                 isGuestUser = true;
               }
+              if (uData?.hasUsedTrial === true) {
+                isGuestUser = true;
+              }
               if (uData?.createdAt) {
                 determinedCreatedAt = uData.createdAt;
               }
@@ -336,6 +340,17 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           } catch {
             // Devam et
           }
+        }
+
+        // MİSAFİR 7 GÜNLÜK DENEME HESABI İLE KAYITLI KULLANICI KONTROLÜ:
+        // Eğer kullanıcı Misafir 7 Günlük Deneme hesabı ise Premium Giriş bölümünden GİREMEZ!
+        if (!isUserPremium && isGuestUser) {
+          try {
+            await signOut(auth);
+          } catch {}
+          setIsLoading(false);
+          setError("⚠️ Bu hesap '7 Günlük Ücretsiz Deneme (Misafir)' hesabıdır. Premium üyeliğiniz bulunmamaktadır. Lütfen üstteki '7 Günlük Deneme (Misafir)' sekmesinden giriş yapınız.");
+          return;
         }
 
         // 2. @capacitor/device ile cihaz UUID'sini al

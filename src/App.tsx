@@ -1144,19 +1144,9 @@ export default function App() {
   };
 
   const closeUpgradeModal = () => {
-    if (isTrialExpiredLocked) {
-      triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
-      return;
-    }
     setIsUpgradeModalOpen(false);
     setPromoFeature(null);
   };
-
-  useEffect(() => {
-    if (isTrialExpiredLocked) {
-      setIsUpgradeModalOpen(true);
-    }
-  }, [isTrialExpiredLocked]);
 
   // Custom Google Play & RevenueCat states
   const [isPricingLoading, setIsPricingLoading] = useState(false);
@@ -10568,12 +10558,20 @@ export default function App() {
                       }`}>
                         <Sparkles className="w-8 h-8 text-amber-500" />
                       </div>
-                      <h3 className={`text-xs font-black uppercase tracking-widest ${isPaidPremium ? "text-emerald-600 dark:text-emerald-400" : isTrialActive ? "text-indigo-500" : "text-amber-500"}`}>
+                      <h3 className={`text-xs font-black uppercase tracking-widest ${
+                        isPaidPremium 
+                          ? "text-emerald-600 dark:text-emerald-400" 
+                          : isTrialActive 
+                          ? "text-indigo-500" 
+                          : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
+                          ? "text-rose-500"
+                          : "text-amber-500"
+                      }`}>
                         {isPaidPremium 
                           ? "BÜTÇEM PRO PREMİUM ÜYELİK" 
                           : isTrialActive 
                           ? "7 GÜNLÜK ÜCRETSİZ DENEME HESABI"
-                          : isTrialExpiredLocked 
+                          : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
                           ? "DENEME SÜRESİ DOLDU" 
                           : "BÜTÇEM PRO PREMIUM"}
                       </h3>
@@ -10582,7 +10580,7 @@ export default function App() {
                           ? "👑 Premium Üyesiniz" 
                           : isTrialActive 
                           ? `🎁 7 Günlük Deneme Aktif (${trialDaysRemaining} Gün Kaldı)` 
-                          : isTrialExpiredLocked 
+                          : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
                           ? "⚠️ 7 Günlük Süreniz Bitmiştir" 
                           : "Sınırları Ortadan Kaldırın 👑"}
                       </h2>
@@ -10591,13 +10589,13 @@ export default function App() {
                           ? "Tüm profesyonel bütçe yönetimi, yapay zeka koçu ve sınırsız ayrıcalıklarınız aktiftir."
                           : isTrialActive
                           ? `7 günlük ücretsiz denemenizin bitmesine ${trialDaysRemaining} gün kaldı. Tüm özellikleri ücretsiz kullanıyorsunuz; dilediğiniz zaman avantajlı paketlerimize geçiş yapabilirsiniz.`
-                          : isTrialExpiredLocked
+                          : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
                           ? "7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur."
                           : "Finansal bütçe yönetimini profesyonel seviyeye yükselten gelişmiş özellikleri keşfedin."}
                       </p>
                     </div>
 
-                    {/* Trial Status or Expired Alert Banner */}
+                    {/* Trial Status or Expired Alert Banner (MUTUALLY EXCLUSIVE) */}
                     {!isPaidPremium && isTrialActive && (
                       <div className="p-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl text-center space-y-1.5 shadow-xs">
                         <div className="flex items-center justify-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-xs uppercase tracking-wide">
@@ -10612,7 +10610,7 @@ export default function App() {
                       </div>
                     )}
 
-                    {!isPaidPremium && isTrialExpiredLocked && (
+                    {!isPaidPremium && !isTrialActive && (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired) && (
                       <div className="p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl text-center space-y-1.5 shadow-sm">
                         <div className="flex items-center justify-center gap-1.5 text-rose-700 dark:text-rose-400 font-black text-xs uppercase tracking-wide">
                           <span>⚠️ 7 Günlük Süreniz Bitmiştir</span>
@@ -10653,8 +10651,8 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                    {/* Ziyaretçi / Kısıtlı Kullanıcı Karar Kartı - SADECE Misafir ve Ücretsiz Kullanıcılara Gösterilir */}
-                    {!isPaidPremium && (
+                    {/* Ziyaretçi / Henüz Deneme Başlatmamış Kullanıcı Karar Kartı - SADECE Misafir ve Ücretsiz Ziyaretçilere Gösterilir */}
+                    {!isPaidPremium && !isTrialActive && !(isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired) && (
                       <div className="p-4 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border-2 border-indigo-500/30 rounded-3xl space-y-3 shadow-lg">
                         <div className="text-center space-y-1">
                           <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
@@ -10665,7 +10663,7 @@ export default function App() {
                           </h4>
                           <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
                             {!canActivateTrial
-                              ? "Deneme hakkınız tamamlandığı için devam etmek için lütfen aşağıdaki Premium paketlerden birini seçin:"
+                              ? "Devam etmek için lütfen aşağıdaki Premium paketlerden birini seçin:"
                               : "Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:"}
                           </p>
                         </div>
@@ -11089,26 +11087,7 @@ export default function App() {
                           🔄 GOOGLE PLAY'DEN SATIN ALIMLARI GERİ YÜKLE
                         </button>
 
-                        {/* Close / Mandatory Paywall Buttons */}
-                        {isTrialExpiredLocked ? (
-                          <div className="pt-2 text-center space-y-2">
-                            <p className="text-[11px] text-rose-500 dark:text-rose-400 font-bold">
-                              ⚠️ Deneme süreniz dolduğu için paket seçimi zorunludur.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleLogout();
-                                setIsTrialExpiredLocked(false);
-                                setIsUpgradeModalOpen(false);
-                                setProviderLoginOpen(true);
-                              }}
-                              className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
-                            >
-                              Farklı Bir Hesapla Giriş Yap / Çıkış Yap
-                            </button>
-                          </div>
-                        ) : (
+                        <div className="pt-2 text-center space-y-2">
                           <button
                             type="button"
                             onClick={() => {
@@ -11118,9 +11097,23 @@ export default function App() {
                             }}
                             className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
                           >
-                            Kapat, Vazgeç
+                            {isTrialExpiredLocked ? "Ziyaretçi Modunda Devam Et / Kapat" : "Kapat, Vazgeç"}
                           </button>
-                        )}
+                          {isTrialExpiredLocked && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleLogout();
+                                setIsTrialExpiredLocked(false);
+                                setIsUpgradeModalOpen(false);
+                                setProviderLoginOpen(true);
+                              }}
+                              className="text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer block mx-auto"
+                            >
+                              Farklı Bir Hesapla Giriş Yap
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>
@@ -11132,41 +11125,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* 7-Day Trial Expired Mandatory Paywall Barrier */}
-      {isTrialExpiredLocked && !isUpgradeModalOpen && (
-        <div className="fixed inset-0 z-[2500] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 text-center space-y-4 shadow-2xl border-2 border-rose-500/30">
-            <div className="w-14 h-14 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-rose-500/20">
-              ⏳
-            </div>
-            <h3 className="text-base font-black text-slate-800 dark:text-white">
-              7 Günlük Ücretsiz Deneme Süreniz Sona Erdi
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-              Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsUpgradeModalOpen(true)}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
-            >
-              👑 Premium Planları İncele ve Satın Al
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                handleLogout();
-                setIsTrialExpiredLocked(false);
-                setProviderLoginOpen(true);
-              }}
-              className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer block mx-auto pt-1"
-            >
-              Farklı Bir Hesapla Giriş Yap / Çıkış Yap
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Dynamic Google Play Billing Interactive Overlay */}
       <AnimatePresence>
