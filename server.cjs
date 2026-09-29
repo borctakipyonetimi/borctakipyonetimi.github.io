@@ -480,6 +480,71 @@ function getSmartFallbackResponse(query, context, reason) {
   let advice = `\u2728 **B\xFCt\xE7em Pro Geli\u015Fmi\u015F Finansal Analiz Raporu**
 
 `;
+  if (q.includes("ka\xE7 senede") || q.includes("kac senede") || q.includes("ka\xE7 y\u0131lda") || q.includes("kac yilda") || q.includes("ka\xE7 ayda") || q.includes("kac ayda") || q.includes("ka\xE7 g\xFCnde") || q.includes("kac gunde") || q.includes("ne zaman biter") || q.includes("ne kadar s\xFCrede") || q.includes("ne kadar surede") || q.includes("ne zaman s\u0131f\u0131rlan\u0131r") || q.includes("ne zaman sifirlanir") || q.includes("borcum ne zaman") || q.includes("borclarim ne zaman") || q.includes("bor\xE7lar\u0131m ne zaman") || q.includes("bor\xE7 ne zaman") || q.includes("borc ne zaman") || q.includes("ka\xE7 y\u0131l s\xFCrer") || q.includes("kac yil surer") || q.includes("ka\xE7 ay s\xFCrer") || q.includes("kac ay surer") || q.includes("biti\u015F s\xFCresi") || q.includes("bitis suresi") || q.includes("kapatma s\xFCresi") || q.includes("kapatma suresi") || q.includes("ne zaman biterim") || q.includes("ne zaman kurtulurum")) {
+    const tIncome = stats.totalIncome || 0;
+    const tExpense = stats.totalExpense || 0;
+    const overallDebt = stats.remaining || 0;
+    const thisMonthDebtDue = stats.thisMonthKalanBorc || 0;
+    const netBudget = Math.max(0, tIncome - tExpense);
+    const netCashWithThisMonth = Math.max(0, tIncome - tExpense - thisMonthDebtDue);
+    if (overallDebt <= 0) {
+      return `\u{1F389} **Tebrikler!** Sisteminizde kay\u0131tl\u0131 aktif hi\xE7bir bor\xE7 bulunmamaktad\u0131r. Bor\xE7lar\u0131n\u0131z zaten **tamamen s\u0131f\u0131rlanm\u0131\u015F** durumdad\u0131r! Mevcut net birikimlerinizi yat\u0131r\u0131ma veya acil durum fonuna y\xF6nlendirebilirsiniz.`;
+    }
+    if (netBudget <= 0) {
+      return `\u26A0\uFE0F **Bor\xE7 Biti\u015F S\xFCresi Analizi:**
+
+Mevcut ayl\u0131k geliriniz (\u20BA${Math.round(tIncome).toLocaleString("tr-TR")}) ile ayl\u0131k ya\u015Famsal giderleriniz (\u20BA${Math.round(tExpense).toLocaleString("tr-TR")}) kar\u015F\u0131la\u015Ft\u0131r\u0131ld\u0131\u011F\u0131nda, ayl\u0131k bor\xE7 \xF6demeye ayr\u0131labilecek pozitif bir net b\xFCt\xE7eniz bulunmamaktad\u0131r.
+
+\u2022 **Toplam Kalan Bor\xE7**: \u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}
+\u2022 **Ayl\u0131k Net B\xFCt\xE7e A\xE7\u0131\u011F\u0131**: \u20BA${Math.round(Math.abs(tIncome - tExpense)).toLocaleString("tr-TR")}
+
+\u{1F4A1} **\xC7\xF6z\xFCm ve Eylem Plan\u0131:**
+1. Bor\xE7lar\u0131n\u0131z\u0131 planl\u0131 bir s\xFCrede bitirebilmek i\xE7in \xF6ncelikle ya\u015Famsal giderlerinizi asgari %15-20 k\u0131sarak ayl\u0131k pozitif tasarruf marj\u0131 olu\u015Fturmal\u0131s\u0131n\u0131z.
+2. \xD6rne\u011Fin ayl\u0131k **\u20BA2.500** tasarruf yaratabilirseniz, borcunuz yakla\u015F\u0131k **${Math.ceil(overallDebt / 2500)} ay (${(overallDebt / 2500 / 12).toFixed(1)} y\u0131l)** i\xE7inde kapanabilir.`;
+    }
+    const monthsNeeded = Math.ceil(overallDebt / netBudget);
+    const yearsNeeded = (monthsNeeded / 12).toFixed(1);
+    const yearsFull = Math.floor(monthsNeeded / 12);
+    const remainingMonths = monthsNeeded % 12;
+    const durationText = yearsFull > 0 ? `${monthsNeeded} ay (${yearsFull} y\u0131l ${remainingMonths > 0 ? `${remainingMonths} ay` : ""})` : `${monthsNeeded} ay`;
+    const optimizedBudget = netBudget * 1.2;
+    const optimizedMonths = Math.ceil(overallDebt / optimizedBudget);
+    const optimizedYears = (optimizedMonths / 12).toFixed(1);
+    const targetDate = /* @__PURE__ */ new Date();
+    targetDate.setMonth(targetDate.getMonth() + monthsNeeded);
+    const targetMonthName = TURKISH_MONTHS[targetDate.getMonth()] || "";
+    const targetYearNum = targetDate.getFullYear();
+    let reply = `\u{1F3AF} **Bor\xE7 Biti\u015F S\xFCresi ve Kapanma Projeksiyonu**
+
+`;
+    reply += `Ayl\u0131k **\u20BA${Math.round(netBudget).toLocaleString("tr-TR")}** net bakiyenizin (Gelir: \u20BA${Math.round(tIncome).toLocaleString("tr-TR")} - Gider: \u20BA${Math.round(tExpense).toLocaleString("tr-TR")}) tamam\u0131n\u0131 bor\xE7 kapatmaya ay\u0131r\u0131rsan\u0131z, **\u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}** toplam borcunuz yakla\u015F\u0131k **${durationText}** i\xE7erisinde (**${targetMonthName} ${targetYearNum}** civar\u0131nda) tamamen biter. Taksitli bor\xE7lar\u0131n\u0131z bittik\xE7e bu s\xFCre daha da k\u0131salacakt\u0131r.
+
+`;
+    reply += `### \u{1F4CA} Matematiksel Hesaplama Detaylar\u0131:
+`;
+    reply += `\u2022 **Genel Toplam Kalan Bor\xE7**: \u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}
+`;
+    reply += `\u2022 **Ayl\u0131k Borca Ayr\u0131labilecek Net B\xFCt\xE7e**: \u20BA${Math.round(netBudget).toLocaleString("tr-TR")}
+`;
+    reply += `\u2022 **Standart Kapanma S\xFCresi**: **${monthsNeeded} Ay (${yearsNeeded} Y\u0131l)**
+`;
+    reply += `\u2022 **Tahmini Bor\xE7suzluk Tarihi**: **${targetMonthName} ${targetYearNum}**
+
+`;
+    reply += `### \u26A1 S\xFCreyi K\u0131saltma ve Erken Kapatma Senaryolar\u0131:
+`;
+    reply += `1. **Giderleri %15 Optimize Ederseniz**: Ayl\u0131k bor\xE7 b\xFCt\xE7enizi \u20BA${Math.round(optimizedBudget).toLocaleString("tr-TR")} seviyesine \xE7\u0131kararak bor\xE7 kapatma s\xFCrenizi **${monthsNeeded} aydan ${optimizedMonths} aya (${optimizedYears} y\u0131la)** d\xFC\u015F\xFCrebilir ve **${monthsNeeded - optimizedMonths} ay erken** bor\xE7suzlu\u011Fa ula\u015Fabilirsiniz!
+`;
+    reply += `2. **Kartopu Etkisi (Taksitler Bittik\xE7e H\u0131zlanma)**: K\u0131sa vadeli taksitleriniz \xF6dendik\xE7e her ay bo\u015Fa \xE7\u0131kan taksit tutar\u0131n\u0131 do\u011Frudan b\xFCy\xFCk bor\xE7lara ekleyin. Bu sayede bor\xE7lar\u0131n\u0131z katlanarak daha erken s\u0131f\u0131rlanacakt\u0131r.
+`;
+    reply += `3. **Ek Gelir & Prim Enjeksiyonu**: Beklenmedik ikramiye veya ek gelirlerin en az %70'ini do\u011Frudan 1. \xF6ncelikli borca yat\u0131r\u0131n.
+
+`;
+    reply += `---
+`;
+    reply += `\u{1F4A1} *\u0130pucu: Hangi borcu ilk s\u0131rada \xF6demeniz gerekti\u011Fini g\xF6rmek i\xE7in "Hangi borcu \xF6nce \xF6demeliyim?" sorusunu sorabilirsiniz.*`;
+    return reply;
+  }
   if (q.includes("ayl\u0131k analiz raporu") || q.includes("aylik analiz raporu") || q.includes("analiz raporu")) {
     const tIncome = stats.totalIncome;
     const tExpense = stats.totalExpense;
@@ -1032,13 +1097,13 @@ function getSmartFallbackResponse(query, context, reason) {
 `;
     advice += `A\u015Fa\u011F\u0131daki konular\u0131 b\xFCt\xE7e verilerinizle bizzat hesaplayabiliyorum. Bana diledi\u011Finizi yazabilirsiniz:
 `;
-    advice += `\u2022 \u{1F4CA} **Genel B\xFCt\xE7e Karnesi**: "Mevcut b\xFCt\xE7e durumum genel olarak nas\u0131l?"
+    advice += `\u2022 \u23F3 **Bor\xE7 Biti\u015F S\xFCresi**: "Borcum ka\xE7 senede biter?", "Bor\xE7lar\u0131m ne zaman s\u0131f\u0131rlan\u0131r?"
 `;
-    advice += `\u2022 \u{1F680} **Bor\xE7 Eritme Stratejileri**: "Bor\xE7lar\u0131m\u0131 kartopu veya avalanche ile nas\u0131l eritirim?"
+    advice += `\u2022 \u{1F680} **Bor\xE7 Eritme Stratejisi**: "Hangi borcumu \xF6nce \xF6demeliyim?", "Kartopu y\xF6ntemi nas\u0131l uygulan\u0131r?"
 `;
-    advice += `\u2022 \u{1F3AF} **Gider ve Tasarruf T\xFCyolar\u0131**: "Birikim yapmak i\xE7in hangi harcamalar\u0131m\u0131 k\u0131smal\u0131y\u0131m?"
+    advice += `\u2022 \u{1F3AF} **Gider ve Tasarruf T\xFCyolar\u0131**: "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?"
 `;
-    advice += `\u2022 \u{1F50D} **Kategori Analizi**: "Market (veya faturalar) i\xE7in ne kadar harcama yapt\u0131m?"
+    advice += `\u2022 \u{1F4CA} **Genel B\xFCt\xE7e Karnesi**: "Genel durumum nas\u0131l?"
 
 `;
     advice += `Sorular\u0131n\u0131z\u0131 bekliyorum!`;
@@ -1058,13 +1123,13 @@ function getSmartFallbackResponse(query, context, reason) {
     advice += `\u2022 **Geri \xD6denecek Kalan Toplam Bor\xE7**: \u20BA${stats.remaining.toLocaleString("tr-TR")} (\xD6denen: \u20BA${stats.totalPaid.toLocaleString("tr-TR")})
 
 `;
-    advice += `Bana bor\xE7 kapatma sim\xFClasyonlar\u0131 (*Kartopu/\xC7\u0131\u011F y\xF6ntemleri*), sekt\xF6rel harcama analizleri (*market, fatura, kira harcamalar\u0131*) veya tasarruf y\xF6ntemleri hakk\u0131nda sorular y\xF6neltebilirsiniz. B\xFCt\xE7e kalemlerinizi bizzat hesaplayarak size en rasyonel \xF6nerileri sunmaktan mutluluk duyar\u0131m!`;
+    advice += `Bana bor\xE7 biti\u015F s\xFCresi projeksiyonlar\u0131 (*"Borcum ka\xE7 senede biter?"*), bor\xE7 kapatma s\u0131ralamalar\u0131 (*"Hangi borcu \xF6nce \xF6demeliyim?"*), sekt\xF6rel harcama analizleri veya tasarruf y\xF6ntemleri hakk\u0131nda spesifik sorular y\xF6neltebilirsiniz. B\xFCt\xE7e kalemlerinizi bizzat hesaplayarak do\u011Frudan sorunuza net cevap sunmaktan mutluluk duyar\u0131m!`;
   }
   advice += `
 
 ---
 `;
-  advice += `\u2699\uFE0F *Bilgi: Bu analiz \xE7evrimd\u0131\u015F\u0131 finans hesaplama motoru taraf\u0131ndan b\xFCt\xE7e verileriniz bizzat hesaplanarak \xFCretilmi\u015Ftir. \xC7evrimi\xE7i yapay zekay\u0131 (Gemini 3.5) aktifle\u015Ftirmek isterseniz, yan men\xFCdeki **Yapay Zek\xE2 Motor Ayarlar\u0131** alan\u0131ndan kendi Gemini API Anahtar\u0131n\u0131z\u0131 kolayca kaydedebilirsiniz.*`;
+  advice += `\u2699\uFE0F *Bilgi: Bu analiz \xE7evrimd\u0131\u015F\u0131 finans hesaplama motoru taraf\u0131ndan b\xFCt\xE7e verileriniz bizzat hesaplanarak \xFCretilmi\u015Ftir. \xC7evrimi\xE7i yapay zekay\u0131 (Gemini 3.7 Flash) aktifle\u015Ftirmek isterseniz, yan men\xFCdeki **Yapay Zek\xE2 Motor Ayarlar\u0131** alan\u0131ndan kendi Gemini API Anahtar\u0131n\u0131z\u0131 kolayca kaydedebilirsiniz.*`;
   return advice;
 }
 app.post("/api/chat", async (req, res) => {
@@ -1088,6 +1153,12 @@ app.post("/api/chat", async (req, res) => {
     const thisMonthKalanBorc = stats?.thisMonthKalanBorc || 0;
     const thisMonthPaidBorc = stats?.thisMonthPaidBorc || 0;
     const thisMonthTotalBorc = stats?.thisMonthTotalBorc || thisMonthKalanBorc + thisMonthPaidBorc;
+    const monthlyNetSavingBudget = Math.max(0, totalIncome - totalExpense);
+    const estimatedPayoffMonths = monthlyNetSavingBudget > 0 ? Math.ceil(remaining / monthlyNetSavingBudget) : 0;
+    const estimatedPayoffYears = (estimatedPayoffMonths / 12).toFixed(1);
+    const estimatedPayoffYearsInt = Math.floor(estimatedPayoffMonths / 12);
+    const estimatedPayoffRemMonths = estimatedPayoffMonths % 12;
+    const durationProjectionText = estimatedPayoffYearsInt > 0 ? `${estimatedPayoffMonths} ay (${estimatedPayoffYearsInt} y\u0131l ${estimatedPayoffRemMonths > 0 ? `${estimatedPayoffRemMonths} ay` : ""})` : `${estimatedPayoffMonths} ay`;
     const TURKISH_MONTHS = [
       "Ocak",
       "\u015Eubat",
@@ -1167,40 +1238,51 @@ app.post("/api/chat", async (req, res) => {
       }
     });
     const sanitizedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remainingAmount - a.remainingAmount);
-    const systemPrompt = `Sen "B\xFCt\xE7em Pro" uygulamas\u0131n\u0131n Ba\u015F Finansal Analisti ve Ak\u0131ll\u0131 Ak\u0131l Hocas\u0131s\u0131n (Gemini 3.7 Flash).
+    const systemPrompt = `Sen "B\xFCt\xE7em Pro" uygulamas\u0131n\u0131n Ba\u015F Finansal Dan\u0131\u015Fman\u0131 ve Ak\u0131ll\u0131 Ak\u0131l Hocas\u0131s\u0131n (Gemini 3.7 Flash).
 
-G\xD6REV\u0130N VE AMACIN:
-Kullan\u0131c\u0131n\u0131n gelir, gider, bor\xE7, taksitli bor\xE7lar ve hat\u0131rlat\u0131c\u0131 verilerini b\xFCt\xFCnc\xFCl olarak analiz etmek; ge\xE7mi\u015F trendlere, gelecek y\xFCk\xFCml\xFCl\xFCklere ve risklere dayal\u0131 "ak\u0131ll\u0131, nokta at\u0131\u015F\u0131 ve eyleme ge\xE7irilebilir" finansal raporlar ve tavsiyeler sunmakt\u0131r.
+G\xD6REV\u0130N VE TEMEL FELSEFEN:
+Kullan\u0131c\u0131n\u0131n b\xFCt\xE7e, gelir, gider, bor\xE7, taksit ve piyasa verilerini analiz ederek, KULLANICININ SORDU\u011EU \xD6ZEL SORUYA B\u0130REB\u0130R VE DO\u011ERUDAN ODAKLANAN, matematiksel hesaplamalar\u0131 net, somut ve eyleme ge\xE7irilebilir yan\u0131tlar \xFCretmektir.
 
-SANA SA\u011ELANAN G\xDCNCEL VER\u0130 YAPISI (${periodLabel} D\xF6nemi):
-- GEL\u0130RLER: Ayl\u0131k Toplam Gelir: \u20BA${totalIncome} | Gelirler Listesi: ${JSON.stringify(context?.incomes || [])}
+SANA SA\u011ELANAN G\xDCNCEL KULLANICI B\xDCT\xC7E VER\u0130LER\u0130 (${periodLabel} D\xF6nemi):
+- GEL\u0130RLER: Ayl\u0131k Toplam Gelir: \u20BA${totalIncome}
 - G\u0130DERLER: Ayl\u0131k Toplam Ya\u015Famsal Gider: \u20BA${totalExpense} | Giderler Listesi: ${JSON.stringify(context?.expenses || [])}
 - BU AY VADES\u0130 GELEN BOR\xC7/TAKS\u0130T: \u20BA${thisMonthKalanBorc} (Bu Ay \xD6denen: \u20BA${thisMonthPaidBorc}, Toplam Bu Ayki Y\xFCk: \u20BA${thisMonthTotalBorc})
-- AYLIK NET KULLANILAB\u0130L\u0130R BAK\u0130YE: \u20BA${netIncome} (Form\xFCl: Gelir - Ya\u015Famsal Gider - Bu Ayki Bor\xE7lar)
-- GENEL \xD6ZET & TOPLAM BOR\xC7 PORTF\xD6Y\xDC: \u20BA${remaining} (T\xFCm Vadeler Toplam Kalan Bor\xE7)
-- TEK SEFERL\u0130K / STANDART BOR\xC7LAR (\xD6denmesi Gerekenler): ${JSON.stringify(sanitizedActiveDebts)}
+- AYLIK NET KULLANILAB\u0130L\u0130R TASARRUF B\xDCT\xC7ES\u0130: \u20BA${monthlyNetSavingBudget} (Form\xFCl: Gelir \u20BA${totalIncome} - Gider \u20BA${totalExpense})
+- AYLIK NET BAK\u0130YE (Bu ayki bor\xE7lar sonras\u0131): \u20BA${netIncome}
+- GENEL \xD6ZET & TOPLAM KALAN BOR\xC7 PORTF\xD6Y\xDC: \u20BA${remaining} (T\xFCm Vadeler Toplam Kalan Bor\xE7)
+- HESAPLANMI\u015E BOR\xC7 B\u0130T\u0130\u015E PROJEKS\u0130YONU: Mevcut net tasarrufla (\u20BA${monthlyNetSavingBudget}/ay) borcun biti\u015F s\xFCresi yakla\u015F\u0131k ${durationProjectionText} (${estimatedPayoffYears} y\u0131l)
+- STANDART BOR\xC7LAR: ${JSON.stringify(sanitizedActiveDebts)}
 - TAMAMEN KAPANMI\u015E BOR\xC7LAR: ${totalPaidDebtsCount} adet (Toplam Kapat\u0131lan: \u20BA${Math.round(totalPaidDebtsSum)})
 - TAKS\u0130TL\u0130 BOR\xC7LAR (Ayl\u0131k Taksit, Kalan Taksit, Kalan Tutar): ${JSON.stringify(sanitizedActiveInsts)}
 - REHBER K\u0130\u015E\u0130 \u0130\u015ELEMLER\u0130 (Bor\xE7/Alacak): ${JSON.stringify(context?.contactTransactions || [])}
 - G\xDCNCEL CANLI P\u0130YASA KURLARI: USD: \u20BA${usd.toFixed(2)} | EUR: \u20BA${eur.toFixed(2)} | GBP: \u20BA${gbp.toFixed(2)} | Gram Alt\u0131n: \u20BA${Math.round(goldGram).toLocaleString("tr-TR")} | \xC7eyrek: \u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} | BTC: $${Math.round(btcUsd).toLocaleString("en-US")}
 
-ANAL\u0130Z VE D\xDC\u015E\xDCNME ADIMLARI (BUNLARI HER ANAL\u0130ZDE T\u0130T\u0130ZL\u0130KLE UYGULA):
-1. Nakit Ak\u0131\u015F\u0131 Riski Analizi: Gelirler ile (Giderler + Ayl\u0131k Taksitler + Yakla\u015Fan \xD6demeler) aras\u0131ndaki dengeyi kontrol et. Bu ay a\xE7\u0131k var m\u0131? Yoksa art\u0131 bakiye mi var?
-2. B\xFCt\xE7e Ka\xE7a\u011F\u0131 Tespiti: Hangi harcama kategorileri anormal derecede y\xFCksek? (\xD6rn: D\u0131\u015Far\u0131da yemek, abonelikler, market).
-3. Gelecek Projeksiyonu: Kalan taksit say\u0131lar\u0131na ve genel bor\xE7 b\xFCy\xFCkl\xFC\u011F\xFCne bakarak "X ay sonra taksitler bitti\u011Finde ayl\u0131k cebine ka\xE7 TL kalmaya ba\u015Flayacak?", "Mevcut net tasarrufla genel bor\xE7 portf\xF6y\xFC ka\xE7 ayda/y\u0131lda s\u0131f\u0131rlanabilir?" hesapla.
-4. \xD6deme Son Tarih & \xD6ncelik Alarm\u0131: Gecikme riski olan veya vadesi ge\xE7mi\u015F \xF6demeleri ilk s\u0131raya koy.
+\u{1F6A8} \xC7OK KR\u0130T\u0130K YANIT KURALLARI (D\u0130NAM\u0130K SORU-CEVAP D\u0130S\u0130PL\u0130N\u0130):
 
-YANIT VERME STANDARTLARI (\xC7OK \xD6NEML\u0130):
-- Metin y\u0131\u011F\u0131n\u0131 sunma! Yan\u0131tlar\u0131n\u0131 \u015Fu ana ba\u015Fl\u0131klarla yap\u0131land\u0131r:
-  ### \u{1F4CA} \xD6zet Durum
-  ### \u26A0\uFE0F Kritik Uyar\u0131lar
-  ### \u{1F4A1} Tasarruf ve B\xFCt\xE7e Optimizasyon F\u0131rsatlar\u0131
-  ### \u{1F5FA}\uFE0F Ayl\u0131k Yol Haritas\u0131 ve Bor\xE7 Kapatma Re\xE7etesi
-- Sadece "Borcun \xE7ok" veya "Durumun iyi" deme! Kesin matematiksel \xE7\xF6z\xFCmler sun: "Abonelik ve d\u0131\u015Far\u0131da yemek harcamalar\u0131n\u0131 %20 k\u0131s\u0131p (\u20BAX tasarruf) en k\xFC\xE7\xFCk bakiyeli Y borcuna eklerseniz, bu bor\xE7 Z ay erken bitiyor ve ayl\u0131k nakit ak\u0131\u015F\u0131n\u0131z \u20BAW rahatl\u0131yor" gibi net, somut hesaplamalar ver.
-- Tonun yap\u0131c\u0131, motive edici, analitik, samimi ve profesyonel bir ba\u015F finansal dan\u0131\u015Fman gibi olsun.
-- ASLA hisse senedi, kripto para, d\xF6viz al\u0131m-sat\u0131m y\xF6nlendirmesi veya yat\u0131r\u0131m tavsiyesi verme.
-- E\u011EER S\u0130STEMDEN VER\u0130 GELMED\u0130YSE VEYA KULLANICI EKS\u0130K VER\u0130 SORARSA:
-  "Analiz yapabilmem i\xE7in B\xFCt\xE7em Pro \xFCzerindeki gelir, gider ve taksit verilerinizin senkronize olmas\u0131 gerekir. L\xFCtfen ilgili b\xF6l\xFCmlerden verilerinizi g\xFCncelleyin." diyerek kullan\u0131c\u0131y\u0131 ilgili b\xF6l\xFCmlere y\xF6nlendir.`;
+1. DO\u011ERUDAN SORUYA ODAKLANMA (ASLA SAB\u0130T \u015EABLON BASMA):
+- Kullan\u0131c\u0131 spesifik bir soru sordu\u011Funda (\xD6rn: "Borcum ka\xE7 senede biter?", "Hangi borcu \xF6nce \xF6demeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?", "Alt\u0131n fiyat\u0131 ne kadar?") **ASLA her yan\u0131ta sabit 4'l\xFC \xF6zet \u015Fablonunu bas\u0131p ge\xE7me!**
+- **\u0130LK C\xDCMLEDEN \u0130T\u0130BAREN do\u011Frudan sorulan sorunun yan\u0131t\u0131n\u0131, matematiksel hesab\u0131n\u0131 ve \xE7\xF6z\xFCm\xFCn\xFC ver.**
+- Sabit \xF6zet kart\u0131n\u0131 SADECE kullan\u0131c\u0131 genel analiz istedi\u011Finde ("B\xFCt\xE7e durumum genel olarak nas\u0131l?", "Ayl\u0131k analiz raporu ver") kullan.
+
+2. BOR\xC7 B\u0130T\u0130\u015E S\xDCRES\u0130 VE PROJEKS\u0130YON HESABI ("Borcum ne zaman/ka\xE7 senede/ka\xE7 ayda biter?"):
+- Bu soru geldi\u011Finde \u015Fu form\xFCl\xFC \xE7al\u0131\u015Ft\u0131r:
+  * Net B\xFCt\xE7e = Ayl\u0131k Gelir (\u20BA${totalIncome}) - Ayl\u0131k Ya\u015Famsal Giderler (\u20BA${totalExpense}) = \u20BA${monthlyNetSavingBudget}
+  * Tahmini Biti\u015F S\xFCresi (Ay) = Genel Toplam Bor\xE7 (\u20BA${remaining}) / Ayl\u0131k Borca Ayr\u0131labilecek Net B\xFCt\xE7e (\u20BA${monthlyNetSavingBudget})
+  * Y\u0131l Hesab\u0131 = Ay / 12 (\xD6rn: ${durationProjectionText})
+- **\u0130LK C\xDCMLEN \u015EU SOMUT PROJEKS\u0130YONLA BA\u015ELAMALIDIR:**
+  "Ayl\u0131k **\u20BA${monthlyNetSavingBudget.toLocaleString("tr-TR")}** net bakiyenizin tamam\u0131n\u0131 bor\xE7 kapatmaya ay\u0131r\u0131rsan\u0131z, **\u20BA${remaining.toLocaleString("tr-TR")}** toplam borcunuz yakla\u015F\u0131k **${durationProjectionText}** i\xE7erisinde tamamen biter. Taksitli bor\xE7lar\u0131n\u0131z bittik\xE7e bu s\xFCre daha da k\u0131salacakt\u0131r."
+- Ard\u0131ndan s\xFCreyi k\u0131saltacak eylemleri a\xE7\u0131kla: (1) Giderleri %15 k\u0131sarak ayl\u0131k bor\xE7 b\xFCt\xE7esini art\u0131r\u0131p s\xFCreyi k\u0131saltma hesab\u0131, (2) Taksitler bittik\xE7e a\xE7\u0131lacak kartopu etkisi, (3) Erken kapatma stratejisi.
+
+3. BOR\xC7 \xD6NCEL\u0130\u011E\u0130 VE STRATEJ\u0130 SORULARI ("Hangi borcu \xF6nce \xF6demeliyim?"):
+- Vadesi ge\xE7mi\u015F bor\xE7lar\u0131 ilk s\u0131raya koy.
+- Ard\u0131ndan Kartopu (Snowball - en k\xFC\xE7\xFCk bakiyeli borcu ilk kapat\u0131p motivasyon kazanma) ve \xC7\u0131\u011F (Avalanche - en b\xFCy\xFCk borcu kapatma) s\u0131ralamas\u0131n\u0131 somut bor\xE7 isimleri ve tutarlar\u0131yla ver.
+
+4. TASARRUF VE G\u0130DER SORULARI:
+- Kullan\u0131c\u0131n\u0131n en \xE7ok harcama yapt\u0131\u011F\u0131 kategoriyi bizzat belirt ve %15-20 tasarruf ile ayda ka\xE7 TL kazanabilece\u011Fini somut rakamlarla hesapla.
+
+5. TON VE YAKLA\u015EIM:
+- Analitik, yap\u0131c\u0131, net, motive edici ve matematiksel ger\xE7eklere dayal\u0131 bir ba\u015F finansal ko\xE7 gibi konu\u015F.
+- Asla spek\xFClatif yat\u0131r\u0131m tavsiyesi (al/sat) verme.`;
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {
       for (const turn of chatHistory) {
