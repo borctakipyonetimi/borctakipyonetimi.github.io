@@ -87,14 +87,363 @@ const getSuggestedCategory = (desc: string, expenseCategories: ExpenseCategory[]
   return null;
 };
 
+interface ExpenseColorTheme {
+  cardBg: string;
+  cardBorder: string;
+  tagBg: string;
+  tagText: string;
+  tagBorder: string;
+  amountColor: string;
+  accentDot: string;
+  ambientGlow: string;
+}
+
+const EXPENSE_COLOR_PALETTES: ExpenseColorTheme[] = [
+  // 0. Emerald / Green (Market, Gıda, Mutfak)
+  {
+    cardBg: "from-emerald-500/10 via-teal-500/5 to-slate-50/90 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-slate-900",
+    cardBorder: "border-emerald-300/80 dark:border-emerald-500/40",
+    tagBg: "bg-emerald-50 dark:bg-emerald-950/70",
+    tagText: "text-emerald-700 dark:text-emerald-300 font-black",
+    tagBorder: "border-emerald-300/90 dark:border-emerald-500/40",
+    amountColor: "text-emerald-600 dark:text-emerald-400",
+    accentDot: "bg-emerald-500",
+    ambientGlow: "bg-emerald-500/15 dark:bg-emerald-500/20",
+  },
+  // 1. Violet / Indigo (Yeme İçme, Restoran, Kafe)
+  {
+    cardBg: "from-indigo-500/10 via-purple-500/5 to-slate-50/90 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900",
+    cardBorder: "border-indigo-300/80 dark:border-indigo-500/40",
+    tagBg: "bg-indigo-50 dark:bg-indigo-950/70",
+    tagText: "text-indigo-700 dark:text-indigo-300 font-black",
+    tagBorder: "border-indigo-300/90 dark:border-indigo-500/40",
+    amountColor: "text-indigo-600 dark:text-indigo-400",
+    accentDot: "bg-indigo-500",
+    ambientGlow: "bg-indigo-500/15 dark:bg-indigo-500/20",
+  },
+  // 2. Amber / Orange (Araç, Yakıt, Bakım, Sanayi)
+  {
+    cardBg: "from-amber-500/10 via-orange-500/5 to-slate-50/90 dark:from-amber-950/40 dark:via-orange-950/20 dark:to-slate-900",
+    cardBorder: "border-amber-300/80 dark:border-amber-500/40",
+    tagBg: "bg-amber-50 dark:bg-amber-950/70",
+    tagText: "text-amber-800 dark:text-amber-300 font-black",
+    tagBorder: "border-amber-300/90 dark:border-amber-500/40",
+    amountColor: "text-amber-600 dark:text-amber-400",
+    accentDot: "bg-amber-500",
+    ambientGlow: "bg-amber-500/15 dark:bg-amber-500/20",
+  },
+  // 3. Sky / Blue (Kira, Konut, Ev, Aidat)
+  {
+    cardBg: "from-sky-500/10 via-blue-500/5 to-slate-50/90 dark:from-sky-950/40 dark:via-blue-950/20 dark:to-slate-900",
+    cardBorder: "border-sky-300/80 dark:border-sky-500/40",
+    tagBg: "bg-sky-50 dark:bg-sky-950/70",
+    tagText: "text-sky-700 dark:text-sky-300 font-black",
+    tagBorder: "border-sky-300/90 dark:border-sky-500/40",
+    amountColor: "text-sky-600 dark:text-sky-400",
+    accentDot: "bg-sky-500",
+    ambientGlow: "bg-sky-500/15 dark:bg-sky-500/20",
+  },
+  // 4. Rose / Red (Faturalar, Elektrik, Su, Doğalgaz)
+  {
+    cardBg: "from-rose-500/10 via-red-500/5 to-slate-50/90 dark:from-rose-950/40 dark:via-red-950/20 dark:to-slate-900",
+    cardBorder: "border-rose-300/80 dark:border-rose-500/40",
+    tagBg: "bg-rose-50 dark:bg-rose-950/70",
+    tagText: "text-rose-700 dark:text-rose-300 font-black",
+    tagBorder: "border-rose-300/90 dark:border-rose-500/40",
+    amountColor: "text-rose-600 dark:text-rose-400",
+    accentDot: "bg-rose-500",
+    ambientGlow: "bg-rose-500/15 dark:bg-rose-500/20",
+  },
+  // 5. Fuchsia / Pink (Giyim, Moda, Alışveriş)
+  {
+    cardBg: "from-fuchsia-500/10 via-pink-500/5 to-slate-50/90 dark:from-fuchsia-950/40 dark:via-pink-950/20 dark:to-slate-900",
+    cardBorder: "border-fuchsia-300/80 dark:border-fuchsia-500/40",
+    tagBg: "bg-fuchsia-50 dark:bg-fuchsia-950/70",
+    tagText: "text-fuchsia-700 dark:text-fuchsia-300 font-black",
+    tagBorder: "border-fuchsia-300/90 dark:border-fuchsia-500/40",
+    amountColor: "text-fuchsia-600 dark:text-fuchsia-400",
+    accentDot: "bg-fuchsia-500",
+    ambientGlow: "bg-fuchsia-500/15 dark:bg-fuchsia-500/20",
+  },
+  // 6. Teal / Cyan (Sağlık, İlaç, Hastane, Eczane)
+  {
+    cardBg: "from-teal-500/10 via-cyan-500/5 to-slate-50/90 dark:from-teal-950/40 dark:via-cyan-950/20 dark:to-slate-900",
+    cardBorder: "border-teal-300/80 dark:border-teal-500/40",
+    tagBg: "bg-teal-50 dark:bg-teal-950/70",
+    tagText: "text-teal-700 dark:text-teal-300 font-black",
+    tagBorder: "border-teal-300/90 dark:border-teal-500/40",
+    amountColor: "text-teal-600 dark:text-teal-400",
+    accentDot: "bg-teal-500",
+    ambientGlow: "bg-teal-500/15 dark:bg-teal-500/20",
+  },
+  // 7. Purple / Violet (Eğitim, Kitap, Kurs, Okul)
+  {
+    cardBg: "from-purple-500/10 via-indigo-500/5 to-slate-50/90 dark:from-purple-950/40 dark:via-indigo-950/20 dark:to-slate-900",
+    cardBorder: "border-purple-300/80 dark:border-purple-500/40",
+    tagBg: "bg-purple-50 dark:bg-purple-950/70",
+    tagText: "text-purple-700 dark:text-purple-300 font-black",
+    tagBorder: "border-purple-300/90 dark:border-purple-500/40",
+    amountColor: "text-purple-600 dark:text-purple-400",
+    accentDot: "bg-purple-500",
+    ambientGlow: "bg-purple-500/15 dark:bg-purple-500/20",
+  },
+  // 8. Lime / Emerald (Kişisel Bakım, Spor, Fitness)
+  {
+    cardBg: "from-lime-500/10 via-emerald-500/5 to-slate-50/90 dark:from-lime-950/40 dark:via-emerald-950/20 dark:to-slate-900",
+    cardBorder: "border-lime-300/80 dark:border-lime-500/40",
+    tagBg: "bg-lime-50 dark:bg-lime-950/70",
+    tagText: "text-lime-800 dark:text-lime-300 font-black",
+    tagBorder: "border-lime-300/90 dark:border-lime-500/40",
+    amountColor: "text-lime-600 dark:text-lime-400",
+    accentDot: "bg-lime-500",
+    ambientGlow: "bg-lime-500/15 dark:bg-lime-500/20",
+  },
+  // 9. Cyan / Blue (Teknoloji, Elektronik, Donanım)
+  {
+    cardBg: "from-cyan-500/10 via-sky-500/5 to-slate-50/90 dark:from-cyan-950/40 dark:via-sky-950/20 dark:to-slate-900",
+    cardBorder: "border-cyan-300/80 dark:border-cyan-500/40",
+    tagBg: "bg-cyan-50 dark:bg-cyan-950/70",
+    tagText: "text-cyan-750 dark:text-cyan-300 font-black",
+    tagBorder: "border-cyan-300/90 dark:border-cyan-500/40",
+    amountColor: "text-cyan-600 dark:text-cyan-400",
+    accentDot: "bg-cyan-500",
+    ambientGlow: "bg-cyan-500/15 dark:bg-cyan-500/20",
+  },
+  // 10. Orange / Yellow (Borç, Taksit, Kredi, Sigara)
+  {
+    cardBg: "from-orange-500/10 via-amber-500/5 to-slate-50/90 dark:from-orange-950/40 dark:via-amber-950/20 dark:to-slate-900",
+    cardBorder: "border-orange-300/80 dark:border-orange-500/40",
+    tagBg: "bg-orange-50 dark:bg-orange-950/70",
+    tagText: "text-orange-800 dark:text-orange-300 font-black",
+    tagBorder: "border-orange-300/90 dark:border-orange-500/40",
+    amountColor: "text-orange-600 dark:text-orange-400",
+    accentDot: "bg-orange-500",
+    ambientGlow: "bg-orange-500/15 dark:bg-orange-500/20",
+  },
+  // 11. Pink / Rose (Hediye, Eğlence, Tatil, Kutlama)
+  {
+    cardBg: "from-pink-500/10 via-rose-500/5 to-slate-50/90 dark:from-pink-950/40 dark:via-rose-950/20 dark:to-slate-900",
+    cardBorder: "border-pink-300/80 dark:border-pink-500/40",
+    tagBg: "bg-pink-50 dark:bg-pink-950/70",
+    tagText: "text-pink-750 dark:text-pink-300 font-black",
+    tagBorder: "border-pink-300/90 dark:border-pink-500/40",
+    amountColor: "text-pink-600 dark:text-pink-400",
+    accentDot: "bg-pink-500",
+    ambientGlow: "bg-pink-500/15 dark:bg-pink-500/20",
+  }
+];
+
+const getExpenseColorTheme = (cat?: ExpenseCategory, index: number = 0, expId: string = ""): ExpenseColorTheme => {
+  if (cat?.name) {
+    let hash = 0;
+    for (let i = 0; i < cat.name.length; i++) {
+      hash = (hash << 5) - hash + cat.name.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % EXPENSE_COLOR_PALETTES.length;
+    return EXPENSE_COLOR_PALETTES[idx];
+  }
+
+  if (expId) {
+    let hash = 0;
+    for (let i = 0; i < expId.length; i++) {
+      hash = (hash << 5) - hash + expId.charCodeAt(i);
+      hash |= 0;
+    }
+    return EXPENSE_COLOR_PALETTES[Math.abs(hash) % EXPENSE_COLOR_PALETTES.length];
+  }
+
+  return EXPENSE_COLOR_PALETTES[index % EXPENSE_COLOR_PALETTES.length];
+};
+
 const getSavingTipForCategory = (name: string, icon: string): string => {
   const norm = name.toLowerCase().trim();
 
-  // Calculate a day-based rotation index (0 to 4) depending on the calendar date
-  const date = new Date();
-  const dayIndex = (date.getDate() + date.getMonth()) % 5;
+  // Günlük rotasyon: Haftanın gününe (0: Pazar, 1: Pazartesi ... 6: Cumartesi) göre her gün farklı ve taze ipucu
+  const dayIndex = new Date().getDay();
 
-  // 1. Market & Gıda & Mutfak
+  // 1. Sigara & Tütün & Alkol
+  if (
+    norm.includes("sigara") ||
+    norm.includes("tütün") ||
+    norm.includes("tutun") ||
+    norm.includes("alkol") ||
+    norm.includes("puro") ||
+    norm.includes("nargile") ||
+    icon === "🚬"
+  ) {
+    const sigaraTips = [
+      "📅 Pazar Değerlendirmesi: Sigara tüketiminizi günde sadece 3-4 adet azaltarak başlayın. Ayda yaklaşık 1-2 karton sigara bedeli (₺1.500 - ₺2.500) doğrudan cebinizde kalır.",
+      "📅 Pazartesi Motivasyonu: Her sigara almadığınız veya azalttığınız gün için o paket tutarını anında vadeli/altın birikim hesabınıza aktarın; gözünüzün önünde büyüyen parayla motive olun.",
+      "📅 Salı Finansal Gerçeği: Sigara harcamanızı yıllık olarak hesaplayın (365 x Paket Fiyatı). Yıllık çıkan ₺30.000 - ₺55.000 arası devasa bütçeyle hayalinizdeki tatili finanse edebileceğinizi unutmayın.",
+      "📅 Çarşamba Alışkanlık Dönüşümü: Sigarayı tetikleyen anları değiştirin: Kahve yanında sigara yerine soğuk maden suyu için; stres anlarında 3 dakika derin nefes egzersizi yapın.",
+      "📅 Perşembe Takip Disiplini: Mobil sigara bırakma takip uygulaması kullanın. Hem ciğerlerinizin temizlenme oranını hem de saniye saniye cebinizde kalan parayı görerek iradenizi güçlendirin.",
+      "📅 Cuma Önlemi: Karton veya toplu paket alımı yapmayın. Evde hazır paket bulundurmak tüketimi hızlandırır; sadece nakit sınırlamasıyla tekli alım kuralı koyun.",
+      "📅 Hafta Sonu Hedefi: Sigaraya ayrılan aylık bütçeyi spor salonu üyeliğine veya kaliteli vitamin takviyelerine yönlendirin; hem bedeninize hem cüzdanınıza en karlı yatırımı yapın."
+    ];
+    return sigaraTips[dayIndex];
+  }
+
+  // 2. Araç & Otomobil & Yakıt & Akaryakıt & Benzin & Mazot & Bakım & Sanayi
+  if (
+    norm.includes("araba") ||
+    norm.includes("araç") ||
+    norm.includes("arac") ||
+    norm.includes("yakıt") ||
+    norm.includes("yakit") ||
+    norm.includes("akaryakıt") ||
+    norm.includes("benzin") ||
+    norm.includes("mazot") ||
+    norm.includes("lpg") ||
+    norm.includes("bakım") ||
+    norm.includes("muayene") ||
+    norm.includes("sanayi") ||
+    norm.includes("kasko") ||
+    norm.includes("otopark") ||
+    norm.includes("lastik") ||
+    icon === "🚗" ||
+    icon === "🚘" ||
+    icon === "⛽" ||
+    icon === "🔧"
+  ) {
+    const carTips = [
+      "📅 Pazar Kontrolü: Lastik hava basınçlarını fabrika değerinde tutmak yakıt tüketimini %3-5 düşürür. Ayda bir kez lastik basınçlarını kontrol edin.",
+      "📅 Pazartesi Sürüş Tarzı: Ani hızlanma ve sert frenlerden kaçınarak sabit hız limitlerinde sürün. Sakin sürüş şehir içinde %15'e varan yakıt tasarrufu sağlar.",
+      "📅 Salı Bakım Hatırlatması: Motor yağı ve hava filtresi değişimini geciktirmeyin. Tıkalı bir hava filtresi her 100 kilometrede 1 litreye kadar ekstra yakıt harcatır.",
+      "📅 Çarşamba Kasko/Sigorta Tasarrufu: Kasko ve Zorunlu Trafik Sigortası yenilemelerinde en az 4 farklı şirketten teklif toplayarak aynı teminatı %30 daha ucuza yaptırın.",
+      "📅 Perşembe Bagaj Ağırlığı: Bagajdaki gereksiz yükleri (ağır alet çantası, kutular) boşaltın. Her 50 kg ekstra ağırlık yakıt tüketimini yaklaşık %2 artırır.",
+      "📅 Cuma Yakıt Kampanyaları: Akaryakıt alımlarınızı bankaların kredi kartı yakıt kampanyalarıyla eşleştirin. 4 alışverişe verilen puanları sonraki doluma yansıtın.",
+      "📅 Hafta Sonu Kısa Mesafe Kuralı: 1-2 km'lik kısa mesafelerde motor ısınana kadar en yüksek yakıt tüketilir. Bu mesafeleri yürüyerek aracınızı yıpranmaktan kurtarın."
+    ];
+    return carTips[dayIndex];
+  }
+
+  // 3. Yeme İçme & Restoran & Dışarıda Yemek & Kafe & Kahve & Fast Food & Paket Servis
+  if (
+    norm.includes("yemek") ||
+    norm.includes("yeme") ||
+    norm.includes("içme") ||
+    norm.includes("icme") ||
+    norm.includes("restoran") ||
+    norm.includes("kafe") ||
+    norm.includes("kahve") ||
+    norm.includes("burger") ||
+    norm.includes("kebap") ||
+    norm.includes("dışarı") ||
+    norm.includes("paket") ||
+    norm.includes("sipariş") ||
+    norm.includes("tatlı") ||
+    icon === "🍔" ||
+    icon === "🥩" ||
+    icon === "🍕" ||
+    icon === "☕" ||
+    icon === "🍷"
+  ) {
+    const foodOutTips = [
+      "📅 Pazar Haftalık Menü Planı: Haftalık yemek menünüzü pazar gününden planlayın. İş yerine haftada 3 gün evden yemek ve termosla kahve götürmek ayda ₺3.000-₺5.000 tasarruf sağlar.",
+      "📅 Pazartesi İçecek/Tatlı Sınırı: Dışarıda yemek yerken içecek ve tatlı siparişlerini sınırlayın. Restoran hesaplarının yaklaşık %35'i ana yemek dışındaki içeceklerden oluşur.",
+      "📅 Salı Uygulama Bariyeri: Paket servis uygulamalarında kayıtlı kredi kartlarınızı kaldırın. Manuel kart girme bariyeri gereksiz sipariş dürtüsünü %60 azaltır.",
+      "📅 Çarşamba Sosyal Buluşma: Arkadaş buluşmalarını masraflı restoranlar yerine açık hava parkları veya evde 'herkes bir şey getirsin' konseptli akşamlarla düzenleyin.",
+      "📅 Perşembe Günün Menüsü Tercihi: Öğle yemeklerinde restoranların uygun fiyatlı fiks 'Günün Menüsü' alternatiflerini tercih edin; alakarta göre %40 daha avantajlıdır.",
+      "📅 Cuma Kahvaltı Stratejisi: Hafta sonu dışarıda serpme kahvaltı yerine evde taze ve zengin bir brunch hazırlayın; fahiş serpme kahvaltı bedellerini birikime aktarın.",
+      "📅 Hafta Sonu Pratik Hazırlık: Toplu yemek pişirip porsiyonlayarak dondurucuya atın. Akşam yorgun geldiğinizde hazır sipariş vermek yerine 5 dakikada ısıtıp tüketin."
+    ];
+    return foodOutTips[dayIndex];
+  }
+
+  // 4. Kira & Ev & Konut & Aidat & Apartman & Lojman & Emlak
+  if (
+    norm.includes("kira") ||
+    norm.includes("ev") ||
+    norm.includes("konut") ||
+    norm.includes("site") ||
+    norm.includes("aidat") ||
+    norm.includes("apartman") ||
+    norm.includes("lojman") ||
+    norm.includes("emlak") ||
+    icon === "🏠" ||
+    icon === "🏢"
+  ) {
+    const homeTips = [
+      "📅 Pazar Enerji Tasarrufu: Evdeki standart ampulleri tasarruflu LED'lerle değiştirin. Bekleme (standby) modundaki cihazları kapatmak faturayı %10-15 azaltır.",
+      "📅 Pazartesi Aidat Takibi: Apartman veya site aidat toplantılarına mutlaka katılın. Ortak alan giderleri ve bakım bütçelerini denetleyerek gereksiz artışların önüne geçin.",
+      "📅 Salı Kira Diyaloğu: Kira artış dönemlerinde ev sahibiyle yapıcı iletişim kurun. Taşınma, nakliye ve yeni depozito maliyetleri yerine makul oranda uzlaşın.",
+      "📅 Çarşamba İzolasyon Hamlesi: Kapı ve pencere kenarlarına yalıtım fitili çekin. Kış aylarında ısı kaybını %20 önleyerek doğalgaz faturanızı ciddi oranda düşürür.",
+      "📅 Perşembe Gereksiz Ortak Giderler: Kullanmadığınız ortak alan aboneliklerini ve sabit hatları iptal edin; sadece aktif kullandığınız temel hizmetleri açık tutun.",
+      "📅 Cuma Kaçak Kontrolü: Evdeki küçük musluk damlatmaları ve rezervuar kaçaklarını hemen tamir edin. Ayda tonlarca suyun ve gereksiz fatura tutarının akmasını engelleyin.",
+      "📅 Hafta Sonu Termostat Dengesi: Oda termostatınızı 1 derece düşürmek yakıt tüketiminde doğrudan %7 tasarruf sağlar. İdeal oda sıcaklığını 21-22 derecede sabitleyin."
+    ];
+    return homeTips[dayIndex];
+  }
+
+  // 5. Ulaşım & Yol & Metro & Dolmuş & Otobüs & Taksi & Akbil & HGS
+  if (
+    norm.includes("ulaşım") ||
+    norm.includes("ulasim") ||
+    norm.includes("yol") ||
+    norm.includes("otobüs") ||
+    norm.includes("otobus") ||
+    norm.includes("metro") ||
+    norm.includes("metrobüs") ||
+    norm.includes("tramvay") ||
+    norm.includes("taksi") ||
+    norm.includes("dolmuş") ||
+    norm.includes("akbil") ||
+    norm.includes("kart") ||
+    norm.includes("hgs") ||
+    norm.includes("ogs") ||
+    norm.includes("bilet") ||
+    icon === "🚌" ||
+    icon === "🚇" ||
+    icon === "🚕" ||
+    icon === "✈️" ||
+    icon === "🚆"
+  ) {
+    const transportTips = [
+      "📅 Pazar Rota Planı: Toplu taşımada tekli binişler yerine mutlaka aylık sınırsız abonman veya indirimli kartları tercih edin; yol harcamanızı %50 hafifletin.",
+      "📅 Pazartesi Yürüme Alışkanlığı: 1-2 duraklık kısa mesafelerde taksi veya dolmuş yerine tempolu yürüyün; hem günlük 10 bin adım hedefinize ulaşın hem para biriktirin.",
+      "📅 Salı Yol Arkadaşlığı: Aynı yöne giden iş arkadaşlarınızla haftalık dönüşümlü araç paylaşımı (carpooling) yapın; yakıt, otopark ve köprü giderlerini bölüşün.",
+      "📅 Çarşamba Taksi Dinamik Fiyat Tuzağı: Taksi çağırma uygulamalarının yoğun saatlerde uyguladığı dinamik fiyatlandırma kat sayılarına dikkat edin; toplu taşımayı değerlendirin.",
+      "📅 Perşembe HGS & Gişe Denetimi: HGS ve otopark ekstrelerinizi düzenli kontrol edin; mükerrer çekim veya hatalı gişe okumalarından doğan haksız kesintileri itirazla geri alın.",
+      "📅 Cuma Erken Biletleme: Şehirlerarası otobüs veya tren biletlerinizi son güne bırakmayın; 2 hafta önceden alarak erken rezervasyon avantajlarından faydalanın.",
+      "📅 Hafta Sonu Trafik Saatleri: Haftalık ulaşım rotanızı harita uygulamalarından analiz edin; trafik yoğunluğu düşük saatlerde yola çıkarak hem zamandan hem yakıttan tasarruf edin."
+    ];
+    return transportTips[dayIndex];
+  }
+
+  // 6. Sağlık & İlaç & Eczane & Doktor & Muayene & Diş & Hastane
+  if (
+    norm.includes("sağlık") ||
+    norm.includes("saglik") ||
+    norm.includes("ilaç") ||
+    norm.includes("ilac") ||
+    norm.includes("hastane") ||
+    norm.includes("doktor") ||
+    norm.includes("eczane") ||
+    norm.includes("diş") ||
+    norm.includes("dis") ||
+    norm.includes("tedavi") ||
+    norm.includes("muayene") ||
+    norm.includes("gözlük") ||
+    norm.includes("optik") ||
+    icon === "💊" ||
+    icon === "🩺" ||
+    icon === "🏥" ||
+    icon === "💉"
+  ) {
+    const healthTips = [
+      "📅 Pazar İlaç Muadili: Reçeteli ilaç alırken eczacınıza aynı etken maddeli devlet onaylı eşdeğer (muadil) ilaç seçeneğini sorun; fahiş fiyat farklarından kaçının.",
+      "📅 Pazartesi Sigorta Hakları: Tamamlayıcı sağlık sigortanız varsa poliçenize dahil olan yılda 1 ücretsiz diş temizliği, göz kontrolü ve check-up haklarınızı süresi dolmadan kullanın.",
+      "📅 Salı Koruyucu Sağlık: Koruyucu sağlık yatırımlarına ağırlık verin: Günlük yeterli su tüketimi, düzenli uyku ve yürüyüş sizi binlerce liralık tedavi ve ilaç masrafından korur.",
+      "📅 Çarşamba Kontrol Süresi: Özel hastane muayenelerinde 10 günlük yasal ücretsiz kontrol süresini kaçırmayın; ek muayene ücreti ödemekten kurtulun.",
+      "📅 Perşembe Ecza Dolabı Envanteri: Evdeki ecza dolabını 6 ayda bir kontrol edin; son kullanma tarihi geçmeden mevcut ilaçları listeleyin ve mükerrer ilaç alımını engelleyin.",
+      "📅 Cuma Bilinçli Takviye: Vitamin takviyelerini ezbere almak yerine kan tahlili yaptırıp yalnızca hekiminizin önerdiği eksik değerlere odaklanın.",
+      "📅 Hafta Sonu Ağız & Diş Bakımı: Rutin diş fırçalama ve diş ipi kullanımı, ileride ortaya çıkabilecek on binlerce liralık kanal tedavisi ve implant masraflarının önüne geçer."
+    ];
+    return healthTips[dayIndex];
+  }
+
+  // 7. Market & Gıda & Mutfak & Pazar & Bakkal & Kasap & Manav
   if (
     norm.includes("market") ||
     norm.includes("mutfak") ||
@@ -102,234 +451,422 @@ const getSavingTipForCategory = (name: string, icon: string): string => {
     norm.includes("gida") ||
     norm.includes("bakkal") ||
     norm.includes("manav") ||
-    icon === "🛒"
+    norm.includes("kasap") ||
+    norm.includes("şarküteri") ||
+    norm.includes("sarkuteri") ||
+    norm.includes("pazar") ||
+    norm.includes("süpermarket") ||
+    norm.includes("erzak") ||
+    icon === "🛒" ||
+    icon === "🧺" ||
+    icon === "🍞" ||
+    icon === "🍎"
   ) {
     const marketTips = [
-      "Market alışverişlerinize gitmeden önce mutlaka haftalık menü planlayın ve tok karnına bir liste ile gidin. Özel markalı (Private Label) ürünlere şans vererek sepet tutarını %30'a kadar düşürebilirsiniz.",
-      "Kiloluk veya büyük boy paketler satın alırken birim fiyat analizi yapın. Genellikle alt raflarda yer alan alternatif markaların birim kilo fiyatları göz hizasındakilere göre çok daha avantajlıdır.",
-      "Haftalık taze sebze-meyve ihtiyaçlarınızı akşam saatlerinde semt pazarından yapmayı tercih edin. Büyük zincir marketlere kıyasla taze ürünleri %40 tasarrufla temin edebilirsiniz.",
-      "Süpermarket sadakat kartlarını ve mobil uygulama indirim kuponlarını senkronize edin. Harcama geçmişinize tanımlanan özel kuponlar sayesinde temel gıda bütçenizi büyük ölçüde hafifletin.",
-      "Gıda israfını önlemek için evdeki malzemeleri tamamen tüketmeden yeni bir market turu planlamayın. Buzdolabındaki malzemeleri yaratıcı tariflerle değerlendirerek bütçeyi koruyun."
+      "📅 Pazar Tok Alışveriş Disiplini: Markete mutlaka tok karnına ve net bir ihtiyaç listesiyle gidin. Aç karnına yapılan plansız alışverişler sepet tutarını %40 gereksiz şişirir.",
+      "📅 Pazartesi Birim Fiyat Karşılaştırması: Birim fiyat (Kilo/Litre) karşılaştırması yapın. Göz hizasındaki pahalı markalar yerine alt ve üst raflardaki kaliteli market markalarını inceleyin.",
+      "📅 Salı Semt Pazarı Avantajı: Taze meyve ve sebze alışverişinizi semt pazarından yapın; süpermarketlere kıyasla hem daha taze hem yarı fiyatına ürün temin edin.",
+      "📅 Çarşamba Sadakat Kampanyaları: Süpermarket sadakat kartlarını ve mobil indirim kuponlarını kullanın; haftalık temel bakliyat ve deterjan alımlarınızı kampanya günlerine denk getirin.",
+      "📅 Perşembe Porsiyon & İsraf Önleme: Bozulabilir ürünleri (süt, peynir, yeşillik) tüketebileceğiniz miktarda alın. Satın alınan gıdaların çöpe gitmesini önleyin.",
+      "📅 Cuma Toptan Temel Alım: Bakliyat, zeytinyağı, temizlik malzemesi gibi uzun ömürlü temel ihtiyaçları büyük boy ve toptan indirim dönemlerinde alarak birim maliyeti düşürün.",
+      "📅 Hafta Sonu Sıfır Atık Mutfak: Haftalık yemek planı yapıp buzdolabındaki kalan malzemeleri değerlendiren yaratıcı tarifler hazırlayın; sıfır atık mutfak disiplini oluşturun."
     ];
     return marketTips[dayIndex];
   }
 
-  // 2. Restoran & Dışarıda Yemek & Kafe
-  if (
-    norm.includes("yemek") ||
-    norm.includes("restoran") ||
-    norm.includes("kafe") ||
-    norm.includes("burger") ||
-    norm.includes("kebap") ||
-    norm.includes("dışarı") ||
-    icon === "🍔" ||
-    icon === "🥩" ||
-    icon === "🍷"
-  ) {
-    const foodOutTips = [
-      "Dışarıda yemek siparişlerini haftada maksimum 1 güne düşürün. İş yerinde öğle yemeğini evden pratik kaplarda götürmek veya kendi filtre kahvenizi termosta taşımak devasa bir tasarruf alanı açacaktır.",
-      "Hafta içi dışarıdaki restoranlarda iş yemeği yemek yerine, mekanların öğle menüsü indirim saatlerini takip edin veya şirketlerin sunduğu yemek hakkı bakiyelerini rasyonel planlayın.",
-      "Arkadaş buluşmalarını pahalı restoranlar yerine park, sahil ve koru gibi sosyal alanlarda planlayarak kişi başı içecek ve servis ücreti ödemelerini %75'e varan oranda azaltabilirsiniz.",
-      "Paket servis sipariş uygulamalarındaki abonelikleri ve kayıtlı kartları iptal edin. Bu üyelikler sizde her akşam dürtüsel olarak hazır yemek siparişi verme motivasyonu yaratır.",
-      "Hafta sonu akşam buluşmalarını masraflı mekanlar yerine ev ortamında 'herkes sevdiği bir yiyeceği/içeceği getirsin' konseptli tematik geceler düzenleyerek organize edin."
-    ];
-    return foodOutTips[dayIndex];
-  }
-
-  // 3. Kira & Konut & Ev Düzeni
-  if (
-    norm.includes("kira") ||
-    norm.includes("ev") ||
-    norm.includes("konut") ||
-    norm.includes("site") ||
-    norm.includes("aidat") ||
-    icon === "🏠"
-  ) {
-    const homeTips = [
-      "Evinizdeki enerji tüketimini optimize edin. Standart ampulleri LED'lerle değiştirmek, akıllı prizler tercih etmek ve televizyon gibi cihazları bekleme modundan çıkarmak faturayı %15 düşürür.",
-      "Ortak aidat giderlerini ve bütçe planlarını inceleyin. Site ya da apartman yönetim toplantılarına aktif katılıp harcama şeffaflığı talep etmek gereksiz ortak masrafları önler.",
-      "Kışın oda termostatını sadece 1 derece düşürün. Bu küçük ayar, ısınma faturanızda doğrudan %7 oranında tasarruf sağlar. Kapı ve pencere boşluklarını sünger bantlarla yalıtın.",
-      "Kullanmadığınız ortak alan aboneliklerini kapatın ve evdeki temizlik işlerinde yüksek fiyatlı kimyasallar yerine sirke ve karbonat gibi doğal, ekonomik alternatifleri benimseyin.",
-      "Kira artış dönemlerinde ev sahibiyle dürüst ve yapıcı ilişkiler kurun. Taşınma masraflarını ve yeni emlakçı komisyonlarını göze almak yerine her iki taraf için rasyonel bir oranı hedefleyin."
-    ];
-    return homeTips[dayIndex];
-  }
-
-  // 4. Ulaşım & Yol & Metro
-  if (
-    norm.includes("ulaşım") ||
-    norm.includes("yol") ||
-    norm.includes("otobüs") ||
-    norm.includes("metro") ||
-    norm.includes("taksi") ||
-    icon === "🚗" ||
-    icon === "✈️"
-  ) {
-    const transportTips = [
-      "Toplu taşıma kullanırken tekli biletler yerine mutlaka aylık sınırsız abonman paketlerini tercih edin. Günlük yolculuk maliyetiniz böylece yarı yarıya düşecektir.",
-      "Yakın mesafelerde taksi çağırmak yerine yürümeyi veya bisiklet/scooter gibi alternatifleri alışkanlık haline getirin. Hem cüzdanınızı hem de kondisyonunuzu olumlu etkilersiniz.",
-      "Aynı bölgede yaşayan iş arkadaşlarınızla ortak araç kullanımı (ride-sharing) planlayarak yakıt, yol geçiş ve otopark harcamalarını adil şekilde paylaşın.",
-      "Kartlı geçiş sistemlerindeki (HGS/OGS) otomatik bakiye yüklemelerini ve ekstrelerini kontrol edin. Hatalı gişelerden kaynaklanan mükerrer ödeme kesintilerini önleyin.",
-      "Şehirlerarası veya uluslararası yolculuk planlarınızı en az 3-4 hafta öncesinden planlayarak uçak ve otobüs biletlerinizi en ucuz erken rezervasyon oranlarıyla sabitleyin."
-    ];
-    return transportTips[dayIndex];
-  }
-
-  // 5. Araba & Yakıt & Bakım
-  if (
-    norm.includes("araba") ||
-    norm.includes("araç") ||
-    norm.includes("yakıt") ||
-    norm.includes("akaryakıt") ||
-    norm.includes("benzin") ||
-    norm.includes("bakım") ||
-    norm.includes("sigorta") ||
-    icon === "🔧"
-  ) {
-    const carTips = [
-      "Akaryakıt tasarrufu için aracınızı stabil hız limitlerinde sürün, ani fren ve sert kalkışlardan kaçının. Lastik havalarını düzenli kontrol etmek yakıt harcamasını %3-4 azaltır.",
-      "Aracınızın yağ, hava ve polen filtresi gibi periyodik bakımlarını zamanında yaptırın. Tıkalı filtreler motorun çekiş gücünü düşürür ve daha fazla yakıt harcamasına yol açar.",
-      "Akaryakıt ve yakıt alımlarınızı bankaların dönemlik kredi kartı kampanyalarıyla birleştirin. Belirli sayıda alıma verilen nakit puanları doğrudan sonraki yakıt dolumuna yansıtın.",
-      "Kasko ve Zorunlu Trafik Sigortası tekliflerini yenilemeden önce tek bir acenteye bağlı kalmayın; en az 4-5 farklı sigorta şirketinden karşılaştırmalı teklifler toplayın.",
-      "Aracınızın bagajında biriken ve ihtiyaç duyulmayan gereksiz pasif ağırlıkları boşaltın. Bagajdaki her ekstra 50 kg yük, yakıt sarfiyatını %1.5 ila %2 artırır."
-    ];
-    return carTips[dayIndex];
-  }
-
-  // 6. Fatura & Elektrik & Abonelikler
+  // 8. Faturalar & Elektrik & Su & Doğalgaz & İnternet & Telefon & GSM & Abonelik
   if (
     norm.includes("fatura") ||
     norm.includes("elektrik") ||
     norm.includes("su") ||
     norm.includes("doğalgaz") ||
+    norm.includes("dogalgaz") ||
     norm.includes("internet") ||
     norm.includes("telefon") ||
-    icon === "⚡"
+    norm.includes("gsm") ||
+    norm.includes("tv") ||
+    norm.includes("ısınma") ||
+    norm.includes("isinma") ||
+    norm.includes("abonelik") ||
+    icon === "⚡" ||
+    icon === "💧" ||
+    icon === "🔥" ||
+    icon === "📱" ||
+    icon === "🌐"
   ) {
     const billsTips = [
-      "Kullanmadığınız ve aylardır açmadığınız TV/video ve müzik aboneliklerinizi (Netflix, Spotify vb.) askıya alın. Mevcut planları ise aile/ortak paketlerine taşıyarak faturayı bölüşün.",
-      "İletişim ve internet taahhüt bitiş tarihlerini takviminize işleyin. Taahhüt dolmadan 1 ay önce yeni müşteri geçiş kampanyalarını araştırıp fiyat kilitlerinden sıyrılın.",
-      "Bulaşık ve çamaşır makinelerini sadece tamamen dilediğinde çalıştırın. Kısa yıkama ve eko-mod programları sayesinde elektrik ve su faturalarınızı doğrudan yarıya yaklaştırın.",
-      "Elektrik tüketiminde üç zamanlı (tarihsel avantajlı) tarife bütçenize uygunsa, enerji canavarı olan cihazları (ütü, kurutma makinesi) 22:00'den sonra çalıştırın.",
-      "Fatura otomatik ödemelerini devretmek yerine, her ay bizzat kontrol ederek tutarların gelişimini inceleyin. Paranın çıkışını gözlemlemek, gereksiz su ve akım harcamalarını frenler."
+      "📅 Pazar Taahhüt Kontrolü: GSM ve ev interneti taahhüt bitiş tarihlerinizi takvime not edin. Taahhüt dolmadan 1 ay önce rakip operatörlerin numara taşıma fırsatlarını inceleyin.",
+      "📅 Pazartesi Dijital Abonelik Temizliği: Kullanmadığınız dijital dizi/müzik aboneliklerini (Netflix, Spotify, TV platformları) iptal edin; sadece aktif izlediğiniz 1 platformu açık tutun.",
+      "📅 Salı Eko-Mod Kullanımı: Çamaşır ve bulaşık makinelerini tam doldurmadan çalıştırmayın; eko-mod (50°C) programı kullanarak elektrik ve su sarfiyatını %30 azaltın.",
+      "📅 Çarşamba Su Perlatörü Tasarrufu: Banyo duş başlıklarına ve lavabo musluklarına hava karışımlı su tasarruf perlatörü takın; su faturasını konfor kaybetmeden %40 düşürün.",
+      "📅 Perşembe Radyatör Arkası Yalıtım: Kışın radyatörlerin arkasına ısı yalıtım levhası (alüminyum folyolu strafor) yerleştirin; ısının duvara değil odaya yansımasını sağlayın.",
+      "📅 Cuma Üç Zamanlı Tarife: Elektrikte üç zamanlı tarife kullanıyorsanız, yüksek enerji çeken cihazları (ütü, kurutma, bulaşık) saat 22:00'den sonra çalıştırın.",
+      "📅 Hafta Sonu Otomatik Ödeme Denetimi: Otomatik ödeme talimatı verdiğiniz faturaların tutarlarını her ay düzenli kontrol edin; kaçak su veya aşım ücreti gibi hataları erkenden yakalayın."
     ];
     return billsTips[dayIndex];
   }
 
-  // 7. Giyim & Alışveriş & Moda
+  // 9. Giyim & Alışveriş & Moda & Kıyafet & Ayakkabı & Çanta
   if (
     norm.includes("giyim") ||
+    norm.includes("kıyafet") ||
+    norm.includes("kiyafet") ||
     norm.includes("elbise") ||
     norm.includes("ayakkabı") ||
+    norm.includes("ayakkabi") ||
+    norm.includes("çanta") ||
+    norm.includes("canta") ||
     norm.includes("moda") ||
+    norm.includes("tekstil") ||
     norm.includes("alışveriş") ||
+    norm.includes("alisveris") ||
+    norm.includes("mont") ||
     icon === "🎒" ||
     icon === "🛍️" ||
-    icon === "💇"
+    icon === "👗" ||
+    icon === "👞" ||
+    icon === "👕"
   ) {
     const clothesTips = [
-      "Dolabınızda artık kullanmadığınız giyim eşyalarını temizleyerek ikinci el satış platformlarında satın. Elde ettiğiniz bütçeyi sonraki zaruri ihtiyaçlarınıza yönlendirin.",
-      "Bir kıyafeti beğenip satın almadan önce en az 48 saat kuralını uygulayın. Ürünü sepete atıp bekleyin; heyecanınızın dindiğini ve dürtüsel iştahın %80 oranda kaybolduğunu göreceksiniz.",
-      "Sezon sonu indirim zamanlamalarını rasyonel takip edin. Örneğin kışlık kaban, mont ya da bot ihtiyaçlarınızı ilkbahar dönemindeki tasfiye satışlarından yarı fiyatına alın.",
-      "Alışverişe çıkmadan önce dolabınızı detaylı inceleyin ve birbirine çok benzeyen renkli veya tarzdaki parçaların kaydını tutun. Sadece eksik olan parçaları hedefleyin.",
-      "Modası çabuk geçecek ucuz ve kalitesiz ürünler yerine zamansız, kumaş ve dikiş kalitesi yüksek parçalar alın. Kısa süreli yıpranmaların yaratacağı mükerrer masrafları önleyin."
+      "📅 Pazar 48 Saat Kuralı: Beğendiğiniz bir giysiyi almadan önce 48 saat bekleme kuralı uygulayın. Sepete ekleyip 2 gün bekleyin; dürtüsel alışverişlerin %70'inden vazgeçeceksiniz.",
+      "📅 Pazartesi Sezon Sonu Fırsatları: Sezon sonu tasfiye indirimlerini takip edin: Kışlık kaban ve botları ilkbaharda, yazlık kıyafetleri sonbaharda %60 indirimle alın.",
+      "📅 Salı Kapsül Gardırop: Kapsül gardırop mantığını benimseyin: Birbiriyle kolay kombinlenebilen zamansız, kaliteli temel parçalar seçerek her ay kıyafet alma ihtiyacını sıfırlayın.",
+      "📅 Çarşamba İkinci El Geliri: Dolabınızda 1 yıldır giymediğiniz kıyafetleri ikinci el platformlarında (Dolap vb.) satarak hem dolabı ferahlatın hem ek bütçe kazanın.",
+      "📅 Perşembe Kalite & Dayanıklılık: Çabuk yıpranan ucuz 'hızlı moda' ürünleri yerine kumaş ve dikiş kalitesi yüksek parçalar tercih edin; uzun vadede mükerrer harcamayı önleyin.",
+      "📅 Cuma Yıkama Talimatları: Kıyafetlerin yıkama talimatlarına uyun; düşük ısıda yıkayıp ters asarak renk solmasını ve yıpranmasını önleyin, kullanım ömrünü uzatın.",
+      "📅 Hafta Sonu Dolap Envanteri: Alışverişe çıkmadan önce dolabınızı gözden geçirin; benzer renk veya modelde zaten sahip olduğunuz parçaları listeleyip mükerrer alımı engelleyin."
     ];
     return clothesTips[dayIndex];
   }
 
-  // 8. Eğlence & Sosyal Aktivite & Kültür
+  // 10. Eğlence & Sosyal Aktivite & Kültür & Hobi & Sinema
   if (
     norm.includes("eğlence") ||
+    norm.includes("eglence") ||
+    norm.includes("sosyal") ||
+    norm.includes("hobi") ||
     norm.includes("sinema") ||
     norm.includes("konser") ||
     norm.includes("tiyatro") ||
     norm.includes("aktivite") ||
     norm.includes("oyun") ||
+    norm.includes("etkinlik") ||
     icon === "🍿" ||
-    icon === "🎸"
+    icon === "🎸" ||
+    icon === "🎮" ||
+    icon === "🎟️"
   ) {
     const funTips = [
-      "Belediyelerin ve kültür müdürlüklerinin düzenlediği ücretsiz söyleşi, tiyatro, açık hava sineması ve konser takvimlerini dijital bültenlerden takip edin.",
-      "Sinema biletlerinde, dijital oyun üyeliklerinde veya kafelerdeki tatlı siparişlerinde GSM operatörlerinin ve bankaların '1 alana 1 bedava' kodlarını aktif şekilde kullanın.",
-      "Arkadaş gruplarınızla dış mekan etkinlik harcamaları yerine evde masa oyunları, film izleme saatleri veya tematik akşam sohbetleri gibi sıfır bütçeli konseptler üretin.",
-      "Aktif oynamadığınız veya artık zevk almadığınız konsol/PC oyun üyeliklerini vakit kaybetmeden iptal edin. Bu küçük kalemler filtre edilmediğinde büyük sızıntı yaratır.",
-      "Okumak istediğiniz kitap grupları ya da çizgi romanlar için şehir ve araştırma kütüphanelerini kullanın. Kütüphaneler binlerce eseri size tamamen bedelsiz sunar."
+      "📅 Pazar Ücretsiz Kültür Takvimi: Belediyelerin ve kültür merkezlerinin düzenlediği ücretsiz tiyatro, söyleşi, açık hava sineması ve sergi takvimlerini kültür bültenlerinden takip edin.",
+      "📅 Pazartesi Sinema İndirimleri: Sinema ve gösteri biletlerinde operatörlerin '1 bilet alana 1 bedava' veya hafta içi halk günü matine indirimlerini kullanın.",
+      "📅 Salı Oyun Kütüphanesi Temizliği: Aktif oynamadığınız oyun platformu (Steam, PS Plus, Game Pass) üyeliklerini askıya alın; kütüphanenizdeki bitirmediğiniz oyunları tamamlayın.",
+      "📅 Çarşamba Evde Sosyalleşme: Dışarıda pahalı mekanlar yerine evde masa oyunları veya tematik film geceleriyle sıfır bütçeli keyifli anlar yaratın.",
+      "📅 Perşembe Halk Kütüphaneleri: Şehir ve ilçe halk kütüphanelerinden faydalanın; binlerce kitabı, çizgi romanı ve dergiyi tamamen ücretsiz ödünç alın.",
+      "📅 Cuma Başlangıç Ekipmanı Testi: Hobi harcamalarınızda pahalı profesyonel setler yerine başlangıç seviyesi ekipmanlarla hevesinizi test edin; atıl masrafları engelleyin.",
+      "📅 Hafta Sonu MüzeKart Avantajı: MüzeKart çıkartarak yılda bir kez cüzi bir ücretle Türkiye'deki yüzlerce müzeyi ve tarihi mekanı tamamen bedelsiz gezin."
     ];
     return funTips[dayIndex];
   }
 
-  // 9. Sağlık & İlaç & Doktor & Bakım
+  // 11. Tatil & Seyahat & Otel & Konaklama & Gezi & Tur
   if (
-    norm.includes("sağlık") ||
-    norm.includes("ilaç") ||
-    norm.includes("hastane") ||
-    norm.includes("doktor") ||
-    norm.includes("eczane") ||
-    icon === "💊"
+    norm.includes("tatil") ||
+    norm.includes("seyahat") ||
+    norm.includes("otel") ||
+    norm.includes("gezi") ||
+    norm.includes("tur") ||
+    norm.includes("konaklama") ||
+    norm.includes("uçak") ||
+    norm.includes("ucak") ||
+    icon === "🏖️" ||
+    icon === "🌴" ||
+    icon === "🗺️" ||
+    icon === "🏨"
   ) {
-    const healthTips = [
-      "Koruyucu sağlık yatırımlarına (düzenli spor, günlük yürüyüşler, şeker oranı düşük doğal beslenme) yönelin. Sağlıklı yaşam tarzı sizi pahalı ilaç ve klinik tedavi faturalarından korur.",
-      "Hafif cilt ve saç bakımlarını eczane ürünleri veya evde hazırlayabileceğiniz doğal, pratik maskelerle gerçekleştirin. Güzellik merkezlerine harcanan taksit bütçelerini azaltın.",
-      "Eğer tamamlayıcı ya da özel sağlık sigortanız varsa, hak ettiğiniz yılda 1 ücretsiz diş temizliği, göz muayenesi ve check-up gibi poliçe teminatlarını kaçırmadan tamamlayın.",
-      "Reçeteli ilaçlarınızı alırken eczacınıza mutlaka devlet kurumlarının asgari muadil (aynı etken maddeli eşdeğer) ilaç seçeneklerini sorup bütçe dostu tercihler yapın.",
-      "Fitness ve spor kulübü üyelikleri yerine belediye tesislerini ve parklardaki ücretsiz açık hava spor alanlarını ve internetteki profesyonel ev egzersiz videolarını değerlendirin."
+    const travelTips = [
+      "📅 Pazar Erken Rezervasyon: Uçak ve otel rezervasyonlarınızı en az 3-4 ay öncesinden planlayın; son dakika fahiş fiyat artışlarından etkilenmeyin.",
+      "📅 Pazartesi Sarı Yaz Tercihi: Yüksek sezon (Temmuz-Ağustos) yerine 'Sarı Yaz' (Mayıs veya Eylül-Ekim) aylarında tatil yapın; hem sakinliği yaşayın hem %40 tasarruf edin.",
+      "📅 Salı Gizli Sekme Araması: Uçak bileti ararken tarayıcınızın Gizli Sekme modunu kullanın ve çerezleri temizleyin; dinamik fiyat artış tuzaklarına yakalanmayın.",
+      "📅 Çarşamba Alternatif Konaklama: Lüks oteller yerine butik pansiyonlar, kiralık daireler veya öğretmen evi / kamu misafirhanelerini araştırın.",
+      "📅 Perşembe Kabin Boy Bagaj: Yolculuklarda sadece kabin boy bagajla seyahat edin; ekstra bagaj ücretlerinden ve havalimanında bavul bekleme stresinden kurtulun.",
+      "📅 Cuma Esnaf Lokantaları: Gideceğiniz şehrin yerel halkının gittiği esnaf lokantalarını tercih edin; turistik caddelerdeki fahiş restoranlardan uzak durun.",
+      "📅 Hafta Sonu Şehir Kartları: Şehir içi ulaşımda turist taksileri yerine günlük/haftalık turist ulaşım kartları satın alarak tüm şehri sınırsız gezin."
     ];
-    return healthTips[dayIndex];
+    return travelTips[dayIndex];
   }
 
-  // 10. Eğitim & Kitap & Kurslar
+  // 12. Eğitim & Kitap & Kurs & Okul & Kırtasiye
   if (
     norm.includes("eğitim") ||
+    norm.includes("egitim") ||
     norm.includes("kurs") ||
     norm.includes("kitap") ||
     norm.includes("okul") ||
-    icon === "🎓"
+    norm.includes("kırtasiye") ||
+    norm.includes("kirtasiye") ||
+    norm.includes("üniversite") ||
+    norm.includes("ders") ||
+    icon === "🎓" ||
+    icon === "📚" ||
+    icon === "✏️"
   ) {
     const eduTips = [
-      "İnternette yer alan akademik ve teknik eğitim fırsatlarını değerlendirin. Khan Academy, YouTube, Coursera ve edX gibi devler sıfır bütçeyle devasa kütüphaneler sunar.",
-      "Mesleki veya edebi her kitabı anında satın almak yerine, arkadaş çevreniz arasında 'kitap takası grupları (kitap kardeşliği)' kurarak kaynakları ortaklaştırın.",
-      "Yabancı dil pratiğinizi geliştirmek için pahalı yüz yüze kurslar yerine ücretsiz platformları (örneğin mobil uygulamalar ve konuşma kulüpleri) aktif şekilde kullanın.",
-      "Tasarım, yazılım veya mühendislik alanlarında öğrenci ya da akademik e-posta adresine (@edu) sahipseniz, markaların sunduğu %80'e varan devasa indirimlerden yararlanın.",
-      "Sertifikalı kariyer gelişim programlarında doğrudan ödeme yapmak yerine, kamu kurumlarının ve odaların sunduğu ücretsiz veya hibeli hobi/meslek edindirme programlarına başvurun."
+      "📅 Pazar Ücretsiz Platformlar: İnternetteki ücretsiz dünya standartlarında eğitim platformlarını (Khan Academy, BTK Akademi, YouTube) değerlendirin.",
+      "📅 Pazartesi Öğrenci İndirimleri: Öğrenci e-postanız (@edu.tr) ile Spotify, Notion, GitHub, Adobe ve Microsoft platformlarından %80 indirim veya ücretsiz lisans alın.",
+      "📅 Salı İkinci El Ders Kitapları: Okul ve sınav kitaplarında üst dönem öğrencileriyle kitap takası yapın veya temiz ikinci el kaynakları yarı fiyatına temin edin.",
+      "📅 Çarşamba Toptan Kırtasiye: Kırtasiye alışverişini okul açılış haftası yerine toptancılardan veya online indirim günlerinde toplu olarak karşılayın.",
+      "📅 Perşembe Ücretsiz Dil Kulüpleri: Yabancı dil öğreniminde pahalı kurslar yerine mobil pratik uygulamaları ve ücretsiz yabancı dil konuşma kulüplerini deneyin.",
+      "📅 Cuma Ücretsiz Sertifikalar: Mesleki sertifika programlarında İŞKUR, BTK Akademi ve belediye enstitülerinin ücretsiz akredite eğitimlerine başvurun.",
+      "📅 Hafta Sonu Kitap Kotası: Her ay net bir kitap bütçesi belirleyin; elinizdeki okunmamış kitapları bitirmeden yeni sipariş vermeyerek raf birikimini önleyin."
     ];
     return eduTips[dayIndex];
   }
 
-  // 11. Hediye & Özel Günler & Bağış
+  // 13. Kişisel Bakım & Kozmetik & Kuaför & Berber & Güzellik
+  if (
+    norm.includes("kişisel") ||
+    norm.includes("kisisel") ||
+    norm.includes("kozmetik") ||
+    norm.includes("kuaför") ||
+    norm.includes("kuafor") ||
+    norm.includes("berber") ||
+    norm.includes("güzellik") ||
+    norm.includes("guzellik") ||
+    norm.includes("parfüm") ||
+    norm.includes("parfum") ||
+    norm.includes("cilt") ||
+    icon === "💇" ||
+    icon === "💄" ||
+    icon === "🧴" ||
+    icon === "✂️"
+  ) {
+    const groomingTips = [
+      "📅 Pazar Temel Rutin: Cilt bakımında onlarca pahalı ürün yerine 3 temel adıma odaklanın: Nazik temizleyici, iyi bir nemlendirici ve güneş kremi.",
+      "📅 Pazartesi Evde Bakım: Kuaför/berber randevularınızı düzenli aralıklara oturtun ve fön/manikür gibi basit işlemleri pratik ev bakım cihazlarıyla kendiniz yapın.",
+      "📅 Salı Tester Denemesi: Parfüm ve kozmetikte deneme boyunu test etmeden büyük boy almayın; teninize uymayan ürünlerin çöpe gitmesini engelleyin.",
+      "📅 Çarşamba Bıçak Kurutma: Tıraş bıçağı ve kişisel bakım başlıklarını kurutarak saklayın; paslanıp körelmesini önleyerek bıçak ömrünü 3 katına çıkarın.",
+      "📅 Perşembe Dip Ürün Tasarrufu: Kozmetik tüplerini keserek dipte kalan en az 1-2 haftalık ürünü kullanın; paranızın çöpe gitmesini önleyin.",
+      "📅 Cuma Paket Seans Pazarlığı: Güzellik ve kuaför salonlarının dönemsel seans paketlerini nakit pazarlık avantajıyla bağlayarak tekil ücretlerden tasarruf edin.",
+      "📅 Hafta Sonu Doğal Maskeler: Doğal saç ve cilt maskelerini (zeytinyağı, kil, maden suyu) evde hazırlayın; pahalı kimyasal serumlara alternatif oluşturun."
+    ];
+    return groomingTips[dayIndex];
+  }
+
+  // 14. Evcil Hayvan & Veteriner & Mama & Kedi & Köpek
+  if (
+    norm.includes("evcil") ||
+    norm.includes("kedi") ||
+    norm.includes("köpek") ||
+    norm.includes("kopek") ||
+    norm.includes("mama") ||
+    norm.includes("veteriner") ||
+    norm.includes("pet") ||
+    norm.includes("kuş") ||
+    norm.includes("kus") ||
+    icon === "🐾" ||
+    icon === "🐱" ||
+    icon === "🐶" ||
+    icon === "🦜"
+  ) {
+    const petTips = [
+      "📅 Pazar Büyük Boy Mama Çuvalı: Kuru mamaları küçük paketler yerine 10-15 kg'lık büyük boy çuvallarda hava almayan kaplarla alın; birim fiyatı %35 düşürün.",
+      "📅 Pazartesi Zamanında Aşı: Veteriner aşı ve parazit takvimini aksatmayın; zamanında yapılan aşılar ileride ağır tedavi faturalarını önler.",
+      "📅 Salı Ev Yapımı Oyuncaklar: Pahalı pet oyuncakları yerine karton kutular, ipler ve kumaş parçalarıyla evde yaratıcı zeka oyuncakları tasarlayın.",
+      "📅 Çarşamba Kedi Kumu Tasarrufu: Kedi kumunu temizlerken sadece topaklanan kısımları alın ve kumu derin doldurun; kabın dibine yapışmasını önleyin.",
+      "📅 Perşembe Evde Pet Bakımı: Evcil hayvanınızın tırnak kesimi, tarama ve kulak temizliği gibi temel bakımlarını evde kendiniz yaparak pet kuaför masraflarını azaltın.",
+      "📅 Cuma Online Toptan Alım: Petshoplar yerine veteriner hekim onaylı online distribütör sitelerinden kampanyalı mama ve vitamin siparişi verin.",
+      "📅 Hafta Sonu Porsiyon Kontrolü: Evcil hayvanınızın kilosunu kontrol altında tutun; aşırı besleme obeziteye ve kronik eklem/böbrek tedavilerine yol açar."
+    ];
+    return petTips[dayIndex];
+  }
+
+  // 15. Teknoloji & Elektronik & Telefon & Bilgisayar & Donanım
+  if (
+    norm.includes("teknoloji") ||
+    norm.includes("elektronik") ||
+    norm.includes("bilgisayar") ||
+    norm.includes("cihaz") ||
+    norm.includes("yazılım") ||
+    norm.includes("yazilim") ||
+    norm.includes("donanım") ||
+    norm.includes("tablet") ||
+    icon === "💻" ||
+    icon === "🖥️" ||
+    icon === "🎧"
+  ) {
+    const techTips = [
+      "📅 Pazar Batarya Yenileme: Yeni telefon almadan önce mevcut cihazınızı sıfırlayıp bataryasını yenilemeyi deneyin; yüksek cihaz masrafını 2 yıl erteleyin.",
+      "📅 Pazartesi Kılıf & Cam Koruması: Cihazlarınızı kaliteli kılıf ve ekran koruyucu camla koruyun; tek bir düşmeyle oluşabilecek ekran değişim masrafını önleyin.",
+      "📅 Salı Kablo Ömrünü Uzatma: Kablo ve şarj aletlerini bükmeden düzgün sararak kullanın; orijinal şarj aletlerinin ömrünü uzatarak aksesuar masrafını kesin.",
+      "📅 Çarşamba Yenilenmiş Cihazlar: Elektronik alışverişlerinde '12 Ay Garantili Yenilenmiş' cihaz alternatiflerini değerlendirin; sıfır fiyatına göre %30-40 tasarruf edin.",
+      "📅 Perşembe Eski Cihaz Takası: Çekmecede bekleyen eski telefon veya tabletleri teknoloji marketlerin takas kampanyalarında nakit indirime çevirin.",
+      "📅 Cuma Bulut Alanı Temizliği: Bulut depolama kotalarınızı temizleyin; gereksiz video ve çift fotoğrafları silerek üst ücretli pakete geçmekten kaçının.",
+      "📅 Hafta Sonu Açık Kaynak Yazılımlar: Açık kaynak kodlu ve ücretsiz yazılımları (LibreOffice, GIMP vb.) tercih edin; pahalı yazılım lisanslarından tasarruf edin."
+    ];
+    return techTips[dayIndex];
+  }
+
+  // 16. Borç & Kredi & Taksit & Finansman & Faiz
+  if (
+    norm.includes("borç") ||
+    norm.includes("borc") ||
+    norm.includes("kredi") ||
+    norm.includes("taksit") ||
+    norm.includes("faiz") ||
+    norm.includes("kart") ||
+    icon === "💳" ||
+    icon === "🪙"
+  ) {
+    const debtTips = [
+      "📅 Pazar Ekstre Kapatma Disiplini: Kredi kartı ekstrelerinin asgari tutarını değil, her zaman 'Dönem Borcunun Tamamını' ödeyin; bileşik faiz sarmalına yakalanmayın.",
+      "📅 Pazartesi Çığ Yöntemi: Borç kapatırken en yüksek faizli borcu önce kapatma (Çığ Yöntemi) uygulayarak bankaya ödeyeceğiniz toplam faizi minimize edin.",
+      "📅 Salı Kart Sayısını Sadeleştirme: Kredi kartı sayınızı maksimum 1-2 karta düşürün; çok kart çok harcama dürtüsü ve mükerrer kart aidatı demektir.",
+      "📅 Çarşamba Kart Aidatı İadesi: Bankanızın kestiği yıllık Kredi Kartı Aidatına hemen itiraz edin; müşteri hizmetlerini arayarak veya Hakem Heyetiyle iadesini isteyin.",
+      "📅 Perşembe Taksit Güvenlik Eşiği: Taksitli harcamalarda aylık taksit toplamınızın aylık net gelirinizin %20'sini aşmamasına özen gösterin.",
+      "📅 Cuma KMH / Ek Hesap Kapatma: Günlük yüksek faiz işleten KMH (Esnek Hesap) borçlarını maaş yatar yatmaz ilk sırada sıfırlayın.",
+      "📅 Hafta Sonu Borç Birleştirme: Farklı bankalardaki dağınık borçlarınızı tek bir düşük faizli 'Borç Kapatma Kredisi' altında toplayarak faiz yükünü hafifletin."
+    ];
+    return debtTips[dayIndex];
+  }
+
+  // 17. Hediye & Bağış & Özel Gün & Kutlama & Düğün
   if (
     norm.includes("hediye") ||
     norm.includes("bağış") ||
+    norm.includes("bagis") ||
     norm.includes("yardım") ||
+    norm.includes("yardim") ||
+    norm.includes("düğün") ||
+    norm.includes("dugun") ||
+    norm.includes("kutlama") ||
     icon === "🎁" ||
-    icon === "💰"
+    icon === "🎉" ||
+    icon === "💐"
   ) {
     const giftTips = [
-      "Özel gün hediyelerinde pahalı fabrikasyon ürünler yerine el emeği sanatsal kutular, mektuplar ya da ortak anıların biriktiği şık dijital albümler yapın. Manevi derinlik daha kalıcıdır.",
-      "Doğum günü, evlilik yıldönümü gibi belirli dönem kartopu etkilerini aşmak için her ay bütçenizin bir kenarında minik bir 'özel günler fonu' biriktirerek şok ödemeleri ezin.",
-      "Ortak arkadaş buluşmalarındaki hediye alımlarında harcamayı diğer arkadaşlarla eşit şekilde bölüşerek bireysel olarak üstleneceğiniz finansal baskıyı hafifletin.",
-      "Özel hediyeleri son ana bırakıp telaşlı ve plansız alışveriş yapmayın. Sıkışık zamanlarda yapılan alışverişler genellikle kıyaslama fırsatı vermez ve %50 daha pahalıya patlar.",
-      "Sevdiklerinize fiziki materyaller hediye etmek yerine, zaman ayırıp birlikte gezebileceğiniz keyifli rotalar ya da kendi hazırlayacağınız gurme bir akşam yemeği deneyimi sunun."
+      "📅 Pazar Özel Günler Fonu: Yıl içindeki doğum günleri ve yıldönümleri için kenara her ay cüzi bir fon ayırın; şok bütçe açıklarının önüne geçin.",
+      "📅 Pazartesi Anlamlı Deneyimler: Sevdiklerinize pahalı eşyalar yerine el yapımı bir hatıra, dijital albüm veya birlikte vakit geçireceğiniz deneyimler hediye edin.",
+      "📅 Salı Ortak Hediye Bölüşümü: Arkadaş grubu hediye alımlarında bütçeyi kişi sayısına bölüşerek tek başınıza yükleneceğiniz finansal baskıyı hafifletin.",
+      "📅 Çarşamba Erken Altın/Hediye Alımı: Düğün ve nişan hediyeliklerini piyasa dalgalanmalarını izleyerek sakin dönemlerde önceden hazır edin.",
+      "📅 Perşembe Son Dakika Tuzağı: Özel gün hediyelerini son güne bırakmayın; telaşla yapılan alışverişler kıyaslama fırsatı vermez ve %40 pahalıya mal olur.",
+      "📅 Cuma Rustik Paketleme: Pahalı ambalajlar yerine kraft kağıtlar ve jüt iplerle evde şık ve samimi rustik paketler hazırlayın.",
+      "📅 Hafta Sonu Planlı Sosyal Yardım: Bağış ve sosyal yardımlarınızı düzenli ve bütçenizin belirli bir yüzdesi (%1-3) olarak planlayarak bütçe dengenizi koruyun."
     ];
     return giftTips[dayIndex];
   }
 
-  // Fallback dynamic rotating algorithm for custom categories
-  // Generates 5 diversified, tailored personal finance methods based on character sum + date
-  let charSum = 0;
-  for (let i = 0; i < name.length; i++) {
-    charSum += name.charCodeAt(i);
+  // 18. Spor & Fitness & Salon & Antrenman & Sağlıklı Yaşam
+  if (
+    norm.includes("spor") ||
+    norm.includes("fitness") ||
+    norm.includes("salon") ||
+    norm.includes("antrenman") ||
+    norm.includes("yüzme") ||
+    norm.includes("yuzme") ||
+    norm.includes("pilates") ||
+    norm.includes("supplement") ||
+    icon === "🏋️" ||
+    icon === "⚽" ||
+    icon === "🏃"
+  ) {
+    const sportTips = [
+      "📅 Pazar Üyelik Devamlılığı: Spor salonuna yazılmadan önce en az 1 ay evde/açık havada düzenli yürüyüş ve egzersiz yaparak devamlılık disiplininizi test edin.",
+      "📅 Pazartesi Belediye Tesisleri: Belediyelerin ücretsiz veya cüzi ücretli yüzme havuzları, spor salonları ve açık hava fitness parkurlarını değerlendirin.",
+      "📅 Salı Doğal Protein: Pahalı supplement ve tozlar yerine yumurta, lor peyniri ve bakliyat gibi doğal zengin protein kaynaklarını tercih edin.",
+      "📅 Çarşamba İkinci El Spor Ekipmanı: Dambıl, mat veya direnç bantlarını sıfır almak yerine ikinci el platformlarından yarı fiyatına temin edin.",
+      "📅 Perşembe Yıllık Üyelik Riskini Önleme: Salon üyeliğini peşin 1 yıllık almak yerine aylık/3 aylık paketlerle başlayın; gitmediğiniz ayların parasını yakmayın.",
+      "📅 Cuma Ücretsiz Egzersiz Kanalları: Pahalı özel dersler yerine YouTube ve mobil uygulamalardaki profesyonel antrenör programlarını takip edin.",
+      "📅 Hafta Sonu Açık Hava Antrenmanı: Hafta sonları kapalı salonlar yerine sahil veya orman parkurlarında tempolu koşu yaparak sıfır masrafla zinde kalın."
+    ];
+    return sportTips[dayIndex];
   }
-  const fallbackId = (charSum + date.getDate()) % 5;
 
-  const fallbackTips = [
-    `"${name}" kalemi için bu ay sınır koyun. Her pazartesi kendinize haftalık harcama limiti belirleyin. Limit dolduğunda harcamayı durdurmak, oto-kontrol kasınızı anında güçlendirir.`,
-    `Aylık "${name}" harcamalarınızı %15 oranında düşürmek için harcamadan önce 48 saat kuralını uygulayın. İstek mi yoksa acil bir ihtiyaç mı olduğunu kendinize sorarak dürtüsel harcamaların önüne geçin.`,
-    `"${name}" ödemelerinde nakit kullanmaya çalışın. Nakit para ile vedalaşmak, kredi kartıyla temassız ödeme yapmaya kıyasla zihnimizde gerçek bir harcama algısı yaratır ve tasarruf yaptırır.`,
-    `Gelecek ayki "${name}" giderini düşürmek için alternatif fiyat araştırması yapın. Farklı marka veya hizmet sağlayıcılarının kampanyalarını karşılaştırmak, size şaşırtıcı bir kazanç sağlayacaktır.`,
-    `Mevcut bütçenizde "${name}" harcamalarını finanse etmek için "Gider Eşleme" yapın. Yani bu kategoride yaptığınız her ekstra harcama kadar tutarı acil durum birikim hesabınıza da aktarın.`
+  // 19. Tadilat & Tamirat & Dekorasyon & Mobilya & Boya
+  if (
+    norm.includes("tadilat") ||
+    norm.includes("tamirat") ||
+    norm.includes("mobilya") ||
+    norm.includes("boya") ||
+    norm.includes("usta") ||
+    norm.includes("hırdavat") ||
+    norm.includes("hirdavat") ||
+    norm.includes("dekorasyon") ||
+    icon === "🔨" ||
+    icon === "🛋️" ||
+    icon === "🪑"
+  ) {
+    const repairTips = [
+      "📅 Pazar Kendin Yap (DIY): Küçük tamiratlarda (musluk contası, kulp değişimi, priz) YouTube rehber videolarını izleyerek kendiniz yapın; usta masrafından tasarruf edin.",
+      "📅 Pazartesi En Az 3 Usta Teklifi: Büyük tadilatlarda mutlaka en az 3 farklı ustadan malzeme dahil ve hariç ayrı ayrı yazılı fiyat teklifi alın.",
+      "📅 Salı Mobilya Yenileme: Eski ahşap mobilyaları atmak yerine zımparalayıp akrilik boyayla boyayarak sıfır mobilya masrafının onda birine yenileyin.",
+      "📅 Çarşamba Toptan Malzeme Alımı: Boya, fırça ve hırdavat malzemelerini yapı marketler yerine sanayi toptancılarından %30 indirimli temin edin.",
+      "📅 Perşembe Sezon Dışı Tadilat: Ev boyama ve tadilat işlerini yaz ayları yerine kış başında yaptırarak usta işçilik maliyetlerinde pazarlık avantajı yakalayın.",
+      "📅 Cuma Kaliteli Sarf Malzemesi: Su tesisatı ve elektrik aksamında kaliteli malzeme kullanın; ucuz malzemenin ileride yaratacağı su baskını risklerini önleyin.",
+      "📅 Hafta Sonu Parça Parça Yenileme: Tüm evi aynı anda tadilata sokmak yerine öncelikli odadan başlayıp bütçeniz elverdikçe kademeli ilerleyin."
+    ];
+    return repairTips[dayIndex];
+  }
+
+  // 20. Çocuk & Bebek & Bez & Oyuncak & Kreş
+  if (
+    norm.includes("çocuk") ||
+    norm.includes("cocuk") ||
+    norm.includes("bebek") ||
+    norm.includes("bez") ||
+    norm.includes("oyuncak") ||
+    norm.includes("kreş") ||
+    norm.includes("kres") ||
+    icon === "👶" ||
+    icon === "🧸"
+  ) {
+    const babyTips = [
+      "📅 Pazar Toptan Bez Kampanyaları: Bebek bezi ve ıslak mendilleri aylık dev paketler halinde online indirim günlerinde toplu sipariş verin.",
+      "📅 Pazartesi Hızlı Büyüyen Giysiler: Bebekler çok hızlı büyüdüğü için pahalı marka kıyafetler yerine pamuklu uygun fiyatlı ürünler ve aile içi kıyafet takasını tercih edin.",
+      "📅 Salı Oyuncak Rotasyonu: Sürekli yeni oyuncak almak yerine mevcut oyuncakların yarısını saklayıp ayda bir değiştirerek çocuğun ilgisini canlı tutun.",
+      "📅 Çarşamba İkinci El Bebek Arabası: Bebek arabası, beşik ve mama sandalyesi gibi kısa süre kullanılan eşyaları temiz ikinci el alarak binlerce lira tasarruf edin.",
+      "📅 Perşembe Ev Yapımı Bebek Mamaları: Hazır kavanoz mamalar yerine mevsim sebze ve meyveleriyle evde taze püreler hazırlayın; hem sağlıklı hem çok ekonomiktir.",
+      "📅 Cuma Eğitici Kartlar & Kitaplar: Pahalı elektronik oyuncaklar yerine evde hazırlayabileceğiniz duyusal oyunlar ve kütüphaneden ödünç alacağınız masal kitaplarını seçin.",
+      "📅 Hafta Sonu İhtiyaç Analizi: Bebeğin sonraki ayki beden ve gereksinimlerini önceden listeleyerek plansız market alışverişlerinin önüne geçin."
+    ];
+    return babyTips[dayIndex];
+  }
+
+  // 21. Temizlik & Hijyen & Deterjan
+  if (
+    norm.includes("temizlik") ||
+    norm.includes("deterjan") ||
+    norm.includes("çamaşır") ||
+    norm.includes("camasir") ||
+    norm.includes("bulaşık") ||
+    norm.includes("bulasik") ||
+    norm.includes("hijyen") ||
+    icon === "🧼" ||
+    icon === "🧹"
+  ) {
+    const cleanTips = [
+      "📅 Pazar Konsantre Ürünler: Temizlik deterjanlarında konsantre ve büyük boy ambalajları tercih edin; dozaj kapağı kullanarak fazla ürün kullanımını engelleyin.",
+      "📅 Pazartesi Doğal Temizleyiciler: Kireç ve yüzey temizliğinde beyaz sirke ve karbonat gibi doğal çözümleri kullanın; hem cüzdanınızı hem sağlığınızı koruyun.",
+      "📅 Salı Mikrofiber Bez Avantajı: Kaliteli mikrofiber bezler sadece suyla bile mükemmel temizlik sağlar; kimyasal sprey harcamalarınızı yarı yarıya azaltır.",
+      "📅 Çarşamba Bulaşık Makinesi Doluluğu: Bulaşık makinesini tam doldurmadan çalıştırmayın ve kısa eko programları tercih edin.",
+      "📅 Perşembe Toptan Temizlik Alımı: Yıllık deterjan ve tuvalet kağıdı ihtiyacınızı toptan indirim dönemlerinde karşılayarak enflasyondan korunun.",
+      "📅 Cuma Dozaj Aşımı Önlemi: Çamaşır deterjanını fazla koymak çamaşırı daha temiz yapmaz, kumaşı yıpratır ve ek durulama suyu harcatır.",
+      "📅 Hafta Sonu Düzenli Bakım: Çamaşır ve bulaşık makinelerinin filtrelerini ayda bir temizleyerek cihazın ömrünü uzatın ve arıza masraflarını önleyin."
+    ];
+    return cleanTips[dayIndex];
+  }
+
+  // 22. Gelişmiş 7 Günlük Dinamik Fallback Algoritması (Tüm özel kategoriler için)
+  const customCategoryDailyTips = [
+    `📅 Pazar Bütçe Değerlendirmesi: "${name}" kategorisinde bu hafta yaptığınız harcamaları gözden geçirin. Önümüzdeki 7 gün için kendinize net bir harcama tavanı belirleyin.`,
+    `📅 Pazartesi Nakit Zarf Yöntemi: "${name}" harcamalarında haftalık nakit zarf yöntemi uygulayın. Bu kategori için ayırdığınız bütçeyi haftalık parçalara bölerek takip edin.`,
+    `📅 Salı 48 Saat Kuralı: "${name}" için harcama yapmadan önce 'Acil İhtiyaç mı, Anlık İstek mi?' sorusunu sorun. 48 saat erteleme kuralıyla dürtüsel harcamaları önleyin.`,
+    `📅 Çarşamba Fiyat Karşılaştırması: "${name}" kaleminde en çok harcadığınız 3 ürünü belirleyin. Alternatif satıcılar, toptan alım veya kampanyalarla birim maliyeti düşürün.`,
+    `📅 Perşembe Nakit İade & Fırsatlar: "${name}" ödemelerinde bankaların ve sadakat kartlarının nakit iade (cashback) ve puan kampanyalarını kontrol edin.`,
+    `📅 Cuma Gider Eşleme Kuralı: "${name}" kategorisindeki her keyfi harcamanız kadar tutarı anında acil durum veya vadeli birikim fonunuza aktararak birikiminizi katlayın.`,
+    `📅 Hafta Sonu 50/30/20 Dengesi: "${name}" harcamalarınızın genel aylık bütçenizdeki payını kontrol edin; esnek harcamaların toplam gelirinizin %30'unu aşmamasına özen gösterin.`
   ];
 
-  return fallbackTips[fallbackId];
+  return customCategoryDailyTips[dayIndex];
 };
 
 export const ExpensesList: React.FC<ExpensesListProps> = ({
@@ -1196,10 +1733,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               </div>
             ) : (
               <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
-                {filteredExpenses.map((e) => {
+                {filteredExpenses.map((e, idx) => {
                   const cat = expenseCategories.find(
                     (c) => c.id === e.categoryId,
                   );
+                  const theme = getExpenseColorTheme(cat, idx, String(e.id));
                   const isNew = newlyAddedIds.includes(e.id);
                   return (
                     <motion.div
@@ -1213,14 +1751,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : { type: "spring", stiffness: 350, damping: 25 }
                       }
                       whileHover={{ scale: 1.01, y: -2 }}
-                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-white/95 via-rose-50/50 to-slate-50/90 dark:from-rose-950/90 dark:via-red-950 dark:to-slate-900 rounded-3xl border border-rose-200/80 dark:border-rose-500/40 shadow-md shadow-rose-100/50 dark:shadow-rose-500/10 flex items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md ${
+                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br ${theme.cardBg} rounded-3xl border ${theme.cardBorder} shadow-md flex items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md ${
                         isNew
                           ? "ring-2 ring-amber-400 border-amber-300 shadow-[0_0_25px_rgba(244,63,94,0.4)]"
                           : ""
                       }`}
+                      style={{
+                        borderLeft: cat?.color ? `4px solid ${cat.color}` : undefined,
+                      }}
                     >
                       {/* Ambient decoration */}
-                      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-rose-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
+                      <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full ${theme.ambientGlow} blur-xl pointer-events-none`} />
 
                       {/* Premium Shimmering Shine Parıltı Effect */}
                       {isNew && (
@@ -1245,8 +1786,13 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       <div className="space-y-1.5 relative z-10 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className="px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs shrink-0 shadow-xs"
+                            className={`px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider ${theme.tagBg} ${theme.tagText} border ${theme.tagBorder} backdrop-blur-xs shrink-0 shadow-xs flex items-center gap-1`}
+                            style={cat?.color ? { borderColor: `${cat.color}60` } : undefined}
                           >
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: cat?.color || undefined }}
+                            />
                             {cat
                               ? `${cat.icon || "🛒"} ${cat.name}`
                               : "Kategorisiz"}
@@ -1255,27 +1801,27 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             {e.description || "Harcama açıklaması girmediniz"}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-600 dark:text-white/80 flex items-center gap-1 font-semibold bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
-                          <Calendar className="w-3 h-3 text-rose-500 dark:text-rose-300" />{" "}
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-semibold bg-white/70 dark:bg-black/30 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
+                          <Calendar className={`w-3 h-3 ${theme.amountColor}`} />{" "}
                           {new Date(e.date).toLocaleDateString("tr-TR")}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-3 relative z-10 shrink-0">
-                        <span className="font-black text-base sm:text-lg text-rose-600 dark:text-rose-200 font-mono tracking-tight drop-shadow-xs">
+                        <span className={`font-black text-base sm:text-lg ${theme.amountColor} font-mono tracking-tight drop-shadow-xs`}>
                           -{format(e.amount)}
                         </span>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleOpenEditExpense(e)}
-                            className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
+                            className="p-2 text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                             title="Düzenle"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeleteExpense(e.id)}
-                            className="p-2 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
+                            className="p-2 text-rose-600 hover:text-rose-700 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
                             title="Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
