@@ -530,15 +530,14 @@ export default function App() {
     }
     const isPrem = localStorage.getItem("is_premium") === "true";
     const pSource = localStorage.getItem("premium_source");
-    if (isPrem && pSource !== "trial") return true;
-    
-    // Check 7-day expiration on initial load
-    const createdAtStr = localStorage.getItem("user_created_at");
-    if (createdAtStr) {
-      const diffDays = (Date.now() - new Date(createdAtStr).getTime()) / (1000 * 60 * 60 * 24);
-      if (diffDays >= 7) return false;
+    if (pSource === "trial" || localStorage.getItem("is_guest") === "true") {
+      return false; // 7 Günlük Deneme hesabı KESİNLİKLE Premium olarak açılmaz
     }
-    return isPrem;
+    return isPrem && pSource !== "trial";
+  });
+
+  const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(() => {
+    return localStorage.getItem("has_used_trial") === "true";
   });
 
   const [isTrialExpiredLocked, setIsTrialExpiredLocked] = useState<boolean>(() => {
@@ -560,9 +559,36 @@ export default function App() {
     return false;
   });
 
-  const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(() => {
-    return localStorage.getItem("has_used_trial") === "true";
+  const [isTrialActive, setIsTrialActive] = useState<boolean>(() => {
+    const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    if (savedUser === "info.borcodemetakip@gmail.com") return false;
+    if (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial") return false;
+    const createdAtStr = localStorage.getItem("user_created_at");
+    if (createdAtStr) {
+      const diffDays = (Date.now() - new Date(createdAtStr).getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays < 7;
+    }
+    const trialEndStr = localStorage.getItem("trial_end_date");
+    if (trialEndStr) {
+      return new Date(trialEndStr).getTime() > Date.now();
+    }
+    return false;
   });
+
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(() => {
+    const createdAtStr = localStorage.getItem("user_created_at");
+    if (createdAtStr) {
+      const diffDays = (Date.now() - new Date(createdAtStr).getTime()) / (1000 * 60 * 60 * 24);
+      return Math.max(0, Math.ceil(7 - diffDays));
+    }
+    const trialEndStr = localStorage.getItem("trial_end_date");
+    if (trialEndStr) {
+      const diffDays = (new Date(trialEndStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      return Math.max(0, Math.ceil(diffDays));
+    }
+    return 7;
+  });
+
   const [isActivatingTrial, setIsActivatingTrial] = useState<boolean>(false);
 
   const [trialStatus, setTrialStatus] = useState<{
@@ -645,6 +671,8 @@ export default function App() {
       if (diffDays >= 7) {
         // 7 GÜNÜ GEÇMİŞSE -> ZORUNLU KİLİTLEME!
         setIsPremium(false);
+        setIsTrialActive(false);
+        setTrialDaysRemaining(0);
         setHasUsedTrial(true);
         localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("is_premium", "false");
@@ -653,18 +681,30 @@ export default function App() {
         localStorage.removeItem("trial_end_date");
         setIsTrialExpiredLocked(true);
         setIsUpgradeModalOpen(true);
-        triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+        setTrialStatus({
+          hasTrial: true,
+          isActive: false,
+          isExpired: true,
+          daysRemaining: 0,
+          startDate: createdAtStr,
+          endDate: new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString()
+        });
+        triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
         return true;
       } else {
-        // 7 günden az -> 7 Günlük Otomatik Premium Deneme Aktif
-        setIsPremium(true);
-        setIsTrialExpiredLocked(false);
-        setHasUsedTrial(true);
-        localStorage.setItem("has_used_trial", "true");
-        localStorage.setItem("is_premium", "true");
-        localStorage.setItem("is_guest", "true");
+        // 7 günden az -> 7 Günlük Misafir Deneme Aktif (PREMIUM DEĞİL!)
         const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
         const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+        
+        setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMİUM OLMAYACAK)
+        setIsTrialExpiredLocked(false);
+        setHasUsedTrial(true);
+        setIsTrialActive(true);
+        setTrialDaysRemaining(daysLeft);
+        
+        localStorage.setItem("has_used_trial", "true");
+        localStorage.setItem("is_premium", "false"); // <--- LocalStorage'da da FALSE!
+        localStorage.setItem("is_guest", "true");
         localStorage.setItem("trial_end_date", trialEndDate);
         localStorage.setItem("premium_source", "trial");
         setTrialStatus({
@@ -739,8 +779,11 @@ export default function App() {
         if (data.hasTrial) {
           if (data.isActive) {
             if (pSource !== "purchase") {
-              setIsPremium(true);
-              localStorage.setItem("is_premium", "true");
+              setIsPremium(false);
+              setIsTrialActive(true);
+              setTrialDaysRemaining(data.daysRemaining);
+              localStorage.setItem("is_premium", "false");
+              localStorage.setItem("is_guest", "true");
               localStorage.setItem("premium_source", "trial");
               if (data.endDate) {
                 localStorage.setItem("trial_end_date", data.endDate);
@@ -750,15 +793,17 @@ export default function App() {
             localStorage.removeItem("trial_end_date");
             setTrialStatus(data);
             setIsTrialExpiredLocked(true);
+            setIsTrialActive(false);
+            setTrialDaysRemaining(0);
             setHasUsedTrial(true);
             localStorage.setItem("has_used_trial", "true");
-            if (pSource === "trial" || (!pSource && isPremium)) {
-              setIsPremium(false);
-              localStorage.setItem("is_premium", "false");
-              localStorage.removeItem("premium_source");
-              
-              const expMsg = "⏳ 7 günlük ücretsiz Bütçem Pro deneme süreniz dolmuştur. Reklamlı ve kısıtlı ücretsiz plan ile devam ediyorsunuz. Sınırsız kullanım için PRO paketi satın alabilirsiniz.";
-              triggerToast(expMsg);
+            setIsPremium(false);
+            localStorage.setItem("is_premium", "false");
+            localStorage.setItem("is_guest", "true");
+            localStorage.removeItem("premium_source");
+            
+            const expMsg = "⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.";
+            triggerToast(expMsg);
               
               setNotifications(prev => {
                 const alreadyExists = prev.some(n => n.title?.includes("deneme") || (n as any).message?.includes("deneme"));
@@ -777,10 +822,9 @@ export default function App() {
               });
             }
           }
+          return;
         }
-        return;
-      }
-    } catch (e) {
+      } catch (e) {
       console.warn("Server trial check unavailable, evaluating local state:", e);
     }
 
@@ -893,11 +937,15 @@ export default function App() {
           
           // 4. VERİTABANINA hasUsedTrial = true ve trialStartDate İŞARETLE
           setHasUsedTrial(true);
+          setIsTrialActive(true);
+          setTrialDaysRemaining(data.daysRemaining || 7);
+          setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
+          setIsTrialExpiredLocked(false);
           localStorage.setItem("has_used_trial", "true");
-          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("is_premium", "false");
+          localStorage.setItem("is_guest", "true");
           localStorage.setItem("premium_source", "trial");
           localStorage.setItem("trial_end_date", trialEndDate);
-          setIsPremium(true);
           setTrialStatus(data);
 
           const effectiveUid = auth.currentUser?.uid || (cleanEmail ? "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
@@ -905,7 +953,7 @@ export default function App() {
             await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
           }
 
-          triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+          triggerToast("🎉 7 Günlük Ücretsiz Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz.");
           setIsActivatingTrial(false);
           return;
         }
@@ -924,11 +972,15 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     setHasUsedTrial(true);
+    setIsTrialActive(true);
+    setTrialDaysRemaining(7);
+    setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
+    setIsTrialExpiredLocked(false);
     localStorage.setItem("has_used_trial", "true");
-    localStorage.setItem("is_premium", "true");
+    localStorage.setItem("is_premium", "false");
+    localStorage.setItem("is_guest", "true");
     localStorage.setItem("premium_source", "trial");
     localStorage.setItem("trial_end_date", trialEndDate);
-    setIsPremium(true);
     setTrialStatus({
       hasTrial: true,
       isActive: true,
@@ -943,7 +995,7 @@ export default function App() {
       await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
     }
 
-    triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
+    triggerToast("🎉 7 Günlük Ücretsiz Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz.");
     setIsActivatingTrial(false);
   };
 
@@ -1004,10 +1056,13 @@ export default function App() {
   const isSuperAdminAccount = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
   const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial");
 
+  // Pro özelliklere erişim kontrolü: Gerçek Premium üye VEYA aktif 7 günlük deneme üyesi
+  const hasProAccess = Boolean(isPaidPremium || (isTrialActive && !isTrialExpiredLocked));
+
   // 1 E-posta = 1 Deneme Hakkı Kuralı:
   // Eğer hasUsedTrial true ise: Deneme süresi bitmiş olsun veya olmasın,
   // "7 Günlük Ücretsiz Denemeyi Başlat" kartı ve butonu sayfadan tamamen kaldırılır/gizlenir.
-  const canActivateTrial = !isPaidPremium && !hasUsedTrial && !isTrialExpiredLocked && !trialStatus?.hasTrial && !trialStatus?.isExpired && localStorage.getItem("has_used_trial") !== "true";
+  const canActivateTrial = !isPaidPremium && !hasUsedTrial && !isTrialActive && !isTrialExpiredLocked && !trialStatus?.hasTrial && !trialStatus?.isExpired && localStorage.getItem("has_used_trial") !== "true";
 
   // Keep subscription status & plan synchronized on modal open and app load
   useEffect(() => {
@@ -2498,6 +2553,8 @@ export default function App() {
     // 3. 7 GÜNLÜK SÜRE BİTİM KONTROLÜ (MİSAFİR HESAPLAR İÇİN)
     if (meta?.isTrialExpired) {
       setIsPremium(false);
+      setIsTrialActive(false);
+      setTrialDaysRemaining(0);
       setIsTrialExpiredLocked(true);
       localStorage.setItem("is_premium", "false");
       localStorage.setItem("is_guest", "true");
@@ -2506,14 +2563,23 @@ export default function App() {
 
       setShowPublicView(null);
       setIsUpgradeModalOpen(true);
-      triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
+      triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
       return;
     }
 
-    // 4. Misafir 7 Günlük Deneme Aktif İse: Otomatik 7 Günlük Premium Giriş Tanımla
-    setIsPremium(true);
+    // 4. Misafir 7 Günlük Deneme Aktif İse: 7 Günlük Misafir Deneme Tanımla (PREMIUM DEĞİL)
+    let daysLeft = 7;
+    if (meta?.createdAt) {
+      const diffMs = Date.now() - new Date(meta.createdAt).getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      daysLeft = Math.max(1, Math.ceil(7 - diffDays));
+    }
+
+    setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
+    setIsTrialActive(true);
+    setTrialDaysRemaining(daysLeft);
     setIsTrialExpiredLocked(false);
-    localStorage.setItem("is_premium", "true");
+    localStorage.setItem("is_premium", "false"); // <--- LocalStorage'da da FALSE
     localStorage.setItem("is_guest", "true");
     localStorage.setItem("premium_source", "trial");
 
@@ -2521,7 +2587,7 @@ export default function App() {
     setShowPublicView(null);
     setActiveTab("overview");
 
-    const message = meta?.trialMessage || "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı! Tüm PRO özellikler açık!";
+    const message = meta?.trialMessage || `🎁 7 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz.`;
     triggerToast(message);
   };
 
@@ -6328,7 +6394,7 @@ export default function App() {
     }
 
     if (tabId === "aiStrategy") {
-      if (!isPremium && !isPassActive("ai")) {
+      if (!hasProAccess && !isPassActive("ai")) {
         openRewardedModal("ai", () => {
           startNavTransition(() => setActiveTab("aiStrategy"));
         });
@@ -6339,9 +6405,13 @@ export default function App() {
     }
 
     const clickedItem = sidebarItems.find(item => item.id === tabId);
-    if (clickedItem?.isPro && !isPremium) {
+    if (clickedItem?.isPro && !hasProAccess) {
       openUpgradeModal(clickedItem.label);
-      triggerToast(`👑 ${clickedItem.label} özelliği yalnızca Pro üyelerimize özeldir!`);
+      if (isTrialExpiredLocked) {
+        triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
+      } else {
+        triggerToast(`👑 ${clickedItem.label} özelliği Pro üyelere özeldir!`);
+      }
       return;
     }
 
@@ -7023,16 +7093,26 @@ export default function App() {
               onClick={() => {
                 openUpgradeModal();
               }}
-              title="Premium Sürüme Yükselt"
+              title="Abonelik ve Deneme Durumu"
               className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all flex items-center justify-center space-x-1 duration-300 cursor-pointer shrink-0 active:scale-95 ${
-                isPremium 
+                isPaidPremium 
                   ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border-amber-500/40 shadow-sm" 
+                  : isTrialActive
+                  ? "bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border-indigo-500/40 shadow-sm"
+                  : isTrialExpiredLocked
+                  ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border-rose-500/40 shadow-sm animate-pulse"
                   : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500 shadow-md shadow-indigo-600/20"
               }`}
             >
               <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="text-[8px] sm:text-[9px] font-black tracking-wide uppercase">
-                {isPremium ? "PREMIUM" : "PRO'YA GEÇ"}
+                {isPaidPremium 
+                  ? "PREMIUM" 
+                  : isTrialActive 
+                  ? `DENEME (${trialDaysRemaining}G)` 
+                  : isTrialExpiredLocked
+                  ? "DENEME BİTTİ"
+                  : "PRO'YA GEÇ"}
               </span>
             </button>
 
@@ -7902,13 +7982,30 @@ export default function App() {
                           "Kişisel Hesap"
                         )}
                       </span>
-                      {isPremium ? (
+                      {isPaidPremium ? (
                         <span
                           onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
                           className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider animate-pulse cursor-pointer shadow-xs flex items-center gap-0.5"
                           title="Abonelik Yönetimi"
                         >
                           PREMIUM 👑
+                        </span>
+                      ) : isTrialActive ? (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
+                          className="px-1.5 py-0.5 bg-gradient-to-tr from-indigo-500 to-purple-600 text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer shadow-xs flex items-center gap-1"
+                          title="7 Günlük Ücretsiz Deneme Hesabı"
+                        >
+                          <span>🎁 DENEME</span>
+                          <span className="bg-amber-400 text-slate-950 px-1 rounded-sm text-[7.5px] font-black">{trialDaysRemaining} GÜN</span>
+                        </span>
+                      ) : isTrialExpiredLocked ? (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
+                          className="px-1.5 py-0.5 bg-rose-500 text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer shadow-xs flex items-center gap-0.5"
+                          title="7 Günlük Süreniz Doldu - Paket Seçin"
+                        >
+                          ⚠️ DENEME BİTTİ
                         </span>
                       ) : (
                         <span
@@ -7978,8 +8075,10 @@ export default function App() {
                       animate={{ scale: [1, 1.08, 1] }}
                       transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                       className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest font-mono shrink-0 ml-1.5 ${
-                        isPremium
+                        isPaidPremium
                           ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs"
+                          : isTrialActive
+                          ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs"
                           : item.id === "aiStrategy" && isTemporaryPassActive("ai")
                           ? "bg-emerald-500 text-white shadow-xs"
                           : isActive
@@ -7987,7 +8086,13 @@ export default function App() {
                           : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.35)]"
                       }`}
                     >
-                      {isPremium ? "PRO" : item.id === "aiStrategy" && isTemporaryPassActive("ai") ? "24S AÇIK" : "PRO"}
+                      {isPaidPremium 
+                        ? "PRO 👑" 
+                        : isTrialActive 
+                        ? `${trialDaysRemaining}G DENEME` 
+                        : item.id === "aiStrategy" && isTemporaryPassActive("ai") 
+                        ? "24S AÇIK" 
+                        : "PRO 🔒"}
                     </motion.span>
                   )}
                 </button>
@@ -8080,13 +8185,63 @@ export default function App() {
       {/* Central View Dashboard Grid content container */}
       <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
 
+        {/* 7 Günlük Deneme Sürümü Aktif veya Dolmuş Bilgilendirme Kartı */}
+        {isTrialActive && (
+          <div className="mb-5 p-3.5 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border-2 border-indigo-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl shrink-0">🎁</span>
+              <div>
+                <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                  <span>7 Günlük Deneme Sürümü Aktif</span>
+                  <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase">
+                    {trialDaysRemaining} Gününüz Kaldı
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                  Tüm PRO özellikleri 7 gün boyunca ücretsiz kullanıyorsunuz.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openUpgradeModal("Paket Seçimi")}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[10.5px] rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 shrink-0"
+            >
+              👑 Paket Seç
+            </button>
+          </div>
+        )}
+
+        {isTrialExpiredLocked && (
+          <div className="mb-5 p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm animate-pulse">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl shrink-0">⚠️</span>
+              <div>
+                <p className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wide">
+                  7 Günlük Süreniz Bitmiştir!
+                </p>
+                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-bold">
+                  Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openUpgradeModal("Zorunlu Paket Seçimi")}
+              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-rose-600/30 active:scale-95 shrink-0"
+            >
+              👑 Hemen Paket Seç
+            </button>
+          </div>
+        )}
+
         {activeTab === "overview" && (
           <DashboardOverview
             stats={statsBag}
             onNavigate={handleNavClick}
             monthlyPaymentsCount={currentMonthTotalPaymentsCount}
             monthlyInstallmentsDue={monthlyInstallmentsDue}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Genel Bakış & Gelişmiş Finans Paneli")}
             incomes={filteredIncomesByMonth}
             expenses={filteredExpensesByMonth}
@@ -8141,7 +8296,7 @@ export default function App() {
             themeColor={colorTheme}
             onSaveInstallment={handleSaveInstallment}
             installmentDebts={installmentDebts}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Borç Yönetimi & Gelişmiş Takip")}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -8162,7 +8317,7 @@ export default function App() {
             triggerToast={triggerToast}
             onAddAlarm={handleAddAlarm}
             language={language}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Kişi Alacak/Verecek Takibi")}
           />
         )}
@@ -8174,7 +8329,7 @@ export default function App() {
             onSaveIncome={handleSaveIncome}
             onDeleteIncome={handleDeleteIncome}
             onRestoreIncomes={handleRestoreIncomes}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Gelir & Kasa Takibi")}
             carryOverBalance={statsBag.carryOverBalance}
             selectedMonth={selectedMonth}
@@ -8195,7 +8350,7 @@ export default function App() {
             onDeleteCategory={handleDeleteCategory}
             onUpdateAllCategories={handleSaveAllCategories}
             netBalance={statsBag.netIncome}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Gider Analizi & Kategori Yönetimi")}
             language={language}
             selectedMonth={selectedMonth}
@@ -8213,7 +8368,7 @@ export default function App() {
             onPayInstallment={handlePayInstallment}
             onRevertPayment={handleRevertInstallmentPayment}
             onRestoreInstallments={handleRestoreInstallments}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             language={language}
             onUpgradeClick={() => openUpgradeModal("Taksitli Borçlar & Ödeme Planı")}
             focusedInstallmentId={focusedInstallmentId}
@@ -8922,7 +9077,7 @@ export default function App() {
             language={language}
             currentUser={currentUser}
             onTriggerToast={triggerToast}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
           />
         )}
 
@@ -8936,7 +9091,7 @@ export default function App() {
             currentUser={currentUser}
             format={format}
             language={language}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onUpgradeClick={(feat) => openUpgradeModal(feat || "Finansal Analiz & Raporlama")}
             onSaveInstallment={handleSaveInstallment}
           />
@@ -8984,6 +9139,11 @@ export default function App() {
               );
             }}
             isOfflineMode={isOfflineMode}
+            isPaidPremium={isPaidPremium}
+            isTrialActive={isTrialActive}
+            trialDaysRemaining={trialDaysRemaining}
+            isTrialExpired={isTrialExpiredLocked || trialStatus?.isExpired}
+            onOpenUpgradeModal={(name) => openUpgradeModal(name || "Pro Özellikler")}
           />
         )}
 
@@ -8996,7 +9156,7 @@ export default function App() {
             setMarqueePaused={handleSetMarqueePaused}
             voiceAssistantEnabled={voiceAssistantEnabled}
             setVoiceAssistantEnabled={setVoiceAssistantEnabled}
-            isPremium={isPremium}
+            isPremium={hasProAccess}
             onOpenUpgradeModal={(name) => openUpgradeModal(name)}
             onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             onOpenOnboarding={() => setShowOnboarding(true)}
@@ -10393,31 +10553,60 @@ export default function App() {
                       }`}>
                         <Sparkles className="w-8 h-8 text-amber-500" />
                       </div>
-                      <h3 className={`text-xs font-black uppercase tracking-widest ${isPaidPremium ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500"}`}>
-                        {isPaidPremium ? "BÜTÇEM PRO PREMİUM ÜYELİK" : "BÜTÇEM PRO PREMIUM"}
+                      <h3 className={`text-xs font-black uppercase tracking-widest ${isPaidPremium ? "text-emerald-600 dark:text-emerald-400" : isTrialActive ? "text-indigo-500" : "text-amber-500"}`}>
+                        {isPaidPremium 
+                          ? "BÜTÇEM PRO PREMİUM ÜYELİK" 
+                          : isTrialActive 
+                          ? "7 GÜNLÜK ÜCRETSİZ DENEME HESABI"
+                          : isTrialExpiredLocked 
+                          ? "DENEME SÜRESİ DOLDU" 
+                          : "BÜTÇEM PRO PREMIUM"}
                       </h3>
                       <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
-                        {isPaidPremium ? "👑 Premium Üyesiniz" : "Sınırları Ortadan Kaldırın 👑"}
+                        {isPaidPremium 
+                          ? "👑 Premium Üyesiniz" 
+                          : isTrialActive 
+                          ? `🎁 7 Günlük Deneme Aktif (${trialDaysRemaining} Gün Kaldı)` 
+                          : isTrialExpiredLocked 
+                          ? "⚠️ 7 Günlük Süreniz Bitmiştir" 
+                          : "Sınırları Ortadan Kaldırın 👑"}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-medium px-4 leading-relaxed">
                         {isPaidPremium
                           ? "Tüm profesyonel bütçe yönetimi, yapay zeka koçu ve sınırsız ayrıcalıklarınız aktiftir."
+                          : isTrialActive
+                          ? `7 günlük ücretsiz denemenizin bitmesine ${trialDaysRemaining} gün kaldı. Tüm özellikleri ücretsiz kullanıyorsunuz; dilediğiniz zaman avantajlı paketlerimize geçiş yapabilirsiniz.`
+                          : isTrialExpiredLocked
+                          ? "7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur."
                           : "Finansal bütçe yönetimini profesyonel seviyeye yükselten gelişmiş özellikleri keşfedin."}
                       </p>
                     </div>
 
-                    {/* Trial Expired / Subscription Pending Alert Banner (Only for non-paid users) */}
-                    {!isPaidPremium && isTrialExpiredLocked && (
-                      <div className="p-3.5 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl text-center space-y-1">
-                        <div className="flex items-center justify-center gap-1.5 text-amber-700 dark:text-amber-400 font-black text-xs uppercase tracking-wide">
-                          {localStorage.getItem("is_guest") === "false" 
-                            ? "👑 Aboneliğinizi Tamamlayın" 
-                            : "⚠️ 7 Günlük Ücretsiz Deneme Süreniz Sona Erdi"}
+                    {/* Trial Status or Expired Alert Banner */}
+                    {!isPaidPremium && isTrialActive && (
+                      <div className="p-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl text-center space-y-1.5 shadow-xs">
+                        <div className="flex items-center justify-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-xs uppercase tracking-wide">
+                          <span>🎁 7 Günlük Ücretsiz Deneme Aktif</span>
                         </div>
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                          Kalan Süreniz: <span className="text-amber-500 font-black text-sm">{trialDaysRemaining} Gün</span> (Tüm PRO Özellikler Açık)
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                          Süreniz bittiğinde PRO özellikler kilitlenecektir. Kesintisiz kullanım için dilediğiniz an aşağıdaki paketlerden birini seçebilirsiniz.
+                        </p>
+                      </div>
+                    )}
+
+                    {!isPaidPremium && isTrialExpiredLocked && (
+                      <div className="p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl text-center space-y-1.5 shadow-sm">
+                        <div className="flex items-center justify-center gap-1.5 text-rose-700 dark:text-rose-400 font-black text-xs uppercase tracking-wide">
+                          <span>⚠️ 7 Günlük Süreniz Bitmiştir</span>
+                        </div>
+                        <p className="text-xs font-black text-rose-600 dark:text-rose-400">
+                          Paket seçerek devam edin lütfen.
+                        </p>
                         <p className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold leading-relaxed">
-                          {localStorage.getItem("is_guest") === "false"
-                            ? "Hesabınız oluşturuldu. Uygulamayı kullanabilmek için lütfen bir Premium plan seçin."
-                            : "Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin."}
+                          Deneme süreniz dolduğu için paket seçimi zorunludur. Tüm PRO özelliklere kesintisiz erişim için lütfen aşağıdaki paketlerden birini tercih edin.
                         </p>
                       </div>
                     )}
@@ -10819,15 +11008,18 @@ export default function App() {
                         )}
 
                         {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
-                        {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (
-                          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1.5 text-center">
-                            <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase leading-none">
-                              ✨ DENEME SÜRÜMÜNÜZ AKTİF • {trialStatus.daysRemaining} Gün Kaldı
+                        {isTrialActive && (
+                          <div className="p-3.5 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl space-y-2 text-center shadow-xs">
+                            <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase leading-tight">
+                              🎁 7 GÜNLÜK ÜCRETSİZ DENEMENİZ AKTİF • {trialDaysRemaining} Gün Kaldı
+                            </p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                              Tüm PRO özellikleri şu an ücretsiz kullanıyorsunuz. Deneme süreniz bitmeden dilediğiniz an avantajlı paketlerimize geçiş yapabilirsiniz.
                             </p>
                             <button
                               type="button"
                               onClick={handleCancelTrial}
-                              className="text-[10px] text-rose-500 underline font-bold cursor-pointer"
+                              className="text-[10px] text-rose-500 hover:text-rose-600 underline font-bold cursor-pointer transition pt-0.5 inline-block"
                             >
                               Deneme Sürümünü İptal Et
                             </button>
@@ -11464,7 +11656,7 @@ export default function App() {
           currentUser={currentUser}
           userApiKey={localStorage.getItem("user_gemini_api_key") || undefined}
           triggerToast={triggerToast}
-          isPremium={isPremium}
+          isPremium={hasProAccess}
           onUpgradeClick={() => openUpgradeModal("Akıllı Sesli Asistan")}
         />
       )}

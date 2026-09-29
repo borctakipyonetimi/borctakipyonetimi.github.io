@@ -496,7 +496,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
         const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("currentUser", cleanUserEmail);
-        localStorage.setItem("is_premium", isTrialActive ? "true" : "false");
+        localStorage.setItem("is_premium", "false");
         localStorage.setItem("is_guest", "true");
         localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("user_created_at", determinedCreatedAt);
@@ -518,17 +518,19 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             isGuest: true,
             isTrialExpired: true,
             hasUsedTrial: true,
-            createdAt: determinedCreatedAt
+            createdAt: determinedCreatedAt,
+            trialMessage: "⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen."
           });
         } else {
+          const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
           onLoginSuccess(cleanUserEmail, {
-            isPremium: true,
+            isPremium: false,
             isGuest: true,
             isTrialActive: true,
             hasUsedTrial: true,
             trialMessage: guestSubMode === "register" 
-              ? "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı! Tüm PRO özellikler açık!"
-              : "🎁 7 Günlük Ücretsiz Deneme Süreniz Aktif! Tüm PRO özellikleri kullanabilirsiniz.",
+              ? `🎁 7 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz.`
+              : `🎁 7 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık)`,
             createdAt: determinedCreatedAt
           });
         }
