@@ -159,12 +159,14 @@ app.get("/api/trial/status", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
   const userId = req.query.userId || "";
   const deviceId = req.query.deviceId || "";
+  const email = (req.query.email || "").trim().toLowerCase();
   const trials = readTrials();
-  const key = userId && userId.trim() || deviceId && deviceId.trim() || ip;
-  const startDateStr = trials[key] || deviceId && trials[deviceId] || userId && trials[userId] || trials[ip];
+  const key = email || userId && userId.trim() || deviceId && deviceId.trim() || ip;
+  const startDateStr = email && trials[email] || userId && trials[userId] || deviceId && trials[deviceId] || trials[ip] || trials[key];
   if (!startDateStr) {
     return res.json({
       hasTrial: false,
+      hasUsedTrial: false,
       isActive: false,
       isExpired: false,
       daysRemaining: 7,
@@ -181,6 +183,7 @@ app.get("/api/trial/status", (req, res) => {
   const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
     hasTrial: true,
+    hasUsedTrial: true,
     isActive: !isExpired,
     isExpired,
     daysRemaining,
@@ -190,30 +193,49 @@ app.get("/api/trial/status", (req, res) => {
 });
 app.post("/api/trial/activate", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
-  const { userId, deviceId } = req.body || {};
+  const { userId, deviceId, email } = req.body || {};
   const trials = readTrials();
-  const key = userId && typeof userId === "string" && userId.trim() || deviceId && typeof deviceId === "string" && deviceId.trim() || ip;
-  if (!trials[key]) {
-    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-    trials[key] = nowIso;
-    if (deviceId) trials[deviceId] = nowIso;
-    if (userId) trials[userId] = nowIso;
-    trials[ip] = nowIso;
-    writeTrials(trials);
+  const cleanEmail = email && typeof email === "string" ? email.trim().toLowerCase() : "";
+  const cleanUserId = userId && typeof userId === "string" ? userId.trim() : "";
+  const cleanDeviceId = deviceId && typeof deviceId === "string" ? deviceId.trim() : "";
+  const key = cleanEmail || cleanUserId || cleanDeviceId || ip;
+  const existingStartDate = cleanEmail && trials[cleanEmail] || cleanUserId && trials[cleanUserId] || cleanDeviceId && trials[cleanDeviceId] || trials[ip] || trials[key];
+  if (existingStartDate) {
+    const startDate = new Date(existingStartDate);
+    const now = /* @__PURE__ */ new Date();
+    const diffTime = now.getTime() - startDate.getTime();
+    const diffDays = diffTime / (1e3 * 60 * 60 * 24);
+    const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+    const isExpired = diffDays >= 7;
+    const endDate2 = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
+    return res.status(403).json({
+      success: false,
+      error: "Bu e-posta veya cihaz i\xE7in 7 g\xFCnl\xFCk \xFCcretsiz deneme hakk\u0131 daha \xF6nce kullan\u0131lm\u0131\u015Ft\u0131r. L\xFCtfen bir Premium paket se\xE7in.",
+      hasTrial: true,
+      hasUsedTrial: true,
+      isActive: !isExpired,
+      isExpired,
+      daysRemaining,
+      startDate: startDate.toISOString(),
+      endDate: endDate2.toISOString()
+    });
   }
-  const startDate = new Date(trials[key]);
-  const now = /* @__PURE__ */ new Date();
-  const diffTime = now.getTime() - startDate.getTime();
-  const diffDays = diffTime / (1e3 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
-  const isExpired = diffDays >= 7;
-  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
+  const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+  trials[key] = nowIso;
+  if (cleanEmail) trials[cleanEmail] = nowIso;
+  if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
+  if (cleanUserId) trials[cleanUserId] = nowIso;
+  trials[ip] = nowIso;
+  writeTrials(trials);
+  const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
+    success: true,
     hasTrial: true,
-    isActive: !isExpired,
-    isExpired,
-    daysRemaining,
-    startDate: startDate.toISOString(),
+    hasUsedTrial: true,
+    isActive: true,
+    isExpired: false,
+    daysRemaining: 7,
+    startDate: nowIso,
     endDate: endDate.toISOString()
   });
 });
