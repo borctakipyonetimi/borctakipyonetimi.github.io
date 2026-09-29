@@ -87,6 +87,8 @@ interface GPlayEnhancementsProps {
   isTrialActive?: boolean;
   trialDaysRemaining?: number;
   isTrialExpired?: boolean;
+  isGuestTrialUser?: boolean;
+  isGuestTrialExpired?: boolean;
   onOpenUpgradeModal?: (name?: string) => void;
 }
 
@@ -133,6 +135,8 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
   isTrialActive = false,
   trialDaysRemaining = 7,
   isTrialExpired = false,
+  isGuestTrialUser = false,
+  isGuestTrialExpired = false,
   onOpenUpgradeModal
 }) => {
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<"all" | "ai" | "security" | "markets" | "tools">("all");
@@ -613,37 +617,37 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
 
       {/* 7 Günlük Deneme Sürümü ve Pro Üyelik Durum Bildirimi */}
       {isPaidPremium && (
-        <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/30 rounded-2xl flex items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">👑</span>
+        <div className="p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between gap-2.5 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">👑</span>
             <div>
               <p className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
                 Bütçem Pro Premium Lisansınız Aktiftir
               </p>
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+              <p className="text-[10.5px] text-slate-600 dark:text-slate-300 font-medium">
                 Tüm PRO özellikler sınırsız ve kesintisiz olarak kullanımınıza açıktır.
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 text-[9.5px] font-black rounded-lg uppercase">
+          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-black rounded-lg uppercase whitespace-nowrap">
             Aktif Lisans
           </span>
         </div>
       )}
 
-      {isTrialActive && (
-        <div className="p-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border-2 border-indigo-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs text-left">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-2xl shrink-0">🎁</span>
+      {!isPaidPremium && isGuestTrialUser && isTrialActive && (
+        <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border border-indigo-500/25 rounded-xl flex flex-wrap items-center justify-between gap-2 text-left">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl shrink-0">🎁</span>
             <div>
-              <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 flex-wrap">
-                <span>7 Günlük Deneme Sürümü Aktif</span>
-                <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase">
-                  {trialDaysRemaining} Gününüz Kaldı
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-black text-slate-800 dark:text-slate-100">7 Günlük Deneme Sürümü</span>
+                <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase shadow-xs font-mono">
+                  {trialDaysRemaining} Gün Kaldı
                 </span>
-              </p>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                7 gün boyunca tüm PRO özellikler ücretsiz kullanımınıza açıktır. Süreniz bitmeden avantajlı paketlerimizi seçebilirsiniz.
+              </div>
+              <p className="text-[10.5px] text-slate-600 dark:text-slate-400 font-medium">
+                Tüm PRO özellikler 7 gün boyunca ücretsizdir. Süreniz bitmeden avantajlı paket seçebilirsiniz.
               </p>
             </div>
           </div>
@@ -651,7 +655,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             <button
               type="button"
               onClick={() => onOpenUpgradeModal("Pro Paket Seçimi")}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[10.5px] rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 shrink-0"
+              className="px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-sm active:scale-95 shrink-0"
             >
               👑 Paket Seç
             </button>
@@ -659,15 +663,15 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
         </div>
       )}
 
-      {isTrialExpired && (
-        <div className="p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm animate-pulse text-left">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-2xl shrink-0">⚠️</span>
+      {!isPaidPremium && (isGuestTrialExpired || isTrialExpired) && isGuestTrialUser && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-xl flex flex-wrap items-center justify-between gap-2 text-left">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl shrink-0">⚠️</span>
             <div>
               <p className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wide">
                 7 Günlük Süreniz Bitmiştir!
               </p>
-              <p className="text-[11px] text-slate-700 dark:text-slate-300 font-bold">
+              <p className="text-[10.5px] text-slate-700 dark:text-slate-300 font-bold">
                 Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur.
               </p>
             </div>
@@ -676,7 +680,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             <button
               type="button"
               onClick={() => onOpenUpgradeModal("Zorunlu Paket Seçimi")}
-              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-rose-600/30 active:scale-95 shrink-0"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-[10.5px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-sm active:scale-95 shrink-0"
             >
               👑 Hemen Paket Seç
             </button>

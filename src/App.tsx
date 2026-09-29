@@ -1056,6 +1056,19 @@ export default function App() {
   const isSuperAdminAccount = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
   const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial");
 
+  // Misafir 7 günlük deneme hesabı kontrolü (SADECE kayıtlı/giriş yapmış misafir deneme kullanıcıları içindir, Premium veya Ziyaretçilere görünmez)
+  const isGuestTrialUser = Boolean(
+    currentUser && 
+    !isPaidPremium && 
+    isTrialActive && 
+    (hasUsedTrial || localStorage.getItem("is_guest") === "true" || localStorage.getItem("has_used_trial") === "true" || localStorage.getItem("premium_source") === "trial")
+  );
+  const isGuestTrialExpired = Boolean(
+    currentUser && 
+    !isPaidPremium && 
+    isTrialExpiredLocked
+  );
+
   // Pro özelliklere erişim kontrolü: Gerçek Premium üye VEYA aktif 7 günlük deneme üyesi
   const hasProAccess = Boolean(isPaidPremium || (isTrialActive && !isTrialExpiredLocked));
 
@@ -9143,6 +9156,8 @@ export default function App() {
             isTrialActive={isTrialActive}
             trialDaysRemaining={trialDaysRemaining}
             isTrialExpired={isTrialExpiredLocked || trialStatus?.isExpired}
+            isGuestTrialUser={isGuestTrialUser}
+            isGuestTrialExpired={isGuestTrialExpired}
             onOpenUpgradeModal={(name) => openUpgradeModal(name || "Pro Özellikler")}
           />
         )}
@@ -10946,10 +10961,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={closeUpgradeModal}
-                            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-97 transition relative z-10 flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[11px] sm:text-xs uppercase tracking-normal sm:tracking-wider rounded-xl shadow-md shadow-emerald-500/20 cursor-pointer active:scale-97 transition relative z-10 flex items-center justify-center gap-1.5 text-center truncate"
                           >
-                            <span>✨</span>
-                            <span>Ayrıcalıkların Tadını Çıkarın (Uygulamaya Dön)</span>
+                            <span className="shrink-0">✨</span>
+                            <span className="truncate">Ayrıcalıkların Tadını Çıkarın</span>
                           </button>
 
                           {/* Google Play Geri Yükle & Test Butonu */}
