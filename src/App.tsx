@@ -126,7 +126,7 @@ import { AIChat } from "./components/AIChat";
 import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
 import { GuestCheckoutAuthModal } from "./components/GuestCheckoutAuthModal";
-import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid } from "./utils/deviceSessionService";
+import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid, checkUserTrialUsedInFirestore, markTrialUsedInFirestore } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
@@ -560,6 +560,11 @@ export default function App() {
     return false;
   });
 
+  const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(() => {
+    return localStorage.getItem("has_used_trial") === "true";
+  });
+  const [isActivatingTrial, setIsActivatingTrial] = useState<boolean>(false);
+
   const [trialStatus, setTrialStatus] = useState<{
     hasTrial: boolean;
     isActive: boolean;
@@ -582,6 +587,11 @@ export default function App() {
       setIsPremium(true);
       setIsTrialExpiredLocked(false);
       return false;
+    }
+
+    if (uData?.hasUsedTrial === true || uData?.trialStartDate) {
+      setHasUsedTrial(true);
+      localStorage.setItem("has_used_trial", "true");
     }
 
     if (uData?.isPremium === true) {
@@ -635,6 +645,8 @@ export default function App() {
       if (diffDays >= 7) {
         // 7 GÜNÜ GEÇMİŞSE -> ZORUNLU KİLİTLEME!
         setIsPremium(false);
+        setHasUsedTrial(true);
+        localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("is_premium", "false");
         localStorage.setItem("is_guest", "true");
         localStorage.removeItem("premium_source");
@@ -647,6 +659,8 @@ export default function App() {
         // 7 günden az -> 7 Günlük Otomatik Premium Deneme Aktif
         setIsPremium(true);
         setIsTrialExpiredLocked(false);
+        setHasUsedTrial(true);
+        localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("is_premium", "true");
         localStorage.setItem("is_guest", "true");
         const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
@@ -674,20 +688,41 @@ export default function App() {
       localStorage.setItem("butcem_device_id", deviceId);
     }
 
+    const cleanUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+
+    // 1. Veritabanı (Firestore) Sorgusu: 1 E-posta = 1 Deneme Hakkı
+    if (cleanUser && cleanUser !== "info.borcodemetakip@gmail.com") {
+      checkUserTrialUsedInFirestore(cleanUser).then((dbRes) => {
+        if (dbRes.hasUsedTrial) {
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
+          if (dbRes.isExpired) {
+            setIsTrialExpiredLocked(true);
+          }
+        }
+      }).catch((e) => {
+        console.warn("Firestore trial check uyarısı:", e);
+      });
+    }
+
     try {
       const data = await safeFetchJson<{
         hasTrial: boolean;
+        hasUsedTrial?: boolean;
         isActive: boolean;
         isExpired: boolean;
         daysRemaining: number;
         startDate: string | null;
         endDate: string | null;
-      }>(`/api/trial/status?userId=${encodeURIComponent(currentUser || "")}&deviceId=${encodeURIComponent(deviceId)}`);
+      }>(`/api/trial/status?userId=${encodeURIComponent(currentUser || "")}&deviceId=${encodeURIComponent(deviceId)}&email=${encodeURIComponent(cleanUser)}`);
 
       if (data && typeof data.hasTrial === "boolean") {
         setTrialStatus(data);
+        if (data.hasTrial || data.hasUsedTrial) {
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
+        }
         
-        const cleanUser = (currentUser || auth.currentUser?.email || "").toLowerCase();
         if (cleanUser === "info.borcodemetakip@gmail.com") {
           setIsPremium(true);
           localStorage.setItem("is_premium", "true");
@@ -714,6 +749,9 @@ export default function App() {
           } else if (data.isExpired) {
             localStorage.removeItem("trial_end_date");
             setTrialStatus(data);
+            setIsTrialExpiredLocked(true);
+            setHasUsedTrial(true);
+            localStorage.setItem("has_used_trial", "true");
             if (pSource === "trial" || (!pSource && isPremium)) {
               setIsPremium(false);
               localStorage.setItem("is_premium", "false");
@@ -766,9 +804,12 @@ export default function App() {
 
       if (isExpired) {
         setIsPremium(false);
+        setHasUsedTrial(true);
+        localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("is_premium", "false");
         localStorage.removeItem("premium_source");
         localStorage.removeItem("trial_end_date");
+        setIsTrialExpiredLocked(true);
       } else {
         setIsPremium(true);
       }
@@ -776,6 +817,17 @@ export default function App() {
   };
 
   const handleActivateTrial = async () => {
+    const cleanEmail = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+
+    // 1. ÖNCELİKLİ DOĞRULAMA: Daha önce deneme hakkı kullanılmış mı?
+    if (hasUsedTrial || localStorage.getItem("has_used_trial") === "true" || isTrialExpiredLocked) {
+      triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
+      setHasUsedTrial(true);
+      localStorage.setItem("has_used_trial", "true");
+      return;
+    }
+
+    setIsActivatingTrial(true);
     let deviceId = localStorage.getItem("butcem_device_id");
     if (!deviceId) {
       deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
@@ -783,8 +835,29 @@ export default function App() {
     }
 
     try {
+      // 2. VERİTABANI (FIRESTORE & RTDB) KONTROLÜ
+      if (cleanEmail && cleanEmail !== "info.borcodemetakip@gmail.com") {
+        const dbCheck = await checkUserTrialUsedInFirestore(cleanEmail);
+        if (dbCheck.hasUsedTrial) {
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
+          setIsPremium(false);
+          localStorage.setItem("is_premium", "false");
+          localStorage.removeItem("premium_source");
+          localStorage.removeItem("trial_end_date");
+          setIsTrialExpiredLocked(true);
+          triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
+          setIsActivatingTrial(false);
+          return;
+        }
+      }
+
+      // 3. SUNUCU TARAFI DOĞRULAMA (/api/trial/activate)
       const data = await safeFetchJson<{
+        success?: boolean;
+        error?: string;
         hasTrial: boolean;
+        hasUsedTrial?: boolean;
         isActive: boolean;
         isExpired: boolean;
         daysRemaining: number;
@@ -794,42 +867,64 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: currentUser || "",
-          deviceId
+          userId: currentUser || auth.currentUser?.uid || "",
+          deviceId,
+          email: cleanEmail
         })
       });
 
       if (data) {
-        setTrialStatus(data);
-        if (data.isActive) {
-          setIsPremium(true);
-          localStorage.setItem("is_premium", "true");
-          localStorage.setItem("premium_source", "trial");
-          const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-          localStorage.setItem("trial_end_date", trialEndDate);
-          triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
-          return;
-        } else if (data.isExpired) {
+        if (!data.success && (data.isExpired || data.hasUsedTrial || data.error)) {
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
           setIsPremium(false);
           localStorage.setItem("is_premium", "false");
           localStorage.removeItem("premium_source");
           localStorage.removeItem("trial_end_date");
-          triggerToast("⏳ 7 günlük deneme süreniz daha önce tamamlanmıştır. Reklamlı ve kısıtlı ücretsiz plan ile devam edilmektedir.");
+          setIsTrialExpiredLocked(true);
+          triggerToast(data.error || "⚠️ 7 günlük deneme süreniz daha önce tamamlanmıştır. Lütfen bir Premium paket seçin.");
+          setIsActivatingTrial(false);
+          return;
+        }
+
+        if (data.isActive) {
+          const nowIso = data.startDate || new Date().toISOString();
+          const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          
+          // 4. VERİTABANINA hasUsedTrial = true ve trialStartDate İŞARETLE
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
+          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("premium_source", "trial");
+          localStorage.setItem("trial_end_date", trialEndDate);
+          setIsPremium(true);
+          setTrialStatus(data);
+
+          const effectiveUid = auth.currentUser?.uid || (cleanEmail ? "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
+          if (effectiveUid) {
+            await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
+          }
+
+          triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başarıyla Başlatıldı! Tüm Pro özellikler aktif edildi.");
+          setIsActivatingTrial(false);
           return;
         }
       }
     } catch (e) {
-      console.warn("Trial activation server request failed, activating locally:", e);
+      console.warn("Trial activation server request failed, evaluating local fallbacks:", e);
     }
 
-    // Local activation fallback (only if not expired before)
-    const existingEnd = localStorage.getItem("trial_end_date");
-    if (existingEnd && new Date(existingEnd).getTime() <= Date.now()) {
-      triggerToast("⏳ 7 günlük deneme süreniz dolmuştur. Reklamlı ve kısıtlı ücretsiz plan ile devam ediliyor.");
+    // Local fallback: Sadece ve sadece daha önce deneme HİÇ kullanılmamışsa
+    if (localStorage.getItem("has_used_trial") === "true") {
+      triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
+      setIsActivatingTrial(false);
       return;
     }
 
+    const nowIso = new Date().toISOString();
     const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    setHasUsedTrial(true);
+    localStorage.setItem("has_used_trial", "true");
     localStorage.setItem("is_premium", "true");
     localStorage.setItem("premium_source", "trial");
     localStorage.setItem("trial_end_date", trialEndDate);
@@ -839,10 +934,17 @@ export default function App() {
       isActive: true,
       isExpired: false,
       daysRemaining: 7,
-      startDate: new Date().toISOString(),
+      startDate: nowIso,
       endDate: trialEndDate
     });
+
+    const effectiveUid = auth.currentUser?.uid || (cleanEmail ? "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
+    if (effectiveUid) {
+      await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
+    }
+
     triggerToast("🎉 7 Günlük Ücretsiz Bütçem Pro Denemeniz Başlatıldı!");
+    setIsActivatingTrial(false);
   };
 
   const handleCancelTrial = async () => {
@@ -902,6 +1004,11 @@ export default function App() {
   const isSuperAdminAccount = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
   const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial");
 
+  // 1 E-posta = 1 Deneme Hakkı Kuralı:
+  // Eğer hasUsedTrial true ise: Deneme süresi bitmiş olsun veya olmasın,
+  // "7 Günlük Ücretsiz Denemeyi Başlat" kartı ve butonu sayfadan tamamen kaldırılır/gizlenir.
+  const canActivateTrial = !isPaidPremium && !hasUsedTrial && !isTrialExpiredLocked && !trialStatus?.hasTrial && !trialStatus?.isExpired && localStorage.getItem("has_used_trial") !== "true";
+
   // Keep subscription status & plan synchronized on modal open and app load
   useEffect(() => {
     const savedUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
@@ -932,6 +1039,20 @@ export default function App() {
         setSubscriptionType(stored);
       }
     }
+
+    // Modal açıldığında kullanıcının veritabanındaki (Firestore) hasUsedTrial durumunu anında sorgula
+    if (savedUser && savedUser !== "info.borcodemetakip@gmail.com") {
+      checkUserTrialUsedInFirestore(savedUser).then((res) => {
+        if (res.hasUsedTrial) {
+          setHasUsedTrial(true);
+          localStorage.setItem("has_used_trial", "true");
+          if (res.isExpired) {
+            setIsTrialExpiredLocked(true);
+          }
+        }
+      }).catch(() => {});
+    }
+
     setIsUpgradeModalOpen(true);
   };
 
@@ -2316,6 +2437,7 @@ export default function App() {
       isTrialExpired?: boolean;
       trialMessage?: string;
       createdAt?: string;
+      hasUsedTrial?: boolean;
     }
   ) => {
     const cleanEmail = email.trim().toLowerCase();
@@ -2326,6 +2448,11 @@ export default function App() {
     setCurrentUser(cleanEmail);
     localStorage.setItem("currentUser", cleanEmail);
     
+    if (meta?.hasUsedTrial || meta?.isTrialActive || meta?.isTrialExpired) {
+      setHasUsedTrial(true);
+      localStorage.setItem("has_used_trial", "true");
+    }
+
     if (meta?.createdAt) {
       localStorage.setItem("user_created_at", meta.createdAt);
     }
@@ -2467,6 +2594,10 @@ export default function App() {
             .then((docSnap) => {
               if (docSnap.exists()) {
                 const uData = docSnap.data();
+                if (uData.hasUsedTrial === true || uData.trialStartDate) {
+                  setHasUsedTrial(true);
+                  localStorage.setItem("has_used_trial", "true");
+                }
                 if (uData.isPremium === true) {
                   setIsPremium(true);
                   setIsTrialExpiredLocked(false);
@@ -2484,6 +2615,20 @@ export default function App() {
             .catch(() => {
               checkUserTrialExpiration(user, null);
             });
+
+          // email_xxx formatındaki dokümanı da kontrol et
+          if (cleanUserEmail && cleanUserEmail !== "info.borcodemetakip@gmail.com") {
+            const emailDocId = "email_" + cleanUserEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+            getDoc(doc(firestore, "users", emailDocId)).then((eSnap) => {
+              if (eSnap.exists()) {
+                const eData = eSnap.data();
+                if (eData?.hasUsedTrial === true || eData?.trialStartDate) {
+                  setHasUsedTrial(true);
+                  localStorage.setItem("has_used_trial", "true");
+                }
+              }
+            }).catch(() => {});
+          }
         }
 
         // Kullanıcının kayıtlı profil ismini kullanicilar/KULLANICI_UID/profil/isim düğümünden çek
@@ -10315,37 +10460,41 @@ export default function App() {
                             {promoFeature ? `"${promoFeature}" Özelliğini Açın` : "Tüm PRO Avantajları Keşfedin"}
                           </h4>
                           <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                            Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:
+                            {!canActivateTrial
+                              ? "Deneme hakkınız tamamlandığı için devam etmek için lütfen aşağıdaki Premium paketlerden birini seçin:"
+                              : "Devam etmek için aşağıdaki seçeneklerden birini tercih edebilirsiniz:"}
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUpgradeModalOpen(false);
-                              setProviderLoginInitialTab("guest_trial");
-                              setProviderLoginInitialSubMode("register");
-                              setProviderLoginOpen(true);
-                            }}
-                            className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xl">🎁</span>
-                              <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                Ücretsiz
-                              </span>
-                            </div>
-                            <div>
-                              <div className="text-xs font-black leading-tight">
-                                7 Günlük Deneme Başlat
+                        <div className={`grid ${canActivateTrial ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-2.5 pt-1`}>
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - SADECE Deneme Hakkı Olanlara */}
+                          {canActivateTrial && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUpgradeModalOpen(false);
+                                setProviderLoginInitialTab("guest_trial");
+                                setProviderLoginInitialSubMode("register");
+                                setProviderLoginOpen(true);
+                              }}
+                              className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xl">🎁</span>
+                                <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                  Ücretsiz
+                                </span>
                               </div>
-                              <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
-                                E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                              <div>
+                                <div className="text-xs font-black leading-tight">
+                                  7 Günlük Deneme Başlat
+                                </div>
+                                <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
+                                  E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                                </div>
                               </div>
-                            </div>
-                          </button>
+                            </button>
+                          )}
 
                           {/* Seçenek 2: Premium Satın Al */}
                           <button
@@ -10646,25 +10795,28 @@ export default function App() {
                     ) : (
                       /* MİSAFİR VE ÜCRETSİZ (FREE) KULLANICILAR İÇİN SATIN ALMA VE DENEME BUTONLARI */
                       <div className="space-y-3 pt-1">
-                        {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) */}
-                        <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
-                            <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
+                        {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) - SADECE Deneme Hakkı Olanlara */}
+                        {canActivateTrial && (
+                          <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
+                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
+                                KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
+                              </p>
+                              <button
+                                type="button"
+                                disabled={isActivatingTrial}
+                                onClick={handleActivateTrial}
+                                className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isActivatingTrial ? "DOĞRULANIYOR..." : "🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT"}
+                              </button>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                              KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleActivateTrial}
-                              className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97"
-                            >
-                              🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT
-                            </button>
-                          </div>
-                        </div>
+                        )}
 
                         {/* Aktif Deneme Sürümü Bilgisi (Sadece deneme sürümü aktifken gösterilir) */}
                         {trialStatus?.isActive && isPremium && localStorage.getItem("premium_source") === "trial" && (

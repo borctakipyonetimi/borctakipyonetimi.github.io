@@ -57,6 +57,14 @@
           "type": "boolean",
           "description": "Flag indicating user is on 7-day free trial or guest mode"
         },
+        "hasUsedTrial": {
+          "type": "boolean",
+          "description": "Indicates whether the user account has ever activated or used their 7-day free trial (strictly 1 trial per email/account)"
+        },
+        "trialStartDate": {
+          "type": "string",
+          "description": "ISO timestamp when the 7-day free trial was first activated"
+        },
         "activeDeviceId": {
           "type": "string",
           "description": "Unique device UUID for single concurrent device enforcement on premium accounts"

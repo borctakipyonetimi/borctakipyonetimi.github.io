@@ -34,7 +34,8 @@ import { auth, firestore, doc, getDoc } from "../utils/firebase";
 import { 
   getDeviceUuid, 
   saveUserSessionToFirestore, 
-  checkIsPremiumEmailInFirestore 
+  checkIsPremiumEmailInFirestore,
+  checkUserTrialUsedInFirestore
 } from "../utils/deviceSessionService";
 
 export type LoginPortalTab = "premium" | "guest_trial";
@@ -47,6 +48,7 @@ export interface LoginSuccessMeta {
   isTrialExpired?: boolean;
   trialMessage?: string;
   createdAt?: string;
+  hasUsedTrial?: boolean;
 }
 
 interface ProviderLoginModalProps {
@@ -428,6 +430,12 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         let determinedCreatedAt = now.toISOString();
 
         if (guestSubMode === "register") {
+          const checkTrial = await checkUserTrialUsedInFirestore(targetEmail);
+          if (checkTrial.hasUsedTrial) {
+            setIsLoading(false);
+            setError("Bu e-posta adresi için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen mevcut şifrenizle giriş yapın veya bir Premium plan seçin.");
+            return;
+          }
           setSyncLogs(prev => [...prev, "Yeni 7 Günlük Deneme hesabı oluşturuluyor..."]);
           const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
           user = credential.user;
@@ -476,6 +484,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               email: cleanUserEmail,
               isPremium: false,
               isGuest: true,
+              hasUsedTrial: true,
+              trialStartDate: determinedCreatedAt,
               createdAt: determinedCreatedAt
             }),
             new Promise(res => setTimeout(res, 1200))
@@ -488,6 +498,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         localStorage.setItem("currentUser", cleanUserEmail);
         localStorage.setItem("is_premium", isTrialActive ? "true" : "false");
         localStorage.setItem("is_guest", "true");
+        localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("user_created_at", determinedCreatedAt);
 
         if (isTrialActive) {
@@ -506,6 +517,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             isPremium: false,
             isGuest: true,
             isTrialExpired: true,
+            hasUsedTrial: true,
             createdAt: determinedCreatedAt
           });
         } else {
@@ -513,6 +525,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             isPremium: true,
             isGuest: true,
             isTrialActive: true,
+            hasUsedTrial: true,
             trialMessage: guestSubMode === "register" 
               ? "🎁 Bütçem Pro 7 Günlük Ücretsiz Deneme Süreniz Başlatıldı! Tüm PRO özellikler açık!"
               : "🎁 7 Günlük Ücretsiz Deneme Süreniz Aktif! Tüm PRO özellikleri kullanabilirsiniz.",

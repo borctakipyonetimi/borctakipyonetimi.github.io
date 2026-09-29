@@ -181,14 +181,20 @@ app.get("/api/trial/status", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
   const userId = (req.query.userId as string) || "";
   const deviceId = (req.query.deviceId as string) || "";
+  const email = ((req.query.email as string) || "").trim().toLowerCase();
   const trials = readTrials();
 
-  const key = (userId && userId.trim()) || (deviceId && deviceId.trim()) || ip;
-  const startDateStr = trials[key] || (deviceId && trials[deviceId]) || (userId && trials[userId]) || trials[ip];
+  const key = email || (userId && userId.trim()) || (deviceId && deviceId.trim()) || ip;
+  const startDateStr = (email && trials[email]) || 
+                       (userId && trials[userId]) || 
+                       (deviceId && trials[deviceId]) || 
+                       trials[ip] || 
+                       trials[key];
 
   if (!startDateStr) {
     return res.json({
       hasTrial: false,
+      hasUsedTrial: false,
       isActive: false,
       isExpired: false,
       daysRemaining: 7,
@@ -208,6 +214,7 @@ app.get("/api/trial/status", (req, res) => {
 
   res.json({
     hasTrial: true,
+    hasUsedTrial: true,
     isActive: !isExpired,
     isExpired: isExpired,
     daysRemaining: daysRemaining,
@@ -218,36 +225,62 @@ app.get("/api/trial/status", (req, res) => {
 
 app.post("/api/trial/activate", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
-  const { userId, deviceId } = req.body || {};
+  const { userId, deviceId, email } = req.body || {};
   const trials = readTrials();
-  const key = (userId && typeof userId === "string" && userId.trim()) || 
-              (deviceId && typeof deviceId === "string" && deviceId.trim()) || 
-              ip;
+  const cleanEmail = (email && typeof email === "string") ? email.trim().toLowerCase() : "";
+  const cleanUserId = (userId && typeof userId === "string") ? userId.trim() : "";
+  const cleanDeviceId = (deviceId && typeof deviceId === "string") ? deviceId.trim() : "";
+  const key = cleanEmail || cleanUserId || cleanDeviceId || ip;
 
-  // 7 günlük deneme süresi tek seferliktir; yenileme yapılmaz
-  if (!trials[key]) {
-    const nowIso = new Date().toISOString();
-    trials[key] = nowIso;
-    if (deviceId) trials[deviceId] = nowIso;
-    if (userId) trials[userId] = nowIso;
-    trials[ip] = nowIso;
-    writeTrials(trials);
+  // 1. Önce bu e-posta, kullanıcı veya cihaz daha önce deneme kullandı mı kesin kontrol et
+  const existingStartDate = (cleanEmail && trials[cleanEmail]) ||
+                            (cleanUserId && trials[cleanUserId]) ||
+                            (cleanDeviceId && trials[cleanDeviceId]) ||
+                            trials[ip] ||
+                            trials[key];
+
+  if (existingStartDate) {
+    // ⚠️ 1 E-posta / Cihaz = 1 Deneme Hakkı! Tekrar deneme başlatılmasına kesinlikle izin verilmez!
+    const startDate = new Date(existingStartDate);
+    const now = new Date();
+    const diffTime = now.getTime() - startDate.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+    const isExpired = diffDays >= 7;
+    const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    return res.status(403).json({
+      success: false,
+      error: "Bu e-posta veya cihaz için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.",
+      hasTrial: true,
+      hasUsedTrial: true,
+      isActive: !isExpired,
+      isExpired: isExpired,
+      daysRemaining: daysRemaining,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
   }
 
-  const startDate = new Date(trials[key]);
-  const now = new Date();
-  const diffTime = now.getTime() - startDate.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
-  const isExpired = diffDays >= 7;
-  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // İlk kez deneme başlatılıyor
+  const nowIso = new Date().toISOString();
+  trials[key] = nowIso;
+  if (cleanEmail) trials[cleanEmail] = nowIso;
+  if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
+  if (cleanUserId) trials[cleanUserId] = nowIso;
+  trials[ip] = nowIso;
+  writeTrials(trials);
+
+  const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   res.json({
+    success: true,
     hasTrial: true,
-    isActive: !isExpired,
-    isExpired: isExpired,
-    daysRemaining: daysRemaining,
-    startDate: startDate.toISOString(),
+    hasUsedTrial: true,
+    isActive: true,
+    isExpired: false,
+    daysRemaining: 7,
+    startDate: nowIso,
     endDate: endDate.toISOString(),
   });
 });

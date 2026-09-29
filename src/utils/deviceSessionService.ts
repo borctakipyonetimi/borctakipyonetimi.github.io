@@ -57,6 +57,8 @@ export interface SaveSessionParams {
   premiumExpiryDate?: string;
   productId?: string;
   createdAt?: string;
+  hasUsedTrial?: boolean;
+  trialStartDate?: string;
 }
 
 /**
@@ -116,6 +118,13 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
     lastLoginAt: now
   };
 
+  if (params.hasUsedTrial !== undefined) {
+    userDocData.hasUsedTrial = params.hasUsedTrial;
+  }
+  if (params.trialStartDate !== undefined) {
+    userDocData.trialStartDate = params.trialStartDate;
+  }
+
   if (effectivePremium) {
     if (premiumType) userDocData.premiumType = premiumType;
     if (premiumExpiryDate) userDocData.premiumExpiryDate = premiumExpiryDate;
@@ -137,6 +146,8 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
       userId,
       isPremium: effectivePremium,
       isGuest: effectiveGuest,
+      hasUsedTrial: userDocData.hasUsedTrial,
+      trialStartDate: userDocData.trialStartDate,
       createdAt: determinedCreatedAt,
       premiumType: userDocData.premiumType || "belirtilmedi",
       premiumExpiryDate: userDocData.premiumExpiryDate || "belirtilmedi",
@@ -153,6 +164,8 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
       isGuest: effectiveGuest,
       createdAt: determinedCreatedAt,
       updatedAt: now,
+      ...(params.hasUsedTrial !== undefined ? { hasUsedTrial: params.hasUsedTrial } : {}),
+      ...(params.trialStartDate !== undefined ? { trialStartDate: params.trialStartDate } : {}),
       ...(effectivePremium && deviceId ? { activeDeviceId: deviceId } : {}),
       ...(effectivePremium && premiumType ? { premiumType, premiumPlan: premiumType } : {}),
       ...(effectivePremium && premiumExpiryDate ? { premiumExpiryDate } : {}),
@@ -427,4 +440,141 @@ export async function checkIsPremiumEmailInFirestore(email: string): Promise<{ e
     isPremium: isPremiumUser
   };
 }
+
+/**
+ * Kullanıcının e-posta adresi veya UID'sine bağlı 7 günlük deneme hakkını (hasUsedTrial) Firestore ve RTDB'den sorgular.
+ * 1 E-posta = 1 Deneme Hakkı kuralını katı şekilde uygular.
+ */
+export async function checkUserTrialUsedInFirestore(
+  emailOrUid: string
+): Promise<{ hasUsedTrial: boolean; trialStartDate?: string; isExpired?: boolean; daysRemaining?: number }> {
+  const cleanInput = (emailOrUid || "").trim().toLowerCase();
+  if (!cleanInput) {
+    return { hasUsedTrial: false };
+  }
+
+  // info.borcodemetakip@gmail.com geliştirici hesabıdır
+  if (cleanInput === "info.borcodemetakip@gmail.com") {
+    return { hasUsedTrial: false, isExpired: false, daysRemaining: 7 };
+  }
+
+  try {
+    // 1. Eğer e-posta içeriyorsa users koleksiyonunda sorgula
+    if (cleanInput.includes("@")) {
+      const usersCol = collection(firestore, "users");
+      const qUsers = query(usersCol, where("email", "==", cleanInput));
+      const qSnap = await getDocs(qUsers);
+      for (const d of qSnap.docs) {
+        const u = d.data();
+        if (u?.hasUsedTrial === true || u?.trialStartDate) {
+          const startMs = new Date(u.trialStartDate || u.createdAt || Date.now()).getTime();
+          const diffDays = (Date.now() - startMs) / (1000 * 60 * 60 * 24);
+          return {
+            hasUsedTrial: true,
+            trialStartDate: u.trialStartDate || u.createdAt,
+            isExpired: diffDays >= 7,
+            daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+          };
+        }
+      }
+
+      // email_xxx doğrudan doküman ID kontrolü
+      const emailDocId = "email_" + cleanInput.replace(/[^a-zA-Z0-9_]/g, "_");
+      const directSnap = await getDoc(doc(firestore, "users", emailDocId));
+      if (directSnap.exists()) {
+        const u = directSnap.data();
+        if (u?.hasUsedTrial === true || u?.trialStartDate) {
+          const startMs = new Date(u.trialStartDate || u.createdAt || Date.now()).getTime();
+          const diffDays = (Date.now() - startMs) / (1000 * 60 * 60 * 24);
+          return {
+            hasUsedTrial: true,
+            trialStartDate: u.trialStartDate || u.createdAt,
+            isExpired: diffDays >= 7,
+            daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+          };
+        }
+      }
+    }
+
+    // 2. Doğrudan UID dokümanı kontrolü
+    const uidSnap = await getDoc(doc(firestore, "users", cleanInput));
+    if (uidSnap.exists()) {
+      const u = uidSnap.data();
+      if (u?.hasUsedTrial === true || u?.trialStartDate) {
+        const startMs = new Date(u.trialStartDate || u.createdAt || Date.now()).getTime();
+        const diffDays = (Date.now() - startMs) / (1000 * 60 * 60 * 24);
+        return {
+          hasUsedTrial: true,
+          trialStartDate: u.trialStartDate || u.createdAt,
+          isExpired: diffDays >= 7,
+          daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+        };
+      }
+    }
+
+    // 3. Realtime Database kontrolü
+    const rtdbKey = cleanInput.replace(/[\.\$\#\[\]\/]/g, "_");
+    const rSnap = await get(ref(db, `users/${rtdbKey}`));
+    if (rSnap.exists()) {
+      const val = rSnap.val();
+      if (val?.hasUsedTrial === true || val?.trialStartDate) {
+        const startMs = new Date(val.trialStartDate || val.createdAt || Date.now()).getTime();
+        const diffDays = (Date.now() - startMs) / (1000 * 60 * 60 * 24);
+        return {
+          hasUsedTrial: true,
+          trialStartDate: val.trialStartDate || val.createdAt,
+          isExpired: diffDays >= 7,
+          daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[DeviceSession] checkUserTrialUsedInFirestore uyarısı:", err);
+  }
+
+  return { hasUsedTrial: false };
+}
+
+/**
+ * Kullanıcı "7 Günlük Denemeyi Başlat" butonuna ilk kez tıkladığında
+ * veritabanında (Firestore users/{userId}, direct doc ve RTDB) hasUsedTrial = true ve trialStartDate alanlarını kalıcı olarak işaretler.
+ */
+export async function markTrialUsedInFirestore(
+  userId: string,
+  email?: string,
+  trialStartDate?: string
+): Promise<void> {
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const startDate = trialStartDate || new Date().toISOString();
+  const updatePayload = {
+    hasUsedTrial: true,
+    trialStartDate: startDate,
+    updatedAt: new Date().toISOString()
+  };
+
+  try {
+    // 1. users/{userId} güncelle
+    if (userId) {
+      await setDoc(doc(firestore, "users", userId), updatePayload, { merge: true });
+    }
+    // 2. email varsa email_xxx dokümanını da güncelle
+    if (cleanEmail) {
+      const emailDocId = "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+      await setDoc(doc(firestore, "users", emailDocId), { ...updatePayload, email: cleanEmail }, { merge: true });
+    }
+    // 3. Realtime Database güncelle
+    if (userId) {
+      await update(ref(db, `kullanicilar/${userId}`), updatePayload).catch(() => {});
+      await update(ref(db, `users/${userId}`), updatePayload).catch(() => {});
+    }
+    if (cleanEmail) {
+      const rtdbKey = cleanEmail.replace(/[\.\$\#\[\]\/]/g, "_");
+      await update(ref(db, `users/${rtdbKey}`), updatePayload).catch(() => {});
+    }
+    localStorage.setItem("has_used_trial", "true");
+  } catch (err) {
+    console.warn("[DeviceSession] markTrialUsedInFirestore uyarısı:", err);
+  }
+}
+
 
