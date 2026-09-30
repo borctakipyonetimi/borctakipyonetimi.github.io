@@ -401,29 +401,41 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // 1. Initial immediate fetch upon mount
   useEffect(() => {
-    updateRatesFromAPI(true);
+    updateRatesFromAPI(true).catch(() => {});
   }, [updateRatesFromAPI]);
 
-  // 2. Automatic periodic refresh ticker (every 30 seconds)
+  // 2. Automatic periodic refresh ticker (60 seconds, pauses when tab is hidden to prevent memory leaks and crashes)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNextRefreshSec((prev) => {
-        if (prev <= 1) {
-          updateRatesFromAPI(false);
-          return 30;
+    let intervalId: any = null;
+
+    const startTicker = () => {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        // Arka planda çalışırken gereksiz re-render ve ağ isteklerini dondur (bellek sızıntısı ve crash koruması)
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
         }
-        return prev - 1;
-      });
-    }, 1000);
+        setNextRefreshSec((prev) => {
+          if (prev <= 1) {
+            updateRatesFromAPI(false).catch(() => {});
+            return 60;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    };
 
-    return () => clearInterval(interval);
-  }, [updateRatesFromAPI]);
+    startTicker();
 
-  // 3. Re-fetch when browser window regains focus or visibility
-  useEffect(() => {
     const handleFocusOrVisibility = () => {
-      if (document.visibilityState === "visible") {
-        updateRatesFromAPI(false);
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        updateRatesFromAPI(false).catch(() => {});
+        startTicker();
+      } else {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
       }
     };
 
@@ -431,6 +443,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     document.addEventListener("visibilitychange", handleFocusOrVisibility);
 
     return () => {
+      if (intervalId) clearInterval(intervalId);
       window.removeEventListener("focus", handleFocusOrVisibility);
       document.removeEventListener("visibilitychange", handleFocusOrVisibility);
     };

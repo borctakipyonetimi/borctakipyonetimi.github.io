@@ -378,18 +378,24 @@ export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
  * Capacitor bildirim tıklama ve alma dinleyicilerini kurar.
  */
 export function setupCapacitorNotificationListeners(onAction?: (notification: any) => void) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !isCapacitorAvailable()) return;
   try {
-    LocalNotifications.addListener("localNotificationReceived", (notification) => {
+    const p1 = LocalNotifications.addListener("localNotificationReceived", (notification) => {
       console.log("[Capacitor LocalNotifications] Bildirim ekrana ulaştı:", notification);
     });
+    if (p1 && typeof (p1 as any).catch === "function") {
+      (p1 as any).catch(() => {});
+    }
 
-    LocalNotifications.addListener("localNotificationActionPerformed", (action) => {
+    const p2 = LocalNotifications.addListener("localNotificationActionPerformed", (action) => {
       console.log("[Capacitor LocalNotifications] Bildirime tıklandı:", action);
       if (onAction) {
         onAction(action.notification);
       }
     });
+    if (p2 && typeof (p2 as any).catch === "function") {
+      (p2 as any).catch(() => {});
+    }
   } catch (e) {
     // Desteklenmeyen ortamlarda sessizce geç
   }

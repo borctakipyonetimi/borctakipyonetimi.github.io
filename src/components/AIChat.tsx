@@ -375,6 +375,22 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
   }, [messages, loading]);
 
+  // Clean-up on unmount: Abort any active speech recognition and cancel ongoing speech synthesis
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (_) {}
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (_) {}
+      }
+    };
+  }, []);
+
   // Handle Speech Recognition for voice input in chat
   const toggleSpeechRecognition = () => {
     if (isListening) {
@@ -1117,7 +1133,8 @@ export const AIChat: React.FC<AIChatProps> = ({
     const timeStr = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
     const bubbleText = displayText || question;
     const newMsg: ChatMessage = { sender: "user", text: bubbleText, timestamp: timeStr };
-    setMessages((prev) => [...prev, newMsg]);
+    // Bellek şişmesini engelle: Maksimum 25 mesaj tut
+    setMessages((prev) => [...prev, newMsg].slice(-25));
     setInputValue("");
     setLoading(true);
 
@@ -1125,6 +1142,33 @@ export const AIChat: React.FC<AIChatProps> = ({
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    // Bellekte devasa JSON nesneleri oluşturmamak için context verilerini hafiflet
+    const lightweightExpenses = (expenses || []).slice(0, 50).map((e) => ({
+      id: e.id,
+      amount: Number(e.amount) || 0,
+      categoryId: e.categoryId,
+      date: e.date,
+      description: (e.description || "").slice(0, 60)
+    }));
+
+    const lightweightDebts = (debts || []).map((d) => ({
+      id: d.id,
+      name: (d.name || "").slice(0, 60),
+      amount: Number(d.amount) || 0,
+      paid: Number(d.paid) || 0,
+      category: d.category,
+      dueDate: d.dueDate
+    }));
+
+    const lightweightInsts = (installmentDebts || []).map((i) => ({
+      id: i.id,
+      name: (i.name || "").slice(0, 60),
+      totalAmount: Number(i.totalAmount) || 0,
+      installmentCount: Number(i.installmentCount) || 1,
+      paidInstallmentCount: Number(i.paidInstallmentCount) || 0,
+      firstDueDate: i.firstDueDate
+    }));
 
     try {
       const response = await fetch(getApiUrl("/api/chat"), {
@@ -1134,13 +1178,13 @@ export const AIChat: React.FC<AIChatProps> = ({
         body: JSON.stringify({
           message: question,
           context: {
-            debts,
+            debts: lightweightDebts,
             incomes,
-            expenses,
-            installmentDebts,
+            expenses: lightweightExpenses,
+            installmentDebts: lightweightInsts,
             stats,
-            contacts,
-            contactTransactions: contactTxs,
+            contacts: (contacts || []).slice(0, 30),
+            contactTransactions: (contactTxs || []).slice(0, 40),
             selectedMonth,
             selectedYear,
             rates,
@@ -1158,20 +1202,15 @@ export const AIChat: React.FC<AIChatProps> = ({
 
       const data = await response.json();
       const botTime = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-      setMessages((prev) => [...prev, { sender: "bot", text: data.reply, timestamp: botTime }]);
+      const botReplyMsg: ChatMessage = { sender: "bot", text: data.reply, timestamp: botTime };
+      setMessages((prev) => [...prev, botReplyMsg].slice(-25));
     } catch (err: any) {
       clearTimeout(timeoutId);
       console.warn("[AIChat Frontend Fallback] Backend chat response fallback:", err);
       const fallbackReply = generateClientFallbackReply(question);
       const botTime = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          text: fallbackReply,
-          timestamp: botTime
-        },
-      ]);
+      const fallbackMsg: ChatMessage = { sender: "bot", text: fallbackReply, timestamp: botTime };
+      setMessages((prev) => [...prev, fallbackMsg].slice(-25));
     } finally {
       setLoading(false);
     }

@@ -95,19 +95,38 @@ export async function withTimeout<T>(
   ms: number = 7000,
   timeoutMessage: string = "Zaman aşımı: Sunucu belirtilen sürede yanıt vermedi."
 ): Promise<T> {
-  let timer: any;
+  let timer: any = null;
+  let settled = false;
+
+  // Gecikmeli veya sonradan gelen hataların yakalanmasını sağla (unhandled rejection önleyici)
+  promise.catch(() => {});
+
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(timeoutMessage));
+      if (!settled) {
+        settled = true;
+        reject(new Error(timeoutMessage));
+      }
     }, ms);
   });
 
   try {
-    const result = await Promise.race([promise, timeoutPromise]);
-    clearTimeout(timer);
+    const result = await Promise.race([
+      promise.finally(() => {
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      }),
+      timeoutPromise
+    ]);
     return result;
   } catch (err) {
-    clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
     throw err;
   }
 }

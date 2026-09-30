@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Lock,
@@ -51,10 +51,27 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
   const [recoveryError, setRecoveryError] = useState("");
 
   const isBiometricActive = false; // Biometrics girişi şimdilik kapalı (Çok Yakında)
+  const activeTimeoutsRef = useRef<any[]>([]);
+
+  const safeSetTimeout = (fn: () => void, delay: number) => {
+    const id = setTimeout(() => {
+      activeTimeoutsRef.current = activeTimeoutsRef.current.filter((t) => t !== id);
+      fn();
+    }, delay);
+    activeTimeoutsRef.current.push(id);
+    return id;
+  };
+
+  useEffect(() => {
+    return () => {
+      activeTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      activeTimeoutsRef.current = [];
+    };
+  }, []);
 
   const triggerBiometricUnlock = async () => {
     setErrorMsg("Biyometrik giriş (Parmak İzi / Yüz Tanıma) çok yakında aktif olacaktır. Lütfen PIN kodunuzu giriniz.");
-    setTimeout(() => setErrorMsg(""), 3500);
+    safeSetTimeout(() => setErrorMsg(""), 3500);
   };
 
   useEffect(() => {
@@ -92,7 +109,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
 
   const shakeAnimation = () => {
     setShakeCode(true);
-    setTimeout(() => setShakeCode(false), 500);
+    safeSetTimeout(() => setShakeCode(false), 500);
   };
 
   const handlePinKeyPress = (val: string) => {
@@ -117,7 +134,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
     if (nextPin.length === 4) {
       if (nextPin === settings.pinCode) {
         setSuccessMsg("Kilit açıldı! 🔓");
-        setTimeout(() => {
+        safeSetTimeout(() => {
           onUnlockSuccess();
         }, 500);
       } else {
@@ -154,7 +171,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
     if (savedAnswer && providedAnswer === savedAnswer) {
       // Successful verification
       setSuccessMsg("Yanıt Doğrulandı! Güvenlik Kilidi Aşılıyor... 🔓");
-      setTimeout(() => {
+      safeSetTimeout(() => {
         setIsRecovering(false);
         setAttempts(0);
         onUnlockSuccess();
@@ -164,7 +181,7 @@ export const SecurityLockOverlay: React.FC<SecurityLockOverlayProps> = ({ onUnlo
       const backupAnswer = "bütçem";
       if (providedAnswer === backupAnswer) {
         setSuccessMsg("Doğrulandı! Güvenlik Kilidi Aşılıyor... 🔓");
-        setTimeout(() => {
+        safeSetTimeout(() => {
           setIsRecovering(false);
           setAttempts(0);
           onUnlockSuccess();

@@ -5,6 +5,7 @@
 
 import React from "react";
 import { AlertTriangle, RefreshCw, ShieldCheck } from "lucide-react";
+import { recordCrash } from "../utils/crashLogger.ts";
 
 interface Props {
   children: React.ReactNode;
@@ -34,6 +35,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
   public override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[Bütçem Pro ErrorBoundary] Yakalanan sistem hatası:", error, errorInfo);
     this.setState({ errorInfo });
+    try {
+      recordCrash({
+        type: "REACT_ERROR_BOUNDARY",
+        message: error.message || "React bileşen render hatası",
+        stack: error.stack,
+        componentStack: errorInfo.componentStack || undefined,
+      });
+    } catch (_) {}
   }
 
   private handleRestart = () => {

@@ -28,6 +28,7 @@ import {
   goOnline, 
   enableNetwork 
 } from "./utils/firebase";
+import { recordCrash } from "./utils/crashLogger";
 import { compressAndResizeImage } from "./utils/imageUtils";
 import { Purchases, PLAY_PRODUCTS, calculatePlanExpiry } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
@@ -2116,26 +2117,31 @@ export default function App() {
     };
 
     // Immediate sync on state change
-    syncStateWithSW();
+    syncStateWithSW().catch(() => {});
 
     // Trigger on visibility change (when user backgrounds app or locks screen)
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        syncStateWithSW();
+        syncStateWithSW().catch(() => {});
       }
     };
 
     // Trigger on page blur & before unload
     const handleBlur = () => {
-      syncStateWithSW();
+      syncStateWithSW().catch(() => {});
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("beforeunload", handleBlur);
 
-    // Heartbeat sync every 60 seconds
-    const interval = setInterval(syncStateWithSW, 60000);
+    // Heartbeat sync every 60 seconds (only when app is in foreground to prevent background memory leaks)
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      syncStateWithSW().catch(() => {});
+    }, 60000);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -2145,105 +2151,120 @@ export default function App() {
     };
   }, [alarms, debts, installmentDebts, currentUser]);
 
-  // High-Precision Real-time Automated Alarm Checking Engine
+  // High-Precision Real-time Automated Alarm Checking Engine (Protected & Memory-Optimized)
   useEffect(() => {
     const checkScheduledAlarms = () => {
-      const now = new Date();
-      const nowTime = now.getTime();
-      const currentAlarms = alarmsRef.current;
-      const currentDebts = debtsRef.current;
-      const currentInsts = installmentDebtsRef.current;
-
-      // 1. Ödenmiş borçlara veya bitmiş taksitlere ait eski alarmları tespit edip donanımdan iptal et ve listeden arındır
-      const activeUnpaidAlarms = currentAlarms.filter((a) => {
-        if (a.debtId) {
-          const matchingDebt = currentDebts.find((d) => d.id === a.debtId);
-          if (matchingDebt && Number(matchingDebt.paid || 0) >= Number(matchingDebt.amount || 0)) {
-            cancelCapacitorAlarm(a.debtId).catch(() => {});
-            cancelAndroidDebtAlarm(a.debtId);
-            return false;
-          }
-          const matchingInst = currentInsts.find((i) => i.id === a.debtId);
-          if (matchingInst && Number(matchingInst.paidInstallmentCount || 0) >= Number(matchingInst.installmentCount || 1)) {
-            cancelCapacitorAlarm(800000 + a.debtId).catch(() => {});
-            cancelAndroidDebtAlarm(a.debtId);
-            return false;
-          }
+      try {
+        // Ekran kilitliyken veya sekme arkadayken gereksiz döngüyü atla (bellek ve pil optimizasyonu)
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
         }
-        return true;
-      });
 
-      if (activeUnpaidAlarms.length !== currentAlarms.length) {
-        setAlarms(activeUnpaidAlarms);
-      }
+        const now = new Date();
+        const nowTime = now.getTime();
+        const currentAlarms = alarmsRef.current || [];
+        const currentDebts = debtsRef.current || [];
+        const currentInsts = installmentDebtsRef.current || [];
 
-      // 2. Vadesi gelmiş ve henüz ödenmemiş aktif alarmları filtrele
-      const dueAlarms = activeUnpaidAlarms.filter((a) => {
-        if (!a.date) return false;
-        const alarmTime = parseLocalOrUTCString(a.date).getTime();
-        return !isNaN(alarmTime) && alarmTime <= nowTime;
-      });
-
-      if (dueAlarms.length > 0) {
-        console.log("TRIGGERED ALARMS DETECTED:", dueAlarms);
-        const dueIds = dueAlarms.map((a) => a.id);
-        
-        // Filter out these fired alarms from active alarms list
-        const remainingAlarms = activeUnpaidAlarms.filter((a) => !dueIds.includes(a.id));
-        
-        let currentNotifs = [...notificationsRef.current];
-        
-        dueAlarms.forEach((a) => {
-          // Add detailed notification item to Bildirim Paneli
-          const nextId = currentNotifs.length > 0 ? Math.max(...currentNotifs.map((n) => n.id)) + 1 : 1;
-          const newNotif: NotificationItem = {
-            id: nextId,
-            title: `⏰ HATIRLATICI SİNYALİ: ${a.title} (Ödeme Tarihi Geldi)`
-          };
-          currentNotifs = [newNotif, ...currentNotifs];
-
-          // Borç / alarm ID'sini kapsayan benzersiz ve sabit id parametresi ver (Android aynı ID'ye sahip alarmları ezer ve kesinlikle sadece 1 defa basar)
-          const fixedAlarmId = Math.abs(Number(a.debtId || a.id));
-
-          // Trigger sound/vibe + general system overlay push notifications
-          sendSystemNotification(
-            "Ödeme Zamanı Geldi! ⏰",
-            `${a.title}`,
-            false, // skip extra manual disk commits inside sendSystemNotification since we do saveAllToUser below
-            fixedAlarmId
-          );
-
-          // Force local app text toast prompt
-          triggerToast(`⏰ Hatırlatıcı Sinyali: ${a.title}`);
+        // 1. Ödenmiş borçlara veya bitmiş taksitlere ait eski alarmları tespit edip donanımdan iptal et ve listeden arındır
+        const activeUnpaidAlarms = currentAlarms.filter((a) => {
+          if (a.debtId) {
+            const matchingDebt = currentDebts.find((d) => d.id === a.debtId);
+            if (matchingDebt && Number(matchingDebt.paid || 0) >= Number(matchingDebt.amount || 0)) {
+              cancelCapacitorAlarm(a.debtId).catch(() => {});
+              cancelAndroidDebtAlarm(a.debtId);
+              return false;
+            }
+            const matchingInst = currentInsts.find((i) => i.id === a.debtId);
+            if (matchingInst && Number(matchingInst.paidInstallmentCount || 0) >= Number(matchingInst.installmentCount || 1)) {
+              cancelCapacitorAlarm(800000 + a.debtId).catch(() => {});
+              cancelAndroidDebtAlarm(a.debtId);
+              return false;
+            }
+          }
+          return true;
         });
 
-        // Set states atomically
-        setAlarms(remainingAlarms);
-        setNotifications(currentNotifs);
+        if (activeUnpaidAlarms.length !== currentAlarms.length) {
+          setAlarms(activeUnpaidAlarms);
+        }
 
-        // Perform cohesive disk state commit
-        saveAllToUser(
-          debtsRef.current,
-          incomesRef.current,
-          remainingAlarms,
-          currentNotifs,
-          installmentDebtsRef.current,
-          paymentsRef.current,
-          expensesRef.current,
-          expenseCategoriesRef.current
-        );
+        // 2. Vadesi gelmiş ve henüz ödenmemiş aktif alarmları filtrele
+        const dueAlarms = activeUnpaidAlarms.filter((a) => {
+          if (!a.date) return false;
+          const alarmTime = parseLocalOrUTCString(a.date).getTime();
+          return !isNaN(alarmTime) && alarmTime <= nowTime;
+        });
+
+        if (dueAlarms.length > 0) {
+          console.log("TRIGGERED ALARMS DETECTED:", dueAlarms);
+          const dueIds = dueAlarms.map((a) => a.id);
+          
+          // Filter out these fired alarms from active alarms list
+          const remainingAlarms = activeUnpaidAlarms.filter((a) => !dueIds.includes(a.id));
+          
+          let currentNotifs = [...notificationsRef.current];
+          
+          dueAlarms.forEach((a) => {
+            // Add detailed notification item to Bildirim Paneli
+            const nextId = currentNotifs.length > 0 ? Math.max(...currentNotifs.map((n) => n.id)) + 1 : 1;
+            const newNotif: NotificationItem = {
+              id: nextId,
+              title: `⏰ HATIRLATICI SİNYALİ: ${a.title} (Ödeme Tarihi Geldi)`
+            };
+            currentNotifs = [newNotif, ...currentNotifs];
+
+            // Borç / alarm ID'sini kapsayan benzersiz ve sabit id parametresi ver
+            const fixedAlarmId = Math.abs(Number(a.debtId || a.id));
+
+            // Trigger sound/vibe + general system overlay push notifications
+            sendSystemNotification(
+              "Ödeme Zamanı Geldi! ⏰",
+              `${a.title}`,
+              false,
+              fixedAlarmId
+            );
+
+            // Force local app text toast prompt
+            triggerToast(`⏰ Hatırlatıcı Sinyali: ${a.title}`);
+          });
+
+          // Set states atomically
+          setAlarms(remainingAlarms);
+          setNotifications(currentNotifs);
+
+          // Perform cohesive disk state commit
+          saveAllToUser(
+            debtsRef.current,
+            incomesRef.current,
+            remainingAlarms,
+            currentNotifs,
+            installmentDebtsRef.current,
+            paymentsRef.current,
+            expensesRef.current,
+            expenseCategoriesRef.current
+          );
+        }
+      } catch (alarmErr: any) {
+        console.warn("[checkScheduledAlarms] Yakalanan sistem hatası:", alarmErr);
+        recordCrash({
+          type: "MANUAL_LOG",
+          message: `checkScheduledAlarms hatası: ${alarmErr?.message || alarmErr}`,
+          stack: alarmErr?.stack
+        });
       }
     };
 
     // Run initial instant check right away on load/resume
     checkScheduledAlarms();
 
-    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 2000); // 2-second check rate gives ultra-rapid responsiveness
+    // 10 saniyelik kontrollü periyot (2 saniyeden 10 saniyeye optimize edildi, bellek ve pil tüketimini korur)
+    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 10000);
 
     // Instant check when user unlocks their phone / turns on their screen and returns to the app
     const handleVisibilityChange = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        console.log("Device woke up or tab focused - running instant high precision alarms check...");
+        console.log("Device woke up or tab focused - running instant alarms check...");
         checkScheduledAlarms();
       }
     };
@@ -2849,7 +2870,7 @@ export default function App() {
           setIsPricingLoading(false);
         }
       };
-      initAndFetchPlayPricing();
+      initAndFetchPlayPricing().catch(() => {});
     }
   }, [isUpgradeModalOpen]);
 
@@ -2904,7 +2925,7 @@ export default function App() {
         // Web ortamı için güvenle yutulur
       }
     };
-    applyNativeStatusBar();
+    applyNativeStatusBar().catch(() => {});
 
     if (darkMode) {
       document.documentElement.classList.add("dark");
@@ -3303,7 +3324,10 @@ export default function App() {
       }
     };
 
-    loadData();
+    loadData().catch((err) => {
+      console.warn("[loadData] Veri yükleme hatası, yerel hafızaya geçiliyor:", err);
+      loadFromLocalStorage();
+    });
 
     return () => {
       active = false;
@@ -3479,208 +3503,223 @@ export default function App() {
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
     const checkAndTriggerPushReminders = async () => {
-      if (!pushNotificationsEnabled) return;
+      try {
+        if (!pushNotificationsEnabled) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
+        }
 
-      const currentDebts = debtsRef.current || [];
-      const currentInsts = installmentDebtsRef.current || [];
-      if (currentDebts.length === 0 && currentInsts.length === 0) return;
+        const currentDebts = debtsRef.current || [];
+        const currentInsts = installmentDebtsRef.current || [];
+        if (currentDebts.length === 0 && currentInsts.length === 0) return;
 
-      const now = new Date();
-      const currentHour = now.getHours();
-      const nowMs = now.getTime();
+        const now = new Date();
+        const currentHour = now.getHours();
+        const nowMs = now.getTime();
 
-      // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
-      if (currentHour < 8 || currentHour >= 23) return;
+        // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
+        if (currentHour < 8 || currentHour >= 23) return;
 
-      // --- 12 SAAT KİLİDİ: 'Günde 2 kez' Bildirim Ayarı İçin Kesin Zaman Damgası Engeli ---
-      const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 milisaniye
-      const isTwiceDaily = !pushFrequency || pushFrequency === "2";
-      const lastTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
+        // --- 12 SAAT KİLİDİ: 'Günde 2 kez' Bildirim Ayarı İçin Kesin Zaman Damgası Engeli ---
+        const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 milisaniye
+        const isTwiceDaily = !pushFrequency || pushFrequency === "2";
+        const lastTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
 
-      // Arka plan servisi Android yüzünden her 15 dakikada bir uyandığında kontrol et: Şimdiki Zaman - sonGundeIkiBildirimZamani.
-      // Eğer aradan geçen süre tam 12 saatten (43.200.000 milisaniye) az ise bildirim gönderme fonksiyonunu kesinlikle İPTAL ET ve uykuya dön!
-      if (isTwiceDaily && lastTwiceDailyTime > 0 && (nowMs - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
-        const remainingMinutes = Math.ceil((TWELVE_HOURS_MS - (nowMs - lastTwiceDailyTime)) / 60000);
-        console.log(`[12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingMinutes} dk / ${(remainingMinutes / 60).toFixed(1)} saat kaldı). Bildirim gönderme KESİNLİKLE İPTAL EDİLDİ ve uykuya dönüldü.`);
-        return;
-      }
+        if (isTwiceDaily && lastTwiceDailyTime > 0 && (nowMs - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
+          const remainingMinutes = Math.ceil((TWELVE_HOURS_MS - (nowMs - lastTwiceDailyTime)) / 60000);
+          console.log(`[12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim gönderme ertelendi.`);
+          return;
+        }
 
-      // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (15 Dk Engelini Aş) ---
-      // Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden oku (ör. Günde 2 Kez = 12 saat = 43.200.000 ms)
-      const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
-      const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle ---
+        const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
+        const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
 
-      // Arka plan servisi 15 dakikada bir uyandığında kontrol et: Şimdiki Zaman - sonGenelBildirimZamani.
-      // Eğer aradan geçen süre kullanıcının seçtiği saat periyodundan az ise bildirim fırlatmayı doğrudan İPTAL ET ve uykuya dön!
-      if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
-        const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
-        console.log(`[Akıllı Engel] Arka plan döngüsü periyodu henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim fırlatma İPTAL EDİLDİ ve uykuya dönüldü.`);
-        return;
-      }
+        if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
+          const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
+          console.log(`[Akıllı Engel] Arka plan döngüsü periyodu henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim fırlatma ertelendi.`);
+          return;
+        }
 
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
-      // --- 1. Adım: Tüm borçları ve taksitleri gün farkına göre tara ---
-      interface ScannedDebtItem {
-        itemType: "debt" | "installment";
-        originalId: number;
-        name: string;
-        category?: string;
-        amount: number;
-        daysLeft: number;
-        sonBildirimZamani?: number;
-        sonGecikmeBildirimZamani?: number;
-      }
+        // --- 1. Adım: Tüm borçları ve taksitleri gün farkına göre tara ---
+        interface ScannedDebtItem {
+          itemType: "debt" | "installment";
+          originalId: number;
+          name: string;
+          category?: string;
+          amount: number;
+          daysLeft: number;
+          sonBildirimZamani?: number;
+          sonGecikmeBildirimZamani?: number;
+        }
 
-      const scannedItems: ScannedDebtItem[] = [];
+        const scannedItems: ScannedDebtItem[] = [];
 
-      currentDebts.forEach((d) => {
-        if (!d) return;
-        const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
-        if (isPaid) return; // Arka plan servisinin ödenmiş borçlar için kesinlikle yeni bildirim üretmesini engelle
-        if (!d.dueDate) return;
-        try {
-          const [year, month, day] = d.dueDate.split("-").map(Number);
-          const due = new Date(year, month - 1, day, 0, 0, 0, 0);
-          const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          scannedItems.push({
-            itemType: "debt",
-            originalId: d.id,
-            name: d.name || "Borç",
-            category: d.category || "",
-            amount: (Number(d.amount) || 0) - (Number(d.paid) || 0),
-            daysLeft: diffDays,
-            sonBildirimZamani: d.sonBildirimZamani,
-            sonGecikmeBildirimZamani: d.sonGecikmeBildirimZamani
-          });
-        } catch (_) {}
-      });
-
-      currentInsts.forEach((inst) => {
-        if (!inst) return;
-        const isPaid = (inst as any).isPaid === true || (inst as any).durum === "odendi" || (inst as any).status === "paid" || Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1);
-        if (isPaid) return; // Arka plan servisinin ödenmiş taksitler için kesinlikle yeni bildirim üretmesini engelle
-        if (!inst.firstDueDate) return;
-        try {
-          const [year, month, day] = inst.firstDueDate.split("-").map(Number);
-          const baseDate = new Date(year, month - 1, day, 0, 0, 0, 0);
-          baseDate.setMonth(baseDate.getMonth() + (Number(inst.paidInstallmentCount) || 0));
-          const diffDays = Math.ceil((baseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          const perInst = (Number(inst.totalAmount) || 0) / (Number(inst.installmentCount) || 1);
-          scannedItems.push({
-            itemType: "installment",
-            originalId: inst.id,
-            name: `${inst.name || "Taksit"} (${(Number(inst.paidInstallmentCount) || 0) + 1}/${inst.installmentCount}. Taksit)`,
-            category: "taksit",
-            amount: perInst,
-            daysLeft: diffDays,
-            sonBildirimZamani: inst.sonBildirimZamani,
-            sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani
-          });
-        } catch (_) {}
-      });
-
-      let updatedDebtsCopy = [...currentDebts];
-      let updatedInstsCopy = [...currentInsts];
-      let hasStateChanges = false;
-
-      // --- 2. Adım: Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat ---
-      const overdueItems = scannedItems.filter((item) => item.daysLeft < 0);
-      const dueTodayItems = scannedItems.filter((item) => item.daysLeft === 0);
-      const upcomingItems = scannedItems.filter((item) => item.daysLeft > 0 && item.daysLeft <= 3);
-      const allActionable = [...dueTodayItems, ...overdueItems, ...upcomingItems];
-
-      if (allActionable.length > 0) {
-        const totalDue = allActionable.reduce((acc, cur) => acc + cur.amount, 0);
-        const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
-        const dateFormatted = now.toLocaleDateString("tr-TR");
-
-        const rawPeriodicName = (userProfileName && userProfileName.trim())
-          || (localStorage.getItem("user_profile_name") || "").trim()
-          || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
-        const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
-
-        const borcListesiMetni = allActionable
-          .map((item) => {
-            const emoji = getDebtCategoryEmoji(item.name, item.category);
-            const statusText =
-              item.daysLeft === 0
-                ? "Vadesi BUGÜN"
-                : item.daysLeft < 0
-                ? `${Math.abs(item.daysLeft)} gün gecikti`
-                : `${item.daysLeft} gün kaldı`;
-            return `${emoji} ${item.name}: ${Math.round(item.amount).toLocaleString("tr-TR")} TL (${statusText})`;
-          })
-          .join("\n");
-
-        // Başlık alanını net ve tek bir defa tanımlıyoruz
-        const bildirimBasligi = "📊 Bütçem Pro: Güncel Vade Özeti";
-
-        // İçerik alanını jilet gibi alt alta emojilerle grupluyoruz
-        const bildirimIcerigi = `👤 SN. ${safePeriodicUser}\n` +
-          `📅 Rapor Tarihi: ${dateFormatted}\n\n` +
-          `📌 AKTİF BORÇ LİSTENİZ:\n` +
-          `${borcListesiMetni}\n\n` +
-          `💰 Toplam Geciken/Vadesi Gelen: ${toplamMiktar} TL\n\n` +
-          `⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
-
-        sendSystemNotification(
-          bildirimBasligi,
-          bildirimIcerigi,
-          false
-        );
-
-        // sonGundeIkiBildirimZamani ve sonGenelBildirimZamani damgalarını kaydet
-        localStorage.setItem("sonGundeIkiBildirimZamani", String(nowMs));
-        localStorage.setItem("sonGenelBildirimZamani", String(nowMs));
-        if (auth.currentUser) {
+        currentDebts.forEach((d) => {
+          if (!d) return;
+          const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
+          if (isPaid) return;
+          if (!d.dueDate) return;
           try {
-            set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGundeIkiBildirimZamani`), nowMs);
-            set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGenelBildirimZamani`), nowMs);
+            const [year, month, day] = d.dueDate.split("-").map(Number);
+            const due = new Date(year, month - 1, day, 0, 0, 0, 0);
+            const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            scannedItems.push({
+              itemType: "debt",
+              originalId: d.id,
+              name: d.name || "Borç",
+              category: d.category || "",
+              amount: (Number(d.amount) || 0) - (Number(d.paid) || 0),
+              daysLeft: diffDays,
+              sonBildirimZamani: d.sonBildirimZamani,
+              sonGecikmeBildirimZamani: d.sonGecikmeBildirimZamani
+            });
           } catch (_) {}
-        }
+        });
 
-        // Service Worker'a da bildir
-        if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: "SYNC_LAST_NOTIFICATION_TIME",
-            timestamp: nowMs
+        currentInsts.forEach((inst) => {
+          if (!inst) return;
+          const isPaid = (inst as any).isPaid === true || (inst as any).durum === "odendi" || (inst as any).status === "paid" || Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1);
+          if (isPaid) return;
+          if (!inst.firstDueDate) return;
+          try {
+            const [year, month, day] = inst.firstDueDate.split("-").map(Number);
+            const baseDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+            baseDate.setMonth(baseDate.getMonth() + (Number(inst.paidInstallmentCount) || 0));
+            const diffDays = Math.ceil((baseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const perInst = (Number(inst.totalAmount) || 0) / (Number(inst.installmentCount) || 1);
+            scannedItems.push({
+              itemType: "installment",
+              originalId: inst.id,
+              name: `${inst.name || "Taksit"} (${(Number(inst.paidInstallmentCount) || 0) + 1}/${inst.installmentCount}. Taksit)`,
+              category: "taksit",
+              amount: perInst,
+              daysLeft: diffDays,
+              sonBildirimZamani: inst.sonBildirimZamani,
+              sonGecikmeBildirimZamani: inst.sonGecikmeBildirimZamani
+            });
+          } catch (_) {}
+        });
+
+        let updatedDebtsCopy = [...currentDebts];
+        let updatedInstsCopy = [...currentInsts];
+        let hasStateChanges = false;
+
+        // --- 2. Adım: Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat ---
+        const overdueItems = scannedItems.filter((item) => item.daysLeft < 0);
+        const dueTodayItems = scannedItems.filter((item) => item.daysLeft === 0);
+        const upcomingItems = scannedItems.filter((item) => item.daysLeft > 0 && item.daysLeft <= 3);
+        const allActionable = [...dueTodayItems, ...overdueItems, ...upcomingItems];
+
+        if (allActionable.length > 0) {
+          const totalDue = allActionable.reduce((acc, cur) => acc + cur.amount, 0);
+          const toplamMiktar = Math.round(totalDue).toLocaleString("tr-TR");
+          const dateFormatted = now.toLocaleDateString("tr-TR");
+
+          const rawPeriodicName = (userProfileName && userProfileName.trim())
+            || (localStorage.getItem("user_profile_name") || "").trim()
+            || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
+          const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
+
+          const borcListesiMetni = allActionable
+            .map((item) => {
+              const emoji = getDebtCategoryEmoji(item.name, item.category);
+              const statusText =
+                item.daysLeft === 0
+                  ? "Vadesi BUGÜN"
+                  : item.daysLeft < 0
+                  ? `${Math.abs(item.daysLeft)} gün gecikti`
+                  : `${item.daysLeft} gün kaldı`;
+              return `${emoji} ${item.name}: ${Math.round(item.amount).toLocaleString("tr-TR")} TL (${statusText})`;
+            })
+            .join("\n");
+
+          const bildirimBasligi = "📊 Bütçem Pro: Güncel Vade Özeti";
+          const bildirimIcerigi = `👤 SN. ${safePeriodicUser}\n` +
+            `📅 Rapor Tarihi: ${dateFormatted}\n\n` +
+            `📌 AKTİF BORÇ LİSTENİZ:\n` +
+            `${borcListesiMetni}\n\n` +
+            `💰 Toplam Geciken/Vadesi Gelen: ${toplamMiktar} TL\n\n` +
+            `⚠️ Vade gecikme faizlerinden korunmak için ödemelerinizi zamanında yapmanızı rica ederiz. İyi günler dileriz. B001`;
+
+          sendSystemNotification(
+            bildirimBasligi,
+            bildirimIcerigi,
+            false
+          );
+
+          localStorage.setItem("sonGundeIkiBildirimZamani", String(nowMs));
+          localStorage.setItem("sonGenelBildirimZamani", String(nowMs));
+          if (auth.currentUser) {
+            try {
+              set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGundeIkiBildirimZamani`), nowMs);
+              set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonGenelBildirimZamani`), nowMs);
+            } catch (_) {}
+          }
+
+          if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SYNC_LAST_NOTIFICATION_TIME",
+              timestamp: nowMs
+            });
+          }
+
+          const notifiedDebtIds = new Set(allActionable.filter((i) => i.itemType === "debt").map((i) => i.originalId));
+          const notifiedInstIds = new Set(allActionable.filter((i) => i.itemType === "installment").map((i) => i.originalId));
+
+          updatedDebtsCopy = updatedDebtsCopy.map((d) => {
+            if (notifiedDebtIds.has(d.id)) {
+              return {
+                ...d,
+                sonBildirimZamani: nowMs,
+                ...(d.dueDate && (new Date(d.dueDate).getTime() < today.getTime() - 7 * 24 * 60 * 60 * 1000) ? { sonGecikmeBildirimZamani: nowMs } : {})
+              };
+            }
+            return d;
           });
+
+          updatedInstsCopy = updatedInstsCopy.map((inst) => {
+            if (notifiedInstIds.has(inst.id)) {
+              return { ...inst, sonBildirimZamani: nowMs, sonGecikmeBildirimZamani: nowMs };
+            }
+            return inst;
+          });
+
+          hasStateChanges = true;
         }
 
-        // Bildirim gönderildiği an o borcun veri nesnesine sonBildirimZamani bilgisini (timestamp) kaydet
-        const notifiedDebtIds = new Set(allActionable.filter((i) => i.itemType === "debt").map((i) => i.originalId));
-        const notifiedInstIds = new Set(allActionable.filter((i) => i.itemType === "installment").map((i) => i.originalId));
-
-        updatedDebtsCopy = updatedDebtsCopy.map((d) => {
-          if (notifiedDebtIds.has(d.id)) {
-            return {
-              ...d,
-              sonBildirimZamani: nowMs,
-              ...(d.dueDate && (new Date(d.dueDate).getTime() < today.getTime() - 7 * 24 * 60 * 60 * 1000) ? { sonGecikmeBildirimZamani: nowMs } : {})
-            };
+        // --- 4. Adım: Eğer zaman damgası güncellendiyse Firebase Realtime Database ile tam senkronize et ---
+        if (hasStateChanges) {
+          try {
+            await withTimeout(
+              syncDebtNotificationTimestamps(updatedDebtsCopy, updatedInstsCopy),
+              8000,
+              "syncDebtNotificationTimestamps zaman aşımı"
+            );
+          } catch (syncErr) {
+            console.warn("Timestamp sync warning:", syncErr);
           }
-          return d;
+        }
+      } catch (pushErr: any) {
+        console.warn("[checkAndTriggerPushReminders] Safe catch:", pushErr);
+        recordCrash({
+          type: "BACKGROUND_SYNC_ERROR",
+          message: `Push hatırlatıcı arka plan hatası: ${pushErr?.message || pushErr}`,
+          stack: pushErr?.stack
         });
-
-        updatedInstsCopy = updatedInstsCopy.map((inst) => {
-          if (notifiedInstIds.has(inst.id)) {
-            return { ...inst, sonBildirimZamani: nowMs, sonGecikmeBildirimZamani: nowMs };
-          }
-          return inst;
-        });
-
-        hasStateChanges = true;
-      }
-
-      // --- 4. Adım: Eğer zaman damgası güncellendiyse Firebase Realtime Database ile tam senkronize et ---
-      if (hasStateChanges) {
-        await syncDebtNotificationTimestamps(updatedDebtsCopy, updatedInstsCopy);
       }
     };
 
-    checkAndTriggerPushReminders();
-    const interval = setInterval(checkAndTriggerPushReminders, 2 * 60 * 1000); // 2 dakikada bir kontrol
+    checkAndTriggerPushReminders().catch(() => {});
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      checkAndTriggerPushReminders().catch(() => {});
+    }, 2 * 60 * 1000); // 2 dakikada bir kontrol
+
     return () => clearInterval(interval);
   }, [pushNotificationsEnabled, pushFrequency]);
 
