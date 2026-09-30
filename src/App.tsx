@@ -3006,14 +3006,20 @@ export default function App() {
       const cleanAlarms = (data.alarms || []).filter((a: any) => !isSampleItem(a, "alarm"));
       const cleanNotifs = (data.notifications || []).filter((n: any) => !isSampleItem(n, "notif"));
       const cleanExpenses = (data.expenses || []).filter((e: any) => !isSampleItem(e, "expense"));
+      const isEqualArray = (prev: any[], next: any[]) => {
+        if (prev === next) return true;
+        if (!prev || !next) return false;
+        if (prev.length !== next.length) return false;
+        return JSON.stringify(prev) === JSON.stringify(next);
+      };
 
-      setDebts(cleanDebts);
-      setIncomes(cleanIncomes);
-      setAlarms(cleanAlarms);
-      setNotifications(cleanNotifs);
-      setInstallmentDebts(cleanInsts);
-      setPayments(cleanPayments);
-      setExpenses(cleanExpenses);
+      setDebts((prev) => (isEqualArray(prev, cleanDebts) ? prev : cleanDebts));
+      setIncomes((prev) => (isEqualArray(prev, cleanIncomes) ? prev : cleanIncomes));
+      setAlarms((prev) => (isEqualArray(prev, cleanAlarms) ? prev : cleanAlarms));
+      setNotifications((prev) => (isEqualArray(prev, cleanNotifs) ? prev : cleanNotifs));
+      setInstallmentDebts((prev) => (isEqualArray(prev, cleanInsts) ? prev : cleanInsts));
+      setPayments((prev) => (isEqualArray(prev, cleanPayments) ? prev : cleanPayments));
+      setExpenses((prev) => (isEqualArray(prev, cleanExpenses) ? prev : cleanExpenses));
 
       const isSuperUser = (currentUser || auth.currentUser?.email || "").toLowerCase() === "info.borcodemetakip@gmail.com";
       if (isSuperUser) {
@@ -3032,7 +3038,8 @@ export default function App() {
       }
 
       const hasCats = data.expenseCategories && Array.isArray(data.expenseCategories) && data.expenseCategories.length > 0;
-      setExpenseCategories(hasCats ? data.expenseCategories : defaultCategories);
+      const targetCats = hasCats ? data.expenseCategories : defaultCategories;
+      setExpenseCategories((prev) => (isEqualArray(prev, targetCats) ? prev : targetCats));
 
       if (typeof data.marqueeSpeed === "number" && data.marqueeSpeed >= 20) {
         setMarqueeSpeed(data.marqueeSpeed);
@@ -3434,8 +3441,15 @@ export default function App() {
     updatedDebts: Debt[],
     updatedInstallments: InstallmentDebt[]
   ) => {
-    setDebts(updatedDebts);
-    setInstallmentDebts(updatedInstallments);
+    const isSameArr = (a?: any[], b?: any[]) => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      if (a.length !== b.length) return false;
+      return JSON.stringify(a) === JSON.stringify(b);
+    };
+
+    setDebts((prev) => (isSameArr(prev, updatedDebts) ? prev : updatedDebts));
+    setInstallmentDebts((prev) => (isSameArr(prev, updatedInstallments) ? prev : updatedInstallments));
     debtsRef.current = updatedDebts;
     installmentDebtsRef.current = updatedInstallments;
 
@@ -3718,7 +3732,7 @@ export default function App() {
         return;
       }
       checkAndTriggerPushReminders().catch(() => {});
-    }, 2 * 60 * 1000); // 2 dakikada bir kontrol
+    }, 5 * 60 * 1000); // 5 dakikada bir kontrol (arka plan bellek ve donma koruması)
 
     return () => clearInterval(interval);
   }, [pushNotificationsEnabled, pushFrequency]);

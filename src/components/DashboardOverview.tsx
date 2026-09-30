@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, Calendar, CheckCircle2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
@@ -36,14 +36,21 @@ interface CountUpNumberProps {
   duration?: number;
 }
 
-export const CountUpNumber: React.FC<CountUpNumberProps> = ({ value, formatFn, duration = 850 }) => {
-  const [displayValue, setDisplayValue] = useState<number>(0);
-  const prevValueRef = useRef<number>(0);
+export const CountUpNumber: React.FC<CountUpNumberProps> = React.memo(({ value, formatFn, duration = 850 }) => {
+  const [displayValue, setDisplayValue] = useState<number>(() => (typeof value === "number" && !isNaN(value) ? value : 0));
+  const prevValueRef = useRef<number>(value);
   const animFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const startValue = prevValueRef.current;
     const targetValue = typeof value === "number" && !isNaN(value) ? value : 0;
+    
+    // Eğer değer değişmediyse animasyon başlatma (CPU/RAM koruması)
+    if (Math.abs(targetValue - startValue) < 0.01) {
+      setDisplayValue(targetValue);
+      return;
+    }
+
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -77,9 +84,9 @@ export const CountUpNumber: React.FC<CountUpNumberProps> = ({ value, formatFn, d
   const numToFormat = hasDecimals ? displayValue : Math.round(displayValue);
 
   return <>{formatFn(numToFormat)}</>;
-};
+});
 
-export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
+export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   stats,
   onNavigate,
   monthlyPaymentsCount,
@@ -97,7 +104,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   language = "tr",
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
-  const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI, nextRefreshSec, rateDetails } = useCurrency();
+  const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI, rateDetails } = useCurrency();
   const hasContent = (incomes && incomes.length > 0) || (expenses && expenses.length > 0) || (stats && stats.totalDebt > 0);
   const [budgetGoal, setBudgetGoal] = useState<number>(() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
@@ -120,7 +127,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       setEurRateInput(rates.EUR.toString());
       setGbpRateInput(rates.GBP.toString());
     }
-  }, [rates, isEditingRates]);
+  }, [rates.USD, rates.EUR, rates.GBP, isEditingRates]);
 
   // Flash element glow and sweep pulse effect on rates key values update
   const [ratesFlash, setRatesFlash] = useState(false);
@@ -136,19 +143,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     return () => clearTimeout(t);
   }, [rates.USD, rates.EUR, rates.GBP]);
 
+  const activeRate = rates[activeCurrency] || 1;
+
   useEffect(() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
     const saved = localStorage.getItem(`budget_goal_${email}`);
     const val = saved ? parseFloat(saved) : 10000;
-    setBudgetGoal(val);
+    setBudgetGoal((prev) => (prev !== val ? val : prev));
     
     // Convert to currently active currency for form input
-    const curRate = rates[activeCurrency] || 1;
-    const localizedVal = val / curRate;
-    setGoalInput(Number(localizedVal.toFixed(2)).toString());
-  }, [stats.totalExpense, activeCurrency, rates]);
+    const localizedVal = val / activeRate;
+    const nextGoalStr = Number(localizedVal.toFixed(2)).toString();
+    setGoalInput((prev) => (prev !== nextGoalStr ? nextGoalStr : prev));
+  }, [stats.totalExpense, activeRate]);
 
-  const handleSaveGoal = () => {
+  const handleSaveGoal = useCallback(() => {
     const parsed = parseFloat(goalInput);
     if (!isNaN(parsed) && parsed >= 0) {
       const email = localStorage.getItem("currentUser") || "anonymous";
@@ -159,64 +168,70 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       localStorage.setItem(`budget_goal_${email}`, tryBaseVal.toString());
       setIsEditingGoal(false);
     }
-  };
+  }, [goalInput, rates, activeCurrency]);
 
-  const paymentProgress = stats.totalDebt > 0 ? (stats.totalPaid / stats.totalDebt) * 100 : 0;
+  const paymentProgress = useMemo(() => {
+    return stats.totalDebt > 0 ? (stats.totalPaid / stats.totalDebt) * 100 : 0;
+  }, [stats.totalDebt, stats.totalPaid]);
 
-  // Formatted data arrays for animated SVG graphs
-  const comparativeChartData = [
+  // Formatted data arrays for animated SVG graphs (memoized to eliminate infinite re-renders)
+  const comparativeChartData = useMemo(() => [
     { label: "Toplam Borç", value: stats.totalDebt, color: "#1e3a8a" },
     { label: "Kişi Borcu", value: stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0, color: "#8b5cf6" },
     { label: "Gelir", value: stats.totalIncome, color: "#10b981" },
     { label: "Gider", value: stats.totalExpense, color: "#ef4444" },
     { label: "Net Kalan", value: stats.netIncome, color: stats.netIncome >= 0 ? "#f59e0b" : "#ef4444" },
-  ];
+  ], [stats.totalDebt, stats.contactPayablesRemaining, stats.contactPayablesTotal, stats.totalIncome, stats.totalExpense, stats.netIncome]);
 
-  const paidRemainingData = [
+  const paidRemainingData = useMemo(() => [
     { label: selectedMonth !== null ? "Bu Ay Ödenen" : "Ödenen Borç", value: selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid, color: "#10b981" },
     { label: selectedMonth !== null ? "Bu Ay Kalan" : "Kalan Borç", value: selectedMonth !== null ? stats.thisMonthKalanBorc : stats.remaining, color: "#ef4444" },
-  ];
+  ], [selectedMonth, stats.thisMonthPaidBorc, stats.totalPaid, stats.thisMonthKalanBorc, stats.remaining]);
 
-  const trendLabels = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran"];
-  // Mock 6 month trend descending slightly as budget controls improve
-  const trendValues = [
+  const trendLabels = useMemo(() => ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran"], []);
+  
+  const trendValues = useMemo(() => [
     stats.totalDebt * 1.3,
     stats.totalDebt * 1.15,
     stats.totalDebt * 1.1,
     stats.totalDebt * 1.05,
     stats.totalDebt * 1.02,
     stats.totalDebt,
-  ].map(v => Math.max(v, 0));
+  ].map(v => Math.max(v, 0)), [stats.totalDebt]);
 
-  const incomeColors = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#64748b"];
-  const incomeDoughnutData = incomes.map((i, idx) => ({
-    label: i.name,
-    value: i.amount,
-    color: incomeColors[idx % incomeColors.length],
-  }));
+  const incomeDoughnutData = useMemo(() => {
+    const incomeColors = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#64748b"];
+    return incomes.map((i, idx) => ({
+      label: i.name,
+      value: i.amount,
+      color: incomeColors[idx % incomeColors.length],
+    }));
+  }, [incomes]);
 
-  const categoryTotals = expenses.reduce((acc: { [key: number]: number }, e) => {
-    acc[e.categoryId] = (acc[e.categoryId] || 0) + e.amount;
-    return acc;
-  }, {});
+  const expenseDoughnutData = useMemo(() => {
+    const categoryTotals = expenses.reduce((acc: { [key: number]: number }, e) => {
+      acc[e.categoryId] = (acc[e.categoryId] || 0) + e.amount;
+      return acc;
+    }, {});
 
-  const expenseColors = [
-    "#ef4444",
-    "#f59e0b",
-    "#3b82f6",
-    "#10b981",
-    "#8b5cf6",
-    "#ec4899",
-    "#14b8a6",
-    "#6366f1",
-  ];
-  const expenseDoughnutData = expenseCategories
-    .map((c, idx) => ({
-      label: c.name,
-      value: categoryTotals[c.id] || 0,
-      color: c.color || expenseColors[idx % expenseColors.length],
-    }))
-    .filter((item) => item.value > 0);
+    const expenseColors = [
+      "#ef4444",
+      "#f59e0b",
+      "#3b82f6",
+      "#10b981",
+      "#8b5cf6",
+      "#ec4899",
+      "#14b8a6",
+      "#6366f1",
+    ];
+    return expenseCategories
+      .map((c, idx) => ({
+        label: c.name,
+        value: categoryTotals[c.id] || 0,
+        color: c.color || expenseColors[idx % expenseColors.length],
+      }))
+      .filter((item) => item.value > 0);
+  }, [expenses, expenseCategories]);
 
   return (
     <div className="space-y-6">
@@ -1258,4 +1273,4 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       )}
     </div>
   );
-};
+});

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   DollarSign, 
   Clock, 
@@ -28,9 +28,17 @@ export const LiveMarketCenterWidget: React.FC<LiveMarketCenterWidgetProps> = ({
     rateDetails,
     isFetching: isContextFetching,
     lastUpdated,
-    nextRefreshSec,
     updateRatesFromAPI
   } = useCurrency();
+
+  const [localCountdown, setLocalCountdown] = useState(60);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLocalCountdown((prev) => (prev <= 1 ? 60 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [marketCategoryTab, setMarketCategoryTab] = useState<"all" | "gold" | "forex" | "crypto">("all");
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -103,7 +111,7 @@ export const LiveMarketCenterWidget: React.FC<LiveMarketCenterWidgetProps> = ({
 
           <div className="px-3 py-1.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-amber-300 text-[11px] font-bold flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-amber-400" />
-            <span>Oto-Yenileme: <strong className="font-mono">{nextRefreshSec || 25}s</strong></span>
+            <span>Oto-Yenileme: <strong className="font-mono">{localCountdown}s</strong></span>
           </div>
 
           <button

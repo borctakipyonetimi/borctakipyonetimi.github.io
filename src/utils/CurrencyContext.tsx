@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getApiUrl } from "./api";
 
 export type CurrencyType = "TRY" | "USD" | "EUR" | "GBP";
@@ -415,14 +415,8 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (typeof document !== "undefined" && document.visibilityState === "hidden") {
           return;
         }
-        setNextRefreshSec((prev) => {
-          if (prev <= 1) {
-            updateRatesFromAPI(false).catch(() => {});
-            return 60;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+        updateRatesFromAPI(false).catch(() => {});
+      }, 60000); // 60 saniyede bir periyodik yenileme (her saniye state tetikleyip tüm uygulamayı dondurmaz)
     };
 
     startTicker();
@@ -449,24 +443,25 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [updateRatesFromAPI]);
 
-  const setActiveCurrency = (cur: CurrencyType) => {
+  const setActiveCurrency = useCallback((cur: CurrencyType) => {
     setActiveCurrencySetting(cur);
     localStorage.setItem("activeCurrency", cur);
-  };
+  }, []);
 
-  const convert = (amount: number): number => {
+  const convert = useCallback((amount: number): number => {
     if (activeCurrency === "TRY") return amount;
     const rate = rates[activeCurrency] || 1;
     return amount / rate;
-  };
+  }, [activeCurrency, rates]);
 
-  const format = (amount: number): string => {
-    const converted = convert(amount);
-    
-    const symbol = 
-      activeCurrency === "TRY" ? "₺" : 
+  const currencySymbol = useMemo(() => {
+    return activeCurrency === "TRY" ? "₺" : 
       activeCurrency === "USD" ? "$" : 
       activeCurrency === "EUR" ? "€" : "£";
+  }, [activeCurrency]);
+
+  const format = useCallback((amount: number): string => {
+    const converted = convert(amount);
 
     let locale = "tr-TR";
     if (activeCurrency === "USD") locale = "en-US";
@@ -474,34 +469,44 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (activeCurrency === "GBP") locale = "en-GB";
 
     const isTry = activeCurrency === "TRY";
-    return `${symbol}${converted.toLocaleString(locale, {
+    return `${currencySymbol}${converted.toLocaleString(locale, {
       minimumFractionDigits: isTry ? 0 : 2,
       maximumFractionDigits: isTry ? 2 : 2,
     })}`;
-  };
+  }, [convert, activeCurrency, currencySymbol]);
 
-  const currencySymbol = 
-    activeCurrency === "TRY" ? "₺" : 
-    activeCurrency === "USD" ? "$" : 
-    activeCurrency === "EUR" ? "€" : "£";
+  const contextValue = useMemo(() => ({
+    activeCurrency,
+    setActiveCurrency,
+    rates,
+    rateDetails,
+    rateChanges,
+    setRates,
+    convert,
+    format,
+    currencySymbol,
+    isFetching,
+    lastUpdated,
+    updateRatesFromAPI,
+    nextRefreshSec: 60,
+    isLive
+  }), [
+    activeCurrency,
+    setActiveCurrency,
+    rates,
+    rateDetails,
+    rateChanges,
+    convert,
+    format,
+    currencySymbol,
+    isFetching,
+    lastUpdated,
+    updateRatesFromAPI,
+    isLive
+  ]);
 
   return (
-    <CurrencyContext.Provider value={{
-      activeCurrency,
-      setActiveCurrency,
-      rates,
-      rateDetails,
-      rateChanges,
-      setRates,
-      convert,
-      format,
-      currencySymbol,
-      isFetching,
-      lastUpdated,
-      updateRatesFromAPI,
-      nextRefreshSec,
-      isLive
-    }}>
+    <CurrencyContext.Provider value={contextValue}>
       {children}
     </CurrencyContext.Provider>
   );
