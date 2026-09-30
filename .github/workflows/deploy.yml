@@ -147,13 +147,12 @@ jobs:
           cd ..
           mkdir -p release_apk
           cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk || true
-          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcem-pro-debug.apk || true
 
       - name: Upload Final Butcem Pro APK
         uses: actions/upload-artifact@v4
         with:
           name: butcempro-apk
-          path: release_apk/
+          path: release_apk/butcempro.apk
 
       - name: Deploy to GitHub Pages 🚀
         uses: JamesIves/github-pages-deploy-action@v4

@@ -138,7 +138,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
             </div>
             <div>
               <span className="font-black text-sm sm:text-base tracking-tight text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition flex items-center gap-1.5">
-                BÜTÇEM PRO <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-md font-black border border-indigo-200/40">v2.5</span>
+                BÜTÇEM PRO <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-md font-black border border-indigo-200/40">v1.0</span>
               </span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Finans &amp; Borç Yönetimi</span>
             </div>

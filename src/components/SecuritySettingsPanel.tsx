@@ -225,7 +225,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
     try {
       const backupData = {
-        version: "4.5.0",
+        version: "1.0.0",
         exportDate: new Date().toISOString(),
         user: currentUser || "anonymous",
         debts,

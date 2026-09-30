@@ -2009,7 +2009,7 @@ export function FinancialTools({
                     RAPOR HAZIRLAYICI VE DENETİM PANELİ
                   </h4>
                   <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-md">
-                    v2.5 DÜZENLİ
+                    v1.0 DÜZENLİ
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">

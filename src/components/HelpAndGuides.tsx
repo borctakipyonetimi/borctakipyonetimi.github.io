@@ -66,6 +66,11 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
   // Expanded blog posts
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 
+  // FAQ states
+  const [faqSearchQuery, setFaqSearchQuery] = useState("");
+  const [selectedFaqCategory, setSelectedFaqCategory] = useState<string>("all");
+  const [expandedFaqId, setExpandedFaqId] = useState<string | null>("faq-offline");
+
   const feedbackCategories = [
     { id: "general", label: "💬 Genel Görüş", color: "border-slate-200 text-slate-700 bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" },
     { id: "suggestion", label: "💡 İstek & Öneri", color: "border-indigo-100 text-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30" },
@@ -608,8 +613,8 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     }
   ];
 
-  // 1. KULLANIM KILAVUZU & DETAYLI TALİMATLAR (activeTab === "help")
-  if (activeTab === "help") {
+  // 1. KULLANIM KILAVUZU & DETAYLI TALİMATLAR
+  if (activeTab === "legacy_guide_hidden") {
     return (
       <div className="space-y-6 animate-fade-in w-full max-w-5xl mx-auto">
         
@@ -1219,7 +1224,482 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     );
   }
 
-  // 5. HAKKIMIZDA (activeTab === "about")
+  // 5. SIK SORULAN SORULAR (activeTab === "faq")
+  const faqCategories = [
+    { id: "all", label: "Tümü", icon: "✨" },
+    { id: "architecture", label: "⚙️ Çalışma Prensibi & Bulut", icon: "⚙️" },
+    { id: "debts", label: "💳 Borç & Taksit Hesaplama", icon: "💳" },
+    { id: "notifications", label: "⏰ Akıllı Bildirimler", icon: "⏰" },
+    { id: "contacts", label: "👥 Kişi Alacak/Verecek", icon: "👥" },
+    { id: "security", label: "🔒 Güvenlik & PIN", icon: "🔒" },
+    { id: "ai_market", label: "🤖 AI & Canlı Kurlar", icon: "🤖" },
+    { id: "subscription", label: "💎 PRO & Deneme Sürümü", icon: "💎" }
+  ];
+
+  interface AppFAQItem {
+    id: string;
+    category: "architecture" | "debts" | "notifications" | "contacts" | "security" | "ai_market" | "subscription";
+    categoryLabel: string;
+    badgeColor: string;
+    question: string;
+    answer: string;
+    keyPoints: string[];
+    targetTab?: string;
+    targetTabLabel?: string;
+  }
+
+  const allFaqItems: AppFAQItem[] = [
+    {
+      id: "faq-offline",
+      category: "architecture",
+      categoryLabel: "Çalışma Prensibi",
+      badgeColor: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
+      question: "Bütçem Pro internet bağlantısı olmadan (çevrimdışı) çalışır mı? Verilerim nerede saklanıyor?",
+      answer: "Evet, Bütçem Pro %100 çevrimdışı öncelikli (Offline-First) mimariye sahiptir. Tüm borç, taksit, gelir, gider ve kişi kayıtlarınız öncelikle cihazınızın güvenli yerel belleğinde (LocalStorage) saklanır. İnternet bağlantınız olmasa dahi borç ekleyebilir, ödeme yapabilir ve mali durumunuzu kesintisiz yönetebilirsiniz. İnternet bağlantısı sağlandığında ve üye girişi yapıldığında tüm kayıtlar arka planda Google Firebase bulut veritabanıyla otomatik olarak çift yönlü senkronize edilir.",
+      keyPoints: [
+        "İnternetsiz tam fonksiyonel kullanım",
+        "Cihazınızda güvenli yerel şifreli saklama",
+        "İnternet bağlandığında otomatik Firebase bulut eşitlemesi"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Güvenlik & Yedekleme Paneli"
+    },
+    {
+      id: "faq-sync",
+      category: "architecture",
+      categoryLabel: "Bulut Senkronizasyonu",
+      badgeColor: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
+      question: "Bulut senkronizasyonu nasıl çalışır? Telefonumu değiştirirsem verilerim kaybolur mu?",
+      answer: "Google hesabınız veya e-posta adresiniz ile giriş yaptığınızda, cihazınızdaki tüm kayıtlar Google Firebase Realtime Database ve Firestore bulut sunucularına anında yedeklenir. Yeni bir telefona geçtiğinizde veya uygulamayı tekrar yüklediğinizde aynı hesapla oturum açmanız durumunda tüm finansal geçmişiniz, taksit planlarınız ve kişisel ayarlarınız saniyeler içinde eksiksiz olarak geri yüklenir.",
+      keyPoints: [
+        "Google & E-Posta ile tek tıkla bulut hesabı bağlama",
+        "Cihaz değiştiğinde anında sıfır veri kaybıyla geri yükleme",
+        "Gerçek zamanlı çift yönlü güvenli senkronizasyon"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Hesap & Senkronizasyon"
+    },
+    {
+      id: "faq-debt-vs-inst",
+      category: "debts",
+      categoryLabel: "Borç & Taksit",
+      badgeColor: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+      question: "Tek seferlik borç ile taksitli borç arasındaki fark nedir ve sistem bunları nasıl hesaplar?",
+      answer: "Tek seferlik borçlar (kredi kartı ekstresi, şahsi borç vb.) tek bir vade tarihine ve tek toplam tutara sahiptir. Taksitli borçlar (örneğin 12 aylık tüketici kredisi veya telefon taksidi) ise toplam anaparayı taksit sayısına böler ve aylık ödeme planı oluşturur. Siz her taksiti 'Ödendi' olarak kaydettikçe; ödenen taksit sayısı artar, kalan taksit sayısı ve anapara dinamik olarak azalır, bir sonraki taksit vadesi ise otomatik olarak bir sonraki aya ötelenir.",
+      keyPoints: [
+        "Tek seferlik borçlarda tek vade ve anapara kontrolü",
+        "Taksitlerde otomatik taksit adedi ve anapara düşümü",
+        "Ödendikçe vadesi otomatik sonraki aya ötelenen akıllı taksit motoru"
+      ],
+      targetTab: "installments",
+      targetTabLabel: "Taksitli Borçlar Paneli"
+    },
+    {
+      id: "faq-partial-payment",
+      category: "debts",
+      categoryLabel: "Ödeme Mekaniği",
+      badgeColor: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+      question: "Bir borca kısmi (parçalı) ödeme yapabilir miyim? Kalan tutar nasıl hesaplanır?",
+      answer: "Evet! Borç kartı üzerindeki 'Ödeme Yap' alanına borcun tamamını değil, elinizdeki tutar kadarını (örneğin 10.000 TL borcun 3.500 TL'sini) girebilirsiniz. Sistem anapara borcundan ödenen kısmı anında düşer, kalan bakiyeyi ve Genel Bakış dashboard'unu günceller. Yapılan her ödeme saat ve tarih damgasıyla 'Ödeme Geçmişi' tablosuna kalıcı olarak işlenir.",
+      keyPoints: [
+        "İstediğiniz tutarda esnek kısmi ödeme",
+        "Otomatik kalan bakiye ve oran güncellemesi",
+        "Tarih/saat damgalı ödeme geçmişi kütüğü"
+      ],
+      targetTab: "debts",
+      targetTabLabel: "Borç Listesi & Ödeme"
+    },
+    {
+      id: "faq-debt-completion",
+      category: "debts",
+      categoryLabel: "Otomatik Kapanma",
+      badgeColor: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+      question: "Bir borcun veya taksitin tamamı ödendiğinde sistemde ne olur?",
+      answer: "Kalan borç tutarı 0 TL olduğunda borç otomatik olarak 'KAPANDI (Ödendi)' durumuna geçer. Genel Bakış panelindeki 'Ödenen Borç' hanesine aktarılır. En önemlisi; bu borca veya taksite bağlı kurulmuş olan tüm sistem alarmları ve hatırlatma sinyalleri donanımdan ve kilit ekranı listesinden otomatik olarak silinir.",
+      keyPoints: [
+        "0 TL bakiyede otomatik 'Ödendi' rozeti",
+        "Genel bakışta ödenen borç istatistiklerine anında yansıma",
+        "Kurulu alarmların donanımdan otomatik iptal edilmesi"
+      ],
+      targetTab: "overview",
+      targetTabLabel: "Genel Bakış Dashboard"
+    },
+    {
+      id: "faq-notification-engine",
+      category: "notifications",
+      categoryLabel: "Akıllı Bildirimler",
+      badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+      question: "Vade hatırlatıcı bildirimler ne zaman ve nasıl tetiklenir?",
+      answer: "Bütçem Pro akıllı arka plan tarayıcısı; vadesine 3 gün kalan, vadesi bugün gelen veya günü geçmiş ödenmemiş borçları periyodik olarak kontrol eder. 'Bildirim Ayarları' sekmesinden seçtiğiniz periyotta (Günde 2 kez, Günde 1 kez veya 2 Saatte bir) kilit ekranınıza net ve düzenli bir özet bildirim gönderir.",
+      keyPoints: [
+        "Vadesine 3 gün kala ön uyarı",
+        "Vadesi bugün gelen borçlar için acil hatırlatma",
+        "Gecikmiş borçlar için güncel bakiye raporu"
+      ],
+      targetTab: "notifications",
+      targetTabLabel: "Bildirim Ayarları Paneli"
+    },
+    {
+      id: "faq-quiet-hours",
+      category: "notifications",
+      categoryLabel: "Rahatsız Etmeme",
+      badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+      question: "Gece saatlerinde bildirim alıp rahatsız olur muyum?",
+      answer: "Hayır! Sistemde akıllı 'Rahatsız Etmeme' penceresi bulunmaktadır. Gece saat 23:00 ile sabah 08:30 arasında bildirim motoru otomatik olarak uyku moduna geçer ve sizi asla rahatsız etmez. Vadesi gelen tüm bildirimler sabah 08:30 sonrasında devreye girer.",
+      keyPoints: [
+        "Gece 23:00 - Sabah 08:30 arası tam sessizlik",
+        "Rahatsız etmeyen akıllı gecikme yönetimi",
+        "Sabah uyanınca tek parça özet rapor"
+      ],
+      targetTab: "notifications",
+      targetTabLabel: "Bildirim Tercihleri"
+    },
+    {
+      id: "faq-contacts-ledger",
+      category: "contacts",
+      categoryLabel: "Kişi Cari Defteri",
+      badgeColor: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+      question: "Kişi Alacak/Verecek modülü nasıl çalışır ve mahsuplaşma nasıl yapılır?",
+      answer: "Arkadaşlarınız, iş ortaklarınız veya esnaf cari hesapları için kişi kartı açabilirsiniz. Aynı kişiye hem aldığınız borçları hem de verdiğiniz alacakları ekleyebilirsiniz. Sistem iki tarafı otomatik olarak mahsuplaştırır (netleştirir) ve o kişiden net alacaklı mı yoksa borçlu mu olduğunuzu anında hesaplar. Dilerseniz tek tuşla WhatsApp üzerinden hesap döküm mesajı paylaşabilirsiniz.",
+      keyPoints: [
+        "Kişi bazında borç ve alacak kaydı",
+        "Otomatik mahsuplaşma ve net bakiye tespiti",
+        "Tek tıkla WhatsApp hesap ekstresi paylaşımı"
+      ],
+      targetTab: "contacts",
+      targetTabLabel: "Kişi Alacak/Verecek Modülü"
+    },
+    {
+      id: "faq-security-lock",
+      category: "security",
+      categoryLabel: "Güvenlik & PIN",
+      badgeColor: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      question: "Uygulamaya PIN kodu veya Desen kilidi koyabilir miyim? Ekran kilitlendiğinde ne olur?",
+      answer: "Evet. 'Güvenlik ve Ayarlar' sekmesinden 4 haneli PIN Kodu veya Çizgisel Desen Kilidi aktif edebilirsiniz. Kilit açıkken uygulamayı kapattığınızda, sekme değiştirdiğinizde veya telefonunuzun ekranını kilitlediğinizde Bütçem Pro anında kilit ekranına geçer. Şifreniz doğru girilmeden hiçbir finansal veri görüntülenemez.",
+      keyPoints: [
+        "4 haneli PIN kodu ve 9 noktalı Desen kilidi desteği",
+        "Uygulama minimize edildiğinde anında otomatik kilitleme",
+        "Hatalı deneme kilitlenmesi ve brute-force koruması"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Güvenlik & Kilit Ayarları"
+    },
+    {
+      id: "faq-backups",
+      category: "security",
+      categoryLabel: "Yedekleme & CSV",
+      badgeColor: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      question: "Verilerimi nasıl yedeklerim ve Excel formatında nasıl rapor alırım?",
+      answer: "'Güvenlik ve Ayarlar' panelinden 'Yedek İndir (.JSON)' butonuna basarak tüm verilerinizi tek tıkla cihazınıza indirebilirsiniz. Sol menüdeki 'FİNANSAL RAPORU İNDİR (.CSV)' butonuyla ise tüm gelir, gider ve borç kayıtlarınızı Microsoft Excel veya Google E-Tablolar ile uyumlu Türkçe karakter destekli CSV tablosu olarak dışa aktarabilirsiniz.",
+      keyPoints: [
+        "Tek tıkla şifreli JSON dosya yedeği indirme",
+        "Yeni cihaza JSON yedeğini saniyeler içinde geri yükleme",
+        "Excel ve Google Sheets uyumlu CSV finansal raporlama"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Veri Yedekleme Alanı"
+    },
+    {
+      id: "faq-ai-assistant",
+      category: "ai_market",
+      categoryLabel: "Yapay Zeka (AI)",
+      badgeColor: "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30",
+      question: "Yapay Zeka (AI) Finans Asistanı harcamalarımı ve borçlarımı nasıl analiz eder?",
+      answer: "Gemini AI analiz motoru; aktif ayınızdaki gelir-gider dengesini, harcama kategorilerinizin ağırlığını ve borç yükünüzü tarar. Kartopu (Snowball - en küçük borcu önce kapatma) ve Çığ (Avalanche - en yüksek faizli borcu önce kapatma) stratejilerini simüle ederek size en çok nakit tasarrufu sağlayacak özel ödeme planını önerir.",
+      keyPoints: [
+        "Gemini destekli kişiselleştirilmiş bütçe analizi",
+        "Kartopu ve Çığ borç kapatma simülasyonları",
+        "Aylık kategori bazlı tasarruf tavsiyeleri"
+      ],
+      targetTab: "aiStrategy",
+      targetTabLabel: "Akıllı Asistan (AI)"
+    },
+    {
+      id: "faq-currency-rates",
+      category: "ai_market",
+      categoryLabel: "Canlı Kurlar & Döviz",
+      badgeColor: "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30",
+      question: "Canlı döviz ve altın kurları nereden çekilir? Bütçemi döviz olarak görebilir miyim?",
+      answer: "TCMB ve Kapalıçarşı serbest piyasa döviz kurları (USD, EUR, GBP, Altın, Kripto) arka planda otomatik olarak güncellenir. Üst menüden aktif para birimini (₺, $, €, £) değiştirdiğinizde tüm borç, gelir ve gider rakamlarınız seçtiğiniz para birimine anında dönüştürülerek gösterilir.",
+      keyPoints: [
+        "TCMB ve Kapalıçarşı canlı döviz & altın kurları",
+        "Tek tıkla ₺, $, €, £ para birimleri arasında geçiş",
+        "Döviz cinsinden anlık borç ve bütçe hesaplaması"
+      ],
+      targetTab: "financialTools",
+      targetTabLabel: "Finansal Araçlar & Kurlar"
+    },
+    {
+      id: "faq-single-session",
+      category: "security",
+      categoryLabel: "Oturum Güvenliği",
+      badgeColor: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      question: "Eşzamanlı tek cihaz oturum koruması nedir?",
+      answer: "Güvenliğiniz için PRO hesabınız aynı anda yalnızca tek bir cihazda aktif oturumda bulunabilir. Başka bir telefon veya tarayıcıda hesabınıza giriş yapıldığında, önceki cihazdaki oturum güvenlik protokolü gereği otomatik olarak sonlandırılır.",
+      keyPoints: [
+        "Yetkisiz hesap paylaşımını engelleme",
+        "Yeni cihazda giriş yapıldığında eskiden otomatik çıkış",
+        "Maksimum veri ve hesap güvenliği"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Güvenlik Paneli"
+    },
+    {
+      id: "faq-trial-policy",
+      category: "subscription",
+      categoryLabel: "PRO & Deneme",
+      badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+      question: "7 Günlük Ücretsiz Deneme sürümü nasıl başlar ve deneme bitince verilerim silinir mi?",
+      answer: "İlk kez kayıt olan her kullanıcı kredi kartı girmeksizin 7 gün boyunca tüm PRO özelliklere (Yapay Zeka Asistanı, Kişi Cari Defteri, Fiş Tarama, Sınırsız Raporlama) ücretsiz erişir. 1 e-posta adresi için 1 deneme hakkı tanınır. Deneme bittiğinde hiçbir veriniz silinmez; dilediğiniz PRO paketi seçerek devam edebilir veya temel bütçe takibini sürdürebilirsiniz.",
+      keyPoints: [
+        "Kartsız ve taahhütsüz 7 gün tam erişim",
+        "Deneme bittiğinde sıfır veri kaybı garantisi",
+        "Aylık, Yıllık veya Ömür Boyu esnek paket seçenekleri"
+      ],
+      targetTab: "gplay_enhancements",
+      targetTabLabel: "PRO Özellikler & Paketler"
+    },
+    {
+      id: "faq-reset-data",
+      category: "architecture",
+      categoryLabel: "Veri Sıfırlama",
+      badgeColor: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
+      question: "Uygulamadaki tüm verilerimi tamamen sıfırlamak istersem ne yapmalıyım?",
+      answer: "Sol menünün en altındaki 'TÜM VERİLERİ SIFIRLA' butonuna tıklayarak yerel bellekteki ve veritabanındaki tüm borç, gelir, gider ve kişi kayıtlarını güvenlik onayı vererek tek seferde tamamen temizleyebilirsiniz.",
+      keyPoints: [
+        "Tek tıkla tüm tabloları temizleme",
+        "Yanlışlıkla silmeyi önleyen iki adımlı güvenlik onayı",
+        "Uygulamayı sıfır fabrika ayarlarına döndürme"
+      ],
+      targetTab: "overview",
+      targetTabLabel: "Ana Sayfa Dashboard"
+    }
+  ];
+
+  if (activeTab === "faq" || activeTab === "help") {
+    const filteredFaqs = allFaqItems.filter(item => {
+      const matchesCategory = selectedFaqCategory === "all" || item.category === selectedFaqCategory;
+      const matchesSearch = !faqSearchQuery.trim() || 
+        item.question.toLowerCase().includes(faqSearchQuery.toLowerCase()) || 
+        item.answer.toLowerCase().includes(faqSearchQuery.toLowerCase()) ||
+        item.categoryLabel.toLowerCase().includes(faqSearchQuery.toLowerCase()) ||
+        item.keyPoints.some(kp => kp.toLowerCase().includes(faqSearchQuery.toLowerCase()));
+      return matchesCategory && matchesSearch;
+    });
+
+    return (
+      <div className="space-y-6 animate-fade-in w-full max-w-5xl mx-auto">
+        {/* Header with Gradient & Live Icon */}
+        <div className="p-6 sm:p-7 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg border border-indigo-500/20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-[11px] font-bold tracking-wide uppercase">
+                <HelpCircle className="w-3.5 h-3.5 text-amber-300" />
+                <span>Bütçem Pro Çalışma Prensipleri</span>
+              </div>
+              <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center md:justify-start gap-2.5">
+                <span>SIK SORULAN SORULAR</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl font-medium leading-relaxed">
+                Uygulamanın çevrimdışı çalışma mantığı, akıllı borç/taksit hesaplama motoru, bildirim sistemi ve güvenlik protokolleri hakkında merak ettiğiniz tüm soruların cevapları.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 justify-center shrink-0">
+              <button
+                onClick={() => onNavigate("overview")}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Compass className="w-4 h-4" /> Ana Sayfa
+              </button>
+              <button
+                onClick={() => onNavigate("feedback")}
+                className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/15 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <MessageSquare className="w-4 h-4" /> Soru Sor / İletişim
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Search Bar & Category Filter Chips */}
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+            <input
+              type="text"
+              value={faqSearchQuery}
+              onChange={(e) => setFaqSearchQuery(e.target.value)}
+              placeholder="Soru veya konu arayın (Örn: Çevrimdışı, Taksit, Bildirim, PIN, WhatsApp, Yedekleme, AI)..."
+              className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+            />
+            {faqSearchQuery && (
+              <button
+                onClick={() => setFaqSearchQuery("")}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+
+          {/* Categories */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+            {faqCategories.map((cat) => {
+              const isSelected = selectedFaqCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedFaqCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* FAQ Accordion List */}
+        <div className="space-y-3">
+          {filteredFaqs.length === 0 ? (
+            <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+              <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+              <p className="font-bold text-sm text-slate-700 dark:text-slate-300">
+                Aradığınız kriterlere uygun soru bulunamadı.
+              </p>
+              <p className="text-xs text-slate-500">
+                Lütfen farklı anahtar kelimeler deneyin veya kategori filtresini sıfırlayın.
+              </p>
+              <button
+                onClick={() => {
+                  setFaqSearchQuery("");
+                  setSelectedFaqCategory("all");
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+              >
+                Tüm Soruları Göster
+              </button>
+            </div>
+          ) : (
+            filteredFaqs.map((faq, index) => {
+              const isExpanded = expandedFaqId === faq.id;
+              return (
+                <div
+                  key={faq.id}
+                  className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 overflow-hidden ${
+                    isExpanded
+                      ? "border-indigo-500/50 shadow-md ring-1 ring-indigo-500/20"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
+                  }`}
+                >
+                  <button
+                    onClick={() => setExpandedFaqId(isExpanded ? null : faq.id)}
+                    className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 cursor-pointer select-none"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                          #{String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide border ${faq.badgeColor}`}>
+                          {faq.categoryLabel}
+                        </span>
+                      </div>
+                      <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100 leading-snug">
+                        {faq.question}
+                      </h3>
+                    </div>
+                    <div className={`p-2 rounded-xl shrink-0 transition-transform duration-200 ${
+                      isExpanded
+                        ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rotate-180"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                    }`}>
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
+                          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                            {faq.answer}
+                          </p>
+
+                          {faq.keyPoints && faq.keyPoints.length > 0 && (
+                            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-700/60 space-y-2">
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Önemli Prensipler & Özellikler:</span>
+                              </p>
+                              <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                {faq.keyPoints.map((kp, kpIdx) => (
+                                  <li key={kpIdx} className="flex items-start gap-2">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                    <span>{kp}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {faq.targetTab && (
+                            <div className="flex justify-end pt-1">
+                              <button
+                                onClick={() => onNavigate(faq.targetTab!)}
+                                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              >
+                                <span>{faq.targetTabLabel || "İlgili Sayfayı Aç"}</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Bottom Help CTA */}
+        <div className="p-5 sm:p-6 bg-gradient-to-r from-slate-100 to-indigo-50 dark:from-slate-800/90 dark:to-indigo-950/40 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left shadow-xs">
+          <div className="space-y-1">
+            <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
+              <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Başka Bir Sorunuz mu Var?</span>
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Uygulama geliştiricisine doğrudan geri bildirim gönderebilir veya önerilerinizi paylaşabilirsiniz.
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate("feedback")}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-95"
+          >
+            <Send className="w-4 h-4" /> Bize Ulaşın
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. HAKKIMIZDA (activeTab === "about")
   return (
     <div className="space-y-6 animate-fade-in w-full max-w-4xl mx-auto">
       <div className="flex flex-col items-center justify-center text-center py-2 select-none">
@@ -1239,7 +1719,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
         </div>
         <div className="flex items-center gap-2.5">
           <span className="px-2.5 py-1 bg-indigo-500/40 border border-indigo-400/40 text-[10px] font-black tracking-widest uppercase rounded-lg">
-            Sürüm 5.2 Ultimate Edition
+            Sürüm v1.0
           </span>
           <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
         </div>

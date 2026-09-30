@@ -1106,7 +1106,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       // Footnote
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v5.0 Ultimate"), 15, 285);
+      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
 
       // --- PAGE 2: TAKSITLI ALISVERISLER VE KREDILER ---
       doc.addPage();
@@ -1237,7 +1237,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v5.0 Ultimate"), 15, 285);
+      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
 
       // --- PAGE 3: DONEM GIDER DETAYLARI VE HARCAMALAR ---
       doc.addPage();
@@ -1339,7 +1339,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v5.0 Ultimate"), 15, 285);
+      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
 
       try {
         await savePdfDocument(doc, "Butcem_Pro_Borc_Raporu.pdf");

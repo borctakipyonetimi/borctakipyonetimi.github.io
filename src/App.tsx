@@ -2405,25 +2405,9 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  // Application Intro Loading Screen & 5-Page Visual Walkthrough states and handlers
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    try {
-      const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
-      return !completed;
-    } catch {
-      return false;
-    }
-  });
-  // Tanıtım sayfası ilk kez açılıyorsa splash henüz başlamasın; tanıtım bittiğinde başlayacak.
-  // Tanıtım zaten daha önce tamamlanmışsa doğrudan animasyonlu açılış ekranı başlar.
-  const [splashVisible, setSplashVisible] = useState<boolean>(() => {
-    try {
-      const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
-      return !!completed;
-    } catch {
-      return false;
-    }
-  });
+  // Application Clean Start state
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [splashVisible, setSplashVisible] = useState<boolean>(false);
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
@@ -5960,7 +5944,7 @@ export default function App() {
     } catch {}
 
     const bag = { 
-      version: "2.0.0",
+      version: "1.0.0",
       exportDate: new Date().toISOString(),
       user: currentUser || "Bireysel Kullanıcı",
       debts, 
@@ -6651,12 +6635,10 @@ export default function App() {
     { id: "aiStrategy", label: "AKILLI ASİSTAN (AI)", icon: Sparkles, isPro: true },
     { id: "financialTools", label: "FİNANSAL ANALİZ", icon: TrendingUp, isPro: true },
     { id: "settings", label: "GÜVENLİK VE AYARLAR", icon: Settings },
-    { id: "help", label: "KULLANIM REHBERİ", icon: HelpCircle },
-    { id: "blog", label: "FİNANS KILAVUZLARI", icon: BookOpen },
+    { id: "faq", label: "SIK SORULAN SORULAR", icon: HelpCircle },
     { id: "feedback", label: "GERİ BİLDİRİM", icon: MessageSquare },
     { id: "about", label: "HAKKINDA", icon: Star },
-    { id: "privacy", label: "GİZLİLİK POLİTİKASI", icon: Shield },
-    { id: "public_landing", label: "TANITIM & AÇILIŞ", icon: Compass }
+    { id: "privacy", label: "GİZLİLİK POLİTİKASI", icon: Shield }
   ];
 
   const handleNavClick = (tabId: string) => {
@@ -6664,8 +6646,8 @@ export default function App() {
       setIsSidebarOpen(false);
     }
 
-    if (tabId === "public_landing") {
-      setShowPublicView("landing");
+    if (tabId === "faq" || tabId === "help" || tabId === "guide") {
+      startNavTransition(() => setActiveTab("faq"));
       return;
     }
 
@@ -7047,7 +7029,7 @@ export default function App() {
 
             {/* Footer info lock */}
             <div className="absolute bottom-6 text-[9px] text-slate-400 tracking-widest uppercase font-black text-center space-y-0.5">
-              <div>Bütçem v5.0 Ultimate Edition</div>
+              <div>Bütçem v1.0</div>
               <div className="text-[7.5px] text-slate-500 font-mono tracking-normal text-center">Secure AES-256 Workspace Ingress • Verified</div>
             </div>
           </motion.div>
@@ -7415,18 +7397,6 @@ export default function App() {
                   ? "DENEME BİTTİ"
                   : "PRO'YA GEÇ"}
               </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setShowOnboarding(true);
-                triggerToast("Bütçem Pro Tanıtım & Hoş Geldiniz Ekranı Açılıyor... ✨");
-              }}
-              title="Bütçem Pro Tanıtım & Hoş Geldiniz Turu"
-              className="px-2 sm:px-2.5 py-1.5 sm:py-2 bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-amber-500/30 hover:to-emerald-500/30 border border-amber-500/40 text-amber-300 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 text-[9px] sm:text-[10px] font-black tracking-wide duration-300 cursor-pointer shrink-0 shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span className="hidden xs:inline">TANITIM TURU</span>
             </button>
 
             <button
@@ -8015,7 +7985,7 @@ export default function App() {
                     {language === "tr" ? "Bütçem Pro" : "Budget Pro"}
                   </h2>
                   <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                    v5.0
+                    v1.0
                   </span>
                 </div>
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 truncate">
@@ -9349,16 +9319,6 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-
-                  {/* 4. Sessiz ve Akıllı Hatırlatma Mimarisi Bilgi Kartı */}
-                  <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 rounded-2xl space-y-1.5 text-xs text-indigo-950 dark:text-indigo-200">
-                    <h4 className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
-                      <span>💡 Sessiz ve Akıllı Hatırlatma Mimarisi</span>
-                    </h4>
-                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                      Uygulama içi rahatsız edici melodik sesler tamamen kaldırılmıştır. Borç ve taksit hatırlatmalarınız, yukarıda seçtiğiniz sıklık ayarlarına göre sessiz, net ve kilit ekranında okunabilir anlık push bildirimleri olarak telefonunuza ulaştırılır.
-                    </p>
-                  </div>
                 </div>
               </div>
             )}
@@ -9494,7 +9454,7 @@ export default function App() {
           />
         )}
 
-        {["help", "blog", "feedback", "about", "privacy"].includes(activeTab) && (
+        {["help", "blog", "feedback", "about", "privacy", "faq"].includes(activeTab) && (
           <HelpAndGuides
             activeTab={activeTab}
             onNavigate={handleNavClick}
@@ -12124,7 +12084,7 @@ export default function App() {
                       try { contactsData = JSON.parse(localStorage.getItem(contactsKey) || "[]"); } catch {}
                       try { contactTxsData = JSON.parse(localStorage.getItem(contactTxsKey) || "[]"); } catch {}
                       const bag = { 
-                        version: "2.0.0", 
+                        version: "1.0.0", 
                         exportDate: new Date().toISOString(),
                         user: currentUser || "Bireysel Kullanıcı",
                         debts, incomes, alarms, notifications, installmentDebts, payments, expenses, expenseCategories, 

@@ -17,7 +17,7 @@ export const translations = {
     feedback: "GERİ BİLDİRİM",
     about: "HAKKINDA",
     privacy: "GİZLİLİK POLİTİKASI",
-    public_landing: "TANITIM & AÇILIŞ",
+    faq: "SIK SORULAN SORULAR",
 
     // Header buttons & titles
     security: "Güvenlik ve Ayarlar",
@@ -97,7 +97,7 @@ export const translations = {
     feedback: "SUBMIT FEEDBACK",
     about: "SYSTEM ABOUT",
     privacy: "PRIVACY DISCLOSURES",
-    public_landing: "PROMO LANDING",
+    faq: "FAQ",
 
     // Header buttons & titles
     security: "Security & Settings",
