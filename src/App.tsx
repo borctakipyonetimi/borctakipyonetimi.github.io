@@ -2433,8 +2433,8 @@ export default function App() {
     setSplashStatus("Sistemler Başlatılıyor...");
     setSplashVisible(true);
 
-    const totalDuration = 2200; // Smoother 2.2 second professional tech loading flow
-    const intervalTime = 25;
+    const totalDuration = 1600; // Ultra-fluid 1.6s high-performance loading flow
+    const intervalTime = 40; // 25 fps state updates to avoid React render lockup
     const steps = totalDuration / intervalTime;
     let currentStep = 0;
 
@@ -2458,7 +2458,7 @@ export default function App() {
         splashTimerRef.current = null;
         setTimeout(() => {
           setSplashVisible(false);
-        }, 80);
+        }, 50);
       }
     }, intervalTime);
   };
@@ -6813,16 +6813,16 @@ export default function App() {
               ))}
             </div>
 
-            {/* Glowing gradient backdrops */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-indigo-500/10 blur-[130px] pointer-events-none animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-emerald-500/10 blur-[130px] pointer-events-none animate-pulse [animation-delay:2s]" />
+            {/* Static high-performance glowing gradient backdrops */}
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
             <div className="text-center space-y-6 max-w-sm w-full relative z-10">
-              {/* Premium Animated 4-Quadrant Logo Loader (Matching user's reference screenshot exactly) */}
+              {/* Premium Animated 4-Quadrant Logo Loader */}
               <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-6">
                 {/* Ambient glowing back shadow */}
-                <div className="absolute inset-0 bg-indigo-500/30 rounded-full blur-3xl scale-150 animate-pulse pointer-events-none" />
-                <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-2xl scale-125 pointer-events-none" />
+                <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl scale-125 pointer-events-none" />
+                <div className="absolute inset-0 bg-cyan-500/15 rounded-full blur-xl pointer-events-none" />
                 
                 {/* Outer spinning dashed ring (Clockwise) with glowing orbit satellite dot */}
                 <motion.div
