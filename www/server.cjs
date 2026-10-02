@@ -77,7 +77,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     service: "butcem-pro-backend",
     time: (/* @__PURE__ */ new Date()).toISOString(),
-    smtpConfigured: !!(currentCustomSmtp?.user || process.env.SMTP_HOST || process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.GMAIL_USER || process.env.EMAIL_USER || process.env.MAIL_USER)
+    smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass)
   });
 });
 var tempWebviewBackups = /* @__PURE__ */ new Map();
@@ -159,15 +159,17 @@ app.get("/api/trial/status", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
   const userId = req.query.userId || "";
   const deviceId = req.query.deviceId || "";
+  const email = (req.query.email || "").trim().toLowerCase();
   const trials = readTrials();
-  const key = userId && userId.trim() || deviceId && deviceId.trim() || ip;
-  const startDateStr = trials[key] || deviceId && trials[deviceId] || userId && trials[userId] || trials[ip];
+  const key = email || userId && userId.trim() || deviceId && deviceId.trim() || ip;
+  const startDateStr = email && trials[email] || userId && trials[userId] || deviceId && trials[deviceId] || trials[ip] || trials[key];
   if (!startDateStr) {
     return res.json({
       hasTrial: false,
+      hasUsedTrial: false,
       isActive: false,
       isExpired: false,
-      daysRemaining: 15,
+      daysRemaining: 7,
       startDate: null,
       endDate: null
     });
@@ -176,11 +178,12 @@ app.get("/api/trial/status", (req, res) => {
   const now = /* @__PURE__ */ new Date();
   const diffTime = now.getTime() - startDate.getTime();
   const diffDays = diffTime / (1e3 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
-  const isExpired = diffDays >= 15;
-  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1e3);
+  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+  const isExpired = diffDays >= 7;
+  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
     hasTrial: true,
+    hasUsedTrial: true,
     isActive: !isExpired,
     isExpired,
     daysRemaining,
@@ -190,31 +193,71 @@ app.get("/api/trial/status", (req, res) => {
 });
 app.post("/api/trial/activate", (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
-  const { userId, deviceId, forceReset } = req.body || {};
+  const { userId, deviceId, email } = req.body || {};
+  const trials = readTrials();
+  const cleanEmail = email && typeof email === "string" ? email.trim().toLowerCase() : "";
+  const cleanUserId = userId && typeof userId === "string" ? userId.trim() : "";
+  const cleanDeviceId = deviceId && typeof deviceId === "string" ? deviceId.trim() : "";
+  const key = cleanEmail || cleanUserId || cleanDeviceId || ip;
+  const existingStartDate = cleanEmail && trials[cleanEmail] || cleanUserId && trials[cleanUserId] || cleanDeviceId && trials[cleanDeviceId] || trials[ip] || trials[key];
+  if (existingStartDate) {
+    const startDate = new Date(existingStartDate);
+    const now = /* @__PURE__ */ new Date();
+    const diffTime = now.getTime() - startDate.getTime();
+    const diffDays = diffTime / (1e3 * 60 * 60 * 24);
+    const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+    const isExpired = diffDays >= 7;
+    const endDate2 = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
+    return res.status(403).json({
+      success: false,
+      error: "Bu e-posta veya cihaz i\xE7in 7 g\xFCnl\xFCk \xFCcretsiz deneme hakk\u0131 daha \xF6nce kullan\u0131lm\u0131\u015Ft\u0131r. L\xFCtfen bir Premium paket se\xE7in.",
+      hasTrial: true,
+      hasUsedTrial: true,
+      isActive: !isExpired,
+      isExpired,
+      daysRemaining,
+      startDate: startDate.toISOString(),
+      endDate: endDate2.toISOString()
+    });
+  }
+  const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+  trials[key] = nowIso;
+  if (cleanEmail) trials[cleanEmail] = nowIso;
+  if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
+  if (cleanUserId) trials[cleanUserId] = nowIso;
+  trials[ip] = nowIso;
+  writeTrials(trials);
+  const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
+  res.json({
+    success: true,
+    hasTrial: true,
+    hasUsedTrial: true,
+    isActive: true,
+    isExpired: false,
+    daysRemaining: 7,
+    startDate: nowIso,
+    endDate: endDate.toISOString()
+  });
+});
+app.post("/api/trial/cancel", (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1").split(",")[0].trim();
+  const { userId, deviceId } = req.body || {};
   const trials = readTrials();
   const key = userId && typeof userId === "string" && userId.trim() || deviceId && typeof deviceId === "string" && deviceId.trim() || ip;
-  if (forceReset || !trials[key]) {
-    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-    trials[key] = nowIso;
-    if (deviceId) trials[deviceId] = nowIso;
-    if (userId) trials[userId] = nowIso;
-    trials[ip] = nowIso;
-    writeTrials(trials);
-  }
-  const startDate = new Date(trials[key]);
-  const now = /* @__PURE__ */ new Date();
-  const diffTime = now.getTime() - startDate.getTime();
-  const diffDays = diffTime / (1e3 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(15 - diffDays));
-  const isExpired = diffDays >= 15;
-  const endDate = new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1e3);
+  const expiredDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
+  trials[key] = expiredDate;
+  if (deviceId) trials[deviceId] = expiredDate;
+  if (userId) trials[userId] = expiredDate;
+  trials[ip] = expiredDate;
+  writeTrials(trials);
   res.json({
     hasTrial: true,
-    isActive: !isExpired,
-    isExpired,
-    daysRemaining,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString()
+    isActive: false,
+    isExpired: true,
+    isCanceled: true,
+    daysRemaining: 0,
+    startDate: null,
+    endDate: null
   });
 });
 app.get("/api/drive/backups", async (req, res) => {
@@ -328,9 +371,6 @@ var cachedApiKey = void 0;
 var cachedAi = null;
 var defaultKeyHasFailed = false;
 function getGeminiClient(userKey) {
-  if (!userKey && defaultKeyHasFailed) {
-    return null;
-  }
   const currentKey = userKey || process.env.GEMINI_API_KEY;
   if (!currentKey || currentKey.trim() === "") {
     return null;
@@ -437,6 +477,71 @@ function getSmartFallbackResponse(query, context, reason) {
   let advice = `\u2728 **B\xFCt\xE7em Pro Geli\u015Fmi\u015F Finansal Analiz Raporu**
 
 `;
+  if (q.includes("ka\xE7 senede") || q.includes("kac senede") || q.includes("ka\xE7 y\u0131lda") || q.includes("kac yilda") || q.includes("ka\xE7 ayda") || q.includes("kac ayda") || q.includes("ka\xE7 g\xFCnde") || q.includes("kac gunde") || q.includes("ne zaman biter") || q.includes("ne kadar s\xFCrede") || q.includes("ne kadar surede") || q.includes("ne zaman s\u0131f\u0131rlan\u0131r") || q.includes("ne zaman sifirlanir") || q.includes("borcum ne zaman") || q.includes("borclarim ne zaman") || q.includes("bor\xE7lar\u0131m ne zaman") || q.includes("bor\xE7 ne zaman") || q.includes("borc ne zaman") || q.includes("ka\xE7 y\u0131l s\xFCrer") || q.includes("kac yil surer") || q.includes("ka\xE7 ay s\xFCrer") || q.includes("kac ay surer") || q.includes("biti\u015F s\xFCresi") || q.includes("bitis suresi") || q.includes("kapatma s\xFCresi") || q.includes("kapatma suresi") || q.includes("ne zaman biterim") || q.includes("ne zaman kurtulurum")) {
+    const tIncome = stats.totalIncome || 0;
+    const tExpense = stats.totalExpense || 0;
+    const overallDebt = stats.remaining || 0;
+    const thisMonthDebtDue = stats.thisMonthKalanBorc || 0;
+    const netBudget = Math.max(0, tIncome - tExpense);
+    const netCashWithThisMonth = Math.max(0, tIncome - tExpense - thisMonthDebtDue);
+    if (overallDebt <= 0) {
+      return `\u{1F389} **Tebrikler!** Sisteminizde kay\u0131tl\u0131 aktif hi\xE7bir bor\xE7 bulunmamaktad\u0131r. Bor\xE7lar\u0131n\u0131z zaten **tamamen s\u0131f\u0131rlanm\u0131\u015F** durumdad\u0131r! Mevcut net birikimlerinizi yat\u0131r\u0131ma veya acil durum fonuna y\xF6nlendirebilirsiniz.`;
+    }
+    if (netBudget <= 0) {
+      return `\u26A0\uFE0F **Bor\xE7 Biti\u015F S\xFCresi Analizi:**
+
+Mevcut ayl\u0131k geliriniz (\u20BA${Math.round(tIncome).toLocaleString("tr-TR")}) ile ayl\u0131k ya\u015Famsal giderleriniz (\u20BA${Math.round(tExpense).toLocaleString("tr-TR")}) kar\u015F\u0131la\u015Ft\u0131r\u0131ld\u0131\u011F\u0131nda, ayl\u0131k bor\xE7 \xF6demeye ayr\u0131labilecek pozitif bir net b\xFCt\xE7eniz bulunmamaktad\u0131r.
+
+\u2022 **Toplam Kalan Bor\xE7**: \u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}
+\u2022 **Ayl\u0131k Net B\xFCt\xE7e A\xE7\u0131\u011F\u0131**: \u20BA${Math.round(Math.abs(tIncome - tExpense)).toLocaleString("tr-TR")}
+
+\u{1F4A1} **\xC7\xF6z\xFCm ve Eylem Plan\u0131:**
+1. Bor\xE7lar\u0131n\u0131z\u0131 planl\u0131 bir s\xFCrede bitirebilmek i\xE7in \xF6ncelikle ya\u015Famsal giderlerinizi asgari %15-20 k\u0131sarak ayl\u0131k pozitif tasarruf marj\u0131 olu\u015Fturmal\u0131s\u0131n\u0131z.
+2. \xD6rne\u011Fin ayl\u0131k **\u20BA2.500** tasarruf yaratabilirseniz, borcunuz yakla\u015F\u0131k **${Math.ceil(overallDebt / 2500)} ay (${(overallDebt / 2500 / 12).toFixed(1)} y\u0131l)** i\xE7inde kapanabilir.`;
+    }
+    const monthsNeeded = Math.ceil(overallDebt / netBudget);
+    const yearsNeeded = (monthsNeeded / 12).toFixed(1);
+    const yearsFull = Math.floor(monthsNeeded / 12);
+    const remainingMonths = monthsNeeded % 12;
+    const durationText = yearsFull > 0 ? `${monthsNeeded} ay (${yearsFull} y\u0131l ${remainingMonths > 0 ? `${remainingMonths} ay` : ""})` : `${monthsNeeded} ay`;
+    const optimizedBudget = netBudget * 1.2;
+    const optimizedMonths = Math.ceil(overallDebt / optimizedBudget);
+    const optimizedYears = (optimizedMonths / 12).toFixed(1);
+    const targetDate = /* @__PURE__ */ new Date();
+    targetDate.setMonth(targetDate.getMonth() + monthsNeeded);
+    const targetMonthName = TURKISH_MONTHS[targetDate.getMonth()] || "";
+    const targetYearNum = targetDate.getFullYear();
+    let reply = `\u{1F3AF} **Bor\xE7 Biti\u015F S\xFCresi ve Kapanma Projeksiyonu**
+
+`;
+    reply += `Ayl\u0131k **\u20BA${Math.round(netBudget).toLocaleString("tr-TR")}** net bakiyenizin (Gelir: \u20BA${Math.round(tIncome).toLocaleString("tr-TR")} - Gider: \u20BA${Math.round(tExpense).toLocaleString("tr-TR")}) tamam\u0131n\u0131 bor\xE7 kapatmaya ay\u0131r\u0131rsan\u0131z, **\u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}** toplam borcunuz yakla\u015F\u0131k **${durationText}** i\xE7erisinde (**${targetMonthName} ${targetYearNum}** civar\u0131nda) tamamen biter. Taksitli bor\xE7lar\u0131n\u0131z bittik\xE7e bu s\xFCre daha da k\u0131salacakt\u0131r.
+
+`;
+    reply += `### \u{1F4CA} Matematiksel Hesaplama Detaylar\u0131:
+`;
+    reply += `\u2022 **Genel Toplam Kalan Bor\xE7**: \u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}
+`;
+    reply += `\u2022 **Ayl\u0131k Borca Ayr\u0131labilecek Net B\xFCt\xE7e**: \u20BA${Math.round(netBudget).toLocaleString("tr-TR")}
+`;
+    reply += `\u2022 **Standart Kapanma S\xFCresi**: **${monthsNeeded} Ay (${yearsNeeded} Y\u0131l)**
+`;
+    reply += `\u2022 **Tahmini Bor\xE7suzluk Tarihi**: **${targetMonthName} ${targetYearNum}**
+
+`;
+    reply += `### \u26A1 S\xFCreyi K\u0131saltma ve Erken Kapatma Senaryolar\u0131:
+`;
+    reply += `1. **Giderleri %15 Optimize Ederseniz**: Ayl\u0131k bor\xE7 b\xFCt\xE7enizi \u20BA${Math.round(optimizedBudget).toLocaleString("tr-TR")} seviyesine \xE7\u0131kararak bor\xE7 kapatma s\xFCrenizi **${monthsNeeded} aydan ${optimizedMonths} aya (${optimizedYears} y\u0131la)** d\xFC\u015F\xFCrebilir ve **${monthsNeeded - optimizedMonths} ay erken** bor\xE7suzlu\u011Fa ula\u015Fabilirsiniz!
+`;
+    reply += `2. **Kartopu Etkisi (Taksitler Bittik\xE7e H\u0131zlanma)**: K\u0131sa vadeli taksitleriniz \xF6dendik\xE7e her ay bo\u015Fa \xE7\u0131kan taksit tutar\u0131n\u0131 do\u011Frudan b\xFCy\xFCk bor\xE7lara ekleyin. Bu sayede bor\xE7lar\u0131n\u0131z katlanarak daha erken s\u0131f\u0131rlanacakt\u0131r.
+`;
+    reply += `3. **Ek Gelir & Prim Enjeksiyonu**: Beklenmedik ikramiye veya ek gelirlerin en az %70'ini do\u011Frudan 1. \xF6ncelikli borca yat\u0131r\u0131n.
+
+`;
+    reply += `---
+`;
+    reply += `\u{1F4A1} *\u0130pucu: Hangi borcu ilk s\u0131rada \xF6demeniz gerekti\u011Fini g\xF6rmek i\xE7in "Hangi borcu \xF6nce \xF6demeliyim?" sorusunu sorabilirsiniz.*`;
+    return reply;
+  }
   if (q.includes("ayl\u0131k analiz raporu") || q.includes("aylik analiz raporu") || q.includes("analiz raporu")) {
     const tIncome = stats.totalIncome;
     const tExpense = stats.totalExpense;
@@ -696,97 +801,217 @@ function getSmartFallbackResponse(query, context, reason) {
 `;
     }
   } else if (q.includes("risk") || q.includes("analiz") || q.includes("durum") || q.includes("b\xFCt\xE7e") || q.includes("butce") || q.includes("genel") || q.includes("karne") || q.includes("sa\u011Fl\u0131k") || q.includes("saglik") || q.includes("rapor")) {
-    advice += `\u{1F4CA} **Ki\u015Fiselle\u015Ftirilmi\u015F B\xFCt\xE7e Karnesi ve Risk Analizi**
+    const tIncome = stats.totalIncome || 0;
+    const tExpense = stats.totalExpense || 0;
+    let monthlyInstBurden = 0;
+    (installmentDebts || []).forEach((inst) => {
+      const total = Number(inst.totalAmount) || 0;
+      const count = Math.max(1, Number(inst.installmentCount) || 1);
+      const paidCount = Math.max(0, Number(inst.paidInstallmentCount) || 0);
+      if (paidCount < count) {
+        monthlyInstBurden += total / count;
+      }
+    });
+    const thisMonthDebtDue = stats.thisMonthKalanBorc > 0 ? stats.thisMonthKalanBorc : monthlyInstBurden;
+    const netFreeCashflow = tIncome - tExpense - thisMonthDebtDue;
+    const overallDebt = stats.remaining || 0;
+    const dRatio2 = tIncome > 0 ? overallDebt / tIncome : 0;
+    const freeRate = tIncome > 0 ? netFreeCashflow / tIncome * 100 : 0;
+    advice += `### \u{1F50D} B\xFCt\xE7e Risk ve Genel Sa\u011Fl\u0131k De\u011Ferlendirmesi
 
 `;
-    advice += `Ayl\u0131k kay\u0131tl\u0131 hesap parametreleriniz \xFCzerinden ger\xE7ekle\u015Ftirdi\u011Fim finansal sa\u011Fl\u0131k taramas\u0131 \xE7\u0131kt\u0131s\u0131:
+    advice += `Ayl\u0131k gelir, gider ve t\xFCm bor\xE7 portf\xF6y\xFCn\xFCz taranarak haz\u0131rlanan finansal sa\u011Fl\u0131k tablosu:
 
 `;
-    advice += `| Mali Metrik | De\u011Fer | B\xFCt\xE7e Oran Pay\u0131 | Durum |
+    advice += `\u2022 **Ayl\u0131k Toplam Gelir**: \u20BA${Math.round(tIncome).toLocaleString("tr-TR")}
 `;
-    advice += `| :--- | :--- | :--- | :---: |
+    advice += `\u2022 **Ayl\u0131k Ya\u015Famsal Gider**: \u20BA${Math.round(tExpense).toLocaleString("tr-TR")}
 `;
-    advice += `| **Ayl\u0131k Gelir** | \u20BA${stats.totalIncome.toLocaleString("tr-TR")} | %100 | Nakit Giri\u015Fi |
+    advice += `\u2022 **Bu Ayki Bor\xE7 ve Taksit \xD6demeleri**: \u20BA${Math.round(thisMonthDebtDue).toLocaleString("tr-TR")}
 `;
-    advice += `| **Ayl\u0131k Gider** | \u20BA${stats.totalExpense.toLocaleString("tr-TR")} | %${expensePercentage.toFixed(1)} | Harcama Oran\u0131 |
+    advice += `\u2022 **Net Kullan\u0131labilir Bakiye**: \u20BA${Math.round(netFreeCashflow).toLocaleString("tr-TR")} (Gelirin %${freeRate.toFixed(0)} kadar\u0131 tasarruf marj\u0131)
 `;
-    advice += `| **Net Bakiye** | \u20BA${stats.netIncome.toLocaleString("tr-TR")} | %${savingsRate.toFixed(1)} | Ayl\u0131k Tasarruf |
-`;
-    advice += `| **Kalan Bor\xE7** | \u20BA${stats.remaining.toLocaleString("tr-TR")} | %${dRatioPerc.toFixed(0)} | Bor\xE7/Gelir Y\xFCk\xFC |
+    advice += `\u2022 **Genel Toplam Kalan Bor\xE7**: \u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}
 
 `;
-    advice += `\u{1F6A8} **Cari Bor\xE7 Risk Seviyeniz**: `;
-    if (dRatio > 5) {
-      advice += `\u26A1 **KIRMIZI ALARM (Y\xDCKSEK MALI R\u0130SK)**
+    advice += `### \u{1F4CA} 1. Ayl\u0131k Nakit Ak\u0131\u015F\u0131 De\u011Ferlendirmesi
 `;
-      advice += `Mevcut toplam bor\xE7 y\xFCk\xFCn\xFCz, ayl\u0131k gelirinizin **${dRatio.toFixed(1)} kat\u0131**! Finansal g\xFCvenli\u011Finiz tehlikede. Harcamalar\u0131n\u0131z\u0131 acilen dondurmal\u0131, taksitli bor\xE7lanmay\u0131 durdurmal\u0131 ve t\xFCm b\xFCt\xE7e fazlas\u0131n\u0131 en k\xFC\xE7\xFCk borca kanalize etmelisiniz.
+    if (netFreeCashflow < 0) {
+      advice += `\u{1F534} **Y\xFCksek Nakit Ak\u0131\u015F\u0131 Riski**: Ayl\u0131k giderleriniz ve bu ayki bor\xE7 \xF6demeleriniz gelirinizi a\u015F\u0131yor. Her ay **\u20BA${Math.abs(Math.round(netFreeCashflow)).toLocaleString("tr-TR")}** a\xE7\u0131k veriyorsunuz. Acilen iste\u011Fe ba\u011Fl\u0131 harcamalar\u0131 dondurmal\u0131 ve b\xFCt\xE7eyi dengelemelisiniz.
 
 `;
-    } else if (dRatio > 2.5) {
-      advice += `\u2696\uFE0F **SARI ALARM (ORTA SEV\u0130YE R\u0130SK)**
-`;
-      advice += `Geri \xF6denmesi gereken bor\xE7 portf\xF6y\xFCn\xFCz ayl\u0131k gelirinizin **${dRatio.toFixed(1)} kat\u0131** d\xFCzeyinde. B\xFCt\xE7eniz kontrol edilebilir durumda ancak yeni taksitler eklemek sizi y\xFCksek risk s\u0131n\u0131r\u0131na itecektir. Kar topu stratejisiyle acilen bor\xE7 kapatmaya odaklan\u0131n.
-
-`;
-    } else {
-      advice += `\u{1F7E2} **YE\u015E\u0130L B\xD6LGE (G\xDCVENL\u0130 VE RES\u0130L\u0130ENT)**
-`;
-      advice += `Toplam bor\xE7 y\xFCk\xFCn\xFCz ayl\u0131k gelirinizin **${dRatio.toFixed(1)} kat\u0131** seviyesinde ve olduk\xE7a g\xFCvenli s\u0131n\u0131rda. Mevcut b\xFCt\xE7e plan\u0131n\u0131z\u0131 koruyarak bor\xE7lar\u0131n\u0131z\u0131 takvimine g\xF6re s\u0131f\u0131rlayabilirsiniz.
-
-`;
-    }
-    advice += `\u{1F4AA} **Mali G\xFC\xE7lenme Tavsiyeleriniz**:
-`;
-    if (savingsRate < 10) {
-      advice += `- **Tasarruf S\u0131z\u0131nt\u0131s\u0131**: Ayl\u0131k tasarruf oran\u0131n\u0131z (%${savingsRate.toFixed(1)}) \xE7ok d\xFC\u015F\xFCk. Acil durum fonu olu\u015Fturmak i\xE7in ayl\u0131k gider b\xFCt\xE7enizden en az **%15 k\u0131s\u0131nt\u0131** planlamal\u0131y\u0131z.
-`;
-    } else {
-      advice += `- **Y\xFCksek Likidite G\xFCc\xFC**: Ayl\u0131k tasarruf oran\u0131n\u0131z (%${savingsRate.toFixed(1)}) son derece g\xFC\xE7l\xFC. Biriktirdi\u011Finiz bu net bakiye fazlas\u0131n\u0131 bor\xE7 kapatma h\u0131zland\u0131r\u0131c\u0131s\u0131 olarak asgari \xF6demelerin \xFCzerine ekleyin.
-`;
-    }
-    if (installmentDebts.length > 2) {
-      advice += `- **Taksit Blokaj\u0131**: Devam eden **${installmentDebts.length} aktif taksitiniz** gelecekteki nakit ak\u0131\u015F\u0131n\u0131z\u0131 rehin tutuyor. Gelecek aylarda yeni taksitli i\u015Flem yapmayaca\u011F\u0131n\u0131za dair kendinize s\xF6z verin.
-`;
-    }
-  } else if (q.includes("bor\xE7") || q.includes("borc") || q.includes("kapat") || q.includes("erit") || q.includes("strateji") || q.includes("kartopu") || q.includes("avalanche") || q.includes("\xE7\u0131\u011F") || q.includes("cig") || q.includes("\xF6de")) {
-    advice += `\u{1F680} **Ak\u0131ll\u0131 Bor\xE7 S\u0131f\u0131rlama ve Yap\u0131land\u0131rma Stratejisi**
-
-`;
-    if (debts.length === 0) {
-      advice += `\u015Eu anda sistemde kay\u0131tl\u0131 aktif nakit bor\xE7 kaleminiz bulunmuyor. Yeni bor\xE7lar ekleyerek asistan\u0131n ger\xE7ek-zamanl\u0131 kar topu sim\xFClasyonunu ba\u015Flatabilirsiniz!
+    } else if (netFreeCashflow < tIncome * 0.15) {
+      advice += `\u2696\uFE0F **Orta Seviye Nakit Ak\u0131\u015F\u0131 (Dar Tasarruf Marj\u0131)**: B\xFCt\xE7eniz pozitif bakiye veriyor fakat tasarruf marj\u0131n\u0131z (%${freeRate.toFixed(0)}) dar. Beklenmedik masraflara kar\u015F\u0131 acil durum fonu olu\u015Fturmal\u0131s\u0131n\u0131z.
 
 `;
     } else {
-      advice += `Mevcut **${debts.length} adet** bor\xE7 kaleminiz analiz edilerek bor\xE7suz bir ya\u015Fama en h\u0131zl\u0131 ula\u015Fman\u0131z\u0131 sa\u011Flayacak iki temel metodoloji sim\xFCle edilmi\u015Ftir:
+      advice += `\u{1F7E2} **G\xFC\xE7l\xFC Ayl\u0131k Nakit Ak\u0131\u015F\u0131**: Ayl\u0131k giderler ve cari bor\xE7 \xF6demeleri \xE7\u0131kt\u0131ktan sonra gelirinizin **%${freeRate.toFixed(0)}** kadar\u0131 (\u20BA${Math.round(netFreeCashflow).toLocaleString("tr-TR")}) elinizde kal\u0131yor.
 
 `;
-      const sortedSnowball = [...debts].sort((a, b) => a.amount - a.paid - (b.amount - b.paid));
-      const sortedAvalanche = [...debts].sort((a, b) => b.amount - b.paid - (a.amount - a.paid));
-      advice += `1\uFE0F\u20E3 **Kartopu (Snowball) Stratejisi (Psikolojik & En H\u0131zl\u0131 Sonu\xE7)**:
+    }
+    advice += `### \u{1F6A8} 2. Genel Bor\xE7 Y\xFCk\xFC ve Kapatma S\xFCresi
 `;
-      advice += `\u2022 Kalan net bakiyesi en d\xFC\u015F\xFCk olan borca agresif \xF6deme yap\u0131p onu yok edin, di\u011Ferlerine asgari yat\u0131r\u0131n. Bir borcun tamamen silindi\u011Fini g\xF6rmek sizi inan\u0131lmaz motive eder.
+    if (dRatio2 > 10) {
+      const monthsNeeded = netFreeCashflow > 0 ? overallDebt / netFreeCashflow : Infinity;
+      const yearsNeeded = (monthsNeeded / 12).toFixed(1);
+      advice += `\u26A0\uFE0F **Kritik Genel Bor\xE7 Y\xFCk\xFC (K\u0131rm\u0131z\u0131 B\xF6lge)**:
 `;
-      advice += `\u{1F449} **Kartopu \u0130lk Hedefiniz**: En az kalan bor\xE7 olan **"${sortedSnowball[0].name}"** borcunu kapatmaya odaklan\u0131n. Kalan \xD6denecek: **\u20BA${(sortedSnowball[0].amount - sortedSnowball[0].paid).toLocaleString("tr-TR")}**.
+      advice += `Genel toplam kalan borcunuz (\u20BA${Math.round(overallDebt).toLocaleString("tr-TR")}), ayl\u0131k gelirinizin **${dRatio2.toFixed(1)} kat\u0131** seviyesindedir. Ayl\u0131k nakit ak\u0131\u015F\u0131n\u0131z pozitif olsa dahi, genel bor\xE7 portf\xF6y\xFCn\xFCz\xFCn b\xFCy\xFCkl\xFC\u011F\xFC nedeniyle bor\xE7lar\u0131n tamamen kapanmas\u0131 mevcut ayl\u0131k tasarrufla yakla\u015F\u0131k **${yearsNeeded} y\u0131l (${Math.round(monthsNeeded)} ay)** s\xFCrecektir. Yeni bor\xE7lanmadan ka\xE7\u0131nmal\u0131 ve tasarruf fazlas\u0131n\u0131 agresif bor\xE7 kapatmaya y\xF6nlendirmelisiniz.
 
 `;
-      advice += `2\uFE0F\u20E3 **\xC7\u0131\u011F (Avalanche) Stratejisi (Matematiksel / En Ekonomik Yol)**:
+    } else if (dRatio2 > 3) {
+      const monthsNeeded = netFreeCashflow > 0 ? overallDebt / netFreeCashflow : Infinity;
+      advice += `\u2696\uFE0F **Orta Seviye Bor\xE7 Y\xFCk\xFC (Sar\u0131 B\xF6lge)**:
 `;
-      advice += `\u2022 Tutar\u0131 veya maliyeti en y\xFCksek olan borca \xF6ncelik tan\u0131y\u0131n. B\xF6ylece toplamda katlanaca\u011F\u0131n\u0131z enflasyonist vade y\xFCk\xFCn\xFC ve faiz kayb\u0131n\u0131 minimuma indirirsiniz.
-`;
-      advice += `\u{1F449} **\xC7\u0131\u011F \u0130lk Hedefiniz**: En b\xFCy\xFCk kalan bor\xE7 olan **"${sortedAvalanche[0].name}"** borcuna odaklan\u0131n. Kalan \xD6denecek: **\u20BA${(sortedAvalanche[0].amount - sortedAvalanche[0].paid).toLocaleString("tr-TR")}**.
+      advice += `Toplam borcunuz ayl\u0131k gelirinizin **${dRatio2.toFixed(1)} kat\u0131** d\xFCzeyinde. Mevcut net tasarrufunuzla bor\xE7lar\u0131n\u0131z\u0131 yakla\u015F\u0131k **${Math.round(monthsNeeded)} ayda** s\u0131f\u0131rlayabilirsiniz.
 
 `;
-      const monthlyReserve = stats.netIncome;
-      advice += `\u23F1\uFE0F **Bor\xE7 Eritme Zaman Projeksiyonu**:
+    } else if (overallDebt > 0) {
+      advice += `\u{1F7E2} **D\xFC\u015F\xFCk ve Y\xF6netilebilir Bor\xE7 Y\xFCk\xFC (Ye\u015Fil B\xF6lge)**:
 `;
-      if (monthlyReserve > 100) {
-        const monthsNeeded = stats.remaining / monthlyReserve;
-        advice += `\u2022 Her ay biriktirdi\u011Finiz **\u20BA${monthlyReserve.toLocaleString("tr-TR")}** tasarruf fazlas\u0131n\u0131n tamam\u0131n\u0131 bor\xE7 kapatmaya y\xF6nlendirirseniz, teorik olarak **${monthsNeeded.toFixed(1)} ay sonra** tamamen bor\xE7suz ve \xF6zg\xFCr bir hayata kavu\u015Fabilirsiniz! \u{1F389}
+      advice += `Toplam borcunuz ayl\u0131k gelirinizin **${dRatio2.toFixed(1)} kat\u0131** seviyesinde ve olduk\xE7a g\xFCvenli s\u0131n\u0131rda.
 
+`;
+    } else {
+      advice += `\u{1F389} **Tebrikler! S\u0131f\u0131r Bor\xE7**: Kay\u0131tl\u0131 hi\xE7bir a\xE7\u0131k borcunuz bulunmuyor. Birikimlerinizi yat\u0131r\u0131ma y\xF6nlendirebilirsiniz.
+
+`;
+    }
+    advice += `\u{1F4A1} **Finans Ko\xE7u Eylem Tavsiyesi**:
+`;
+    advice += `\u2022 Ayl\u0131k net \u20BA${Math.round(Math.max(0, netFreeCashflow)).toLocaleString("tr-TR")} tasarrufunuzu biriktirmek yerine, en k\xFC\xE7\xFCk borcunuza ek \xF6deme olarak yat\u0131rarak bor\xE7 kapatma s\xFCrenizi k\u0131saltabilirsiniz.
+`;
+  } else if (q.includes("\xF6ncelik") || q.includes("oncelik") || q.includes("\xF6demeliyim") || q.includes("odemeliyim") || q.includes("hangi borc") || q.includes("hangi borcumu") || q.includes("\xF6nce hangi") || q.includes("bor\xE7") || q.includes("borc") || q.includes("kapat") || q.includes("erit") || q.includes("strateji") || q.includes("kartopu") || q.includes("avalanche") || q.includes("\xE7\u0131\u011F") || q.includes("cig") || q.includes("\xF6de")) {
+    const allDebtItems = [];
+    const now = /* @__PURE__ */ new Date();
+    const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    (debts || []).forEach((d) => {
+      const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      if (rem <= 0) return;
+      const dName = d.name || "Standart Bor\xE7";
+      const dCategory = d.category || "Genel";
+      let isOverdue = false;
+      let daysLate = 0;
+      let dueDateStr = d.dueDate || d.date || "";
+      if (dueDateStr) {
+        const parsed = parseDateRobust(dueDateStr);
+        if (parsed) {
+          const dTime = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+          const diff = Math.round((todayTime - dTime) / (1e3 * 60 * 60 * 24));
+          if (diff > 0) {
+            isOverdue = true;
+            daysLate = diff;
+          }
+        }
+      }
+      allDebtItems.push({
+        name: dName,
+        remaining: rem,
+        category: dCategory,
+        type: "standard",
+        dueDateStr: dueDateStr || "Tarih Belirtilmedi",
+        isOverdue,
+        daysLate
+      });
+    });
+    (installmentDebts || []).forEach((inst) => {
+      const total = Number(inst.totalAmount) || 0;
+      const count = Math.max(1, Number(inst.installmentCount) || 1);
+      const paidCount = Math.max(0, Number(inst.paidInstallmentCount) || 0);
+      const perInst = total / count;
+      const remCount = Math.max(0, count - paidCount);
+      const remAmount = Math.max(0, total - paidCount * perInst);
+      if (remCount <= 0 || remAmount <= 0) return;
+      allDebtItems.push({
+        name: `${inst.name || "Taksitli Bor\xE7"} (Taksit)`,
+        remaining: remAmount,
+        category: inst.category || "Taksit",
+        type: "installment",
+        monthlyPayment: perInst,
+        remCount,
+        totalCount: count,
+        dueDateStr: inst.firstDueDate || inst.dueDate || "Ayl\u0131k D\xFCzenli"
+      });
+    });
+    (contactTxs || []).forEach((tx) => {
+      if (!tx.isPaid && tx.type === "payable") {
+        const amt = Number(tx.amount) || 0;
+        if (amt > 0) {
+          allDebtItems.push({
+            name: `${tx.personName || "Ki\u015Fi"} Borcu (Elden/Rehber)`,
+            remaining: amt,
+            category: "Ki\u015Fi Borcu",
+            type: "contact",
+            dueDateStr: tx.dueDate || tx.date || "Vadesiz"
+          });
+        }
+      }
+    });
+    advice += `### \u2696\uFE0F Hangi Borcu \xD6ncelikli \xD6demelisiniz? (Ak\u0131ll\u0131 \xD6deme Plan\u0131)
+
+`;
+    if (allDebtItems.length === 0) {
+      advice += `\u{1F389} **Tebrikler!** Sisteminizde kay\u0131tl\u0131 aktif veya vadesi ge\xE7mi\u015F hi\xE7bir bor\xE7 bulunmamaktad\u0131r. T\xFCm bor\xE7lar\u0131n\u0131z tamamen s\u0131f\u0131rlanm\u0131\u015F durumdad\u0131r.
+`;
+    } else {
+      const overdueList = allDebtItems.filter((d) => d.isOverdue).sort((a, b) => (b.daysLate || 0) - (a.daysLate || 0));
+      const snowballRanked = [...allDebtItems].sort((a, b) => a.remaining - b.remaining);
+      const avalancheRanked = [...allDebtItems].sort((a, b) => b.remaining - a.remaining);
+      const netCash = stats.totalIncome - stats.totalExpense - (stats.thisMonthKalanBorc || 0);
+      advice += `Sistemimizdeki **${allDebtItems.length} adet aktif bor\xE7 ve taksit kayd\u0131n\u0131z** tek tek incelenerek matematiksel ve psikolojik \xF6ncelik s\u0131ralamas\u0131 olu\u015Fturulmu\u015Ftur:
+
+`;
+      if (overdueList.length > 0) {
+        advice += `### \u{1F6A8} 1. MUTLAK VE AC\u0130L \xD6NCEL\u0130K: Vadesi Ge\xE7mi\u015F Bor\xE7lar
+`;
+        advice += `Gecikme faizi, ceza ve kredi notu kayb\u0131n\u0131 durdurmak i\xE7in \u0130LK \xD6NCE a\u015Fa\u011F\u0131daki gecikmi\u015F bor\xE7lar \xF6denmelidir:
+`;
+        overdueList.forEach((d, idx) => {
+          advice += `\u2022 **${idx + 1}. ${d.name}**: Kalan **\u20BA${Math.round(d.remaining).toLocaleString("tr-TR")}** (${d.daysLate} g\xFCn gecikti \u{1F6A8})
+`;
+        });
+        advice += `
+`;
+      }
+      advice += `### \u{1F3AF} 2. \xD6nerilen \xD6ncelikli Bor\xE7 \xD6deme S\u0131ralamas\u0131
+
+`;
+      advice += `**A) \u{1F680} KARTOPU Y\xD6NTEM\u0130 (\xD6NER\u0130LEN - H\u0131zl\u0131 Zaferler & Y\xFCksek Motivasyon)**:
+`;
+      advice += `En k\xFC\xE7\xFCk bakiyeli borcu ilk s\u0131raya al\u0131p t\xFCm b\xFCt\xE7e fazlan\u0131zla kapat\u0131n. Bir borcun tamamen silinmesi finansal \xF6zg\xFCveninizi katlar:
+`;
+      snowballRanked.slice(0, 5).forEach((d, idx) => {
+        const extraInfo = d.type === "installment" ? ` (Ayl\u0131k: \u20BA${Math.round(d.monthlyPayment || 0).toLocaleString("tr-TR")}, ${d.remCount} taksit kald\u0131)` : "";
+        advice += `\u2022 **${idx + 1}. \xD6ncelik: ${d.name}** \u2794 Kalan: **\u20BA${Math.round(d.remaining).toLocaleString("tr-TR")}**${extraInfo}
+`;
+      });
+      advice += `
+`;
+      advice += `**B) \u{1F3D4}\uFE0F \xC7I\u011E (AVALANCHE) Y\xD6NTEM\u0130 (En Az Faiz ve En Y\xFCksek Maliyetli Bor\xE7lar)**:
+`;
+      advice += `B\xFCy\xFCk tutarl\u0131 veya y\xFCksek faizli bor\xE7lar\u0131 ilk s\u0131raya koyarak toplam enflasyonist faiz y\xFCk\xFCn\xFC minimize edin:
+`;
+      avalancheRanked.slice(0, 3).forEach((d, idx) => {
+        advice += `\u2022 **${idx + 1}. Hedef: ${d.name}** \u2794 Kalan: **\u20BA${Math.round(d.remaining).toLocaleString("tr-TR")}**
+`;
+      });
+      advice += `
+`;
+      const targetDebt = overdueList.length > 0 ? overdueList[0] : snowballRanked[0];
+      advice += `### \u{1F4CB} Ad\u0131m Ad\u0131m Uygulama Re\xE7etesi:
+`;
+      advice += `1. **\u0130lk Hedefe Odaklan\u0131n**: Bu ay t\xFCm ekstra paran\u0131z\u0131 do\u011Frudan **"${targetDebt.name}"** borcuna yat\u0131r\u0131n (Kalan Tutar: **\u20BA${Math.round(targetDebt.remaining).toLocaleString("tr-TR")}**).
+`;
+      advice += `2. **Di\u011Fer Bor\xE7lar\u0131n Sadece Asgarisini / Taksitini \xD6deyin**: Di\u011Fer taksitli bor\xE7lar\u0131n ayl\u0131k rutin taksitlerini \xF6deyip ekstra \xF6demeyi 1. hedef borca y\xF6nlendirin.
+`;
+      advice += `3. **\u0130lk Bor\xE7 Kapan\u0131nca**: "${targetDebt.name}" borcu s\u0131f\u0131rland\u0131\u011F\u0131nda, bo\u015Fa \xE7\u0131kan ayl\u0131k \xF6deme tutar\u0131n\u0131 2. s\u0131radaki borca ekleyerek kartopu etkisini b\xFCy\xFCt\xFCn.
+
+`;
+      if (netCash > 0) {
+        advice += `\u{1F4A1} **Nakit Ak\u0131\u015F\u0131 G\xFCc\xFCn\xFCz**: Bu ay harcamalar ve cari taksitler sonras\u0131 elinizde **\u20BA${Math.round(netCash).toLocaleString("tr-TR")} net bakiye** kalmaktad\u0131r. Bu tutar\u0131n tamam\u0131n\u0131 1. hedef borcunuza yat\u0131rarak borcunuzu h\u0131zla eritebilirsiniz!
 `;
       } else {
-        advice += `\u2022 \u26A0\uFE0F Ayl\u0131k kullan\u0131labilir tasarruf rezerviniz yetersiz (Negatif veya \xE7ok d\xFC\u015F\xFCk nakit ak\u0131\u015F\u0131). Bor\xE7lar\u0131n\u0131z\u0131 planl\u0131 s\xFCrede s\u0131f\u0131rlayabilmek i\xE7in ayl\u0131k harcamalar\u0131n\u0131z\u0131 k\u0131smal\u0131 veya acilen ek gelir yaratmal\u0131s\u0131n\u0131z. Giderleri azaltmadan bor\xE7lar\u0131n azalmas\u0131 matematiksel olarak imkans\u0131zd\u0131r.
-
+        advice += `\u26A0\uFE0F **B\xFCt\xE7e Dengeleme Uyar\u0131s\u0131**: Ayl\u0131k kullan\u0131labilir net tasarruf marj\u0131n\u0131z yetersiz g\xF6r\xFCn\xFCyor. Bor\xE7lar\u0131 planlanan s\xFCrede kapatabilmek i\xE7in ayl\u0131k giderlerinizde en az %15 tasarruf yapman\u0131z\u0131 \xF6neririm.
 `;
       }
     }
@@ -869,13 +1094,13 @@ function getSmartFallbackResponse(query, context, reason) {
 `;
     advice += `A\u015Fa\u011F\u0131daki konular\u0131 b\xFCt\xE7e verilerinizle bizzat hesaplayabiliyorum. Bana diledi\u011Finizi yazabilirsiniz:
 `;
-    advice += `\u2022 \u{1F4CA} **Genel B\xFCt\xE7e Karnesi**: "Mevcut b\xFCt\xE7e durumum genel olarak nas\u0131l?"
+    advice += `\u2022 \u23F3 **Bor\xE7 Biti\u015F S\xFCresi**: "Borcum ka\xE7 senede biter?", "Bor\xE7lar\u0131m ne zaman s\u0131f\u0131rlan\u0131r?"
 `;
-    advice += `\u2022 \u{1F680} **Bor\xE7 Eritme Stratejileri**: "Bor\xE7lar\u0131m\u0131 kartopu veya avalanche ile nas\u0131l eritirim?"
+    advice += `\u2022 \u{1F680} **Bor\xE7 Eritme Stratejisi**: "Hangi borcumu \xF6nce \xF6demeliyim?", "Kartopu y\xF6ntemi nas\u0131l uygulan\u0131r?"
 `;
-    advice += `\u2022 \u{1F3AF} **Gider ve Tasarruf T\xFCyolar\u0131**: "Birikim yapmak i\xE7in hangi harcamalar\u0131m\u0131 k\u0131smal\u0131y\u0131m?"
+    advice += `\u2022 \u{1F3AF} **Gider ve Tasarruf T\xFCyolar\u0131**: "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?"
 `;
-    advice += `\u2022 \u{1F50D} **Kategori Analizi**: "Market (veya faturalar) i\xE7in ne kadar harcama yapt\u0131m?"
+    advice += `\u2022 \u{1F4CA} **Genel B\xFCt\xE7e Karnesi**: "Genel durumum nas\u0131l?"
 
 `;
     advice += `Sorular\u0131n\u0131z\u0131 bekliyorum!`;
@@ -895,13 +1120,13 @@ function getSmartFallbackResponse(query, context, reason) {
     advice += `\u2022 **Geri \xD6denecek Kalan Toplam Bor\xE7**: \u20BA${stats.remaining.toLocaleString("tr-TR")} (\xD6denen: \u20BA${stats.totalPaid.toLocaleString("tr-TR")})
 
 `;
-    advice += `Bana bor\xE7 kapatma sim\xFClasyonlar\u0131 (*Kartopu/\xC7\u0131\u011F y\xF6ntemleri*), sekt\xF6rel harcama analizleri (*market, fatura, kira harcamalar\u0131*) veya tasarruf y\xF6ntemleri hakk\u0131nda sorular y\xF6neltebilirsiniz. B\xFCt\xE7e kalemlerinizi bizzat hesaplayarak size en rasyonel \xF6nerileri sunmaktan mutluluk duyar\u0131m!`;
+    advice += `Bana bor\xE7 biti\u015F s\xFCresi projeksiyonlar\u0131 (*"Borcum ka\xE7 senede biter?"*), bor\xE7 kapatma s\u0131ralamalar\u0131 (*"Hangi borcu \xF6nce \xF6demeliyim?"*), sekt\xF6rel harcama analizleri veya tasarruf y\xF6ntemleri hakk\u0131nda spesifik sorular y\xF6neltebilirsiniz. B\xFCt\xE7e kalemlerinizi bizzat hesaplayarak do\u011Frudan sorunuza net cevap sunmaktan mutluluk duyar\u0131m!`;
   }
   advice += `
 
 ---
 `;
-  advice += `\u2699\uFE0F *Bilgi: Bu analiz \xE7evrimd\u0131\u015F\u0131 finans hesaplama motoru taraf\u0131ndan b\xFCt\xE7e verileriniz bizzat hesaplanarak \xFCretilmi\u015Ftir. \xC7evrimi\xE7i yapay zekay\u0131 (Gemini 3.5) aktifle\u015Ftirmek isterseniz, yan men\xFCdeki **Yapay Zek\xE2 Motor Ayarlar\u0131** alan\u0131ndan kendi Gemini API Anahtar\u0131n\u0131z\u0131 kolayca kaydedebilirsiniz.*`;
+  advice += `\u2699\uFE0F *Bilgi: Bu analiz \xE7evrimd\u0131\u015F\u0131 finans hesaplama motoru taraf\u0131ndan b\xFCt\xE7e verileriniz bizzat hesaplanarak \xFCretilmi\u015Ftir. \xC7evrimi\xE7i yapay zekay\u0131 (Gemini 3.7 Flash) aktifle\u015Ftirmek isterseniz, yan men\xFCdeki **Yapay Zek\xE2 Motor Ayarlar\u0131** alan\u0131ndan kendi Gemini API Anahtar\u0131n\u0131z\u0131 kolayca kaydedebilirsiniz.*`;
   return advice;
 }
 app.post("/api/chat", async (req, res) => {
@@ -925,6 +1150,12 @@ app.post("/api/chat", async (req, res) => {
     const thisMonthKalanBorc = stats?.thisMonthKalanBorc || 0;
     const thisMonthPaidBorc = stats?.thisMonthPaidBorc || 0;
     const thisMonthTotalBorc = stats?.thisMonthTotalBorc || thisMonthKalanBorc + thisMonthPaidBorc;
+    const monthlyNetSavingBudget = Math.max(0, totalIncome - totalExpense);
+    const estimatedPayoffMonths = monthlyNetSavingBudget > 0 ? Math.ceil(remaining / monthlyNetSavingBudget) : 0;
+    const estimatedPayoffYears = (estimatedPayoffMonths / 12).toFixed(1);
+    const estimatedPayoffYearsInt = Math.floor(estimatedPayoffMonths / 12);
+    const estimatedPayoffRemMonths = estimatedPayoffMonths % 12;
+    const durationProjectionText = estimatedPayoffYearsInt > 0 ? `${estimatedPayoffMonths} ay (${estimatedPayoffYearsInt} y\u0131l ${estimatedPayoffRemMonths > 0 ? `${estimatedPayoffRemMonths} ay` : ""})` : `${estimatedPayoffMonths} ay`;
     const TURKISH_MONTHS = [
       "Ocak",
       "\u015Eubat",
@@ -1004,54 +1235,51 @@ app.post("/api/chat", async (req, res) => {
       }
     });
     const sanitizedActiveInsts = Array.from(activeInstMap.values()).sort((a, b) => b.remainingAmount - a.remainingAmount);
-    const systemPrompt = `Sen "B\xFCt\xE7em Pro" bireysel finans y\xF6netim ve bor\xE7 takip uygulamas\u0131n\u0131n en g\xFCncel "Gemini 3.7 Flash" yapay zeka finans ko\xE7u ve uzman analistisin. T\xFCrk\xE7e konu\u015Facaks\u0131n.
-Kullan\u0131c\u0131n\u0131n ${periodLabel} d\xF6nemi g\xFCncel b\xFCt\xE7e durumu ve mali parametreleri \u015Funlard\u0131r:
-- Se\xE7ili D\xF6nem: ${periodLabel}
-- Toplam Ayl\u0131k Gelir: \u20BA${totalIncome}
-- Toplam Ayl\u0131k Gider: \u20BA${totalExpense}
-- Kalan Net Gelir (Bakiye): \u20BA${netIncome}
-- Bu Ay Vadesi Gelen Kalan Bor\xE7: \u20BA${thisMonthKalanBorc}
-- Bu Ay \xD6denen Bor\xE7: \u20BA${thisMonthPaidBorc}
-- Bu Ayki Toplam Bor\xE7 Y\xFCk\xFC: \u20BA${thisMonthTotalBorc}
-- Genel Toplam Kalan Bor\xE7 Portf\xF6y\xFC (T\xFCm Vadeler): \u20BA${remaining}
-- Toplam Bor\xE7 Kayd\u0131: \u20BA${totalDebt}
-- Toplam \xD6denen Bor\xE7: \u20BA${totalPaid}
-- Tekille\u015Ftirilmi\u015F Aktif Standart Bor\xE7lar (Yaln\u0131zca \xD6denmesi Gerekenler): ${JSON.stringify(sanitizedActiveDebts)}
-- Tamamen \xD6denmi\u015F/S\u0131f\u0131rlanm\u0131\u015F Standart Bor\xE7: ${totalPaidDebtsCount} adet (Toplam Kapat\u0131lan: \u20BA${Math.round(totalPaidDebtsSum)})
-- Tekille\u015Ftirilmi\u015F Aktif Taksitli Bor\xE7lar: ${JSON.stringify(sanitizedActiveInsts)}
-- Giderler Listesi Detay\u0131: ${JSON.stringify(context?.expenses || [])}
-- Rehber Ki\u015Fi Bor\xE7lar\u0131 ve Alacaklar\u0131: ${JSON.stringify(context?.contactTransactions || [])}
-- Rehber Ki\u015Fileri Listesi: ${JSON.stringify(context?.contacts || [])}
+    const systemPrompt = `Sen "B\xFCt\xE7em Pro" uygulamas\u0131n\u0131n Ba\u015F Finansal Dan\u0131\u015Fman\u0131 ve Ak\u0131ll\u0131 Ak\u0131l Hocas\u0131s\u0131n (Gemini 3.7 Flash).
 
-ANLIK ANLIK G\xDCNCEL P\u0130YASA, D\xD6V\u0130Z VE ALTIN KURLARI (G\xDCNCEL CANLI VER\u0130LER):
-\u2022 Amerikan Dolar\u0131 (USD): \u20BA${usd.toFixed(2)}
-\u2022 Euro (EUR): \u20BA${eur.toFixed(2)}
-\u2022 \u0130ngiliz Sterlini (GBP): \u20BA${gbp.toFixed(2)}
-\u2022 Gram Alt\u0131n (24 Ayar): \u20BA${Math.round(goldGram).toLocaleString("tr-TR")} TL
-\u2022 \xC7eyrek Alt\u0131n: \u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} TL
-\u2022 Ons Alt\u0131n ($): $${Math.round(goldOns).toLocaleString("en-US")} USD
-\u2022 Bitcoin (BTC): $${Math.round(btcUsd).toLocaleString("en-US")} USD
+G\xD6REV\u0130N VE TEMEL FELSEFEN:
+Kullan\u0131c\u0131n\u0131n b\xFCt\xE7e, gelir, gider, bor\xE7, taksit ve piyasa verilerini analiz ederek, KULLANICININ SORDU\u011EU \xD6ZEL SORUYA B\u0130REB\u0130R VE DO\u011ERUDAN ODAKLANAN, matematiksel hesaplamalar\u0131 net, somut ve eyleme ge\xE7irilebilir yan\u0131tlar \xFCretmektir.
 
-\xD6NEML\u0130 KURAL: Kullan\u0131c\u0131n\u0131n toplam ayl\u0131k gelirini (\u20BA${totalIncome}) ve toplam ayl\u0131k giderini (\u20BA${totalExpense}) do\u011Frudan yukar\u0131daki resmi istatistiklerden al ve asla 0 TL olarak varsayma. Dolar, Euro, Alt\u0131n (Gram/\xC7eyrek/Ons) veya piyasalar soruldu\u011Funda do\u011Frudan yukar\u0131daki g\xFCncel canl\u0131 fiyatlar\u0131 ve TL tutarlar\u0131n\u0131 aktar.
+SANA SA\u011ELANAN G\xDCNCEL KULLANICI B\xDCT\xC7E VER\u0130LER\u0130 (${periodLabel} D\xF6nemi):
+- GEL\u0130RLER: Ayl\u0131k Toplam Gelir: \u20BA${totalIncome}
+- G\u0130DERLER: Ayl\u0131k Toplam Ya\u015Famsal Gider: \u20BA${totalExpense} | Giderler Listesi: ${JSON.stringify(context?.expenses || [])}
+- BU AY VADES\u0130 GELEN BOR\xC7/TAKS\u0130T: \u20BA${thisMonthKalanBorc} (Bu Ay \xD6denen: \u20BA${thisMonthPaidBorc}, Toplam Bu Ayki Y\xFCk: \u20BA${thisMonthTotalBorc})
+- AYLIK NET KULLANILAB\u0130L\u0130R TASARRUF B\xDCT\xC7ES\u0130: \u20BA${monthlyNetSavingBudget} (Form\xFCl: Gelir \u20BA${totalIncome} - Gider \u20BA${totalExpense})
+- AYLIK NET BAK\u0130YE (Bu ayki bor\xE7lar sonras\u0131): \u20BA${netIncome}
+- GENEL \xD6ZET & TOPLAM KALAN BOR\xC7 PORTF\xD6Y\xDC: \u20BA${remaining} (T\xFCm Vadeler Toplam Kalan Bor\xE7)
+- HESAPLANMI\u015E BOR\xC7 B\u0130T\u0130\u015E PROJEKS\u0130YONU: Mevcut net tasarrufla (\u20BA${monthlyNetSavingBudget}/ay) borcun biti\u015F s\xFCresi yakla\u015F\u0131k ${durationProjectionText} (${estimatedPayoffYears} y\u0131l)
+- STANDART BOR\xC7LAR: ${JSON.stringify(sanitizedActiveDebts)}
+- TAMAMEN KAPANMI\u015E BOR\xC7LAR: ${totalPaidDebtsCount} adet (Toplam Kapat\u0131lan: \u20BA${Math.round(totalPaidDebtsSum)})
+- TAKS\u0130TL\u0130 BOR\xC7LAR (Ayl\u0131k Taksit, Kalan Taksit, Kalan Tutar): ${JSON.stringify(sanitizedActiveInsts)}
+- REHBER K\u0130\u015E\u0130 \u0130\u015ELEMLER\u0130 (Bor\xE7/Alacak): ${JSON.stringify(context?.contactTransactions || [])}
+- G\xDCNCEL CANLI P\u0130YASA KURLARI: USD: \u20BA${usd.toFixed(2)} | EUR: \u20BA${eur.toFixed(2)} | GBP: \u20BA${gbp.toFixed(2)} | Gram Alt\u0131n: \u20BA${Math.round(goldGram).toLocaleString("tr-TR")} | \xC7eyrek: \u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} | BTC: $${Math.round(btcUsd).toLocaleString("en-US")}
 
-G\xF6revlerin ve Davran\u0131\u015F Kurallar\u0131n:
-1. Gelir/gider dengesini ve kalan bor\xE7 durumunu analiz et, kullan\u0131c\u0131n\u0131n risk seviyesini (Y\xFCksek Risk, Orta Seviye, G\xFCvenli) belirle ve rasyonel yorumlar yap.
-2. Tasarruf y\xF6ntemleri, bor\xE7 kapatma stratejileri (Kartopu / \xC7\u0131\u011F y\xF6ntemleri vb.) hakk\u0131nda son derece a\xE7\u0131klay\u0131c\u0131, somut, ad\u0131m ad\u0131m finansal \xF6neriler sun.
-3. Kullan\u0131c\u0131n\u0131n sordu\u011Fu sorular\u0131 bu finansal verileri g\xF6z ard\u0131 etmeden detayl\u0131 ve cesaretlendirici bir dille cevapla.
-4. MOB\u0130L VE D\xDCZENL\u0130 G\xD6R\xDCN\xDCM KURALI: Mobil ekranlarda yaz\u0131lar\u0131n alt alta ve son derece belirgin, ferah ve tertipli okunmas\u0131 i\xE7in:
-   - Yan\u0131tlar\u0131n\u0131 net alt ba\u015Fl\u0131klara ay\u0131r (### veya \u{1F4CA}, \u{1F680}, \u{1F4A1}, \u{1F3AF}, \u{1F4B0} gibi emojilerle).
-   - Maddeleri alt alta a\xE7\u0131k\xE7a s\u0131rala (\u2022 veya - kullanarak).
-   - Numaral\u0131 ad\u0131mlar\u0131 (1., 2., 3.) tek tek ayr\u0131 sat\u0131rlarda yaz.
-   - \xD6nemli tutarlar\u0131 ve tavsiyeleri **kal\u0131n** vurgula.
-   - Uzun ve karma\u015F\u0131k tek par\xE7a blok metinlerden ka\xE7\u0131n, her b\xF6l\xFCm aras\u0131na bir bo\u015F sat\u0131r b\u0131rak.
-5. \xC7EVR\u0130M\u0130\xC7\u0130 (ONLINE) SORGULAR VE G\xDCNCEL B\u0130LG\u0130LER: Kullan\u0131c\u0131 d\xF6viz kurlar\u0131n\u0131, g\xFCncel alt\u0131n fiyatlar\u0131n\u0131, enflasyon veya di\u011Fer detaylar\u0131 sordu\u011Funda yukar\u0131daki anl\u0131k canl\u0131 piyasa verilerini ve entegre Google Arama (googleSearch) arac\u0131n\u0131 kullan. Kullan\u0131c\u0131ya "Bilmiyorum" demek yerine kesin ve \u015Feffaf yan\u0131t ver.
-6. Tamamen profesyonel, yap\u0131c\u0131 ve s\u0131cakkanl\u0131 bir finans ko\xE7u gibi davran.
-7. BOR\xC7 VE TAKS\u0130T L\u0130STELEME KURALLARI:
-   - Kullan\u0131c\u0131 ayl\u0131k finans/analiz raporu istedi\u011Finde veya bor\xE7lar\u0131n\u0131 sordu\u011Funda; hem aktif standart bor\xE7lar\u0131 hem de aktif taksitli bor\xE7lar\u0131 (kalan taksit adedi, ayl\u0131k taksit tutar\u0131 ve toplam kalan borcuyla) EKS\u0130KS\u0130Z \u015Fekilde TEK TEK s\u0131rala.
-   - ASLA bor\xE7lar\u0131 'Di\u011Fer bor\xE7lar' veya 've benzeri' ad\u0131 alt\u0131nda gizleme veya topluca \xF6zetleme! Her bir bor\xE7 ve taksit kalemini tek tek a\xE7\u0131k d\xF6k\xFCm olarak listele.
-   - Raporda mutlaka '### \u{1F4B3} Aktif Standart Bor\xE7lar' ve '### \u{1F5D3}\uFE0F Aktif Taksitli Bor\xE7lar ve Ayl\u0131k \xD6deme Plan\u0131' alt ba\u015Fl\u0131klar\u0131n\u0131 kullan.
-   - Ayn\u0131 bor\xE7 ad\u0131n\u0131 ASLA 2 veya 3 defa tekrar yazma (tekille\u015Ftirilmi\u015F listeyi baz al).
-   - Tamamen \xF6denmi\u015F (0 TL kalan) bor\xE7lar\u0131 tek bir sat\u0131rda '\u{1F7E2} Tamamen Kapat\u0131lan: X adet bor\xE7' \u015Feklinde \xF6zetle. Bor\xE7lar\u0131 kalan tutarlar\u0131na g\xF6re b\xFCy\xFCkten k\xFC\xE7\xFC\u011Fe s\u0131ral\u0131 ve temiz maddeler halinde listele.`;
+\u{1F6A8} \xC7OK KR\u0130T\u0130K YANIT KURALLARI (D\u0130NAM\u0130K SORU-CEVAP D\u0130S\u0130PL\u0130N\u0130):
+
+1. DO\u011ERUDAN SORUYA ODAKLANMA (ASLA SAB\u0130T \u015EABLON BASMA):
+- Kullan\u0131c\u0131 spesifik bir soru sordu\u011Funda (\xD6rn: "Borcum ka\xE7 senede biter?", "Hangi borcu \xF6nce \xF6demeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?", "Alt\u0131n fiyat\u0131 ne kadar?") **ASLA her yan\u0131ta sabit 4'l\xFC \xF6zet \u015Fablonunu bas\u0131p ge\xE7me!**
+- **\u0130LK C\xDCMLEDEN \u0130T\u0130BAREN do\u011Frudan sorulan sorunun yan\u0131t\u0131n\u0131, matematiksel hesab\u0131n\u0131 ve \xE7\xF6z\xFCm\xFCn\xFC ver.**
+- Sabit \xF6zet kart\u0131n\u0131 SADECE kullan\u0131c\u0131 genel analiz istedi\u011Finde ("B\xFCt\xE7e durumum genel olarak nas\u0131l?", "Ayl\u0131k analiz raporu ver") kullan.
+
+2. BOR\xC7 B\u0130T\u0130\u015E S\xDCRES\u0130 VE PROJEKS\u0130YON HESABI ("Borcum ne zaman/ka\xE7 senede/ka\xE7 ayda biter?"):
+- Bu soru geldi\u011Finde \u015Fu form\xFCl\xFC \xE7al\u0131\u015Ft\u0131r:
+  * Net B\xFCt\xE7e = Ayl\u0131k Gelir (\u20BA${totalIncome}) - Ayl\u0131k Ya\u015Famsal Giderler (\u20BA${totalExpense}) = \u20BA${monthlyNetSavingBudget}
+  * Tahmini Biti\u015F S\xFCresi (Ay) = Genel Toplam Bor\xE7 (\u20BA${remaining}) / Ayl\u0131k Borca Ayr\u0131labilecek Net B\xFCt\xE7e (\u20BA${monthlyNetSavingBudget})
+  * Y\u0131l Hesab\u0131 = Ay / 12 (\xD6rn: ${durationProjectionText})
+- **\u0130LK C\xDCMLEN \u015EU SOMUT PROJEKS\u0130YONLA BA\u015ELAMALIDIR:**
+  "Ayl\u0131k **\u20BA${monthlyNetSavingBudget.toLocaleString("tr-TR")}** net bakiyenizin tamam\u0131n\u0131 bor\xE7 kapatmaya ay\u0131r\u0131rsan\u0131z, **\u20BA${remaining.toLocaleString("tr-TR")}** toplam borcunuz yakla\u015F\u0131k **${durationProjectionText}** i\xE7erisinde tamamen biter. Taksitli bor\xE7lar\u0131n\u0131z bittik\xE7e bu s\xFCre daha da k\u0131salacakt\u0131r."
+- Ard\u0131ndan s\xFCreyi k\u0131saltacak eylemleri a\xE7\u0131kla: (1) Giderleri %15 k\u0131sarak ayl\u0131k bor\xE7 b\xFCt\xE7esini art\u0131r\u0131p s\xFCreyi k\u0131saltma hesab\u0131, (2) Taksitler bittik\xE7e a\xE7\u0131lacak kartopu etkisi, (3) Erken kapatma stratejisi.
+
+3. BOR\xC7 \xD6NCEL\u0130\u011E\u0130 VE STRATEJ\u0130 SORULARI ("Hangi borcu \xF6nce \xF6demeliyim?"):
+- Vadesi ge\xE7mi\u015F bor\xE7lar\u0131 ilk s\u0131raya koy.
+- Ard\u0131ndan Kartopu (Snowball - en k\xFC\xE7\xFCk bakiyeli borcu ilk kapat\u0131p motivasyon kazanma) ve \xC7\u0131\u011F (Avalanche - en b\xFCy\xFCk borcu kapatma) s\u0131ralamas\u0131n\u0131 somut bor\xE7 isimleri ve tutarlar\u0131yla ver.
+
+4. TASARRUF VE G\u0130DER SORULARI:
+- Kullan\u0131c\u0131n\u0131n en \xE7ok harcama yapt\u0131\u011F\u0131 kategoriyi bizzat belirt ve %15-20 tasarruf ile ayda ka\xE7 TL kazanabilece\u011Fini somut rakamlarla hesapla.
+
+5. TON VE YAKLA\u015EIM:
+- Analitik, yap\u0131c\u0131, net, motive edici ve matematiksel ger\xE7eklere dayal\u0131 bir ba\u015F finansal ko\xE7 gibi konu\u015F.
+- Asla spek\xFClatif yat\u0131r\u0131m tavsiyesi (al/sat) verme.`;
     const rawTurns = [];
     if (chatHistory && Array.isArray(chatHistory)) {
       for (const turn of chatHistory) {
@@ -1483,9 +1711,9 @@ app.post("/api/voice-command", async (req, res) => {
   }
 });
 app.post("/api/scan-receipt", async (req, res) => {
-  const { image, mimeType: userMimeType } = req.body;
+  const { image, mimeType: userMimeType, defaultType = "expense", userApiKey } = req.body;
   if (!image) {
-    return res.status(400).json({ error: "L\xFCtfen taranacak fatura veya fi\u015F g\xF6rselini se\xE7in." });
+    return res.status(400).json({ success: false, error: "L\xFCtfen taranacak fatura veya fi\u015F g\xF6rselini se\xE7in." });
   }
   let base64Data = image;
   let detectedMimeType = userMimeType || "image/jpeg";
@@ -1497,100 +1725,121 @@ app.post("/api/scan-receipt", async (req, res) => {
     }
     base64Data = parts[1];
   }
-  const aiClient = getGeminiClient();
+  const aiClient = getGeminiClient(userApiKey);
   if (!aiClient) {
-    console.log("[Scan Receipt API] Gemini API key not set or inactive. Falling back to intelligent offline simulated scan.");
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    console.log("[Scan Receipt API] Gemini client unavailable. Providing draft template for manual confirmation.");
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return res.json({
       success: true,
-      title: "Se\xE7ili Belge (\xD6rnek Al\u0131\u015Fveri\u015F)",
-      amount: 450,
+      title: defaultType === "debt" ? "Fatura \xD6demesi" : "Fi\u015F / Al\u0131\u015Fveri\u015F",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "G\u0131da / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "G\u0131da / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Ak\u0131ll\u0131 tarama sim\xFClasyonu \xE7al\u0131\u015Ft\u0131r\u0131ld\u0131. Ger\xE7ek yapay zeka tespiti i\xE7in l\xFCtfen Settings > Secrets panelinden GEMINI_API_KEY tan\u0131mlay\u0131n!"
+      message: "Yapay zeka anahtar\u0131 tan\u0131mlanmad\u0131\u011F\u0131 i\xE7in taslak a\xE7\u0131ld\u0131. Bilgileri d\xFCzenleyebilirsiniz."
     });
   }
   try {
-    const promptText = "Sen harika ve hassas bir belge okuma (OCR) servisisin. Ekteki g\xF6rsel bir al\u0131\u015Fveri\u015F fi\u015Fi, fatura, makbuz ya da harcama belgesidir.\n\nG\xF6revlerin:\n1. Belgedeki ma\u011Faza/sat\u0131c\u0131/kurum ad\u0131n\u0131 tam olarak \xE7\u0131kar (\xF6rn: 'Migros Ticaret A.\u015E.', 'Shell Akaryak\u0131t', 'Elektrik Da\u011F\u0131t\u0131m').\n2. Belgedeki KDV dahil toplam \xF6deme tutar\u0131n\u0131 (KRD ya da NAK\u0130T toplam\u0131) say\u0131sal olarak bul.\n3. Belgedeki tarihi oku (Format: YYYY-MM-DD format\u0131nda olmal\u0131. E\u011Fer y\u0131l a\xE7\u0131k de\u011Filse 2026 olarak varsay).\n4. En uygun harcama kategorisini \xF6ner ('G\u0131da', 'Ula\u015F\u0131m', 'Fatura', 'Al\u0131\u015Fveri\u015F', 'E\u011Flence', 'Sa\u011Fl\u0131k', 'Di\u011Fer' vb.).\n5. Bu belgenin bir pe\u015Fin gider mi ('expense') yoksa bir sonraki \xF6demeli bor\xE7 mu ('debt') oldu\u011Funu tespit et.\n\nVerdi\u011Fin yan\u0131t JSON \u015Femas\u0131na tamamen uygun, ek a\xE7\u0131klama metni i\xE7ermeyen temiz bir JSON objesi olmal\u0131d\u0131r.";
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: detectedMimeType,
-              data: base64Data
-            }
-          },
-          {
-            text: promptText
-          }
-        ]
+    const promptText = `Sen T\xFCrkiye'deki fi\u015F, fatura, adisyon, dekont ve makbuzlar\u0131 okuyan uzman bir yapay zeka OCR sistemisin. Ekteki g\xF6rsel bir fatura ya da harcama fi\u015Fidir.
+
+L\xFCtfen belgeden \u015Fu bilgileri \xE7\u0131kar:
+1. title: Ma\u011Faza, kurum, \u015Firket veya sat\u0131c\u0131 ad\u0131 (\xD6rn: 'B\u0130M', 'Migros', 'A101', 'Shell', 'Enerjisa', '\u0130SK\u0130', 'Turkcell', 'Eczane', vb.).
+2. amount: Belgedeki Genel Toplam / KDV Dahil \xD6denecek Tutar (sadece say\u0131sal de\u011Fer, \xF6rn: 185.50). Kuru\u015Flu de\u011Ferleri nokta ile yaz.
+3. date: Belge / Fatura / Fi\u015F tarihi (Format: YYYY-MM-DD olmal\u0131. E\u011Fer y\u0131l yoksa 2026 olarak al).
+4. categorySuggestion: Harcaman\u0131n en uygun kategorisi (\xD6rn: 'G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Di\u011Fer').
+5. type: Pe\u015Fin al\u0131\u015Fveri\u015F/fi\u015F ise 'expense', vadesi olan veya \xF6denecek fatura ise 'debt'. (Varsay\u0131lan: '${defaultType}').
+
+Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
+    const contentParts = [
+      {
+        inlineData: {
+          mimeType: detectedMimeType,
+          data: base64Data
+        }
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: import_genai.Type.OBJECT,
-          properties: {
-            title: {
-              type: import_genai.Type.STRING,
-              description: "Sat\u0131c\u0131 veya belge unvan\u0131 (\xF6rne\u011Fin: 'Bim Birle\u015Fik Ma\u011Fazalar', 'Kira Faturas\u0131')"
-            },
-            amount: {
-              type: import_genai.Type.NUMBER,
-              description: "Toplam harcama veya \xF6deme tutar\u0131"
-            },
-            date: {
-              type: import_genai.Type.STRING,
-              description: "\u0130\u015Flem tarihi (Format: YYYY-MM-DD)"
-            },
-            categorySuggestion: {
-              type: import_genai.Type.STRING,
-              description: "\xD6nerilen gider/bor\xE7 kategorisi ismi"
-            },
-            type: {
-              type: import_genai.Type.STRING,
-              description: "'expense' veya 'debt'"
-            }
-          },
-          required: ["title", "amount"]
-        },
-        temperature: 0.2
+      {
+        text: promptText
       }
-    });
-    const parsedData = JSON.parse(response.text || "{}");
+    ];
+    const generateConfig = {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: import_genai.Type.OBJECT,
+        properties: {
+          title: {
+            type: import_genai.Type.STRING,
+            description: "Sat\u0131c\u0131 veya kurum unvan\u0131"
+          },
+          amount: {
+            type: import_genai.Type.NUMBER,
+            description: "KDV dahil \xF6denecek toplam tutar"
+          },
+          date: {
+            type: import_genai.Type.STRING,
+            description: "Belge tarihi (YYYY-MM-DD)"
+          },
+          categorySuggestion: {
+            type: import_genai.Type.STRING,
+            description: "\xD6nerilen b\xFCt\xE7e kategorisi"
+          },
+          type: {
+            type: import_genai.Type.STRING,
+            description: "'expense' veya 'debt'"
+          }
+        },
+        required: ["title", "amount"]
+      },
+      temperature: 0.1
+    };
+    let response;
+    try {
+      response = await aiClient.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: { parts: contentParts },
+        config: generateConfig
+      });
+    } catch (primaryErr) {
+      console.warn("[Scan API] Primary gemini-3.8-flash returned:", primaryErr?.message || primaryErr?.status, "- Trying gemini-flash-latest...");
+      response = await aiClient.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: { parts: contentParts },
+        config: generateConfig
+      });
+    }
+    let rawText = response?.text || "{}";
+    rawText = rawText.replace(/```json\s*/gi, "").replace(/```\s*$/gi, "").trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    const parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+    let parsedAmount = typeof parsedData.amount === "number" ? parsedData.amount : parseFloat(parsedData.amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      parsedAmount = 0;
+    }
+    let parsedDate = (parsedData.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+      parsedDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    }
     return res.json({
       success: true,
-      title: parsedData.title || "Taranan Belge",
-      amount: parsedData.amount || 0,
-      date: parsedData.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      categorySuggestion: parsedData.categorySuggestion || "Di\u011Fer",
-      type: parsedData.type || "expense",
+      title: parsedData.title || (defaultType === "debt" ? "Fatura" : "Harcama Fi\u015Fi"),
+      amount: parsedAmount,
+      date: parsedDate,
+      categorySuggestion: parsedData.categorySuggestion || (defaultType === "debt" ? "Fatura" : "G\u0131da / Market"),
+      type: parsedData.type === "debt" ? "debt" : "expense",
       isOffline: false
     });
   } catch (error) {
-    const errMsg = error?.message || error?.toString() || "";
-    const isKeyError = errMsg.toLowerCase().includes("expired") || errMsg.toLowerCase().includes("key") || errMsg.toLowerCase().includes("credential") || errMsg.toLowerCase().includes("invalid_argument") || errMsg.toLowerCase().includes("unauthorized") || errMsg.toLowerCase().includes("api_key_invalid") || errMsg.toLowerCase().includes("forbidden") || errMsg.toLowerCase().includes("denied") || errMsg.toLowerCase().includes("403");
-    if (isKeyError) {
-      defaultKeyHasFailed = true;
-      console.log("[Scan API] Key block matched: Key has expired or has restricted permissions. Bypassing silently.");
-    } else {
-      console.log("[Scan API] Process status: Interrupted.");
-    }
-    console.log("[Scan Receipt API] Falling back to intelligent offline simulated scan due to API issue.");
+    console.error("[Scan Receipt API Error]:", error?.message || error);
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return res.json({
       success: true,
-      title: "Se\xE7ili Belge (\xD6rnek Al\u0131\u015Fveri\u015F)",
-      amount: 450,
+      title: defaultType === "debt" ? "Fatura" : "Fi\u015F / Harcama",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "G\u0131da / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "G\u0131da / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Yapay zeka tespiti yerine (403/Hata k\u0131s\u0131t\u0131 kaynakl\u0131) ak\u0131ll\u0131 tarama sim\xFClasyonu \xE7al\u0131\u015Ft\u0131r\u0131ld\u0131. Ger\xE7ek yapay zeka tespiti i\xE7in l\xFCtfen Settings > Secrets panelinden GEMINI_API_KEY tan\u0131mlay\u0131n!"
+      message: "Belge g\xF6rseli al\u0131nd\u0131. L\xFCtfen ma\u011Faza ve tutar bilgilerini kontrol ederek onaylay\u0131n."
     });
   }
 });
@@ -1751,21 +2000,58 @@ app.get("/api/rates", async (req, res) => {
   } catch (e) {
     console.warn("[Rates] Gold-api fetch error:", e.message);
   }
+  let cryptos = {
+    BTC: { usd: 79614, change: 0.85 },
+    ETH: { usd: 2680, change: 1.42 },
+    SOL: { usd: 185.5, change: 2.8 },
+    BNB: { usd: 645, change: 0.95 },
+    XRP: { usd: 2.15, change: -1.1 },
+    AVAX: { usd: 28.5, change: 3.25 },
+    DOGE: { usd: 0.22, change: -0.65 },
+    ADA: { usd: 0.78, change: 1.15 },
+    TON: { usd: 5.4, change: 0.5 },
+    USDT: { usd: 1, change: 0.02 }
+  };
   try {
-    const btcCtrl = new AbortController();
-    const btcTimeout = setTimeout(() => btcCtrl.abort(), 2500);
-    const btcRes = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", { signal: btcCtrl.signal });
-    clearTimeout(btcTimeout);
-    if (btcRes.ok) {
-      const bData = await btcRes.json();
-      if (bData && bData.lastPrice) {
-        btcUsd = Number(bData.lastPrice);
-        const btcChange = Number(bData.priceChangePercent) || 0;
-        details.BTC = { buying: btcUsd, selling: btcUsd, change: btcChange };
+    const cryptoCtrl = new AbortController();
+    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 3500);
+    const symbolsParam = JSON.stringify([
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "AVAXUSDT",
+      "DOGEUSDT",
+      "ADAUSDT"
+    ]);
+    const cryptoRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`, {
+      signal: cryptoCtrl.signal
+    });
+    clearTimeout(cryptoTimeout);
+    if (cryptoRes.ok) {
+      const cryptoData = await cryptoRes.json();
+      if (Array.isArray(cryptoData)) {
+        for (const item of cryptoData) {
+          const sym = item.symbol.replace("USDT", "");
+          const price = Number(item.lastPrice);
+          const chg = Number(item.priceChangePercent) || 0;
+          if (price > 0 && cryptos[sym]) {
+            cryptos[sym] = { usd: price, change: chg };
+          }
+        }
       }
     }
   } catch (e) {
-    console.warn("[Rates] Binance BTC fetch error:", e.message);
+    console.warn("[Rates] Binance multi-crypto fetch error:", e.message);
+  }
+  btcUsd = cryptos.BTC.usd;
+  for (const [sym, data] of Object.entries(cryptos)) {
+    details[sym] = {
+      buying: data.usd,
+      selling: data.usd,
+      change: data.change
+    };
   }
   if (!loadedSource) {
     const apis = [
@@ -1815,8 +2101,26 @@ app.get("/api/rates", async (req, res) => {
       GOLD_YARIM: Number(goldYarim.toFixed(2)),
       GOLD_TAM: Number(goldTam.toFixed(2)),
       GOLD_CUMHURIYET: Number(goldCumhuriyet.toFixed(2)),
-      BTC_USD: Number(btcUsd.toFixed(2)),
-      BTC_TRY: Number(btcTry.toFixed(2))
+      BTC_USD: Number(cryptos.BTC.usd.toFixed(2)),
+      BTC_TRY: Number((cryptos.BTC.usd * usdRate).toFixed(2)),
+      ETH_USD: Number(cryptos.ETH.usd.toFixed(2)),
+      ETH_TRY: Number((cryptos.ETH.usd * usdRate).toFixed(2)),
+      SOL_USD: Number(cryptos.SOL.usd.toFixed(2)),
+      SOL_TRY: Number((cryptos.SOL.usd * usdRate).toFixed(2)),
+      BNB_USD: Number(cryptos.BNB.usd.toFixed(2)),
+      BNB_TRY: Number((cryptos.BNB.usd * usdRate).toFixed(2)),
+      XRP_USD: Number(cryptos.XRP.usd.toFixed(4)),
+      XRP_TRY: Number((cryptos.XRP.usd * usdRate).toFixed(2)),
+      AVAX_USD: Number(cryptos.AVAX.usd.toFixed(2)),
+      AVAX_TRY: Number((cryptos.AVAX.usd * usdRate).toFixed(2)),
+      DOGE_USD: Number(cryptos.DOGE.usd.toFixed(4)),
+      DOGE_TRY: Number((cryptos.DOGE.usd * usdRate).toFixed(2)),
+      ADA_USD: Number(cryptos.ADA.usd.toFixed(4)),
+      ADA_TRY: Number((cryptos.ADA.usd * usdRate).toFixed(2)),
+      TON_USD: Number(cryptos.TON.usd.toFixed(2)),
+      TON_TRY: Number((cryptos.TON.usd * usdRate).toFixed(2)),
+      USDT_USD: Number(cryptos.USDT.usd.toFixed(4)),
+      USDT_TRY: Number((cryptos.USDT.usd * usdRate).toFixed(2))
     },
     details,
     lastUpdated: stamp,
@@ -2420,8 +2724,9 @@ app.post("/api/trigger-overdue-push", async (req, res) => {
     title,
     body,
     tag: "overdue-alert-" + Date.now(),
-    icon: "/logo.png",
-    badge: "/logo.png",
+    icon: "/notification-icon.png",
+    badge: "/notification-icon.png",
+    image: "/notification-icon.png",
     url: "/?tab=debts"
   });
   try {
@@ -2448,8 +2753,9 @@ app.post("/api/send-test-push", async (req, res) => {
       title: "B\xFCt\xE7em Pro Alarm Sinyali \u23F0",
       body: "Harika! Telefon kapal\u0131yken bile Web Push ve Service Worker bildirim sistemi kusursuz \xE7al\u0131\u015F\u0131yor! \u{1F514}",
       tag: "test-push-alarm-" + Date.now(),
-      icon: "/logo.png",
-      badge: "/logo.png",
+      icon: "/notification-icon.png",
+      badge: "/notification-icon.png",
+      image: "/notification-icon.png",
       url: "/?tab=notifications"
     });
     try {
@@ -2825,16 +3131,12 @@ function cleanCredential(val) {
 }
 function getMailTransporter(customOverride) {
   const activeConfig = customOverride || currentCustomSmtp;
-  const user = cleanCredential(
-    activeConfig?.user || process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.EMAIL_USER || process.env.MAIL_USER || process.env.MAIL_USERNAME || process.env.GMAIL_USER || process.env.EMAIL_FROM || process.env.SMTP_FROM
-  );
-  const pass = cleanCredential(
-    activeConfig?.pass || process.env.SMTP_PASS || process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.MAIL_PASS || process.env.MAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.GMAIL_PASSWORD
-  ).replace(/\s+/g, "");
+  const user = cleanCredential(activeConfig?.user);
+  const pass = cleanCredential(activeConfig?.pass).replace(/\s+/g, "");
   if (!user || !pass) {
     return null;
   }
-  const rawHost = activeConfig?.host || process.env.SMTP_HOST || process.env.MAIL_HOST || process.env.EMAIL_HOST || process.env.GMAIL_HOST;
+  const rawHost = activeConfig?.host;
   let host = cleanHost(rawHost);
   if (!host) {
     const domain = user.includes("@") ? user.split("@")[1].toLowerCase() : "";
@@ -2852,12 +3154,9 @@ function getMailTransporter(customOverride) {
       host = "smtp.gmail.com";
     }
   }
-  const rawPort = Number(
-    activeConfig?.port || process.env.SMTP_PORT || process.env.MAIL_PORT || process.env.EMAIL_PORT
-  );
+  const rawPort = Number(activeConfig?.port);
   const port = rawPort || (host === "smtp.gmail.com" ? 465 : 587);
-  const secureEnv = process.env.SMTP_SECURE || process.env.MAIL_SECURE;
-  const secure = activeConfig?.secure ?? (secureEnv === "true" || secureEnv === "ssl" || port === 465);
+  const secure = activeConfig?.secure ?? port === 465;
   return import_nodemailer.default.createTransport({
     host,
     port,
@@ -2925,11 +3224,11 @@ async function sendMailHelper(options) {
   try {
     const transporter = getMailTransporter(options.customConfig);
     const activeConfig = options.customConfig || currentCustomSmtp;
-    const user = cleanCredential(activeConfig?.user || process.env.SMTP_USER || process.env.GMAIL_USER);
-    const authEmail = user || (process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : "bildirim@butcempro.app");
+    const user = cleanCredential(activeConfig?.user);
+    const authEmail = user || "bildirim@butcempro.app";
     const senderName = activeConfig?.fromName || "B\xFCt\xE7em Pro";
     const fromAddress = `"${senderName}" <${authEmail}>`;
-    const replyTo = process.env.SMTP_FROM ? cleanCredential(process.env.SMTP_FROM) : authEmail;
+    const replyTo = authEmail;
     if (transporter) {
       const info = await transporter.sendMail({
         from: fromAddress,
@@ -3106,6 +3405,24 @@ app.post("/api/notifications/email/verify", async (req, res) => {
     }
   });
 });
+app.get("/api/auth/verify-premium-email", (req, res) => {
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Ge\xE7erli bir e-posta adresi gereklidir.", exists: false, isPremium: false });
+  }
+  if (email === "info.borcodemetakip@gmail.com") {
+    return res.json({
+      exists: true,
+      isPremium: true
+    });
+  }
+  const subscriber = emailSubscribersMap[email];
+  const isSubscriberPremium = subscriber && (subscriber.isPremium === true || subscriber.verified === true);
+  return res.json({
+    exists: !!subscriber,
+    isPremium: !!isSubscriberPremium
+  });
+});
 app.post("/api/notifications/email/send-direct", async (req, res) => {
   try {
     const { recipientEmail, subject, htmlContent } = req.body || {};
@@ -3163,26 +3480,27 @@ app.post("/api/newsletter/subscribe", async (req, res) => {
         </div>
       </div>
     `;
-    if (process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID && process.env.EMAILJS_PUBLIC_KEY) {
-      try {
-        await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            service_id: process.env.EMAILJS_SERVICE_ID,
-            template_id: process.env.EMAILJS_TEMPLATE_ID,
-            user_id: process.env.EMAILJS_PUBLIC_KEY,
-            template_params: {
-              to_email: cleanEmail,
-              subject: finalSubject,
-              message: finalMessage
-            }
-          })
-        });
-        console.log(`[Newsletter] EmailJS server dispatch succeeded for ${cleanEmail}`);
-      } catch (eJsErr) {
-        console.warn(`[Newsletter] EmailJS server dispatch error:`, eJsErr?.message || eJsErr);
-      }
+    const EMAILJS_SERVICE_ID = "service_osnjc54";
+    const EMAILJS_TEMPLATE_ID = "template_ydyje4e";
+    const EMAILJS_PUBLIC_KEY = "KNh4u8my4-19aJZMn";
+    try {
+      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: EMAILJS_SERVICE_ID,
+          template_id: EMAILJS_TEMPLATE_ID,
+          user_id: EMAILJS_PUBLIC_KEY,
+          template_params: {
+            to_email: cleanEmail,
+            subject: finalSubject,
+            message: finalMessage
+          }
+        })
+      });
+      console.log(`[Newsletter] EmailJS server dispatch succeeded for ${cleanEmail}`);
+    } catch (eJsErr) {
+      console.warn(`[Newsletter] EmailJS server dispatch error:`, eJsErr?.message || eJsErr);
     }
     const mailResult = await sendMailHelper({
       to: cleanEmail,
@@ -3320,7 +3638,7 @@ app.post("/api/notifications/email/send-test", async (req, res) => {
     html,
     text
   });
-  const hasSmtp = !!(currentCustomSmtp.user && currentCustomSmtp.pass) || !!(process.env.SMTP_HOST || process.env.SMTP_USER || process.env.GMAIL_USER);
+  const hasSmtp = !!(currentCustomSmtp.user && currentCustomSmtp.pass);
   console.log(`[Email Alert Engine] Sent test email to: ${normalizedEmail} (Delivered: ${!sendResult.simulated && sendResult.success}, HasSMTP: ${hasSmtp}, TotalDebt: \u20BA${reportAnalysis.totalActiveDebt})`);
   res.json({
     success: sendResult.success,
@@ -3399,10 +3717,9 @@ app.post("/api/notifications/email/reset-smtp-config", (req, res) => {
 });
 app.get("/api/notifications/email/smtp-status", (req, res) => {
   const hasCustom = !!(currentCustomSmtp.user && currentCustomSmtp.pass);
-  const hasEnv = !!(process.env.SMTP_USER || process.env.GMAIL_USER);
-  const activeUser = currentCustomSmtp.user || process.env.SMTP_USER || process.env.GMAIL_USER || "";
-  const activeHost = currentCustomSmtp.host || cleanHost(process.env.SMTP_HOST) || (activeUser.includes("@gmail.com") ? "smtp.gmail.com" : "");
-  const activePort = currentCustomSmtp.port || Number(process.env.SMTP_PORT) || (activeHost === "smtp.gmail.com" ? 465 : 587);
+  const activeUser = currentCustomSmtp.user || "";
+  const activeHost = currentCustomSmtp.host || (activeUser.includes("@gmail.com") ? "smtp.gmail.com" : "");
+  const activePort = currentCustomSmtp.port || (activeHost === "smtp.gmail.com" ? 465 : 587);
   let maskedUser = "";
   if (activeUser.includes("@")) {
     const [name, domain] = activeUser.split("@");
@@ -3412,8 +3729,8 @@ app.get("/api/notifications/email/smtp-status", (req, res) => {
     maskedUser = `${activeUser.substring(0, 2)}***`;
   }
   res.json({
-    configured: hasCustom || hasEnv,
-    source: hasCustom ? "in_app" : hasEnv ? "env" : "none",
+    configured: hasCustom,
+    source: hasCustom ? "in_app" : "none",
     host: activeHost || null,
     port: activePort,
     user: maskedUser || null,
@@ -3577,8 +3894,9 @@ setInterval(async () => {
               tag: `alarm-${alarm.id || Date.now()}`,
               action: "alarm-trigger",
               syncTag: "server-cron-sync",
-              icon: "/logo.png",
-              badge: "/logo.png",
+              icon: "/notification-icon.png",
+              badge: "/notification-icon.png",
+              image: "/notification-icon.png",
               vibrate: [500, 150, 500, 150, 450, 150, 600],
               requireInteraction: true,
               silent: false,
@@ -3631,8 +3949,9 @@ setInterval(async () => {
             tag: "overdue-periodic-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
             action: "trigger-sync",
             syncTag: "server-cron-sync",
-            icon: "/logo.png",
-            badge: "/logo.png",
+            icon: "/notification-icon.png",
+            badge: "/notification-icon.png",
+            image: "/notification-icon.png",
             url: "/?tab=debts"
           });
           try {

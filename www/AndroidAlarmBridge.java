@@ -378,6 +378,7 @@ public class AndroidAlarmBridge {
                                 int overdueAlarmId = 500000 + debtId;
                                 String overdueTitle = "⚠️ Vadesi Geçmiş Ödeme: " + debtName;
                                 String overdueMsg = debtName + " borcunuzun vadesi geçmiştir. Faiz veya ceza oluşmaması için kontrol edin.";
+                                // Hemen veya kısa süre içinde sessizce göster
                                 setDebtAlarmInternal(overdueAlarmId, overdueTitle, now + 15000L, overdueMsg, true);
                                 prefs.edit().putLong(KEY_LAST_NOTIF, now).apply();
                                 lastNotifTime = now;
