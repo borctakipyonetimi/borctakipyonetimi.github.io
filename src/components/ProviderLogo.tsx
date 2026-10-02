@@ -46,7 +46,7 @@ export const LOGO_PATHS: Record<string, string> = {
   emlakkatilim: "/logos/emblems/emlakkatilim.svg",
   anadolubank: "/logos/emblems/anadolubank.svg",
   burgan: "/logos/emblems/burgan.svg",
-  citibank: "/logos/banks/citibank.svg",
+  citibank: "/logos/emblems/citibank.svg",
 
   // --- TELEKOM & GSM (Yazısız Orijinal Simgeler) ---
   turkcell: "/logos/emblems/turkcell.png",

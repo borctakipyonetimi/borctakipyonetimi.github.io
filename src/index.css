@@ -267,14 +267,12 @@ html:not(.dark) .text-slate-500 {
 
 /* Category cards CSS-based hover scale, shadow, and soft color transitions */
 .category-card-animated {
-  background-color: var(--cat-bg);
-  transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out, transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out;
 }
 
 .category-card-animated:hover:not(.inline-editing) {
-  background-color: var(--cat-bg-hover) !important;
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* Histats Counter Invisible Tracking Styles - Keeping counter in the DOM for background tracking while completely hidden from user */

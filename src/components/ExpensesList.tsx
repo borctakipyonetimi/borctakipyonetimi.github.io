@@ -101,135 +101,135 @@ interface ExpenseColorTheme {
 const EXPENSE_COLOR_PALETTES: ExpenseColorTheme[] = [
   // 0. Emerald / Green (Market, Gıda, Mutfak)
   {
-    cardBg: "from-emerald-500/10 via-teal-500/5 to-slate-50/90 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-slate-900",
-    cardBorder: "border-emerald-300/80 dark:border-emerald-500/40",
-    tagBg: "bg-emerald-50 dark:bg-emerald-950/70",
-    tagText: "text-emerald-700 dark:text-emerald-300 font-black",
+    cardBg: "from-emerald-100/90 via-teal-50/80 to-white/95 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-slate-900",
+    cardBorder: "border-emerald-300/90 dark:border-emerald-500/40",
+    tagBg: "bg-emerald-100/90 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300",
+    tagText: "text-emerald-900 dark:text-emerald-300 font-black",
     tagBorder: "border-emerald-300/90 dark:border-emerald-500/40",
-    amountColor: "text-emerald-600 dark:text-emerald-400",
+    amountColor: "text-emerald-700 dark:text-emerald-400",
     accentDot: "bg-emerald-500",
-    ambientGlow: "bg-emerald-500/15 dark:bg-emerald-500/20",
+    ambientGlow: "bg-emerald-500/25 dark:bg-emerald-500/20",
   },
   // 1. Violet / Indigo (Yeme İçme, Restoran, Kafe)
   {
-    cardBg: "from-indigo-500/10 via-purple-500/5 to-slate-50/90 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900",
-    cardBorder: "border-indigo-300/80 dark:border-indigo-500/40",
-    tagBg: "bg-indigo-50 dark:bg-indigo-950/70",
-    tagText: "text-indigo-700 dark:text-indigo-300 font-black",
+    cardBg: "from-indigo-100/90 via-purple-50/80 to-white/95 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900",
+    cardBorder: "border-indigo-300/90 dark:border-indigo-500/40",
+    tagBg: "bg-indigo-100/90 text-indigo-900 dark:bg-indigo-950/70 dark:text-indigo-300",
+    tagText: "text-indigo-900 dark:text-indigo-300 font-black",
     tagBorder: "border-indigo-300/90 dark:border-indigo-500/40",
-    amountColor: "text-indigo-600 dark:text-indigo-400",
+    amountColor: "text-indigo-700 dark:text-indigo-400",
     accentDot: "bg-indigo-500",
-    ambientGlow: "bg-indigo-500/15 dark:bg-indigo-500/20",
+    ambientGlow: "bg-indigo-500/25 dark:bg-indigo-500/20",
   },
   // 2. Amber / Orange (Araç, Yakıt, Bakım, Sanayi)
   {
-    cardBg: "from-amber-500/10 via-orange-500/5 to-slate-50/90 dark:from-amber-950/40 dark:via-orange-950/20 dark:to-slate-900",
-    cardBorder: "border-amber-300/80 dark:border-amber-500/40",
-    tagBg: "bg-amber-50 dark:bg-amber-950/70",
-    tagText: "text-amber-800 dark:text-amber-300 font-black",
+    cardBg: "from-amber-100/90 via-orange-50/80 to-white/95 dark:from-amber-950/40 dark:via-orange-950/20 dark:to-slate-900",
+    cardBorder: "border-amber-300/90 dark:border-amber-500/40",
+    tagBg: "bg-amber-100/90 text-amber-900 dark:bg-amber-950/70 dark:text-amber-300",
+    tagText: "text-amber-900 dark:text-amber-300 font-black",
     tagBorder: "border-amber-300/90 dark:border-amber-500/40",
-    amountColor: "text-amber-600 dark:text-amber-400",
+    amountColor: "text-amber-700 dark:text-amber-400",
     accentDot: "bg-amber-500",
-    ambientGlow: "bg-amber-500/15 dark:bg-amber-500/20",
+    ambientGlow: "bg-amber-500/25 dark:bg-amber-500/20",
   },
   // 3. Sky / Blue (Kira, Konut, Ev, Aidat)
   {
-    cardBg: "from-sky-500/10 via-blue-500/5 to-slate-50/90 dark:from-sky-950/40 dark:via-blue-950/20 dark:to-slate-900",
-    cardBorder: "border-sky-300/80 dark:border-sky-500/40",
-    tagBg: "bg-sky-50 dark:bg-sky-950/70",
-    tagText: "text-sky-700 dark:text-sky-300 font-black",
+    cardBg: "from-sky-100/90 via-blue-50/80 to-white/95 dark:from-sky-950/40 dark:via-blue-950/20 dark:to-slate-900",
+    cardBorder: "border-sky-300/90 dark:border-sky-500/40",
+    tagBg: "bg-sky-100/90 text-sky-900 dark:bg-sky-950/70 dark:text-sky-300",
+    tagText: "text-sky-900 dark:text-sky-300 font-black",
     tagBorder: "border-sky-300/90 dark:border-sky-500/40",
-    amountColor: "text-sky-600 dark:text-sky-400",
+    amountColor: "text-sky-700 dark:text-sky-400",
     accentDot: "bg-sky-500",
-    ambientGlow: "bg-sky-500/15 dark:bg-sky-500/20",
+    ambientGlow: "bg-sky-500/25 dark:bg-sky-500/20",
   },
   // 4. Rose / Red (Faturalar, Elektrik, Su, Doğalgaz)
   {
-    cardBg: "from-rose-500/10 via-red-500/5 to-slate-50/90 dark:from-rose-950/40 dark:via-red-950/20 dark:to-slate-900",
-    cardBorder: "border-rose-300/80 dark:border-rose-500/40",
-    tagBg: "bg-rose-50 dark:bg-rose-950/70",
-    tagText: "text-rose-700 dark:text-rose-300 font-black",
+    cardBg: "from-rose-100/90 via-red-50/80 to-white/95 dark:from-rose-950/40 dark:via-red-950/20 dark:to-slate-900",
+    cardBorder: "border-rose-300/90 dark:border-rose-500/40",
+    tagBg: "bg-rose-100/90 text-rose-900 dark:bg-rose-950/70 dark:text-rose-300",
+    tagText: "text-rose-900 dark:text-rose-300 font-black",
     tagBorder: "border-rose-300/90 dark:border-rose-500/40",
-    amountColor: "text-rose-600 dark:text-rose-400",
+    amountColor: "text-rose-700 dark:text-rose-400",
     accentDot: "bg-rose-500",
-    ambientGlow: "bg-rose-500/15 dark:bg-rose-500/20",
+    ambientGlow: "bg-rose-500/25 dark:bg-rose-500/20",
   },
   // 5. Fuchsia / Pink (Giyim, Moda, Alışveriş)
   {
-    cardBg: "from-fuchsia-500/10 via-pink-500/5 to-slate-50/90 dark:from-fuchsia-950/40 dark:via-pink-950/20 dark:to-slate-900",
-    cardBorder: "border-fuchsia-300/80 dark:border-fuchsia-500/40",
-    tagBg: "bg-fuchsia-50 dark:bg-fuchsia-950/70",
-    tagText: "text-fuchsia-700 dark:text-fuchsia-300 font-black",
+    cardBg: "from-fuchsia-100/90 via-pink-50/80 to-white/95 dark:from-fuchsia-950/40 dark:via-pink-950/20 dark:to-slate-900",
+    cardBorder: "border-fuchsia-300/90 dark:border-fuchsia-500/40",
+    tagBg: "bg-fuchsia-100/90 text-fuchsia-900 dark:bg-fuchsia-950/70 dark:text-fuchsia-300",
+    tagText: "text-fuchsia-900 dark:text-fuchsia-300 font-black",
     tagBorder: "border-fuchsia-300/90 dark:border-fuchsia-500/40",
-    amountColor: "text-fuchsia-600 dark:text-fuchsia-400",
+    amountColor: "text-fuchsia-700 dark:text-fuchsia-400",
     accentDot: "bg-fuchsia-500",
-    ambientGlow: "bg-fuchsia-500/15 dark:bg-fuchsia-500/20",
+    ambientGlow: "bg-fuchsia-500/25 dark:bg-fuchsia-500/20",
   },
   // 6. Teal / Cyan (Sağlık, İlaç, Hastane, Eczane)
   {
-    cardBg: "from-teal-500/10 via-cyan-500/5 to-slate-50/90 dark:from-teal-950/40 dark:via-cyan-950/20 dark:to-slate-900",
-    cardBorder: "border-teal-300/80 dark:border-teal-500/40",
-    tagBg: "bg-teal-50 dark:bg-teal-950/70",
-    tagText: "text-teal-700 dark:text-teal-300 font-black",
+    cardBg: "from-teal-100/90 via-cyan-50/80 to-white/95 dark:from-teal-950/40 dark:via-cyan-950/20 dark:to-slate-900",
+    cardBorder: "border-teal-300/90 dark:border-teal-500/40",
+    tagBg: "bg-teal-100/90 text-teal-900 dark:bg-teal-950/70 dark:text-teal-300",
+    tagText: "text-teal-900 dark:text-teal-300 font-black",
     tagBorder: "border-teal-300/90 dark:border-teal-500/40",
-    amountColor: "text-teal-600 dark:text-teal-400",
+    amountColor: "text-teal-700 dark:text-teal-400",
     accentDot: "bg-teal-500",
-    ambientGlow: "bg-teal-500/15 dark:bg-teal-500/20",
+    ambientGlow: "bg-teal-500/25 dark:bg-teal-500/20",
   },
   // 7. Purple / Violet (Eğitim, Kitap, Kurs, Okul)
   {
-    cardBg: "from-purple-500/10 via-indigo-500/5 to-slate-50/90 dark:from-purple-950/40 dark:via-indigo-950/20 dark:to-slate-900",
-    cardBorder: "border-purple-300/80 dark:border-purple-500/40",
-    tagBg: "bg-purple-50 dark:bg-purple-950/70",
-    tagText: "text-purple-700 dark:text-purple-300 font-black",
+    cardBg: "from-purple-100/90 via-indigo-50/80 to-white/95 dark:from-purple-950/40 dark:via-indigo-950/20 dark:to-slate-900",
+    cardBorder: "border-purple-300/90 dark:border-purple-500/40",
+    tagBg: "bg-purple-100/90 text-purple-900 dark:bg-purple-950/70 dark:text-purple-300",
+    tagText: "text-purple-900 dark:text-purple-300 font-black",
     tagBorder: "border-purple-300/90 dark:border-purple-500/40",
-    amountColor: "text-purple-600 dark:text-purple-400",
+    amountColor: "text-purple-700 dark:text-purple-400",
     accentDot: "bg-purple-500",
-    ambientGlow: "bg-purple-500/15 dark:bg-purple-500/20",
+    ambientGlow: "bg-purple-500/25 dark:bg-purple-500/20",
   },
   // 8. Lime / Emerald (Kişisel Bakım, Spor, Fitness)
   {
-    cardBg: "from-lime-500/10 via-emerald-500/5 to-slate-50/90 dark:from-lime-950/40 dark:via-emerald-950/20 dark:to-slate-900",
-    cardBorder: "border-lime-300/80 dark:border-lime-500/40",
-    tagBg: "bg-lime-50 dark:bg-lime-950/70",
-    tagText: "text-lime-800 dark:text-lime-300 font-black",
+    cardBg: "from-lime-100/90 via-emerald-50/80 to-white/95 dark:from-lime-950/40 dark:via-emerald-950/20 dark:to-slate-900",
+    cardBorder: "border-lime-300/90 dark:border-lime-500/40",
+    tagBg: "bg-lime-100/90 text-lime-900 dark:bg-lime-950/70 dark:text-lime-300",
+    tagText: "text-lime-900 dark:text-lime-300 font-black",
     tagBorder: "border-lime-300/90 dark:border-lime-500/40",
-    amountColor: "text-lime-600 dark:text-lime-400",
+    amountColor: "text-lime-700 dark:text-lime-400",
     accentDot: "bg-lime-500",
-    ambientGlow: "bg-lime-500/15 dark:bg-lime-500/20",
+    ambientGlow: "bg-lime-500/25 dark:bg-lime-500/20",
   },
   // 9. Cyan / Blue (Teknoloji, Elektronik, Donanım)
   {
-    cardBg: "from-cyan-500/10 via-sky-500/5 to-slate-50/90 dark:from-cyan-950/40 dark:via-sky-950/20 dark:to-slate-900",
-    cardBorder: "border-cyan-300/80 dark:border-cyan-500/40",
-    tagBg: "bg-cyan-50 dark:bg-cyan-950/70",
-    tagText: "text-cyan-750 dark:text-cyan-300 font-black",
+    cardBg: "from-cyan-100/90 via-sky-50/80 to-white/95 dark:from-cyan-950/40 dark:via-sky-950/20 dark:to-slate-900",
+    cardBorder: "border-cyan-300/90 dark:border-cyan-500/40",
+    tagBg: "bg-cyan-100/90 text-cyan-900 dark:bg-cyan-950/70 dark:text-cyan-300",
+    tagText: "text-cyan-900 dark:text-cyan-300 font-black",
     tagBorder: "border-cyan-300/90 dark:border-cyan-500/40",
-    amountColor: "text-cyan-600 dark:text-cyan-400",
+    amountColor: "text-cyan-700 dark:text-cyan-400",
     accentDot: "bg-cyan-500",
-    ambientGlow: "bg-cyan-500/15 dark:bg-cyan-500/20",
+    ambientGlow: "bg-cyan-500/25 dark:bg-cyan-500/20",
   },
   // 10. Orange / Yellow (Borç, Taksit, Kredi, Sigara)
   {
-    cardBg: "from-orange-500/10 via-amber-500/5 to-slate-50/90 dark:from-orange-950/40 dark:via-amber-950/20 dark:to-slate-900",
-    cardBorder: "border-orange-300/80 dark:border-orange-500/40",
-    tagBg: "bg-orange-50 dark:bg-orange-950/70",
-    tagText: "text-orange-800 dark:text-orange-300 font-black",
+    cardBg: "from-orange-100/90 via-amber-50/80 to-white/95 dark:from-orange-950/40 dark:via-amber-950/20 dark:to-slate-900",
+    cardBorder: "border-orange-300/90 dark:border-orange-500/40",
+    tagBg: "bg-orange-100/90 text-orange-900 dark:bg-orange-950/70 dark:text-orange-300",
+    tagText: "text-orange-900 dark:text-orange-300 font-black",
     tagBorder: "border-orange-300/90 dark:border-orange-500/40",
-    amountColor: "text-orange-600 dark:text-orange-400",
+    amountColor: "text-orange-700 dark:text-orange-400",
     accentDot: "bg-orange-500",
-    ambientGlow: "bg-orange-500/15 dark:bg-orange-500/20",
+    ambientGlow: "bg-orange-500/25 dark:bg-orange-500/20",
   },
   // 11. Pink / Rose (Hediye, Eğlence, Tatil, Kutlama)
   {
-    cardBg: "from-pink-500/10 via-rose-500/5 to-slate-50/90 dark:from-pink-950/40 dark:via-rose-950/20 dark:to-slate-900",
-    cardBorder: "border-pink-300/80 dark:border-pink-500/40",
-    tagBg: "bg-pink-50 dark:bg-pink-950/70",
-    tagText: "text-pink-750 dark:text-pink-300 font-black",
+    cardBg: "from-pink-100/90 via-rose-50/80 to-white/95 dark:from-pink-950/40 dark:via-rose-950/20 dark:to-slate-900",
+    cardBorder: "border-pink-300/90 dark:border-pink-500/40",
+    tagBg: "bg-pink-100/90 text-pink-900 dark:bg-pink-950/70 dark:text-pink-300",
+    tagText: "text-pink-900 dark:text-pink-300 font-black",
     tagBorder: "border-pink-300/90 dark:border-pink-500/40",
-    amountColor: "text-pink-600 dark:text-pink-400",
+    amountColor: "text-pink-700 dark:text-pink-400",
     accentDot: "bg-pink-500",
-    ambientGlow: "bg-pink-500/15 dark:bg-pink-500/20",
+    ambientGlow: "bg-pink-500/25 dark:bg-pink-500/20",
   }
 ];
 
@@ -1418,35 +1418,44 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         </div>
       </div>
 
-      {/* Month Selection Bar with Prev/Next Arrow Buttons */}
-      <div className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-xl">
-            <Calendar className="w-4.5 h-4.5" />
+      {/* Month Selection Bar with Prev/Next Arrow Buttons (Kompakt ve Şık) */}
+      <div className="py-2 px-3 sm:py-2.5 sm:px-3.5 bg-gradient-to-r from-rose-100 via-pink-100/90 to-red-100 dark:from-slate-900/95 dark:via-rose-950/40 dark:to-slate-900 rounded-xl border-2 border-rose-400/90 dark:border-rose-700/50 shadow-md shadow-rose-200/50 dark:shadow-black/30 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md mb-3">
+        {/* Ambient subtle glow */}
+        <div className="absolute top-0 right-0 w-28 h-28 bg-white/25 dark:bg-white/5 rounded-full blur-xl pointer-events-none" />
+
+        {/* Left side: Icon & Title */}
+        <div className="flex items-center gap-2 relative z-10 min-w-0 shrink">
+          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-rose-600 to-red-500 text-white shadow-xs shrink-0">
+            <Calendar className="w-3.5 h-3.5 animate-pulse" />
           </div>
-          <div>
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">HARCAMA DÖNEMİ SEÇİN</span>
-            <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+          <div className="min-w-0">
+            <span className="text-[8px] sm:text-[8.5px] font-black uppercase text-rose-800 dark:text-rose-300 block leading-tight tracking-wider">
+              FİLTRELENEN DÖNEM
+            </span>
+            <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-xs sm:text-[13px] flex items-center gap-1.5 truncate">
               {selectedMonthStr === "all"
-                ? "Tüm Zamanlar"
+                ? "🔒 TÜM ZAMANLAR"
                 : (() => {
                     const [y, m] = selectedMonthStr.split("-");
                     const mIdx = parseInt(m, 10) - 1;
                     return `${monthsList[mIdx] || ""} ${y}`;
                   })()}
+              <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+        {/* Right side: Controls (Single inline row, never wraps) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0 relative z-10 justify-end ml-auto">
           {/* Previous Month Arrow */}
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+            className="p-1.5 sm:px-2.5 sm:py-1 border border-rose-300/90 dark:border-slate-700/80 bg-white/95 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer text-[10px] font-black transition-all duration-200 shadow-xs flex items-center gap-0.5 shrink-0 hover:bg-rose-200/80 active:scale-95"
             title="Önceki Ay"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden md:inline">Önceki</span>
           </button>
 
           {/* Month Selector Dropdown */}
@@ -1464,7 +1473,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                 setSelectedYear(null);
               }
             }}
-            className="w-full sm:w-52 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/30 font-black cursor-pointer transition text-center"
+            className="px-1.5 py-1 bg-white/95 dark:bg-slate-900 border border-rose-300/90 dark:border-slate-700/80 text-[10.5px] text-slate-800 dark:text-white rounded-lg focus:outline-none font-black cursor-pointer transition shrink-0 max-w-[125px] sm:max-w-[155px] truncate shadow-xs"
           >
             <option value="all">📅 Tüm Zamanlar</option>
             {(() => {
@@ -1515,17 +1524,18 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
           <button
             type="button"
             onClick={handleNextMonth}
-            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+            className="p-1.5 sm:px-2.5 sm:py-1 border border-rose-300/90 dark:border-slate-700/80 bg-white/95 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer text-[10px] font-black transition-all duration-200 shadow-xs flex items-center gap-0.5 shrink-0 hover:bg-rose-200/80 active:scale-95"
             title="Sonraki Ay"
           >
-            <ChevronRight className="w-4 h-4" />
+            <span className="hidden md:inline">Sonraki</span>
+            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
           </button>
 
           {/* Current Month Quick Button */}
           <button
             type="button"
             onClick={handleGoToCurrentMonth}
-            className="px-2.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider transition active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ml-1"
+            className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-400/40 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition active:scale-95 cursor-pointer shrink-0 ml-0.5 shadow-xs"
             title="Bu Aya Git"
           >
             BU AY
@@ -1957,6 +1967,59 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   const isOver = dragOverIndex === idx;
                   const currentMonthTotal = categoryCurrentMonthTotals[c.id] || 0;
                   const isSelected = selectedFilterCategoryId === c.id;
+
+                  const CATEGORY_DAY_THEMES = [
+                    {
+                      bg: "from-indigo-100/95 via-sky-50/90 to-blue-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-indigo-300 dark:border-slate-700/60",
+                      glow: "bg-indigo-500/20",
+                      badge: "text-indigo-950 bg-white/95 border border-indigo-300 shadow-xs dark:text-indigo-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-emerald-100/95 via-teal-50/90 to-green-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-emerald-300 dark:border-slate-700/60",
+                      glow: "bg-emerald-500/20",
+                      badge: "text-emerald-950 bg-white/95 border border-emerald-300 shadow-xs dark:text-emerald-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-rose-100/95 via-pink-50/90 to-red-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-rose-300 dark:border-slate-700/60",
+                      glow: "bg-rose-500/20",
+                      badge: "text-rose-950 bg-white/95 border border-rose-300 shadow-xs dark:text-rose-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-amber-100/95 via-yellow-50/90 to-orange-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-amber-300 dark:border-slate-700/60",
+                      glow: "bg-amber-500/20",
+                      badge: "text-amber-950 bg-white/95 border border-amber-300 shadow-xs dark:text-amber-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-purple-100/95 via-fuchsia-50/90 to-violet-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-purple-300 dark:border-slate-700/60",
+                      glow: "bg-purple-500/20",
+                      badge: "text-purple-950 bg-white/95 border border-purple-300 shadow-xs dark:text-purple-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-cyan-100/95 via-sky-50/90 to-teal-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-cyan-300 dark:border-slate-700/60",
+                      glow: "bg-cyan-500/20",
+                      badge: "text-cyan-950 bg-white/95 border border-cyan-300 shadow-xs dark:text-cyan-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-teal-100/95 via-emerald-50/90 to-cyan-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-teal-300 dark:border-slate-700/60",
+                      glow: "bg-teal-500/20",
+                      badge: "text-teal-950 bg-white/95 border border-teal-300 shadow-xs dark:text-teal-300 dark:bg-slate-900/60 dark:border-white/10"
+                    },
+                    {
+                      bg: "from-orange-100/95 via-amber-50/90 to-rose-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+                      border: "border-2 border-orange-300 dark:border-slate-700/60",
+                      glow: "bg-orange-500/20",
+                      badge: "text-orange-950 bg-white/95 border border-orange-300 shadow-xs dark:text-orange-300 dark:bg-slate-900/60 dark:border-white/10"
+                    }
+                  ];
+                  const catTheme = CATEGORY_DAY_THEMES[idx % CATEGORY_DAY_THEMES.length];
+
                   return (
                     <motion.div
                       key={c.id}
@@ -1983,10 +2046,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       }}
                       whileHover={{ scale: 1.02 }}
                       whileTap={isInlineEditingCategory ? {} : { scale: 0.98 }}
-                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-300 shadow-md ${
+                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-300 shadow-md overflow-hidden ${
                         isSelected
-                          ? "ring-2 ring-indigo-400 bg-slate-900 text-white shadow-indigo-500/20"
-                          : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/60 hover:shadow-lg"
+                          ? "ring-2 ring-indigo-500 bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-xl shadow-indigo-500/25"
+                          : `bg-gradient-to-br ${catTheme.bg} ${catTheme.border} text-slate-900 dark:text-slate-100 hover:shadow-xl`
                       } ${
                         isInlineEditingCategory
                           ? "ring-2 ring-amber-400/80 inline-editing"
@@ -2001,7 +2064,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : ""
                       }`}
                       style={{
-                        borderLeft: `4px solid ${c.color || "#6366f1"}`,
+                        borderLeft: `5px solid ${c.color || "#6366f1"}`,
                       }}
                       title={
                         isInlineEditingCategory
@@ -2009,6 +2072,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : "Giderleri filtrelemek için tıklayın | Sürükleyip bırakarak öncelik sırasını değiştirin"
                       }
                     >
+                      {/* Animated ambient background decoration in day & dark mode */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/10 pointer-events-none rounded-2xl" />
+                      <div className={`absolute -right-4 -top-4 w-16 h-16 rounded-full ${catTheme.glow} blur-xl pointer-events-none animate-pulse`} />
+
                       {/* Hover Tooltip - Monthly Category Total (only when not inline editing to save space) */}
                       {!isInlineEditingCategory && (
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-950/95 dark:bg-slate-900/95 text-white text-[10.5px] rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-indigo-500/15 flex flex-col items-center gap-0.5 animate-fade-in-fast">
@@ -2024,7 +2091,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 
                       {isInlineEditingCategory ? (
                         <div
-                          className="flex items-center gap-2 w-full"
+                          className="flex items-center gap-2 w-full relative z-10"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span
@@ -2064,10 +2131,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       ) : (
                         <>
                           {/* Row 1: Left Info & Right Total */}
-                          <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                          <div className="flex items-center justify-between w-full gap-2 min-w-0 relative z-10">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span
-                                className="w-1.5 h-1.5 rounded-full inline-block shrink-0 transition-all duration-500 ease-in-out"
+                                className="w-2 h-2 rounded-full inline-block shrink-0 transition-all duration-500 ease-in-out shadow-xs"
                                 style={{ backgroundColor: c.color || "#6366f1" }}
                               />
                               <span
@@ -2077,17 +2144,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 {c.icon || "🛒"}
                               </span>
                               <span
-                                className={`truncate text-xs font-extrabold leading-none ${isSelected ? "text-indigo-950 dark:text-indigo-200" : "text-slate-700 dark:text-slate-300"}`}
+                                className={`truncate text-xs font-black leading-none ${isSelected ? "text-white" : "text-slate-900 dark:text-slate-100"}`}
                                 title={c.name}
                               >
                                 {c.name}
                               </span>
                             </div>
                             <span
-                              className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold transition-all shrink-0 select-none ${
+                              className={`text-[9.5px] px-2 py-0.5 rounded-lg font-mono font-bold transition-all shrink-0 select-none ${
                                 isSelected
                                   ? "bg-indigo-600 text-white dark:bg-indigo-500/50"
-                                  : "text-indigo-600 bg-indigo-50 dark:text-indigo-300 dark:bg-slate-900/60 group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-500/30"
+                                  : catTheme.badge
                               }`}
                               title={`${c.name} bu ayki toplam harcaması`}
                             >

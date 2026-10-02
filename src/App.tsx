@@ -7205,6 +7205,15 @@ export default function App() {
             >
               <Menu className="w-5 h-5 text-indigo-200 group-hover:text-white transition" />
             </button>
+
+            {/* Official APK Application Logo */}
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900/90 border border-indigo-500/30 p-0.5 shadow-md shadow-indigo-500/20 shrink-0 overflow-hidden flex items-center justify-center">
+              <img
+                src="/logo.png"
+                alt="Bütçem Pro"
+                className="w-full h-full object-cover rounded-lg"
+              />
+            </div>
             
             <div className="space-y-1 min-w-0">
               <h1 className="text-lg sm:text-2xl md:text-2xl lg:text-3xl font-black tracking-normal flex items-center select-none whitespace-nowrap gap-1.5 sm:gap-3 leading-none bg-gradient-to-r from-white via-slate-100 to-indigo-100 bg-clip-text text-transparent">
@@ -8456,52 +8465,54 @@ export default function App() {
       {/* Central View Dashboard Grid content container */}
       <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
 
-        {/* 7 Günlük Deneme Sürümü Aktif veya Dolmuş Bilgilendirme Kartı */}
+        {/* 7 Günlük Deneme Sürümü Aktif veya Dolmuş Bilgilendirme Kartı (Kompakt ve Şık) */}
         {isTrialActive && (
-          <div className="mb-5 p-3.5 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border-2 border-indigo-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-2xl shrink-0">🎁</span>
-              <div>
-                <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-                  <span>7 Günlük Deneme Sürümü Aktif</span>
-                  <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase">
-                    {trialDaysRemaining} Gününüz Kaldı
-                  </span>
-                </p>
-                <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                  Tüm PRO özellikleri 7 gün boyunca ücretsiz kullanıyorsunuz.
-                </p>
+          <div className="mb-3 py-1.5 px-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border border-indigo-500/25 rounded-xl flex items-center justify-between gap-2 shadow-xs transition-all">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0">🎁</span>
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">
+                  7 Günlük Deneme
+                </span>
+                <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded-md uppercase tracking-tight shrink-0">
+                  {trialDaysRemaining} Gün Kaldı
+                </span>
+                <span className="hidden sm:inline text-[10.5px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                  • PRO özellikler aktif
+                </span>
               </div>
             </div>
             <button
               type="button"
               onClick={() => openUpgradeModal("Paket Seçimi")}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[10.5px] rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 shrink-0"
+              className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center gap-1"
             >
-              👑 Paket Seç
+              <span>👑</span>
+              <span>Paket Seç</span>
             </button>
           </div>
         )}
 
         {isTrialExpiredLocked && (
-          <div className="mb-5 p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm animate-pulse">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-2xl shrink-0">⚠️</span>
-              <div>
-                <p className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wide">
-                  7 Günlük Süreniz Bitmiştir!
-                </p>
-                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-bold">
-                  Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur.
-                </p>
+          <div className="mb-3 py-1.5 px-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between gap-2 shadow-xs animate-pulse">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0">⚠️</span>
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-tight">
+                  7 Günlük Süreniz Doldu
+                </span>
+                <span className="hidden sm:inline text-[10.5px] text-slate-600 dark:text-slate-400 font-medium truncate">
+                  • Devam etmek için paket seçin
+                </span>
               </div>
             </div>
             <button
               type="button"
               onClick={() => openUpgradeModal("Zorunlu Paket Seçimi")}
-              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md shadow-rose-600/30 active:scale-95 shrink-0"
+              className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center gap-1"
             >
-              👑 Hemen Paket Seç
+              <span>👑</span>
+              <span>Paket Seç</span>
             </button>
           </div>
         )}

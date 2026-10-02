@@ -167,10 +167,17 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
       </div>
 
       {/* Trigger Button */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsOpen(true)}
-        className="w-full p-2.5 bg-slate-50 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex items-center justify-between transition cursor-pointer text-left"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsOpen(true);
+          }
+        }}
+        className="w-full p-2.5 bg-slate-50 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex items-center justify-between transition cursor-pointer text-left select-none"
       >
         {selectedProvider ? (
           <ProviderBadge providerId={selectedProvider.id} size="md" />
@@ -207,7 +214,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           )}
           <ChevronDown className="w-4 h-4" />
         </div>
-      </button>
+      </div>
 
       {/* Modal Dropdown Picker */}
       <AnimatePresence>

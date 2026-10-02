@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -1746,108 +1746,159 @@ export const DebtList: React.FC<DebtListProps> = ({
             const DEBT_CARD_THEMES = [
               {
                 // 0. Sapphire / Indigo Blue
-                gradient: "from-white/95 via-indigo-50/50 to-slate-50/90 dark:from-indigo-950/90 dark:via-indigo-900/80 dark:to-slate-900",
-                border: "border-indigo-200/80 dark:border-indigo-500/40",
-                glow: "shadow-md shadow-indigo-100/60 dark:shadow-indigo-500/20",
-                accent: "text-indigo-600 dark:text-indigo-200",
-                badge: "bg-indigo-50 text-indigo-700 border-indigo-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-indigo-500 via-indigo-600 to-indigo-400 dark:from-indigo-300 dark:via-cyan-300 dark:to-indigo-200",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-blue-100 via-indigo-100/90 to-sky-200/80 dark:from-indigo-950/90 dark:via-indigo-900/80 dark:to-slate-900",
+                border: "border-2 border-indigo-400 dark:border-indigo-500/40",
+                glow: "shadow-xl shadow-indigo-200/70 dark:shadow-indigo-500/20",
+                accent: "text-indigo-800 dark:text-indigo-200",
+                badge: "bg-indigo-200/90 text-indigo-950 border-indigo-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-indigo-600 via-blue-600 to-cyan-500 dark:from-indigo-300 dark:via-cyan-300 dark:to-indigo-200",
+                tagBg: "bg-white/95 border-indigo-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 1. Ruby / Crimson Red
-                gradient: "from-white/95 via-rose-50/50 to-slate-50/90 dark:from-rose-950/90 dark:via-rose-900/80 dark:to-slate-900",
-                border: "border-rose-200/80 dark:border-rose-500/40",
-                glow: "shadow-md shadow-rose-100/60 dark:shadow-rose-500/20",
-                accent: "text-rose-600 dark:text-rose-200",
-                badge: "bg-rose-50 text-rose-700 border-rose-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-rose-500 via-rose-600 to-rose-400 dark:from-rose-300 dark:via-amber-300 dark:to-rose-200",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-rose-100 via-pink-100/90 to-red-200/80 dark:from-rose-950/90 dark:via-rose-900/80 dark:to-slate-900",
+                border: "border-2 border-rose-400 dark:border-rose-500/40",
+                glow: "shadow-xl shadow-rose-200/70 dark:shadow-rose-500/20",
+                accent: "text-rose-800 dark:text-rose-200",
+                badge: "bg-rose-200/90 text-rose-950 border-rose-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-rose-600 via-red-600 to-amber-500 dark:from-rose-300 dark:via-amber-300 dark:to-rose-200",
+                tagBg: "bg-white/95 border-rose-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 2. Emerald / Forest Green
-                gradient: "from-white/95 via-emerald-50/50 to-slate-50/90 dark:from-emerald-950/90 dark:via-emerald-900/80 dark:to-slate-900",
-                border: "border-emerald-200/80 dark:border-emerald-500/40",
-                glow: "shadow-md shadow-emerald-100/60 dark:shadow-emerald-500/20",
-                accent: "text-emerald-600 dark:text-emerald-200",
-                badge: "bg-emerald-50 text-emerald-700 border-emerald-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-emerald-500 via-emerald-600 to-teal-400 dark:from-emerald-300 dark:via-teal-200 dark:to-emerald-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-emerald-100 via-teal-100/90 to-green-200/80 dark:from-emerald-950/90 dark:via-emerald-900/80 dark:to-slate-900",
+                border: "border-2 border-emerald-400 dark:border-emerald-500/40",
+                glow: "shadow-xl shadow-emerald-200/70 dark:shadow-emerald-500/20",
+                accent: "text-emerald-800 dark:text-emerald-200",
+                badge: "bg-emerald-200/90 text-emerald-950 border-emerald-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-emerald-600 via-teal-600 to-green-500 dark:from-emerald-300 dark:via-teal-200 dark:to-emerald-300",
+                tagBg: "bg-white/95 border-emerald-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 3. Azure / Ocean Cyan
-                gradient: "from-white/95 via-cyan-50/50 to-slate-50/90 dark:from-blue-950/90 dark:via-cyan-950/80 dark:to-slate-900",
-                border: "border-cyan-200/80 dark:border-cyan-500/40",
-                glow: "shadow-md shadow-cyan-100/60 dark:shadow-blue-500/20",
-                accent: "text-cyan-600 dark:text-cyan-200",
-                badge: "bg-cyan-50 text-cyan-700 border-cyan-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-cyan-500 via-blue-500 to-cyan-400 dark:from-cyan-300 dark:via-blue-200 dark:to-cyan-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-cyan-100 via-sky-100/90 to-blue-200/80 dark:from-blue-950/90 dark:via-cyan-950/80 dark:to-slate-900",
+                border: "border-2 border-cyan-400 dark:border-cyan-500/40",
+                glow: "shadow-xl shadow-cyan-200/70 dark:shadow-blue-500/20",
+                accent: "text-cyan-800 dark:text-cyan-200",
+                badge: "bg-cyan-200/90 text-cyan-950 border-cyan-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-cyan-600 via-blue-600 to-indigo-500 dark:from-cyan-300 dark:via-blue-200 dark:to-cyan-300",
+                tagBg: "bg-white/95 border-cyan-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 4. Amethyst / Royal Purple
-                gradient: "from-white/95 via-purple-50/50 to-slate-50/90 dark:from-violet-950/90 dark:via-purple-900/80 dark:to-slate-900",
-                border: "border-purple-200/80 dark:border-purple-500/40",
-                glow: "shadow-md shadow-purple-100/60 dark:shadow-violet-500/20",
-                accent: "text-purple-600 dark:text-violet-200",
-                badge: "bg-purple-50 text-purple-700 border-purple-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-purple-500 via-purple-600 to-violet-400 dark:from-violet-300 dark:via-fuchsia-300 dark:to-violet-200",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-purple-100 via-violet-100/90 to-fuchsia-200/80 dark:from-violet-950/90 dark:via-purple-900/80 dark:to-slate-900",
+                border: "border-2 border-purple-400 dark:border-purple-500/40",
+                glow: "shadow-xl shadow-purple-200/70 dark:shadow-violet-500/20",
+                accent: "text-purple-800 dark:text-violet-200",
+                badge: "bg-purple-200/90 text-purple-950 border-purple-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-purple-600 via-violet-600 to-pink-500 dark:from-violet-300 dark:via-fuchsia-300 dark:to-violet-200",
+                tagBg: "bg-white/95 border-purple-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 5. Sunset Gold / Amber
-                gradient: "from-white/95 via-amber-50/50 to-slate-50/90 dark:from-amber-950/90 dark:via-orange-900/80 dark:to-slate-900",
-                border: "border-amber-200/80 dark:border-amber-500/40",
-                glow: "shadow-md shadow-amber-100/60 dark:shadow-amber-500/20",
-                accent: "text-amber-600 dark:text-amber-200",
-                badge: "bg-amber-50 text-amber-700 border-amber-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-amber-500 via-orange-500 to-amber-400 dark:from-amber-300 dark:via-yellow-200 dark:to-orange-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-amber-100 via-orange-100/90 to-yellow-200/80 dark:from-amber-950/90 dark:via-orange-900/80 dark:to-slate-900",
+                border: "border-2 border-amber-400 dark:border-amber-500/40",
+                glow: "shadow-xl shadow-amber-200/70 dark:shadow-amber-500/20",
+                accent: "text-amber-800 dark:text-amber-200",
+                badge: "bg-amber-200/90 text-amber-950 border-amber-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-amber-600 via-orange-600 to-yellow-500 dark:from-amber-300 dark:via-yellow-200 dark:to-orange-300",
+                tagBg: "bg-white/95 border-amber-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 6. Fuchsia / Hot Pink
-                gradient: "from-white/95 via-pink-50/50 to-slate-50/90 dark:from-fuchsia-950/90 dark:via-pink-900/80 dark:to-slate-900",
-                border: "border-pink-200/80 dark:border-pink-500/40",
-                glow: "shadow-md shadow-pink-100/60 dark:shadow-fuchsia-500/20",
-                accent: "text-pink-600 dark:text-pink-200",
-                badge: "bg-pink-50 text-pink-700 border-pink-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-pink-500 via-rose-500 to-pink-400 dark:from-fuchsia-300 dark:via-pink-200 dark:to-rose-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-pink-100 via-rose-100/90 to-fuchsia-200/80 dark:from-fuchsia-950/90 dark:via-pink-900/80 dark:to-slate-900",
+                border: "border-2 border-pink-400 dark:border-pink-500/40",
+                glow: "shadow-xl shadow-pink-200/70 dark:shadow-fuchsia-500/20",
+                accent: "text-pink-800 dark:text-pink-200",
+                badge: "bg-pink-200/90 text-pink-950 border-pink-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-pink-600 via-rose-600 to-purple-500 dark:from-fuchsia-300 dark:via-pink-200 dark:to-rose-300",
+                tagBg: "bg-white/95 border-pink-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 7. Teal / Marine Turquoise
-                gradient: "from-white/95 via-teal-50/50 to-slate-50/90 dark:from-teal-950/90 dark:via-teal-900/80 dark:to-slate-900",
-                border: "border-teal-200/80 dark:border-teal-500/40",
-                glow: "shadow-md shadow-teal-100/60 dark:shadow-teal-500/20",
-                accent: "text-teal-600 dark:text-teal-200",
-                badge: "bg-teal-50 text-teal-700 border-teal-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-teal-500 via-cyan-500 to-emerald-400 dark:from-teal-300 dark:via-emerald-200 dark:to-cyan-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-teal-100 via-emerald-100/90 to-cyan-200/80 dark:from-teal-950/90 dark:via-teal-900/80 dark:to-slate-900",
+                border: "border-2 border-teal-400 dark:border-teal-500/40",
+                glow: "shadow-xl shadow-teal-200/70 dark:shadow-teal-500/20",
+                accent: "text-teal-800 dark:text-teal-200",
+                badge: "bg-teal-200/90 text-teal-950 border-teal-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-teal-600 via-cyan-600 to-emerald-500 dark:from-teal-300 dark:via-emerald-200 dark:to-cyan-300",
+                tagBg: "bg-white/95 border-teal-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
-                // 8. Scarlet / Warm Crimson
-                gradient: "from-white/95 via-rose-50/50 to-slate-50/90 dark:from-red-950/90 dark:via-rose-950/80 dark:to-slate-900",
-                border: "border-red-200/80 dark:border-red-500/40",
-                glow: "shadow-md shadow-red-100/60 dark:shadow-red-500/20",
-                accent: "text-red-600 dark:text-red-200",
-                badge: "bg-red-50 text-red-700 border-red-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-red-500 via-rose-600 to-orange-400 dark:from-red-300 dark:via-orange-300 dark:to-rose-200",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                // 8. Scarlet / Warm Coral
+                gradient: "from-orange-100 via-rose-100/90 to-red-200/80 dark:from-red-950/90 dark:via-rose-950/80 dark:to-slate-900",
+                border: "border-2 border-orange-400 dark:border-red-500/40",
+                glow: "shadow-xl shadow-orange-200/70 dark:shadow-red-500/20",
+                accent: "text-orange-800 dark:text-red-200",
+                badge: "bg-orange-200/90 text-orange-950 border-orange-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-red-600 via-rose-600 to-orange-500 dark:from-red-300 dark:via-orange-300 dark:to-rose-200",
+                tagBg: "bg-white/95 border-orange-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               },
               {
                 // 9. Midnight Obsidian / Slate-Blue
-                gradient: "from-white/95 via-slate-100/70 to-slate-50/90 dark:from-slate-800/90 dark:via-slate-900/80 dark:to-slate-950",
-                border: "border-slate-200/80 dark:border-slate-500/40",
-                glow: "shadow-md shadow-slate-100/60 dark:shadow-slate-500/20",
-                accent: "text-slate-700 dark:text-slate-200",
-                badge: "bg-slate-100 text-slate-800 border-slate-200/70 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs",
-                progressGradient: "from-slate-600 via-indigo-600 to-slate-500 dark:from-slate-300 dark:via-indigo-200 dark:to-cyan-300",
-                tagBg: "bg-slate-100/90 border-slate-200/80 dark:bg-black/20 dark:border-white/10 text-slate-700 dark:text-white/85",
+                gradient: "from-slate-200 via-blue-100/90 to-indigo-200/80 dark:from-slate-800/90 dark:via-slate-900/80 dark:to-slate-950",
+                border: "border-2 border-slate-400 dark:border-slate-500/40",
+                glow: "shadow-xl shadow-slate-300/70 dark:shadow-slate-500/20",
+                accent: "text-slate-900 dark:text-slate-200",
+                badge: "bg-slate-300/90 text-slate-950 border-slate-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
+                progressGradient: "from-slate-700 via-indigo-600 to-blue-600 dark:from-slate-300 dark:via-indigo-200 dark:to-cyan-300",
+                tagBg: "bg-white/95 border-slate-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
               }
             ];
 
             return (
               <>
+                {/* Top Pagination & Item Count Summary Bar */}
+                <div className="flex items-center justify-between flex-wrap gap-2.5 px-1 py-1 mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-100/90 dark:bg-indigo-950/50 border border-indigo-300/80 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300 text-xs font-black shadow-xs">
+                      <Coins className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Toplam {filteredDebts.length} Borç Kaydı</span>
+                    </div>
+                    {totalPages > 1 && (
+                      <span className="text-xs font-black text-slate-600 dark:text-slate-400">
+                        (Sayfa {activePage} / {totalPages})
+                      </span>
+                    )}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1 text-xs font-bold">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={activePage === 1}
+                        className="px-2.5 py-1.5 border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-indigo-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs select-none text-[11px] font-black"
+                        title="Önceki Sayfa"
+                      >
+                        ← Önceki
+                      </button>
+                      {Array.from({ length: totalPages }).map((_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <button
+                            key={`top-page-${pageNum}`}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-7 h-7 rounded-xl transition-all flex items-center justify-center cursor-pointer text-[11px] font-black ${
+                              activePage === pageNum
+                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                                : "border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={activePage === totalPages}
+                        className="px-2.5 py-1.5 border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-indigo-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs select-none text-[11px] font-black"
+                        title="Sonraki Sayfa"
+                      >
+                        Sonraki →
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {paginatedDebts.map((d, itemIdx) => {
                   const isPaid = d.paid >= d.amount;
                   const percentage = Math.min(((d.paid / d.amount) * 100), 100);
@@ -1883,31 +1934,59 @@ export const DebtList: React.FC<DebtListProps> = ({
                       whileHover={{ scale: 1.01, y: -2 }}
                       className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
                     >
-                      {/* Ambient background decoration */}
-                      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-indigo-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
-                      <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full bg-slate-500/5 dark:bg-white/5 blur-xl pointer-events-none" />
+                      {/* Ambient animated background decoration */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/25 via-transparent to-white/15 pointer-events-none" />
+                      <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-indigo-500/10 dark:bg-white/10 blur-xl pointer-events-none animate-pulse" />
+                      <div className="absolute -left-8 -bottom-8 w-32 h-32 rounded-full bg-purple-500/10 dark:bg-white/5 blur-xl pointer-events-none animate-pulse" />
 
                       <div className="space-y-3 flex-1 relative z-10">
-                        {/* Title & metadata row */}
-                        <div className="flex items-center flex-wrap gap-2">
-                          {(() => {
-                            const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
-                            return (
-                              <>
-                                {provider && (
+                        {/* Top Header Row: Logo & Name on Left (sol üst köşe), Order Number on Right (sağ üst köşe) */}
+                        <div className="flex items-center justify-between gap-2.5">
+                          {/* Sol Üst Köşe: Logo & Borç Adı */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {(() => {
+                              const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
+                              return provider ? (
+                                <div className="shrink-0">
                                   <ProviderBadge providerId={provider.id} size="md" showLabel={false} />
-                                )}
-                                <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-xl bg-slate-200/90 dark:bg-white/10 flex items-center justify-center shrink-0 border border-slate-300/70 dark:border-white/20 shadow-xs">
+                                  <Coins className="w-4 h-4 text-slate-700 dark:text-white/80" />
+                                </div>
+                              );
+                            })()}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight truncate">
                                   {d.name}
                                 </span>
-                                {provider && (
-                                  <span className="text-[10px] font-bold text-slate-700 dark:text-white/90 bg-slate-100/90 dark:bg-white/15 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/20 backdrop-blur-xs">
-                                    {provider.badgeLabel || provider.name}
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
+                                {(() => {
+                                  const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
+                                  return provider?.badgeLabel || provider?.name ? (
+                                    <span className="text-[10px] font-bold text-slate-700 dark:text-white/90 bg-slate-100/90 dark:bg-white/15 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/20 backdrop-blur-xs shrink-0">
+                                      {provider.badgeLabel || provider.name}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Sağ Üst Köşe: Borç Sıra Numarası Rozeti */}
+                          <div 
+                            title={`Borç Sıra Numarası: ${startIndex + itemIdx + 1} / ${filteredDebts.length}`}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-black/45 border-2 border-indigo-400/80 dark:border-white/20 text-slate-900 dark:text-white font-mono font-black text-xs shadow-md shadow-indigo-200/50 dark:shadow-none shrink-0 select-none ml-auto"
+                          >
+                            <span className="w-5 h-5 rounded-lg bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center text-[10.5px] font-black shadow-xs">
+                              {startIndex + itemIdx + 1}
+                            </span>
+                            <span className="text-[10px] font-extrabold text-slate-600 dark:text-white/60">/ {filteredDebts.length} Borç</span>
+                          </div>
+                        </div>
+
+                        {/* Badges row: Category, Status, SKT */}
+                        <div className="flex items-center flex-wrap gap-1.5">
                           <span className="px-2.5 py-0.5 bg-slate-100/90 dark:bg-white/15 text-slate-700 dark:text-white text-[10.5px] font-bold rounded-full border border-slate-200/80 dark:border-white/20 backdrop-blur-xs">
                             📁 {d.category}
                           </span>

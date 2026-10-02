@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, Calendar, CheckCircle2, Users } from "lucide-react";
+import { Sparkles, PlusCircle, ArrowUpRight, TrendingUp, ShieldAlert, Award, HelpingHand, Bell, Coins, Edit, Check, X, Info, Settings, RefreshCw, CalendarDays, ClipboardCheck, Trash2, Calendar, CheckCircle2, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
 import { BarChart, DoughnutChart, LineChart } from "./BudgetCharts";
@@ -234,104 +234,111 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   }, [expenses, expenseCategories]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5">
       {/* Centered & Animated Page Title */}
-      <div className="flex flex-col items-center justify-center text-center py-4 select-none">
+      <div className="flex flex-col items-center justify-center text-center py-2 select-none">
         <motion.h2
-          animate={{ y: [0, -4, 0] }}
+          animate={{ y: [0, -3, 0] }}
           transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-          className="text-lg sm:text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2"
+          className="text-base sm:text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2"
         >
           🚀 FİNANSAL GELECEĞİNİZİ ANALİZ EDİN
         </motion.h2>
-        <div className="w-12 h-1.5 bg-indigo-500 rounded-full mt-3 opacity-90 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
+        <div className="w-10 h-1 bg-indigo-500 rounded-full mt-2 opacity-90 shadow-[0_0_8px_rgba(79,70,229,0.5)]" />
       </div>
 
-      {/* Modern Greeting & Operations Banner */}
-      <div className="bg-gradient-to-br from-indigo-600/10 via-slate-500/5 to-emerald-500/5 p-6 rounded-[2rem] border border-indigo-500/15 dark:border-indigo-500/10 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group">
+      {/* Modern Greeting & Operations Banner (Kompakt & Şık) */}
+      <div className="bg-gradient-to-br from-indigo-600/10 via-slate-500/5 to-emerald-500/5 p-2.5 sm:p-3 rounded-xl border border-indigo-500/15 dark:border-indigo-500/10 flex flex-col items-center justify-center text-center gap-1.5 relative overflow-hidden group">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_50%)]" />
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="flex flex-col items-center text-center relative z-10"
         >
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-1 px-2.5 bg-indigo-500 text-white text-[9px] font-black rounded-lg shadow-lg shadow-indigo-500/20 uppercase tracking-widest">PRO AKTİF</div>
-            <div className="p-1 px-2.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-lg border border-emerald-500/20 uppercase tracking-widest">AI DESTEKLİ</div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="p-0.5 px-1.5 bg-indigo-500 text-white text-[8px] font-black rounded shadow-xs uppercase tracking-widest">PRO AKTİF</div>
+            <div className="p-0.5 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[8px] font-black rounded border border-emerald-500/20 uppercase tracking-widest">AI DESTEKLİ</div>
           </div>
-          <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-100 font-extrabold max-w-lg leading-relaxed">
+          <p className="text-[11px] sm:text-xs text-slate-800 dark:text-slate-100 font-extrabold max-w-md leading-relaxed">
             Bütçem Pro ile finansal özgürlüğünüze giden yolda adım atın. Harcamalarınızı akıllıca takip edin, borçlarınızı planlayın ve geleceğinizi güvenle inşa edin. 👑
           </p>
-          <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-2 flex items-center gap-1.5 uppercase tracking-tighter">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Tam Kontrol <span className="text-slate-300">|</span> <CheckCircle2 className="w-3 h-3 text-indigo-500" /> Akıllı Analiz <span className="text-slate-300">|</span> <CheckCircle2 className="w-3 h-3 text-amber-500" /> Maksimum Güvenlik
+          <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 flex items-center gap-1 uppercase tracking-tighter">
+            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" /> Tam Kontrol <span className="text-slate-300">|</span> <CheckCircle2 className="w-2.5 h-2.5 text-indigo-500 shrink-0" /> Akıllı Analiz <span className="text-slate-300">|</span> <CheckCircle2 className="w-2.5 h-2.5 text-amber-500 shrink-0" /> Maksimum Güvenlik
           </p>
         </motion.div>
       </div>
 
 
-      {/* Relocated Filter Section on overview screen (placed below header banner as requested) */}
+      {/* Relocated Filter Section on overview screen (Kompakt ve Hizalı Tasarım) */}
       {(() => {
-        let themeCardBg = "bg-white dark:bg-slate-800";
-        let themeBorder = "border-slate-200/60 dark:border-slate-700/60";
-        let themeIconBg = "bg-indigo-50 dark:bg-slate-900";
-        let themeIconText = "text-indigo-500";
+        let themeCardBg = "bg-gradient-to-r from-indigo-100 via-sky-100/90 to-blue-100 dark:from-slate-900/95 dark:via-indigo-950/50 dark:to-slate-900";
+        let themeBorder = "border-2 border-indigo-400/90 dark:border-indigo-700/50";
+        let themeIconBg = "bg-gradient-to-tr from-indigo-600 to-blue-500 text-white shadow-md shadow-indigo-500/30";
+        let themeIconText = "text-white";
         let themeFocusRing = "focus:ring-indigo-500";
-        let themeBtnHover = "hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400";
+        let themeBtnHover = "hover:bg-indigo-200/80 text-indigo-950 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300";
+        let themeLabelColor = "text-indigo-800 dark:text-indigo-300";
+        let themeSelectBorder = "border-indigo-300/90 dark:border-slate-700/80";
         
         if (colorTheme === "green") {
-          themeCardBg = "bg-emerald-500/[0.04] dark:bg-emerald-950/10";
-          themeBorder = "border-emerald-500/20 dark:border-emerald-800/40";
-          themeIconBg = "bg-emerald-500/20 dark:bg-emerald-950/60";
-          themeIconText = "text-emerald-600 dark:text-emerald-400";
+          themeCardBg = "bg-gradient-to-r from-emerald-100 via-teal-100/90 to-green-100 dark:from-slate-900/95 dark:via-emerald-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-emerald-400/90 dark:border-emerald-700/50";
+          themeIconBg = "bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-500/30";
+          themeIconText = "text-white";
           themeFocusRing = "focus:ring-emerald-500";
-          themeBtnHover = "hover:bg-emerald-500/10 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400";
+          themeBtnHover = "hover:bg-emerald-200/80 text-emerald-950 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300";
+          themeLabelColor = "text-emerald-800 dark:text-emerald-300";
+          themeSelectBorder = "border-emerald-300/90 dark:border-slate-700/80";
         } else if (colorTheme === "purple") {
-          themeCardBg = "bg-purple-500/[0.04] dark:bg-purple-950/10";
-          themeBorder = "border-purple-500/20 dark:border-purple-800/40";
-          themeIconBg = "bg-purple-500/20 dark:bg-purple-950/60";
-          themeIconText = "text-purple-600 dark:text-purple-400";
+          themeCardBg = "bg-gradient-to-r from-purple-100 via-fuchsia-100/90 to-violet-100 dark:from-slate-900/95 dark:via-purple-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-purple-400/90 dark:border-purple-700/50";
+          themeIconBg = "bg-gradient-to-tr from-purple-600 to-fuchsia-500 text-white shadow-md shadow-purple-500/30";
+          themeIconText = "text-white";
           themeFocusRing = "focus:ring-purple-500";
-          themeBtnHover = "hover:bg-purple-500/10 dark:hover:bg-purple-950/30 text-purple-600 dark:text-purple-400";
+          themeBtnHover = "hover:bg-purple-200/80 text-purple-950 dark:hover:bg-purple-950/50 dark:hover:text-purple-300";
+          themeLabelColor = "text-purple-800 dark:text-purple-300";
+          themeSelectBorder = "border-purple-300/90 dark:border-slate-700/80";
         } else if (colorTheme === "orange") {
-          themeCardBg = "bg-amber-500/[0.04] dark:bg-amber-950/10";
-          themeBorder = "border-amber-500/20 dark:border-amber-800/40";
-          themeIconBg = "bg-amber-500/20 dark:bg-amber-950/60";
-          themeIconText = "text-amber-600 dark:text-amber-400";
+          themeCardBg = "bg-gradient-to-r from-amber-100 via-orange-100/90 to-yellow-100 dark:from-slate-900/95 dark:via-amber-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-amber-400/90 dark:border-amber-700/50";
+          themeIconBg = "bg-gradient-to-tr from-amber-600 to-orange-500 text-white shadow-md shadow-amber-500/30";
+          themeIconText = "text-white";
           themeFocusRing = "focus:ring-amber-500";
-          themeBtnHover = "hover:bg-amber-500/10 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400";
-        } else {
-          themeCardBg = "bg-indigo-500/[0.04] dark:bg-indigo-950/10";
-          themeBorder = "border-indigo-500/20 dark:border-indigo-805/40";
-          themeIconBg = "bg-indigo-500/20 dark:bg-indigo-950/60";
-          themeIconText = "text-indigo-600 dark:text-indigo-400";
+          themeBtnHover = "hover:bg-amber-200/80 text-amber-950 dark:hover:bg-amber-950/50 dark:hover:text-amber-300";
+          themeLabelColor = "text-amber-800 dark:text-amber-300";
+          themeSelectBorder = "border-amber-300/90 dark:border-slate-700/80";
         }
 
         return (
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`p-4 rounded-3xl border ${themeCardBg} ${themeBorder} shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all duration-350 relative overflow-hidden`}
+            whileHover={{ scale: 1.005 }}
+            className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-xl border ${themeCardBg} ${themeBorder} shadow-md shadow-indigo-200/50 dark:shadow-black/30 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md`}
           >
-            {/* Decorative dynamic neon fluid bubble backing */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+            {/* Decorative subtle ambient backing */}
+            <div className="absolute inset-0 bg-gradient-to-r from-white/30 via-transparent to-white/20 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-400/15 dark:bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
 
-            <div className="flex items-center gap-3 relative z-10">
-              <div className={`p-2.5 rounded-2xl shrink-0 transition-colors duration-300 ${themeIconBg} ${themeIconText}`}>
-                <Calendar className="w-5 h-5 animate-pulse" />
+            {/* Left title and current period display */}
+            <div className="flex items-center gap-2 relative z-10 min-w-0 shrink">
+              <div className={`p-1.5 rounded-lg shrink-0 transition-all duration-300 ${themeIconBg} ${themeIconText} shadow-xs`}>
+                <Calendar className="w-3.5 h-3.5 animate-pulse" />
               </div>
-              <div>
-                <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block leading-none tracking-widest mb-1">FİLTRELENEN DÖNEM</span>
-                <span className="font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wide flex items-center gap-2">
+              <div className="min-w-0">
+                <span className={`text-[8px] sm:text-[8.5px] font-black uppercase ${themeLabelColor} block leading-tight tracking-wider`}>FİLTRELENEN DÖNEM</span>
+                <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-xs sm:text-[13px] flex items-center gap-1.5 truncate">
                   {selectedMonth !== null && selectedYear !== null 
                     ? `${["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"][selectedMonth]} ${selectedYear}`
-                    : "🔒 TÜM ZAMANLAR BİRİKİMLİ"}
-                  <span className="inline-flex w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    : "🔒 TÜM ZAMANLAR"}
+                  <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end relative z-10">
+            {/* Right period navigation buttons (Single inline row, never wraps or slips down) */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0 relative z-10 justify-end ml-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -347,9 +354,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                   }
                 }}
                 disabled={selectedMonth === null}
-                className={`px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-xl cursor-pointer disabled:opacity-40 select-none text-[10.5px] font-extrabold transition-all duration-300 ${themeBtnHover}`}
+                className={`p-1.5 sm:px-2.5 sm:py-1 border ${themeSelectBorder} bg-white/95 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer disabled:opacity-40 select-none text-[10px] font-black transition-all duration-200 shadow-xs flex items-center gap-0.5 shrink-0 ${themeBtnHover}`}
+                title="Önceki Ay"
               >
-                ← Önceki
+                <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden md:inline">Önceki</span>
               </button>
 
               <select
@@ -363,9 +372,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                     if (selectedYear === null) setSelectedYear(new Date().getFullYear());
                   }
                 }}
-                className={`px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl font-extrabold text-slate-700 dark:text-slate-200 cursor-pointer text-[10.5px] focus:outline-none focus:ring-1 ${themeFocusRing}`}
+                className={`px-1.5 py-1 bg-white/95 dark:bg-slate-900 border ${themeSelectBorder} rounded-lg font-black text-slate-800 dark:text-slate-100 cursor-pointer text-[10.5px] shadow-xs focus:outline-none focus:ring-1 ${themeFocusRing} shrink-0 max-w-[96px] sm:max-w-[115px] truncate`}
               >
-                <option value="all">Tüm Dönemler</option>
+                <option value="all">Tüm Aylar</option>
                 {["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"].map((m, idx) => (
                   <option key={idx} value={idx}>{m}</option>
                 ))}
@@ -384,7 +393,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                   }
                 }}
                 disabled={selectedMonth === null}
-                className={`px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/85 rounded-xl font-extrabold text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer text-[10.5px] focus:outline-none focus:ring-1 ${themeFocusRing}`}
+                className={`px-1.5 py-1 bg-white/95 dark:bg-slate-900 border ${themeSelectBorder} rounded-lg font-black text-slate-800 dark:text-slate-100 disabled:opacity-40 cursor-pointer text-[10.5px] shadow-xs focus:outline-none focus:ring-1 ${themeFocusRing} shrink-0`}
               >
                 <option value="all">Yıl</option>
                 {[2025, 2026, 2027, 2028].map((y) => (
@@ -407,9 +416,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                   }
                 }}
                 disabled={selectedMonth === null}
-                className={`px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-655 dark:text-slate-300 rounded-xl cursor-pointer disabled:opacity-40 select-none text-[10.5px] font-extrabold transition-all duration-300 ${themeBtnHover}`}
+                className={`p-1.5 sm:px-2.5 sm:py-1 border ${themeSelectBorder} bg-white/95 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer disabled:opacity-40 select-none text-[10px] font-black transition-all duration-200 shadow-xs flex items-center gap-0.5 shrink-0 ${themeBtnHover}`}
+                title="Sonraki Ay"
               >
-                Sonraki →
+                <span className="hidden md:inline">Sonraki</span>
+                <ChevronRight className="w-3.5 h-3.5 shrink-0" />
               </button>
             </div>
           </motion.div>
@@ -453,17 +464,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
         const customStyle = getActionStyle();
 
         return (
-          <div className="grid grid-cols-3 gap-2 sm:gap-3.5 pt-1">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1">
             {/* 1. Borç Ekle */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.05 }}
               whileHover={{ 
-                scale: 1.03, 
-                y: -3,
-                boxShadow: "0 15px 20px -5px rgba(99, 102, 241, 0.25)",
+                scale: 1.025, 
+                y: -2,
+                boxShadow: "0 10px 16px -4px rgba(99, 102, 241, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -471,11 +482,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                 localStorage.setItem("auto_open_add_debt", "true");
                 onNavigate("debts");
               }}
-              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.debt}`}
+              className={`relative overflow-hidden p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 sm:gap-1.5 transition-all duration-300 cursor-pointer group ${customStyle.debt}`}
               id="quick-add-debt-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
                   opacity: [0.2, 0.5, 0.2]
@@ -488,21 +499,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               />
 
               <motion.div 
-                className={`p-1.5 sm:p-2 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
+                className={`p-1 sm:p-1.5 rounded-lg shadow-inner flex items-center justify-center shrink-0 transition-all duration-300 ${customStyle.badge}`}
                 whileHover={{ 
-                  scale: 1.12,
-                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
+                  scale: 1.1,
+                  boxShadow: "0 0 10px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </motion.div>
 
-              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
+              <div className="flex flex-col space-y-0.2 z-10 w-full px-0.5">
+                <span className="text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "BORÇ EKLE" : "ADD DEBT"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
+                <span className="text-[7.5px] sm:text-[8.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Kredi & Kart" : "Loans & Credit"}
                 </span>
               </div>
@@ -511,13 +522,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             {/* 2. Gelir Ekle */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
               whileHover={{ 
-                scale: 1.03, 
-                y: -3,
-                boxShadow: "0 15px 20px -5px rgba(16, 185, 129, 0.25)",
+                scale: 1.025, 
+                y: -2,
+                boxShadow: "0 10px 16px -4px rgba(16, 185, 129, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -525,11 +536,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                 localStorage.setItem("auto_open_add_income", "true");
                 onNavigate("income");
               }}
-              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.income}`}
+              className={`relative overflow-hidden p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 sm:gap-1.5 transition-all duration-300 cursor-pointer group ${customStyle.income}`}
               id="quick-add-income-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
                   opacity: [0.2, 0.5, 0.2]
@@ -543,22 +554,22 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               />
               
               <motion.div 
-                className="p-1.5 sm:p-2 bg-white/20 text-white border border-white/30 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
+                className="p-1 sm:p-1.5 bg-white/20 text-white border border-white/30 rounded-lg shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
                 whileHover={{ 
                   rotate: 180, 
-                  scale: 1.12,
-                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
+                  scale: 1.1,
+                  boxShadow: "0 0 10px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </motion.div>
               
-              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
+              <div className="flex flex-col space-y-0.2 z-10 w-full px-0.5">
+                <span className="text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "GELİR EKLE" : "ADD INCOME"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
+                <span className="text-[7.5px] sm:text-[8.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Maaş & Ek Kazanç" : "Salary & Earns"}
                 </span>
               </div>
@@ -567,13 +578,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             {/* 3. Gider Ekle */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
               whileHover={{ 
-                scale: 1.03, 
-                y: -3,
-                boxShadow: "0 15px 20px -5px rgba(239, 68, 68, 0.25)",
+                scale: 1.025, 
+                y: -2,
+                boxShadow: "0 10px 16px -4px rgba(239, 68, 68, 0.25)",
                 transition: { type: "spring", stiffness: 400, damping: 15 }
               }}
               whileTap={{ scale: 0.96 }}
@@ -581,11 +592,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                 localStorage.setItem("auto_open_add_expense", "true");
                 onNavigate("expenses");
               }}
-              className={`relative overflow-hidden p-2.5 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer group ${customStyle.expense}`}
+              className={`relative overflow-hidden p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 sm:gap-1.5 transition-all duration-300 cursor-pointer group ${customStyle.expense}`}
               id="quick-add-expense-btn"
             >
               <motion.div 
-                className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
+                className="absolute inset-0 bg-white/10 rounded-xl -z-10"
                 animate={{
                   scale: [1, 1.06, 1],
                   opacity: [0.2, 0.5, 0.2]
@@ -599,23 +610,23 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               />
 
               <motion.div 
-                className="p-1.5 sm:p-2 bg-white/20 text-white border border-white/30 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
+                className="p-1 sm:p-1.5 bg-white/20 text-white border border-white/30 rounded-lg shadow-inner flex items-center justify-center shrink-0 transition-all duration-300"
                 whileHover={{ 
                   y: -2, 
-                  x: 2,
-                  scale: 1.12,
-                  boxShadow: "0 0 12px rgba(255, 255, 255, 0.5)"
+                  x: 2, 
+                  scale: 1.1,
+                  boxShadow: "0 0 10px rgba(255, 255, 255, 0.5)"
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 12 }}
               >
-                <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 rotate-90 text-white" />
+                <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-90 text-white" />
               </motion.div>
 
-              <div className="flex flex-col space-y-0.5 z-10 w-full px-1">
-                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white truncate">
+              <div className="flex flex-col space-y-0.2 z-10 w-full px-0.5">
+                <span className="text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-white truncate">
                   {language === "tr" ? "GİDER EKLE" : "ADD EXPENSE"}
                 </span>
-                <span className="text-[8px] sm:text-[9.5px] font-bold text-white/85 leading-none truncate block">
+                <span className="text-[7.5px] sm:text-[8.5px] font-bold text-white/85 leading-none truncate block">
                   {language === "tr" ? "Fatura & Market" : "Bills & Market"}
                 </span>
               </div>
@@ -624,81 +635,81 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
         );
       })()}
 
-      {/* 1. CARİ AY BORÇ DURUMU KARTI (ÖNCELİKLİ & BELİRGİN GÖSTERİM) */}
+      {/* 1. CARİ AY BORÇ DURUMU KARTI (ÖNCELİKLİ & BELİRGİN GÖSTERİM - Kompakt) */}
       <div className="pt-1">
         <motion.div
           whileHover={{ 
-            scale: 1.01, 
-            y: -2, 
-            boxShadow: "0 20px 35px -10px rgba(99, 102, 241, 0.35)",
+            scale: 1.008, 
+            y: -1.5, 
+            boxShadow: "0 15px 25px -8px rgba(99, 102, 241, 0.3)",
             borderColor: "rgba(129, 140, 248, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 dark:from-indigo-950 dark:via-purple-950/80 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white shadow-xl shadow-indigo-500/20 transition-all duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 dark:from-indigo-950 dark:via-purple-950/80 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white shadow-lg shadow-indigo-500/20 transition-all duration-300"
         >
           {/* Ambient luminous glow accents */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-purple-400/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 w-28 h-28 bg-purple-400/15 rounded-full blur-xl pointer-events-none" />
 
           {/* Top header row */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/20 relative z-10">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-2xl bg-white/20 text-white border border-white/30 shadow-md flex items-center justify-center">
-                <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2.5 border-b border-white/20 relative z-10">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-white/20 text-white border border-white/30 shadow-xs flex items-center justify-center">
+                <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs sm:text-sm font-black tracking-tight text-white uppercase">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-xs sm:text-[13px] font-black tracking-tight text-white uppercase">
                     {language === "tr" ? "Cari Ay Borç Durumu" : "Current Month Debt Overview"}
                   </h3>
-                  <span className="text-[9px] font-black px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 shadow-xs">
+                  <span className="text-[8.5px] font-black px-2 py-0.2 rounded-full bg-white/20 text-white border border-white/30 shadow-xs">
                     {selectedMonth !== null && selectedYear !== null
                       ? `${["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"][selectedMonth]} ${selectedYear}`
                       : (language === "tr" ? "Cari Ay / Dönem" : "Current Period")}
                   </span>
                 </div>
-                <p className="text-[10px] text-indigo-100/90 font-medium">
+                <p className="text-[9.5px] text-indigo-100/90 font-medium">
                   {language === "tr"
-                    ? "Vadesi gelen borçlar, taksit yükümlülüğü ve tahsilat/ödeme tamamlama oranı"
+                    ? "Vadesi gelen borçlar, taksit yükümlülüğü ve ödeme tamamlama oranı"
                     : "Due loans, monthly installment pressure and settlement progress"}
                 </p>
               </div>
             </div>
-            <span className="text-[9px] font-black px-2.5 py-0.5 rounded-full bg-indigo-400/30 text-white border border-indigo-300/40">
+            <span className="text-[8.5px] font-black px-2 py-0.2 rounded-full bg-indigo-400/30 text-white border border-indigo-300/40">
               {selectedMonth !== null ? (language === "tr" ? "Filtrelenmiş Ay" : "Month Filtered") : (language === "tr" ? "Bu Ayın Özeti" : "Current Month")}
             </span>
           </div>
 
           {/* 2 Primary Stats Blocks: Bu Ayki Toplam & Bu Ay Kalan */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-3.5 relative z-10">
-            <div className="p-3.5 sm:p-4 bg-white/15 dark:bg-white/10 backdrop-blur-md rounded-2xl border border-white/25 shadow-inner flex flex-col items-center justify-center text-center">
-              <span className="text-[10px] sm:text-[11px] font-black text-indigo-100 uppercase tracking-wide">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-2.5 relative z-10">
+            <div className="p-2.5 sm:p-3 bg-white/15 dark:bg-white/10 backdrop-blur-md rounded-xl border border-white/25 shadow-inner flex flex-col items-center justify-center text-center">
+              <span className="text-[9.5px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-wide">
                 {language === "tr" ? "Bu Ayki Toplam Borç" : "Monthly Total Debt"}
               </span>
-              <p className="text-base sm:text-2xl font-black font-mono text-white mt-1 tracking-tight drop-shadow-xs">
+              <p className="text-sm sm:text-xl font-black font-mono text-white mt-0.5 tracking-tight drop-shadow-xs">
                 <CountUpNumber value={stats.thisMonthTotalBorc} formatFn={format} />
               </p>
             </div>
 
-            <div className="p-3.5 sm:p-4 bg-rose-500/30 dark:bg-rose-500/25 backdrop-blur-md rounded-2xl border-2 border-rose-300/50 dark:border-rose-400/40 flex flex-col items-center justify-center text-center shadow-inner">
-              <span className="text-[10px] sm:text-[11px] font-black text-rose-200 uppercase tracking-wide">
+            <div className="p-2.5 sm:p-3 bg-rose-500/30 dark:bg-rose-500/25 backdrop-blur-md rounded-xl border-2 border-rose-300/50 dark:border-rose-400/40 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[9.5px] sm:text-[10px] font-black text-rose-200 uppercase tracking-wide">
                 {language === "tr" ? "Bu Ay Kalan Borç" : "Month Remaining"}
               </span>
-              <p className="text-base sm:text-2xl font-black font-mono text-rose-100 mt-1 tracking-tight drop-shadow-xs">
+              <p className="text-sm sm:text-xl font-black font-mono text-rose-100 mt-0.5 tracking-tight drop-shadow-xs">
                 <CountUpNumber value={stats.thisMonthKalanBorc} formatFn={format} />
               </p>
             </div>
           </div>
           
           {/* Bottom details row */}
-          <div className="flex flex-wrap items-center justify-between text-[10px] sm:text-[11px] font-semibold text-indigo-100 mt-3.5 pt-3 border-t border-white/15 gap-2 relative z-10">
+          <div className="flex flex-wrap items-center justify-between text-[9.5px] sm:text-[10px] font-semibold text-indigo-100 mt-2.5 pt-2 border-t border-white/15 gap-1.5 relative z-10">
             <div className="flex items-center gap-1.5">
               <span>{language === "tr" ? "Bu Ay Kapatılan:" : "Settled this month:"}</span>
-              <span className="font-bold font-mono text-emerald-300 bg-emerald-400/20 border border-emerald-300/30 px-2 py-0.5 rounded-full">
+              <span className="font-bold font-mono text-emerald-300 bg-emerald-400/20 border border-emerald-300/30 px-1.5 py-0.2 rounded-full">
                 <CountUpNumber value={selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : (stats.thisMonthTotalBorc - stats.thisMonthKalanBorc)} formatFn={format} />
               </span>
             </div>
-            <span className="text-[9.5px] sm:text-[10.5px] text-indigo-200/90 font-medium">
+            <span className="text-[9px] text-indigo-200/90 font-medium">
               {language === "tr" ? "Cari aya ait vadesi gelen borç ve kapatılan bakiye" : "Current month maturing debt and settled balance"}
             </span>
           </div>
@@ -706,30 +717,30 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
       </div>
 
       {/* 2. GENEL FİNANSAL GÖSTERGELER (Cari Ay Borç Durumu Kartının Doğrudan Altına Taşındı) */}
-      <div className="space-y-2.5 pt-1">
-        <div className="flex items-center gap-2 px-1">
-          <div className="p-1.5 rounded-xl bg-indigo-600 text-white shadow-sm flex items-center justify-center">
-            <TrendingUp className="w-3.5 h-3.5" />
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="p-1 rounded-lg bg-indigo-600 text-white shadow-xs flex items-center justify-center">
+            <TrendingUp className="w-3 h-3" />
           </div>
-          <span className="text-[11px] font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase">
+          <span className="text-[10.5px] font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase">
             {language === "tr" ? "Genel Finansal Göstergeler" : "General Financial Balances"}
           </span>
           <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
         </div>
 
-        {/* 6 Temel Finansal Gösterge Kartı: Gündüz ve Gece Modunda Parlak Renkli Gösterim */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        {/* 6 Temel Finansal Gösterge Kartı: Gündüz ve Gece Modunda Parlak Renkli Gösterim (Kompakt) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {/* 1. TOPLAM BORÇ */}
           <motion.div 
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            className="p-2.5 sm:p-3 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-xl space-y-0.5 relative overflow-hidden group shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px]"
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
-              <Coins className="w-3 h-3 text-indigo-200" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-indigo-100 uppercase tracking-wide">
+              <Coins className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-200" />
               <span>{language === "tr" ? "TOPLAM BORÇ" : "TOTAL DEBT"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={stats.totalDebt} formatFn={format} />
             </p>
           </motion.div>
@@ -739,18 +750,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
             onClick={() => onNavigate("contacts")}
-            className="p-3.5 sm:p-4 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-800 dark:from-purple-950 dark:via-purple-900 dark:to-slate-900 border-2 border-purple-400/40 dark:border-purple-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer"
+            className="p-2.5 sm:p-3 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-800 dark:from-purple-950 dark:via-purple-900 dark:to-slate-900 border-2 border-purple-400/40 dark:border-purple-500/40 text-white rounded-xl space-y-0.5 relative overflow-hidden group shadow-md shadow-purple-500/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px] cursor-pointer"
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-purple-100 uppercase tracking-wide">
-              <Users className="w-3 h-3 text-purple-200" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-purple-100 uppercase tracking-wide">
+              <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-purple-200" />
               <span>{language === "tr" ? "KİŞİ BORÇLARI" : "CONTACTS"}</span>
               <ArrowUpRight className="w-2.5 h-2.5 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={stats.contactPayablesRemaining ?? stats.contactPayablesTotal ?? 0} formatFn={format} />
             </p>
             {(stats.contactReceivablesRemaining !== undefined && stats.contactReceivablesRemaining > 0) && (
-              <span className="text-[8.5px] font-medium text-purple-200 block truncate max-w-full">
+              <span className="text-[8px] font-medium text-purple-200 block truncate max-w-full">
                 {language === "tr" ? "Alacak: " : "Recv: "}<CountUpNumber value={stats.contactReceivablesRemaining} formatFn={format} />
               </span>
             )}
@@ -760,13 +771,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           <motion.div 
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="p-3.5 sm:p-4 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-slate-900 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-emerald-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            className="p-2.5 sm:p-3 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white rounded-xl space-y-0.5 relative overflow-hidden shadow-md shadow-emerald-500/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px]"
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-wide">
-              <PlusCircle className="w-3 h-3 text-emerald-200" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide">
+              <PlusCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-200" />
               <span>{language === "tr" ? "AYLIK GELİR" : "MONTHLY INCOME"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={stats.totalIncome} formatFn={format} />
             </p>
           </motion.div>
@@ -775,13 +786,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           <motion.div 
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            className="p-2.5 sm:p-3 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-xl space-y-0.5 relative overflow-hidden shadow-md shadow-rose-500/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px]"
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
-              <ArrowUpRight className="w-3 h-3 text-rose-200" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-rose-100 uppercase tracking-wide">
+              <ArrowUpRight className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-rose-200" />
               <span>{language === "tr" ? "AYLIK GİDER" : "MONTHLY EXPENSE"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={stats.totalExpense} formatFn={format} />
             </p>
           </motion.div>
@@ -790,17 +801,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           <motion.div 
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-800 dark:from-teal-950 dark:via-teal-900 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden group shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+            className="p-2.5 sm:p-3 bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-800 dark:from-teal-950 dark:via-teal-900 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-xl space-y-0.5 relative overflow-hidden group shadow-md shadow-teal-500/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px]"
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
-              <CheckCircle2 className="w-3 h-3 text-teal-200" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-teal-100 uppercase tracking-wide">
+              <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-teal-200" />
               <span>
                 {language === "tr"
                   ? (selectedMonth !== null ? "BU AY ÖDENEN" : "ÖDENEN KISIM")
                   : (selectedMonth !== null ? "REPAID MONTH" : "TOTAL REPAID")}
               </span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={selectedMonth !== null ? (stats.thisMonthPaidBorc ?? 0) : stats.totalPaid} formatFn={format} />
             </p>
           </motion.div>
@@ -809,58 +820,58 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           <motion.div 
             whileHover={{ y: -2, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className={`p-3.5 sm:p-4 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] ${
+            className={`p-2.5 sm:p-3 text-white rounded-xl space-y-0.5 relative overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[76px] sm:min-h-[84px] ${
               stats.netIncome >= 0 
                 ? "bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-900 border-2 border-blue-400/40 shadow-blue-500/20" 
                 : "bg-gradient-to-br from-amber-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 shadow-rose-500/20"
             }`}
           >
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-blue-100 uppercase tracking-wide">
-              <Sparkles className="w-3 h-3 text-amber-200 animate-pulse" />
+            <div className="flex items-center gap-1 text-[8.5px] sm:text-[9.5px] font-bold text-blue-100 uppercase tracking-wide">
+              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-200 animate-pulse" />
               <span>{language === "tr" ? "NET KALAN" : "NET SURPLUS"}</span>
             </div>
-            <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            <p className="text-xs sm:text-sm font-black font-mono tracking-tight text-white">
               <CountUpNumber value={stats.netIncome} formatFn={format} />
             </p>
           </motion.div>
         </div>
       </div>
 
-      {/* 3. CARİ TAKSİT & ÖDEME İLERLEMESİ KARTLARI: GÜNDÜZ VE GECE MODUNDA PARLAK RENKLİ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1 items-stretch">
+      {/* 3. CARİ TAKSİT & ÖDEME İLERLEMESİ KARTLARI: GÜNDÜZ VE GECE MODUNDA PARLAK RENKLİ (Kompakt) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 pt-1 items-stretch">
         {/* Card: Bu Ay Ödenecek Taksit */}
         <motion.div
           whileHover={{ 
-            scale: 1.015, 
-            y: -2, 
-            boxShadow: "0 18px 34px -10px rgba(139, 92, 246, 0.35)",
+            scale: 1.01, 
+            y: -1.5, 
+            boxShadow: "0 14px 25px -8px rgba(139, 92, 246, 0.3)",
             borderColor: "rgba(167, 139, 250, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-900 dark:from-violet-950 dark:via-slate-900 dark:to-purple-950 border-2 border-violet-400/40 dark:border-violet-500/40 text-white shadow-xl shadow-purple-500/20 transition-all duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-900 dark:from-violet-950 dark:via-slate-900 dark:to-purple-950 border-2 border-violet-400/40 dark:border-violet-500/40 text-white shadow-lg shadow-purple-500/20 transition-all duration-300"
         >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
           
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="p-3 bg-white/20 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-inner border border-white/30">
-              <CalendarDays className="w-5 h-5 animate-pulse" />
+          <div className="flex items-center gap-2.5 relative z-10">
+            <div className="p-2 bg-white/20 text-white rounded-xl flex items-center justify-center shrink-0 shadow-inner border border-white/30">
+              <CalendarDays className="w-4 h-4 animate-pulse" />
             </div>
             
             <div className="flex-1 min-w-0">
-              <span className="text-[11px] font-black tracking-wider text-violet-100 uppercase block mb-0.5">
+              <span className="text-[10px] sm:text-[10.5px] font-black tracking-wider text-violet-100 uppercase block mb-0.5">
                 {translate("Bu Ay Ödenecek Taksit")}
               </span>
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight leading-none drop-shadow-xs">
+                <span className="text-lg sm:text-xl font-black font-mono text-white tracking-tight leading-none drop-shadow-xs">
                   <CountUpNumber value={monthlyInstallmentsDue} formatFn={format} />
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[10px] font-semibold text-violet-100 relative z-10">
+          <div className="mt-3 pt-2.5 border-t border-white/15 flex items-center justify-between text-[9.5px] sm:text-[10px] font-semibold text-violet-100 relative z-10">
             <span>{translate("Aktif Ödeme Planları")}</span>
-            <span className="font-bold text-white bg-white/20 border border-white/30 px-2.5 py-0.5 rounded-full shadow-xs">
+            <span className="font-bold text-white bg-white/20 border border-white/30 px-2 py-0.2 rounded-full shadow-xs text-[9px]">
               Cari Taksit Yükümlülüğü
             </span>
           </div>
@@ -869,32 +880,32 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
         {/* Card: Ödeme İlerlemesi & Bu Ay Yapılan Ödeme Adedi */}
         <motion.div
           whileHover={{ 
-            scale: 1.015, 
-            y: -2, 
-            boxShadow: "0 18px 34px -10px rgba(16, 185, 129, 0.35)",
+            scale: 1.01, 
+            y: -1.5, 
+            boxShadow: "0 14px 25px -8px rgba(16, 185, 129, 0.3)",
             borderColor: "rgba(52, 211, 153, 0.7)" 
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-700 to-cyan-900 dark:from-emerald-950 dark:via-slate-900 dark:to-teal-950 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white shadow-xl shadow-emerald-500/20 transition-all duration-300"
+          className="relative overflow-hidden flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-700 to-cyan-900 dark:from-emerald-950 dark:via-slate-900 dark:to-teal-950 border-2 border-emerald-400/40 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/20 transition-all duration-300"
         >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
 
           <div className="flex items-center justify-between gap-2 relative z-10">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-white/20 text-white rounded-2xl flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
-                <ClipboardCheck className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white/20 text-white rounded-xl flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                <ClipboardCheck className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[11px] font-black tracking-wider text-emerald-100 uppercase block leading-none">
+                <span className="text-[10px] sm:text-[10.5px] font-black tracking-wider text-emerald-100 uppercase block leading-none">
                   {translate("Ödeme İlerlemesi")}
                 </span>
-                <span className="text-[9.5px] font-bold text-emerald-200 mt-1 block">
+                <span className="text-[9px] font-bold text-emerald-200 mt-0.5 block">
                   {monthlyPaymentsCount} {translate("Adet Ödeme Belgelendi")}
                 </span>
               </div>
             </div>
             
-            <span className="px-2.5 py-1 bg-white/20 border border-white/30 text-white text-xs font-black rounded-xl font-mono shadow-xs">
+            <span className="px-2 py-0.5 bg-white/20 border border-white/30 text-white text-[11px] font-black rounded-lg font-mono shadow-xs">
               %{paymentProgress.toFixed(1)}
             </span>
           </div>
