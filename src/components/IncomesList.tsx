@@ -432,16 +432,16 @@ export const IncomesList: React.FC<IncomesListProps> = ({
         themeColor="green"
       />
 
-      {/* Action Header: Add Income, Save/Export Income Template, Load Template */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <button
-          onClick={handleOpenAdd}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-emerald-600/20 cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4" /> Gelir Ekle
-        </button>
+      {/* Action Header: Centered Action Buttons Bar */}
+      <div className="flex flex-col gap-2.5 justify-center sm:flex-row sm:items-center">
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <button
+            onClick={handleOpenAdd}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-emerald-600/20 cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" /> Gelir Ekle
+          </button>
 
-        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -451,7 +451,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               }
               handleOpenSaveTemplateModal();
             }}
-            className="px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+            className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
             title="Gelirleri dosyaya veya şablona kaydet"
           >
             <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -468,7 +468,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               }
               setIsLoadTemplateModalOpen(true);
             }}
-            className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+            className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
             title="Kayıtlı gelir şablonu veya dosyadan gelirleri aktar"
           >
             <FolderInput className="w-3.5 h-3.5 text-indigo-500" />

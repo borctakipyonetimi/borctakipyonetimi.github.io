@@ -1419,20 +1419,20 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       </div>
 
       {/* Month Selection Bar with Prev/Next Arrow Buttons (Kompakt ve Şık) */}
-      <div className="py-2 px-3 sm:py-2.5 sm:px-3.5 bg-gradient-to-r from-rose-100 via-pink-100/90 to-red-100 dark:from-slate-900/95 dark:via-rose-950/40 dark:to-slate-900 rounded-xl border-2 border-rose-400/90 dark:border-rose-700/50 shadow-md shadow-rose-200/50 dark:shadow-black/30 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md mb-3">
+      <div className="py-2 px-2.5 sm:py-2.5 sm:px-3.5 bg-gradient-to-r from-rose-100 via-pink-100/90 to-red-100 dark:from-slate-900/95 dark:via-rose-950/40 dark:to-slate-900 rounded-xl border-2 border-rose-400/90 dark:border-rose-700/50 shadow-md shadow-rose-200/50 dark:shadow-black/30 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md mb-3">
         {/* Ambient subtle glow */}
         <div className="absolute top-0 right-0 w-28 h-28 bg-white/25 dark:bg-white/5 rounded-full blur-xl pointer-events-none" />
 
         {/* Left side: Icon & Title */}
-        <div className="flex items-center gap-2 relative z-10 min-w-0 shrink">
+        <div className="flex items-center gap-1.5 sm:gap-2 relative z-10 shrink-0 min-w-0">
           <div className="p-1.5 rounded-lg bg-gradient-to-tr from-rose-600 to-red-500 text-white shadow-xs shrink-0">
             <Calendar className="w-3.5 h-3.5 animate-pulse" />
           </div>
-          <div className="min-w-0">
-            <span className="text-[8px] sm:text-[8.5px] font-black uppercase text-rose-800 dark:text-rose-300 block leading-tight tracking-wider">
+          <div className="min-w-0 shrink-0 flex flex-col justify-center">
+            <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase text-rose-800 dark:text-rose-300 block leading-tight tracking-wider whitespace-nowrap">
               FİLTRELENEN DÖNEM
             </span>
-            <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-xs sm:text-[13px] flex items-center gap-1.5 truncate">
+            <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-[11px] sm:text-[13px] flex items-center gap-1 sm:gap-1.5 whitespace-nowrap leading-tight mt-0.5">
               {selectedMonthStr === "all"
                 ? "🔒 TÜM ZAMANLAR"
                 : (() => {

@@ -8645,6 +8645,9 @@ export default function App() {
         {activeTab === "installments" && (
           <InstallmentsList
             installmentDebts={installmentDebts}
+            payments={payments}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
             onSaveInstallment={handleSaveInstallment}
             onDeleteInstallment={handleDeleteInstallment}
             onPayInstallment={handlePayInstallment}

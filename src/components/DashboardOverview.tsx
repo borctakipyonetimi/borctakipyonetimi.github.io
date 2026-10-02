@@ -315,20 +315,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             whileHover={{ scale: 1.005 }}
-            className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-xl border ${themeCardBg} ${themeBorder} shadow-md shadow-indigo-200/50 dark:shadow-black/30 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md`}
+            className={`py-2 px-2.5 sm:py-2.5 sm:px-3.5 rounded-xl border ${themeCardBg} ${themeBorder} shadow-md shadow-indigo-200/50 dark:shadow-black/30 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md`}
           >
             {/* Decorative subtle ambient backing */}
             <div className="absolute inset-0 bg-gradient-to-r from-white/30 via-transparent to-white/20 pointer-events-none" />
             <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-400/15 dark:bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
 
             {/* Left title and current period display */}
-            <div className="flex items-center gap-2 relative z-10 min-w-0 shrink">
+            <div className="flex items-center gap-1.5 sm:gap-2 relative z-10 shrink-0 min-w-0">
               <div className={`p-1.5 rounded-lg shrink-0 transition-all duration-300 ${themeIconBg} ${themeIconText} shadow-xs`}>
                 <Calendar className="w-3.5 h-3.5 animate-pulse" />
               </div>
-              <div className="min-w-0">
-                <span className={`text-[8px] sm:text-[8.5px] font-black uppercase ${themeLabelColor} block leading-tight tracking-wider`}>FİLTRELENEN DÖNEM</span>
-                <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-xs sm:text-[13px] flex items-center gap-1.5 truncate">
+              <div className="min-w-0 shrink-0 flex flex-col justify-center">
+                <span className={`text-[7.5px] sm:text-[8.5px] font-black uppercase ${themeLabelColor} block leading-tight tracking-wider whitespace-nowrap`}>FİLTRELENEN DÖNEM</span>
+                <span className="font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-[11px] sm:text-[13px] flex items-center gap-1 sm:gap-1.5 whitespace-nowrap leading-tight mt-0.5">
                   {selectedMonth !== null && selectedYear !== null 
                     ? `${["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"][selectedMonth]} ${selectedYear}`
                     : "🔒 TÜM ZAMANLAR"}
@@ -372,7 +372,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                     if (selectedYear === null) setSelectedYear(new Date().getFullYear());
                   }
                 }}
-                className={`px-1.5 py-1 bg-white/95 dark:bg-slate-900 border ${themeSelectBorder} rounded-lg font-black text-slate-800 dark:text-slate-100 cursor-pointer text-[10.5px] shadow-xs focus:outline-none focus:ring-1 ${themeFocusRing} shrink-0 max-w-[96px] sm:max-w-[115px] truncate`}
+                className={`px-1 sm:px-1.5 py-1 bg-white/95 dark:bg-slate-900 border ${themeSelectBorder} rounded-lg font-black text-slate-800 dark:text-slate-100 cursor-pointer text-[10px] sm:text-[10.5px] shadow-xs focus:outline-none focus:ring-1 ${themeFocusRing} shrink-0 max-w-[80px] sm:max-w-[110px] truncate`}
               >
                 <option value="all">Tüm Aylar</option>
                 {["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"].map((m, idx) => (

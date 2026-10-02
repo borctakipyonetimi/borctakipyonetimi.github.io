@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { PlusCircle, CalendarDays, Wallet, Edit, Trash2, Calendar, RotateCcw, Printer, FileText, Download, Upload, Save, Folder, FileJson, CheckCircle2, Copy, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { InstallmentDebt } from "../types";
+import { InstallmentDebt, PaymentLog } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { AdMobBanner } from "./AdMobBanner";
 import { InstallmentsPortalChart } from "./BudgetCharts";
@@ -20,6 +20,9 @@ import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroi
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
+  payments?: PaymentLog[];
+  selectedMonth?: number | null;
+  selectedYear?: number | null;
   onSaveInstallment: (inst: Partial<InstallmentDebt>) => void;
   onDeleteInstallment: (id: number) => void;
   onPayInstallment: (id: number, paymentDate?: string) => void;
@@ -34,6 +37,9 @@ interface InstallmentsListProps {
 
 export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   installmentDebts,
+  payments = [],
+  selectedMonth,
+  selectedYear,
   onSaveInstallment,
   onDeleteInstallment,
   onPayInstallment,
@@ -583,70 +589,167 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
         const totalPaid = installmentDebts.reduce((s, i) => s + ((Number(i.paidInstallmentCount) || 0) * (Number(i.totalAmount) / (Number(i.installmentCount) || 1))), 0);
         const activeCount = installmentDebts.filter(i => (i.paidInstallmentCount || 0) < (i.installmentCount || 1)).length;
 
+        const now = new Date();
+        const targetMonth = selectedMonth !== null && selectedMonth !== undefined ? selectedMonth : now.getMonth();
+        const targetYear = selectedYear !== null && selectedYear !== undefined ? selectedYear : now.getFullYear();
+        const targetTime = targetYear * 12 + targetMonth;
+
+        // 1. Bu ay ödenen taksit tutarı (loglardan hesaplanır)
+        const installmentPaymentsThisMonth = (payments || []).filter((p) => {
+          if (p.type !== "installment") return false;
+          try {
+            const pDate = new Date(p.date);
+            if (isNaN(pDate.getTime())) return false;
+            return pDate.getMonth() === targetMonth && pDate.getFullYear() === targetYear;
+          } catch {
+            return false;
+          }
+        });
+        const thisMonthPaidLogs = installmentPaymentsThisMonth.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        // 2. Taksit planları üzerinden bu ay planlanan ve sayaç/tarih bazlı ödenen tutarlar
+        let scheduledForMonth = 0;
+        let paidForMonthByCounter = 0;
+
+        installmentDebts.forEach((inst) => {
+          const count = Number(inst.installmentCount) || 1;
+          const paidCount = Number(inst.paidInstallmentCount) || 0;
+          const perMonth = (Number(inst.totalAmount) || 0) / count;
+
+          if (paidCount >= count) {
+            // Tamamen ödenmiş plan
+            return;
+          }
+
+          let isDueInTargetMonth = true;
+          let targetMonthIndex = -1;
+
+          if (inst.firstDueDate) {
+            try {
+              const parts = inst.firstDueDate.split("-");
+              if (parts.length >= 2) {
+                const startYear = parseInt(parts[0], 10);
+                const startMonth = parseInt(parts[1], 10) - 1;
+                const startTime = startYear * 12 + startMonth;
+                targetMonthIndex = targetTime - startTime;
+
+                if (targetMonthIndex < 0 || targetMonthIndex >= count) {
+                  isDueInTargetMonth = false;
+                }
+              }
+            } catch {}
+          }
+
+          if (isDueInTargetMonth) {
+            scheduledForMonth += perMonth;
+
+            // Eğer taksit sayacı bu ayın taksitini geçmişse, bu ayın taksiti ödenmiş kabul edilir
+            if (targetMonthIndex >= 0 && paidCount > targetMonthIndex) {
+              paidForMonthByCounter += perMonth;
+            }
+          }
+        });
+
+        // Toplam bu ayki taksit yükümlülüğü
+        const baseMonthlyDue = scheduledForMonth > 0 ? scheduledForMonth : currentMonthDue;
+        const thisMonthPaid = Math.max(paidForMonthByCounter, thisMonthPaidLogs);
+        const thisMonthTotal = Math.max(baseMonthlyDue, thisMonthPaid);
+        // Bu ay kalan taksit borcu (Bu ayki ödenen taksitlerden kalan olacak)
+        const thisMonthRemaining = Math.max(0, thisMonthTotal - thisMonthPaid);
+
         return (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {/* 1. TOPLAM KALAN TAKSİT BORCU */}
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3 sm:p-3.5 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 border-2 border-indigo-400/40 dark:border-indigo-500/40 text-white rounded-2xl relative overflow-hidden shadow-lg shadow-indigo-500/20 hover:shadow-xl transition-all duration-300 flex flex-col justify-between text-center min-h-[104px] sm:min-h-[114px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
+              <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-indigo-100 uppercase tracking-wide">
                 <Wallet className="w-3 h-3 text-indigo-200" />
                 <span>KALAN TAKSİT YÜKÜ</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(totalRemaining)}</p>
-              <span className="text-[8.5px] font-medium text-indigo-100/90 block">
-                Tüm Planların Kalanı
-              </span>
+              <div className="my-0.5">
+                <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white leading-tight">{format(totalRemaining)}</p>
+                <span className="text-[8px] sm:text-[8.5px] font-medium text-indigo-100/90 block">
+                  Tüm Planların Kalanı
+                </span>
+              </div>
+              <div className="w-full pt-1 border-t border-white/20 text-[8px] sm:text-[8.5px] font-bold text-indigo-200">
+                Genel Anapara Borcu
+              </div>
             </motion.div>
 
-            {/* 2. BU AY ÖDENECEK TAKSİT */}
+            {/* 2. BU AY ÖDENECEK TAKSİT & KALAN TAKSİT BORCU */}
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-violet-500 via-violet-600 to-purple-800 dark:from-violet-950 dark:via-purple-950 dark:to-slate-900 border-2 border-violet-400/40 dark:border-violet-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-violet-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3 sm:p-3.5 bg-gradient-to-br from-violet-500 via-violet-600 to-purple-800 dark:from-violet-950 dark:via-purple-950 dark:to-slate-900 border-2 border-violet-400/40 dark:border-violet-500/40 text-white rounded-2xl relative overflow-hidden shadow-lg shadow-violet-500/20 hover:shadow-xl transition-all duration-300 flex flex-col justify-between text-center min-h-[104px] sm:min-h-[114px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-violet-100 uppercase tracking-wide">
+              <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-violet-100 uppercase tracking-wide">
                 <CalendarDays className="w-3 h-3 text-violet-200" />
                 <span>BU AY TAKSİT</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(currentMonthDue)}</p>
-              <span className="text-[8.5px] font-medium text-violet-100/90 block">
-                Bu Ayki Taksit Tutarı
-              </span>
+              <div className="my-0.5">
+                <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white leading-tight">
+                  {format(thisMonthTotal)}
+                </p>
+                <span className="text-[8px] sm:text-[8.5px] font-medium text-violet-100/90 block">
+                  Bu Ay Toplam Taksit
+                </span>
+              </div>
+              <div className="w-full pt-1 border-t border-white/20 space-y-1">
+                <div className="flex items-center justify-between text-[8px] sm:text-[8.5px] font-bold bg-amber-400/25 px-1.5 py-0.5 rounded text-amber-100 shadow-xs" title="Bu ayki ödenen taksitlerden kalan borç">
+                  <span className="text-amber-200 font-extrabold">Bu Ay Kalan:</span>
+                  <span className="font-mono font-black">{format(thisMonthRemaining)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[7.5px] sm:text-[8px] font-semibold text-violet-200/90 px-1">
+                  <span>Ödenen:</span>
+                  <span className="font-mono font-bold text-emerald-300">{format(thisMonthPaid)}</span>
+                </div>
+              </div>
             </motion.div>
 
             {/* 3. ÖDENEN TAKSİT TOPLAMI */}
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-800 dark:from-teal-950 dark:via-emerald-950 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3 sm:p-3.5 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-800 dark:from-teal-950 dark:via-emerald-950 dark:to-slate-900 border-2 border-teal-400/40 dark:border-teal-500/40 text-white rounded-2xl relative overflow-hidden shadow-lg shadow-teal-500/20 hover:shadow-xl transition-all duration-300 flex flex-col justify-between text-center min-h-[104px] sm:min-h-[114px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
+              <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-100 uppercase tracking-wide">
                 <CheckCircle2 className="w-3 h-3 text-teal-200" />
                 <span>ÖDENEN KISIM</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{format(totalPaid)}</p>
-              <span className="text-[8.5px] font-medium text-teal-100/90 block">
-                Şimdiye Kadar Kapatılan
-              </span>
+              <div className="my-0.5">
+                <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white leading-tight">{format(totalPaid)}</p>
+                <span className="text-[8px] sm:text-[8.5px] font-medium text-teal-100/90 block">
+                  Şimdiye Kadar Kapatılan
+                </span>
+              </div>
+              <div className="w-full pt-1 border-t border-white/20 text-[8px] sm:text-[8.5px] font-bold text-teal-200">
+                Toplam Kapatılan Tutar
+              </div>
             </motion.div>
 
             {/* 4. AKTİF TAKSİT PLANLARI */}
             <motion.div 
               whileHover={{ y: -2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/40 dark:border-amber-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+              className="p-3 sm:p-3.5 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-700 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/40 dark:border-amber-500/40 text-white rounded-2xl relative overflow-hidden shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all duration-300 flex flex-col justify-between text-center min-h-[104px] sm:min-h-[114px]"
             >
-              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+              <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-wide">
                 <Calendar className="w-3 h-3 text-amber-200" />
                 <span>AKTİF PLANLAR</span>
               </div>
-              <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">{activeCount} / {installmentDebts.length} Plan</p>
-              <span className="text-[8.5px] font-medium text-amber-100/90 block">
-                Devam Eden Taksitler
-              </span>
+              <div className="my-0.5">
+                <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white leading-tight">{activeCount} / {installmentDebts.length} Plan</p>
+                <span className="text-[8px] sm:text-[8.5px] font-medium text-amber-100/90 block">
+                  Devam Eden Taksitler
+                </span>
+              </div>
+              <div className="w-full pt-1 border-t border-white/20 text-[8px] sm:text-[8.5px] font-bold text-amber-200">
+                Kalan Aktif Sayısı
+              </div>
             </motion.div>
           </div>
         );
