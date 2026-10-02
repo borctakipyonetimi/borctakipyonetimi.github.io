@@ -371,9 +371,6 @@ var cachedApiKey = void 0;
 var cachedAi = null;
 var defaultKeyHasFailed = false;
 function getGeminiClient(userKey) {
-  if (!userKey && defaultKeyHasFailed) {
-    return null;
-  }
   const currentKey = userKey || process.env.GEMINI_API_KEY;
   if (!currentKey || currentKey.trim() === "") {
     return null;
@@ -1714,9 +1711,9 @@ app.post("/api/voice-command", async (req, res) => {
   }
 });
 app.post("/api/scan-receipt", async (req, res) => {
-  const { image, mimeType: userMimeType } = req.body;
+  const { image, mimeType: userMimeType, defaultType = "expense", userApiKey } = req.body;
   if (!image) {
-    return res.status(400).json({ error: "L\xFCtfen taranacak fatura veya fi\u015F g\xF6rselini se\xE7in." });
+    return res.status(400).json({ success: false, error: "L\xFCtfen taranacak fatura veya fi\u015F g\xF6rselini se\xE7in." });
   }
   let base64Data = image;
   let detectedMimeType = userMimeType || "image/jpeg";
@@ -1728,100 +1725,121 @@ app.post("/api/scan-receipt", async (req, res) => {
     }
     base64Data = parts[1];
   }
-  const aiClient = getGeminiClient();
+  const aiClient = getGeminiClient(userApiKey);
   if (!aiClient) {
-    console.log("[Scan Receipt API] Gemini API key not set or inactive. Falling back to intelligent offline simulated scan.");
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    console.log("[Scan Receipt API] Gemini client unavailable. Providing draft template for manual confirmation.");
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return res.json({
       success: true,
-      title: "Se\xE7ili Belge (\xD6rnek Al\u0131\u015Fveri\u015F)",
-      amount: 450,
+      title: defaultType === "debt" ? "Fatura \xD6demesi" : "Fi\u015F / Al\u0131\u015Fveri\u015F",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "G\u0131da / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "G\u0131da / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Ak\u0131ll\u0131 tarama sim\xFClasyonu \xE7al\u0131\u015Ft\u0131r\u0131ld\u0131. Ger\xE7ek yapay zeka tespiti i\xE7in l\xFCtfen Settings > Secrets panelinden GEMINI_API_KEY tan\u0131mlay\u0131n!"
+      message: "Yapay zeka anahtar\u0131 tan\u0131mlanmad\u0131\u011F\u0131 i\xE7in taslak a\xE7\u0131ld\u0131. Bilgileri d\xFCzenleyebilirsiniz."
     });
   }
   try {
-    const promptText = "Sen harika ve hassas bir belge okuma (OCR) servisisin. Ekteki g\xF6rsel bir al\u0131\u015Fveri\u015F fi\u015Fi, fatura, makbuz ya da harcama belgesidir.\n\nG\xF6revlerin:\n1. Belgedeki ma\u011Faza/sat\u0131c\u0131/kurum ad\u0131n\u0131 tam olarak \xE7\u0131kar (\xF6rn: 'Migros Ticaret A.\u015E.', 'Shell Akaryak\u0131t', 'Elektrik Da\u011F\u0131t\u0131m').\n2. Belgedeki KDV dahil toplam \xF6deme tutar\u0131n\u0131 (KRD ya da NAK\u0130T toplam\u0131) say\u0131sal olarak bul.\n3. Belgedeki tarihi oku (Format: YYYY-MM-DD format\u0131nda olmal\u0131. E\u011Fer y\u0131l a\xE7\u0131k de\u011Filse 2026 olarak varsay).\n4. En uygun harcama kategorisini \xF6ner ('G\u0131da', 'Ula\u015F\u0131m', 'Fatura', 'Al\u0131\u015Fveri\u015F', 'E\u011Flence', 'Sa\u011Fl\u0131k', 'Di\u011Fer' vb.).\n5. Bu belgenin bir pe\u015Fin gider mi ('expense') yoksa bir sonraki \xF6demeli bor\xE7 mu ('debt') oldu\u011Funu tespit et.\n\nVerdi\u011Fin yan\u0131t JSON \u015Femas\u0131na tamamen uygun, ek a\xE7\u0131klama metni i\xE7ermeyen temiz bir JSON objesi olmal\u0131d\u0131r.";
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: detectedMimeType,
-              data: base64Data
-            }
-          },
-          {
-            text: promptText
-          }
-        ]
+    const promptText = `Sen T\xFCrkiye'deki fi\u015F, fatura, adisyon, dekont ve makbuzlar\u0131 okuyan uzman bir yapay zeka OCR sistemisin. Ekteki g\xF6rsel bir fatura ya da harcama fi\u015Fidir.
+
+L\xFCtfen belgeden \u015Fu bilgileri \xE7\u0131kar:
+1. title: Ma\u011Faza, kurum, \u015Firket veya sat\u0131c\u0131 ad\u0131 (\xD6rn: 'B\u0130M', 'Migros', 'A101', 'Shell', 'Enerjisa', '\u0130SK\u0130', 'Turkcell', 'Eczane', vb.).
+2. amount: Belgedeki Genel Toplam / KDV Dahil \xD6denecek Tutar (sadece say\u0131sal de\u011Fer, \xF6rn: 185.50). Kuru\u015Flu de\u011Ferleri nokta ile yaz.
+3. date: Belge / Fatura / Fi\u015F tarihi (Format: YYYY-MM-DD olmal\u0131. E\u011Fer y\u0131l yoksa 2026 olarak al).
+4. categorySuggestion: Harcaman\u0131n en uygun kategorisi (\xD6rn: 'G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Di\u011Fer').
+5. type: Pe\u015Fin al\u0131\u015Fveri\u015F/fi\u015F ise 'expense', vadesi olan veya \xF6denecek fatura ise 'debt'. (Varsay\u0131lan: '${defaultType}').
+
+Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
+    const contentParts = [
+      {
+        inlineData: {
+          mimeType: detectedMimeType,
+          data: base64Data
+        }
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: import_genai.Type.OBJECT,
-          properties: {
-            title: {
-              type: import_genai.Type.STRING,
-              description: "Sat\u0131c\u0131 veya belge unvan\u0131 (\xF6rne\u011Fin: 'Bim Birle\u015Fik Ma\u011Fazalar', 'Kira Faturas\u0131')"
-            },
-            amount: {
-              type: import_genai.Type.NUMBER,
-              description: "Toplam harcama veya \xF6deme tutar\u0131"
-            },
-            date: {
-              type: import_genai.Type.STRING,
-              description: "\u0130\u015Flem tarihi (Format: YYYY-MM-DD)"
-            },
-            categorySuggestion: {
-              type: import_genai.Type.STRING,
-              description: "\xD6nerilen gider/bor\xE7 kategorisi ismi"
-            },
-            type: {
-              type: import_genai.Type.STRING,
-              description: "'expense' veya 'debt'"
-            }
-          },
-          required: ["title", "amount"]
-        },
-        temperature: 0.2
+      {
+        text: promptText
       }
-    });
-    const parsedData = JSON.parse(response.text || "{}");
+    ];
+    const generateConfig = {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: import_genai.Type.OBJECT,
+        properties: {
+          title: {
+            type: import_genai.Type.STRING,
+            description: "Sat\u0131c\u0131 veya kurum unvan\u0131"
+          },
+          amount: {
+            type: import_genai.Type.NUMBER,
+            description: "KDV dahil \xF6denecek toplam tutar"
+          },
+          date: {
+            type: import_genai.Type.STRING,
+            description: "Belge tarihi (YYYY-MM-DD)"
+          },
+          categorySuggestion: {
+            type: import_genai.Type.STRING,
+            description: "\xD6nerilen b\xFCt\xE7e kategorisi"
+          },
+          type: {
+            type: import_genai.Type.STRING,
+            description: "'expense' veya 'debt'"
+          }
+        },
+        required: ["title", "amount"]
+      },
+      temperature: 0.1
+    };
+    let response;
+    try {
+      response = await aiClient.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: { parts: contentParts },
+        config: generateConfig
+      });
+    } catch (primaryErr) {
+      console.warn("[Scan API] Primary gemini-3.8-flash returned:", primaryErr?.message || primaryErr?.status, "- Trying gemini-flash-latest...");
+      response = await aiClient.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: { parts: contentParts },
+        config: generateConfig
+      });
+    }
+    let rawText = response?.text || "{}";
+    rawText = rawText.replace(/```json\s*/gi, "").replace(/```\s*$/gi, "").trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    const parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+    let parsedAmount = typeof parsedData.amount === "number" ? parsedData.amount : parseFloat(parsedData.amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      parsedAmount = 0;
+    }
+    let parsedDate = (parsedData.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+      parsedDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    }
     return res.json({
       success: true,
-      title: parsedData.title || "Taranan Belge",
-      amount: parsedData.amount || 0,
-      date: parsedData.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      categorySuggestion: parsedData.categorySuggestion || "Di\u011Fer",
-      type: parsedData.type || "expense",
+      title: parsedData.title || (defaultType === "debt" ? "Fatura" : "Harcama Fi\u015Fi"),
+      amount: parsedAmount,
+      date: parsedDate,
+      categorySuggestion: parsedData.categorySuggestion || (defaultType === "debt" ? "Fatura" : "G\u0131da / Market"),
+      type: parsedData.type === "debt" ? "debt" : "expense",
       isOffline: false
     });
   } catch (error) {
-    const errMsg = error?.message || error?.toString() || "";
-    const isKeyError = errMsg.toLowerCase().includes("expired") || errMsg.toLowerCase().includes("key") || errMsg.toLowerCase().includes("credential") || errMsg.toLowerCase().includes("invalid_argument") || errMsg.toLowerCase().includes("unauthorized") || errMsg.toLowerCase().includes("api_key_invalid") || errMsg.toLowerCase().includes("forbidden") || errMsg.toLowerCase().includes("denied") || errMsg.toLowerCase().includes("403");
-    if (isKeyError) {
-      defaultKeyHasFailed = true;
-      console.log("[Scan API] Key block matched: Key has expired or has restricted permissions. Bypassing silently.");
-    } else {
-      console.log("[Scan API] Process status: Interrupted.");
-    }
-    console.log("[Scan Receipt API] Falling back to intelligent offline simulated scan due to API issue.");
+    console.error("[Scan Receipt API Error]:", error?.message || error);
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return res.json({
       success: true,
-      title: "Se\xE7ili Belge (\xD6rnek Al\u0131\u015Fveri\u015F)",
-      amount: 450,
+      title: defaultType === "debt" ? "Fatura" : "Fi\u015F / Harcama",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "G\u0131da / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "G\u0131da / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Yapay zeka tespiti yerine (403/Hata k\u0131s\u0131t\u0131 kaynakl\u0131) ak\u0131ll\u0131 tarama sim\xFClasyonu \xE7al\u0131\u015Ft\u0131r\u0131ld\u0131. Ger\xE7ek yapay zeka tespiti i\xE7in l\xFCtfen Settings > Secrets panelinden GEMINI_API_KEY tan\u0131mlay\u0131n!"
+      message: "Belge g\xF6rseli al\u0131nd\u0131. L\xFCtfen ma\u011Faza ve tutar bilgilerini kontrol ederek onaylay\u0131n."
     });
   }
 });
