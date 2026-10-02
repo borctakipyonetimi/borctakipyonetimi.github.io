@@ -439,11 +439,6 @@ let cachedAi: GoogleGenAI | null = null;
 let defaultKeyHasFailed = false;
 
 function getGeminiClient(userKey?: string): GoogleGenAI | null {
-  // If we are using the default system key and it is marked as failed, bypass and return null immediately
-  if (!userKey && defaultKeyHasFailed) {
-    return null;
-  }
-
   const currentKey = userKey || process.env.GEMINI_API_KEY;
   if (!currentKey || currentKey.trim() === "") {
     return null;
@@ -1855,11 +1850,11 @@ app.post("/api/voice-command", async (req, res) => {
   }
 });
 
-// API Route for receipt & bill OCR scanning using Gemini 3.5-Flash
+// API Route for receipt & bill OCR scanning using Gemini 3.8-Flash
 app.post("/api/scan-receipt", async (req, res) => {
-  const { image, mimeType: userMimeType } = req.body;
+  const { image, mimeType: userMimeType, defaultType = "expense", userApiKey } = req.body;
   if (!image) {
-    return res.status(400).json({ error: "Lütfen taranacak fatura veya fiş görselini seçin." });
+    return res.status(400).json({ success: false, error: "Lütfen taranacak fatura veya fiş görselini seçin." });
   }
 
   // Sanitize base64 and extract mimeType dynamically
@@ -1875,125 +1870,130 @@ app.post("/api/scan-receipt", async (req, res) => {
     base64Data = parts[1];
   }
 
-  const aiClient = getGeminiClient();
+  const aiClient = getGeminiClient(userApiKey);
   
   if (!aiClient) {
-    console.log("[Scan Receipt API] Gemini API key not set or inactive. Falling back to intelligent offline simulated scan.");
-    // Simulate smart parsing delay for superior UX feel
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
+    console.log("[Scan Receipt API] Gemini client unavailable. Providing draft template for manual confirmation.");
     const todayStr = new Date().toISOString().split("T")[0];
     return res.json({
       success: true,
-      title: "Seçili Belge (Örnek Alışveriş)",
-      amount: 450.00,
+      title: defaultType === "debt" ? "Fatura Ödemesi" : "Fiş / Alışveriş",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "Gıda / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "Gıda / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Akıllı tarama simülasyonu çalıştırıldı. Gerçek yapay zeka tespiti için lütfen Settings > Secrets panelinden GEMINI_API_KEY tanımlayın!"
+      message: "Yapay zeka anahtarı tanımlanmadığı için taslak açıldı. Bilgileri düzenleyebilirsiniz."
     });
   }
 
   try {
     const promptText = 
-      "Sen harika ve hassas bir belge okuma (OCR) servisisin. Ekteki görsel bir alışveriş fişi, fatura, makbuz ya da harcama belgesidir.\n\n" +
-      "Görevlerin:\n" +
-      "1. Belgedeki mağaza/satıcı/kurum adını tam olarak çıkar (örn: 'Migros Ticaret A.Ş.', 'Shell Akaryakıt', 'Elektrik Dağıtım').\n" +
-      "2. Belgedeki KDV dahil toplam ödeme tutarını (KRD ya da NAKİT toplamı) sayısal olarak bul.\n" +
-      "3. Belgedeki tarihi oku (Format: YYYY-MM-DD formatında olmalı. Eğer yıl açık değilse 2026 olarak varsay).\n" +
-      "4. En uygun harcama kategorisini öner ('Gıda', 'Ulaşım', 'Fatura', 'Alışveriş', 'Eğlence', 'Sağlık', 'Diğer' vb.).\n" +
-      "5. Bu belgenin bir peşin gider mi ('expense') yoksa bir sonraki ödemeli borç mu ('debt') olduğunu tespit et.\n\n" +
-      "Verdiğin yanıt JSON şemasına tamamen uygun, ek açıklama metni içermeyen temiz bir JSON objesi olmalıdır.";
+      "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
+      "Lütfen belgeden şu bilgileri çıkar:\n" +
+      "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.).\n" +
+      "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Kuruşlu değerleri nokta ile yaz.\n" +
+      "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Eğer yıl yoksa 2026 olarak al).\n" +
+      "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Diğer').\n" +
+      `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
+      "Yalnızca geçerli bir JSON objesi döndür.";
 
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: detectedMimeType,
-              data: base64Data,
-            },
-          },
-          {
-            text: promptText,
-          },
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: {
-              type: Type.STRING,
-              description: "Satıcı veya belge unvanı (örneğin: 'Bim Birleşik Mağazalar', 'Kira Faturası')"
-            },
-            amount: {
-              type: Type.NUMBER,
-              description: "Toplam harcama veya ödeme tutarı"
-            },
-            date: {
-              type: Type.STRING,
-              description: "İşlem tarihi (Format: YYYY-MM-DD)"
-            },
-            categorySuggestion: {
-              type: Type.STRING,
-              description: "Önerilen gider/borç kategorisi ismi"
-            },
-            type: {
-              type: Type.STRING,
-              description: "'expense' veya 'debt'"
-            }
-          },
-          required: ["title", "amount"]
+    const contentParts = [
+      {
+        inlineData: {
+          mimeType: detectedMimeType,
+          data: base64Data,
         },
-        temperature: 0.2,
       },
-    });
+      {
+        text: promptText,
+      },
+    ];
 
-    const parsedData = JSON.parse(response.text || "{}");
+    const generateConfig = {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: "Satıcı veya kurum unvanı"
+          },
+          amount: {
+            type: Type.NUMBER,
+            description: "KDV dahil ödenecek toplam tutar"
+          },
+          date: {
+            type: Type.STRING,
+            description: "Belge tarihi (YYYY-MM-DD)"
+          },
+          categorySuggestion: {
+            type: Type.STRING,
+            description: "Önerilen bütçe kategorisi"
+          },
+          type: {
+            type: Type.STRING,
+            description: "'expense' veya 'debt'"
+          }
+        },
+        required: ["title", "amount"]
+      },
+      temperature: 0.1,
+    };
+
+    let response: any;
+    try {
+      response = await aiClient.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: { parts: contentParts },
+        config: generateConfig,
+      });
+    } catch (primaryErr: any) {
+      console.warn("[Scan API] Primary gemini-3.8-flash returned:", primaryErr?.message || primaryErr?.status, "- Trying gemini-flash-latest...");
+      response = await aiClient.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: { parts: contentParts },
+        config: generateConfig,
+      });
+    }
+
+    let rawText = response?.text || "{}";
+    rawText = rawText.replace(/```json\s*/gi, "").replace(/```\s*$/gi, "").trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    const parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+
+    let parsedAmount = typeof parsedData.amount === "number" ? parsedData.amount : parseFloat(parsedData.amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      parsedAmount = 0;
+    }
+
+    let parsedDate = (parsedData.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+      parsedDate = new Date().toISOString().split("T")[0];
+    }
+
     return res.json({
       success: true,
-      title: parsedData.title || "Taranan Belge",
-      amount: parsedData.amount || 0.00,
-      date: parsedData.date || new Date().toISOString().split("T")[0],
-      categorySuggestion: parsedData.categorySuggestion || "Diğer",
-      type: parsedData.type || "expense",
+      title: parsedData.title || (defaultType === "debt" ? "Fatura" : "Harcama Fişi"),
+      amount: parsedAmount,
+      date: parsedDate,
+      categorySuggestion: parsedData.categorySuggestion || (defaultType === "debt" ? "Fatura" : "Gıda / Market"),
+      type: parsedData.type === "debt" ? "debt" : "expense",
       isOffline: false
     });
   } catch (error: any) {
-    const errMsg = error?.message || error?.toString() || "";
-
-    const isKeyError = errMsg.toLowerCase().includes("expired") || 
-                       errMsg.toLowerCase().includes("key") || 
-                       errMsg.toLowerCase().includes("credential") || 
-                       errMsg.toLowerCase().includes("invalid_argument") ||
-                       errMsg.toLowerCase().includes("unauthorized") ||
-                       errMsg.toLowerCase().includes("api_key_invalid") ||
-                       errMsg.toLowerCase().includes("forbidden") ||
-                       errMsg.toLowerCase().includes("denied") ||
-                       errMsg.toLowerCase().includes("403");
-
-    if (isKeyError) {
-      defaultKeyHasFailed = true;
-      console.log("[Scan API] Key block matched: Key has expired or has restricted permissions. Bypassing silently.");
-    } else {
-      console.log("[Scan API] Process status: Interrupted.");
-    }
-
-    console.log("[Scan Receipt API] Falling back to intelligent offline simulated scan due to API issue.");
+    console.error("[Scan Receipt API Error]:", error?.message || error);
     const todayStr = new Date().toISOString().split("T")[0];
+    // Return friendly result with prefilled fields so user is not stuck
     return res.json({
       success: true,
-      title: "Seçili Belge (Örnek Alışveriş)",
-      amount: 450.00,
+      title: defaultType === "debt" ? "Fatura" : "Fiş / Harcama",
+      amount: 0,
       date: todayStr,
-      categorySuggestion: "Gıda / Market",
-      type: "expense",
+      categorySuggestion: defaultType === "debt" ? "Fatura" : "Gıda / Market",
+      type: defaultType,
       isOffline: true,
-      message: "Yapay zeka tespiti yerine (403/Hata kısıtı kaynaklı) akıllı tarama simülasyonu çalıştırıldı. Gerçek yapay zeka tespiti için lütfen Settings > Secrets panelinden GEMINI_API_KEY tanımlayın!"
+      message: "Belge görseli alındı. Lütfen mağaza ve tutar bilgilerini kontrol ederek onaylayın."
     });
   }
 });
