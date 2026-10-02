@@ -2406,7 +2406,13 @@ export default function App() {
   };
 
   // Application Clean Start state
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem("butcem_onboarding_welcome_v7") && !localStorage.getItem("butcem_onboarding_completed_v7");
+    } catch {
+      return true;
+    }
+  });
   const [splashVisible, setSplashVisible] = useState<boolean>(false);
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
@@ -2458,9 +2464,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Tanıtım daha önce tamamlanmışsa uygulama açılışında animasyonlu ekranı hemen başlat
-    const completed = localStorage.getItem("butcem_onboarding_welcome_v6");
-    if (completed) {
+    // Tanıtım daha önce tamamlanmışsa ve şu an tanıtım gösterilmiyorsa açılış animasyonunu hemen başlat
+    const completed = localStorage.getItem("butcem_onboarding_welcome_v7");
+    if (completed && !showOnboarding) {
       startSplashAnimation();
     }
     return () => {
@@ -2468,24 +2474,24 @@ export default function App() {
         clearInterval(splashTimerRef.current);
       }
     };
-  }, []);
+  }, [showOnboarding]);
 
   const handleCompleteOnboarding = () => {
     try {
-      localStorage.setItem("butcem_onboarding_welcome_v6", "true");
-      localStorage.setItem("butcem_onboarding_completed", "true");
+      localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+      localStorage.setItem("butcem_onboarding_completed_v7", "true");
     } catch (e) {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
     setShowOnboarding(false);
-    // 5 sayfalık tanıtım sayfasından hemen sonra Bütçem Pro animasyonlu açılış sayfası başlar
+    // 2 sayfalık tanıtım sayfasından hemen sonra Bütçem Pro egzotik animasyonlu açılış splash sayfası başlar
     startSplashAnimation();
   };
 
   const handleOnboardingDirectLogin = () => {
     try {
-      localStorage.setItem("butcem_onboarding_welcome_v6", "true");
-      localStorage.setItem("butcem_onboarding_completed", "true");
+      localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+      localStorage.setItem("butcem_onboarding_completed_v7", "true");
     } catch (e) {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
