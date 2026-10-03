@@ -621,7 +621,10 @@ export default function App() {
       localStorage.setItem("has_used_trial", "true");
     }
 
-    if (uData?.isPremium === true) {
+    if (uData?.isGuest === true || localStorage.getItem("is_guest") === "true") {
+      setIsPremium(false);
+      localStorage.setItem("is_premium", "false");
+    } else if (uData?.isPremium === true && uData?.isGuest !== true) {
       setIsPremium(true);
       setIsTrialExpiredLocked(false);
       localStorage.setItem("is_premium", "true");
@@ -630,23 +633,18 @@ export default function App() {
       return false;
     }
 
-    const pSource = localStorage.getItem("premium_source");
-    if (localStorage.getItem("is_premium") === "true" && pSource !== "trial") {
-      setIsPremium(true);
-      setIsTrialExpiredLocked(false);
-      return false;
-    }
-
-    // Ödemesi tamamlanmamış Premium hesap kontrolü (isGuest: false & isPremium: false)
-    if (uData && uData.isGuest === false && uData.isPremium === false) {
+    // Ödemesi tamamlanmamış Premium veya Misafir hesap kontrolü
+    if (uData && (uData.isGuest === false || uData.isPendingPayment === true) && uData.isPremium === false) {
       setIsPremium(false);
       localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_guest", "true");
       localStorage.removeItem("premium_source");
       localStorage.removeItem("trial_end_date");
-      setIsTrialExpiredLocked(true);
-      setIsUpgradeModalOpen(true);
-      triggerToast("Aboneliğinizi tamamlamak için lütfen bir plan seçin.");
+      if (localStorage.getItem("user_role") !== "free_guest") {
+        setIsTrialExpiredLocked(true);
+        setIsUpgradeModalOpen(true);
+        triggerToast("Aboneliğinizi tamamlamak için lütfen bir plan seçin.");
+      }
       return true;
     }
 
@@ -670,7 +668,7 @@ export default function App() {
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
       if (diffDays >= 7) {
-        // 7 GÜNÜ GEÇMİŞSE -> ZORUNLU KİLİTLEME!
+        // 7 GÜNÜ GEÇMİŞSE -> Deneme bitti
         setIsPremium(false);
         setIsTrialActive(false);
         setTrialDaysRemaining(0);
@@ -680,8 +678,6 @@ export default function App() {
         localStorage.setItem("is_guest", "true");
         localStorage.removeItem("premium_source");
         localStorage.removeItem("trial_end_date");
-        setIsTrialExpiredLocked(true);
-        setIsUpgradeModalOpen(true);
         setTrialStatus({
           hasTrial: true,
           isActive: false,
@@ -690,7 +686,15 @@ export default function App() {
           startDate: createdAtStr,
           endDate: new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString()
         });
-        triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
+
+        // Eğer kullanıcı Kısıtlı Misafir Modu'nu seçtiyse paneli kilitleme, ücretsiz kısıtlı kullansın
+        if (localStorage.getItem("user_role") !== "free_guest") {
+          setIsTrialExpiredLocked(true);
+          setIsUpgradeModalOpen(true);
+          triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
+        } else {
+          setIsTrialExpiredLocked(false);
+        }
         return true;
       } else {
         // 7 günden az -> 7 Günlük Misafir Deneme Aktif (PREMIUM DEĞİL!)
@@ -772,28 +776,31 @@ export default function App() {
         }
 
         const pSource = localStorage.getItem("premium_source");
-        if (pSource === "login" || pSource === "purchase") {
+        const isGuest = localStorage.getItem("is_guest") === "true";
+        if (!isGuest && pSource === "purchase" && localStorage.getItem("is_premium") === "true") {
           setIsPremium(true);
           return;
         }
         
         if (data.hasTrial) {
           if (data.isActive) {
-            if (pSource !== "purchase") {
-              setIsPremium(false);
-              setIsTrialActive(true);
-              setTrialDaysRemaining(data.daysRemaining);
-              localStorage.setItem("is_premium", "false");
-              localStorage.setItem("is_guest", "true");
-              localStorage.setItem("premium_source", "trial");
-              if (data.endDate) {
-                localStorage.setItem("trial_end_date", data.endDate);
-              }
+            setIsPremium(false);
+            setIsTrialActive(true);
+            setTrialDaysRemaining(data.daysRemaining);
+            localStorage.setItem("is_premium", "false");
+            localStorage.setItem("is_guest", "true");
+            localStorage.setItem("premium_source", "trial");
+            if (data.endDate) {
+              localStorage.setItem("trial_end_date", data.endDate);
             }
           } else if (data.isExpired) {
             localStorage.removeItem("trial_end_date");
             setTrialStatus(data);
-            setIsTrialExpiredLocked(true);
+            if (localStorage.getItem("user_role") !== "free_guest") {
+              setIsTrialExpiredLocked(true);
+            } else {
+              setIsTrialExpiredLocked(false);
+            }
             setIsTrialActive(false);
             setTrialDaysRemaining(0);
             setHasUsedTrial(true);
@@ -854,9 +861,17 @@ export default function App() {
         localStorage.setItem("is_premium", "false");
         localStorage.removeItem("premium_source");
         localStorage.removeItem("trial_end_date");
-        setIsTrialExpiredLocked(true);
+        if (localStorage.getItem("user_role") !== "free_guest") {
+          setIsTrialExpiredLocked(true);
+        } else {
+          setIsTrialExpiredLocked(false);
+        }
       } else {
-        setIsPremium(true);
+        setIsPremium(false);
+        setIsTrialActive(true);
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "true");
+        localStorage.setItem("premium_source", "trial");
       }
     }
   };
@@ -1055,7 +1070,7 @@ export default function App() {
   });
 
   const isSuperAdminAccount = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
-  const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial");
+  const isPaidPremium = isSuperAdminAccount || (Boolean(isPremium) && localStorage.getItem("premium_source") !== "trial" && localStorage.getItem("is_guest") !== "true");
 
   // Misafir 7 günlük deneme hesabı kontrolü (SADECE kayıtlı/giriş yapmış misafir deneme kullanıcıları içindir, Premium veya Ziyaretçilere görünmez)
   const isGuestTrialUser = Boolean(
@@ -1147,6 +1162,28 @@ export default function App() {
   const closeUpgradeModal = () => {
     setIsUpgradeModalOpen(false);
     setPromoFeature(null);
+    setIsRestoring(false);
+    setRestoreStep("method");
+
+    const cleanUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    const isSuperTestEmail = cleanUser === "info.borcodemetakip@gmail.com";
+
+    // Satın Alma Sayfasından Çıkış / İptal Durumu:
+    // Eğer kullanıcı satın alma sayfasındaki kapatma (X) butonuna basarsa veya satın almadan çıkarsa,
+    // kullanıcının rolünü zorunlu olarak "Kısıtlı Misafir Modu" (Free User) olarak ayarla.
+    // Kullanıcıyı kısıtlı özelliklere sahip ücretsiz panelle devam ettir; premium özellikleri kilitli tut.
+    if (!isSuperTestEmail && !isPaidPremium) {
+      setIsPremium(false);
+      setIsTrialExpiredLocked(false);
+      setIsTrialActive(false);
+      setTrialDaysRemaining(0);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "true");
+      localStorage.setItem("user_role", "free_guest");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("trial_end_date");
+      triggerToast("ℹ️ Kısıtlı Misafir Modu devrede. Temel özellikleri ücretsiz kullanabilirsiniz; Premium özellikler kilitlidir.");
+    }
   };
 
   // Custom Google Play & RevenueCat states
@@ -2571,20 +2608,20 @@ export default function App() {
       return;
     }
 
-    // 2. ÖDEMESİ TAMAMLANMAMIŞ PREMİUM HESAPLAR İÇİN KONTROL (ZORUNLU SATIN ALMA YÖNLENDİRMESİ)
-    // Eğer kullanıcı Premium kaydı açmış veya isPremium: false olan bir hesapla giriş yapmışsa,
-    // ana sayfaya geçişi engelle ve "Aboneliğinizi tamamlamak için lütfen bir plan seçin" uyarısıyla Satın Alma Sayfasına at!
-    if (meta?.isPendingPayment || (!finalIsPremium && !finalIsGuest)) {
+    // 2. MİSAFİR VEYA ÖDEMESİ TAMAMLANMAMIŞ KULLANICI PREMIUM GİRİŞİ YAPARSA:
+    // Aktif bir aboneliği olmayan kullanıcı "Premium Giriş" yapmaya çalıştığında asla ana sayfaya veya premium moda geçişine izin verme.
+    // Kullanıcıyı doğrudan Satın Alma (Paywall / Subscription) ekranına yönlendir.
+    if (meta?.isPendingPayment || !finalIsPremium) {
       setIsPremium(false);
       setIsTrialExpiredLocked(true);
       localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_guest", "true");
       localStorage.removeItem("premium_source");
       localStorage.removeItem("trial_end_date");
 
       setShowPublicView(null);
       setIsUpgradeModalOpen(true);
-      const msg = meta?.trialMessage || "Aboneliğinizi tamamlamak için lütfen bir plan seçin.";
+      const msg = meta?.trialMessage || "⚠️ Bu hesap için aktif bir Premium abonelik bulunmamaktadır. Devam etmek için lütfen bir paket seçin.";
       triggerToast(msg);
       return;
     }
@@ -2703,14 +2740,20 @@ export default function App() {
                   setHasUsedTrial(true);
                   localStorage.setItem("has_used_trial", "true");
                 }
-                if (uData.isPremium === true) {
+                if (uData.isGuest === true) {
+                  setIsPremium(false);
+                  localStorage.setItem("is_premium", "false");
+                  localStorage.setItem("is_guest", "true");
+                  checkUserTrialExpiration(user, uData);
+                } else if (uData.isPremium === true && uData.isGuest !== true) {
                   setIsPremium(true);
                   setIsTrialExpiredLocked(false);
                   localStorage.setItem("is_premium", "true");
                   localStorage.setItem("is_guest", "false");
                   localStorage.setItem("premium_source", "login");
                 } else {
-                  // Firestore'da isPremium: false -> 7 günlük süreyi matematiksel kontrol et
+                  setIsPremium(false);
+                  localStorage.setItem("is_premium", "false");
                   checkUserTrialExpiration(user, uData);
                 }
               } else {
@@ -3016,11 +3059,16 @@ export default function App() {
         setIsPremium(true);
         localStorage.setItem("is_premium", "true");
         localStorage.setItem("is_guest", "false");
-      } else if (localStorage.getItem("premium_source") === "login" && localStorage.getItem("is_premium") === "true") {
+      } else if (localStorage.getItem("is_guest") === "true") {
+        setIsPremium(false);
+        localStorage.setItem("is_premium", "false");
+      } else if (data.isPremium === true && data.isGuest !== true) {
         setIsPremium(true);
-      } else if (data.isPremium !== undefined) {
-        setIsPremium(data.isPremium);
-        localStorage.setItem("is_premium", data.isPremium ? "true" : "false");
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("is_guest", "false");
+      } else {
+        setIsPremium(false);
+        localStorage.setItem("is_premium", "false");
       }
       if (data.premiumPlan !== undefined) {
         setSelectedPlan(data.premiumPlan);
@@ -3769,8 +3817,8 @@ export default function App() {
           ...dataBag,
           email: cleanEmail || "",
           emailLower: cleanEmail || "",
-          userUid: fbUser.uid,
-          isPremium: localStorage.getItem("is_premium") === "true",
+          isPremium: (localStorage.getItem("is_guest") === "true" || !isPaidPremium) ? false : (localStorage.getItem("is_premium") === "true"),
+          isGuest: localStorage.getItem("is_guest") === "true",
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
           marqueeSpeed: typeof marqueeSpeed === "number" ? marqueeSpeed : 50,
           marqueePaused: Boolean(marqueePaused),
@@ -7145,8 +7193,14 @@ export default function App() {
             localStorage.setItem("is_premium", "true");
             localStorage.setItem("is_guest", "false");
             localStorage.setItem("premium_source", "login");
-          } else if (localStorage.getItem("is_premium") === "true") {
+          } else if (localStorage.getItem("is_guest") === "true") {
+            setIsPremium(false);
+            localStorage.setItem("is_premium", "false");
+          } else if (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") === "purchase") {
             setIsPremium(true);
+          } else {
+            setIsPremium(false);
+            localStorage.setItem("is_premium", "false");
           }
         }}
         onLoginSuccess={handleProviderLoginSuccess}
@@ -10594,11 +10648,7 @@ export default function App() {
           <div 
             onClick={(e) => {
               if (e.target === e.currentTarget) {
-                if (isTrialExpiredLocked) {
-                  triggerToast("7 günlük ücretsiz deneme süreniz sona ermiştir. Uygulamayı kullanmaya devam etmek için lütfen Premium planlardan birini seçin.");
-                } else {
-                  closeUpgradeModal();
-                }
+                closeUpgradeModal();
               }
             }}
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex items-start sm:items-center justify-center p-4 overflow-y-auto pt-10 sm:pt-4 pb-10"
@@ -10609,6 +10659,17 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
               className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative my-8 text-left"
             >
+              {/* Close (X) Button - Kısıtlı Misafir Moduna Dönüş */}
+              <button
+                type="button"
+                onClick={closeUpgradeModal}
+                className="absolute top-4 right-4 z-30 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition cursor-pointer shadow-sm active:scale-95"
+                aria-label="Kapat"
+                title="Kapat ve Kısıtlı Misafir Moduna Geç"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
               {/* Decorative golden/amber premium header gradient */}
               <div className="h-2 w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 animate-pulse" />
               
@@ -11373,9 +11434,9 @@ export default function App() {
                               setIsRestoring(false);
                               setRestoreStep("method");
                             }}
-                            className="w-full py-2 text-center text-slate-400 hover:text-slate-600 dark:text-slate-500 text-xs font-bold transition block cursor-pointer"
+                            className="w-full py-2.5 text-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white text-xs font-bold transition block cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 rounded-xl"
                           >
-                            {isTrialExpiredLocked ? "Ziyaretçi Modunda Devam Et / Kapat" : "Kapat, Vazgeç"}
+                            ✕ Kapat, Kısıtlı Misafir Modunda Devam Et
                           </button>
                           {isTrialExpiredLocked && (
                             <button

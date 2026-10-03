@@ -31,7 +31,7 @@ import {
   sendPasswordResetEmail,
   signOut
 } from "firebase/auth";
-import { auth, firestore, doc, getDoc } from "../utils/firebase";
+import { auth, firestore, doc, getDoc, withTimeout } from "../utils/firebase";
 import { 
   getDeviceUuid, 
   saveUserSessionToFirestore, 
@@ -309,48 +309,50 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
         if (!isSuperTestEmail) {
           try {
-            // Firestore users/{uid} dokümanı ve email_subscribers kontrolü
-            const uSnap = await Promise.race([
+            // Anlık Yetki ve Rol Kontrolü (Giriş Anında):
+            // Kullanıcı giriş yaptığı milisaniyede veritabanından kullanıcının gerçek durumunu (isPremium / activeSubscription) sorgula.
+            const uSnap = await withTimeout(
               getDoc(doc(firestore, "users", user.uid)),
-              new Promise<null>(res => setTimeout(() => res(null), 1200))
-            ]);
+              3500,
+              "Firestore kullanıcı sorgusu zaman aşımı"
+            ).catch(() => null);
+
             if (uSnap && uSnap.exists()) {
               const uData = uSnap.data();
-              if (uData?.isPremium === true) {
-                isUserPremium = true;
-              }
-              if (uData?.isGuest === true) {
-                isGuestUser = true;
-              }
-              if (uData?.hasUsedTrial === true) {
-                isGuestUser = true;
-              }
               if (uData?.createdAt) {
                 determinedCreatedAt = uData.createdAt;
               }
+              if (uData?.isGuest === true || uData?.hasUsedTrial === true) {
+                isGuestUser = true;
+              }
+              // Kesin kural: isGuest !== true VE (isPremium === true veya activeSubscription === true) olmalı
+              if (uData?.isGuest !== true && (uData?.isPremium === true || uData?.activeSubscription === true)) {
+                if (uData?.subscriptionExpiry) {
+                  const expMs = new Date(uData.subscriptionExpiry).getTime();
+                  if (expMs > Date.now()) {
+                    isUserPremium = true;
+                  } else {
+                    isUserPremium = false;
+                  }
+                } else {
+                  isUserPremium = true;
+                }
+              } else {
+                isUserPremium = false;
+              }
             } else {
-              const checkRes = await Promise.race([
-                checkIsPremiumEmailInFirestore(cleanUserEmail),
-                new Promise<{ exists: boolean; isPremium: boolean }>(res => setTimeout(() => res({ exists: false, isPremium: false }), 1200))
-              ]);
+              // Alternatif lisans koleksiyonu doğrudan kontrolü
+              const checkRes = await checkIsPremiumEmailInFirestore(cleanUserEmail);
               if (checkRes.isPremium) {
                 isUserPremium = true;
+              } else {
+                isUserPremium = false;
               }
             }
-          } catch {
-            // Devam et
+          } catch (err) {
+            console.warn("[Login] Gerçek zamanlı lisans sorgulama uyarısı:", err);
+            isUserPremium = false;
           }
-        }
-
-        // MİSAFİR 7 GÜNLÜK DENEME HESABI İLE KAYITLI KULLANICI KONTROLÜ:
-        // Eğer kullanıcı Misafir 7 Günlük Deneme hesabı ise Premium Giriş bölümünden GİREMEZ!
-        if (!isUserPremium && isGuestUser) {
-          try {
-            await signOut(auth);
-          } catch {}
-          setIsLoading(false);
-          setError("⚠️ Bu hesap '7 Günlük Ücretsiz Deneme (Misafir)' hesabıdır. Premium üyeliğiniz bulunmamaktadır. Lütfen üstteki '7 Günlük Deneme (Misafir)' sekmesinden giriş yapınız.");
-          return;
         }
 
         // 2. @capacitor/device ile cihaz UUID'sini al
@@ -363,62 +365,39 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
         }
 
-        setSyncLogs(prev => [
-          ...prev,
-          `Giriş Doğrulandı: ${cleanUserEmail}`,
-          isUserPremium 
-            ? "👑 Lisanslı Premium Üyelik Doğrulandı" 
-            : "⚠️ Abonelik Tamamlanmamış (Ödeme Bekleniyor)",
-          "Güvenlik ve oturum kaydı işleniyor..."
-        ]);
-
-        // 3. Firestore'daki kullanıcı dokümanına kaydet
-        try {
-          await Promise.race([
-            saveUserSessionToFirestore({
-              userId: user.uid,
-              email: cleanUserEmail,
-              isPremium: isUserPremium,
-              isGuest: isGuestUser,
-              deviceId: deviceUuid,
-              createdAt: determinedCreatedAt || undefined
-            }),
-            new Promise(res => setTimeout(res, 1200))
+        // MİSAFİR / ÜCRETSİZ KULLANICI PREMIUM GİRİŞİ YAPARSA:
+        // Aktif bir aboneliği olmayan kullanıcı "Premium Giriş" yapmaya çalıştığında asla ana sayfaya
+        // veya premium moda geçişine izin verme! Kullanıcıyı doğrudan Satın Alma (Paywall / Subscription) ekranına yönlendir!
+        if (!isUserPremium) {
+          setSyncLogs(prev => [
+            ...prev,
+            `Giriş Doğrulandı: ${cleanUserEmail}`,
+            "⚠️ Aktif Premium Lisans Bulunamadı",
+            "🚀 Satın Alma ve Abonelik Planlarına Yönlendiriliyorsunuz..."
           ]);
-        } catch (sessErr) {
-          console.warn("[Login] Firestore oturum kaydı uyarısı:", sessErr);
-        }
 
-        // 4. Yerel hafızayı güncelle
-        localStorage.setItem("currentUser", cleanUserEmail);
-        localStorage.setItem("is_premium", isUserPremium ? "true" : "false");
-        localStorage.setItem("is_guest", isGuestUser ? "true" : "false");
-        if (determinedCreatedAt) {
-          localStorage.setItem("user_created_at", determinedCreatedAt);
-        }
-
-        if (isUserPremium) {
-          localStorage.setItem("premium_source", "login");
-        } else {
+          // Güvenli yerel durum: is_premium KESİNLİKLE false, is_guest true
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", "false");
+          localStorage.setItem("is_guest", "true");
           localStorage.removeItem("premium_source");
           localStorage.removeItem("trial_end_date");
-        }
+          if (deviceUuid) {
+            localStorage.setItem("active_device_id", deviceUuid);
+          }
+          if (determinedCreatedAt) {
+            localStorage.setItem("user_created_at", determinedCreatedAt);
+          }
 
-        if (deviceUuid) {
-          localStorage.setItem("active_device_id", deviceUuid);
-        }
+          setIsLoading(false);
+          handleClose();
 
-        setIsLoading(false);
-        handleClose();
-
-        // 5. ÖDEME YAPMADAN ÇIKANLAR İÇİN KONTROL:
-        // Eğer isPremium === false ise ana sayfaya geçişi engelle, kullanıcıyı doğrudan Satın Alma Sayfasına yönlendir!
-        if (!isUserPremium) {
+          // Ana sayfaya geçişi engelle, kullanıcıyı doğrudan Satın Alma Sayfasına yönlendir
           onLoginSuccess(cleanUserEmail, {
             isPremium: false,
-            isGuest: false,
+            isGuest: true,
             isPendingPayment: true,
-            trialMessage: "Aboneliğinizi tamamlamak için lütfen bir plan seçin.",
+            trialMessage: "⚠️ Bu hesap için aktif bir Premium abonelik bulunmamaktadır. Devam etmek için lütfen bir paket seçin.",
             createdAt: determinedCreatedAt || undefined
           });
 
@@ -428,7 +407,44 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           return;
         }
 
-        // Lisanslı Premium Kullanıcı -> Ana Sayfaya Aç
+        // LİSANSLI GERÇEK PREMİUM KULLANICI -> Ana Sayfaya Aç
+        setSyncLogs(prev => [
+          ...prev,
+          `Giriş Doğrulandı: ${cleanUserEmail}`,
+          "👑 Lisanslı Premium Üyelik Doğrulandı",
+          "Güvenlik ve oturum kaydı işleniyor..."
+        ]);
+
+        try {
+          await Promise.race([
+            saveUserSessionToFirestore({
+              userId: user.uid,
+              email: cleanUserEmail,
+              isPremium: true,
+              isGuest: false,
+              deviceId: deviceUuid,
+              createdAt: determinedCreatedAt || undefined
+            }),
+            new Promise(res => setTimeout(res, 1200))
+          ]);
+        } catch (sessErr) {
+          console.warn("[Login] Firestore oturum kaydı uyarısı:", sessErr);
+        }
+
+        localStorage.setItem("currentUser", cleanUserEmail);
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("is_guest", "false");
+        localStorage.setItem("premium_source", "login");
+        if (determinedCreatedAt) {
+          localStorage.setItem("user_created_at", determinedCreatedAt);
+        }
+        if (deviceUuid) {
+          localStorage.setItem("active_device_id", deviceUuid);
+        }
+
+        setIsLoading(false);
+        handleClose();
+
         onLoginSuccess(cleanUserEmail, {
           isPremium: true,
           isGuest: false,
