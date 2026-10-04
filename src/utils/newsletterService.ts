@@ -14,12 +14,14 @@ export interface NewsletterResult {
 
 // EmailJS bağlantısını doğrudan bana özel güncel anahtarlarla kilitliyoruz:
 export const EMAILJS_SERVICE_ID = "service_osnjc54";
-export const EMAILJS_TEMPLATE_ID = "template_ydyje4e";
+export const EMAILJS_TEMPLATE_ID = "template_ydyje4e"; // Bülten aboneliği şablon ID'si
+export const WELCOME_TEMPLATE_ID = "template_00cqhp4"; // Yeni üyelere özel "Hoş Geldiniz" şablon ID'si
 export const EMAILJS_PUBLIC_KEY = "KNh4u8my4-19aJZMn";
 
 export interface EmailJSConfig {
   serviceId: string;
   templateId: string;
+  welcomeTemplateId: string;
   publicKey: string;
 }
 
@@ -27,8 +29,77 @@ export function getEmailJSConfig(): EmailJSConfig {
   return {
     serviceId: EMAILJS_SERVICE_ID,
     templateId: EMAILJS_TEMPLATE_ID,
+    welcomeTemplateId: WELCOME_TEMPLATE_ID,
     publicKey: EMAILJS_PUBLIC_KEY
   };
+}
+
+/**
+ * Yeni üye olan kullanıcılara EmailJS üzerinden "Hoş Geldiniz" e-postası gönderir.
+ * 
+ * Şablon ID: template_00cqhp4 (WELCOME_TEMPLATE_ID)
+ * Şablon Parametreleri:
+ *   - user_name: Yeni üyenin adı
+ *   - to_email / user_email: Yeni üyenin e-postası
+ * 
+ * Hata Yönetimi (Fail-Safe):
+ *   - try-catch korumalıdır. E-posta servisi hata verse bile kullanıcının kayıt süreci aksamaz.
+ */
+export async function sendWelcomeEmail(toEmail: string, userName?: string): Promise<boolean> {
+  const cleanEmail = (toEmail || "").trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return false;
+  }
+
+  // Yeni üyenin adı (veya e-posta önekinden türetilen ad)
+  const derivedName = (userName && userName.trim()) 
+    ? userName.trim() 
+    : cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+  const templateParams = {
+    user_name: derivedName,
+    to_name: derivedName,
+    name: derivedName,
+    to_email: cleanEmail,
+    user_email: cleanEmail,
+    email: cleanEmail,
+    subject: "Bütçem Pro'ya Hoş Geldiniz! 👑",
+    title: "Bütçem Pro'ya Hoş Geldiniz! 👑",
+    date: new Date().toLocaleDateString("tr-TR")
+  };
+
+  try {
+    // 1. EmailJS Browser SDK ile gönderim
+    await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      WELCOME_TEMPLATE_ID,
+      templateParams,
+      EMAILJS_PUBLIC_KEY
+    );
+    console.log(`[WelcomeEmail] Hoş Geldiniz e-postası başarıyla gönderildi: ${cleanEmail}`);
+    return true;
+  } catch (sdkErr: any) {
+    console.warn("[WelcomeEmail] EmailJS SDK çağrısı başarısız, REST fallback deneniyor:", sdkErr);
+    try {
+      // 2. EmailJS REST API Fallback
+      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: EMAILJS_SERVICE_ID,
+          template_id: WELCOME_TEMPLATE_ID,
+          user_id: EMAILJS_PUBLIC_KEY,
+          template_params: templateParams
+        })
+      });
+      console.log(`[WelcomeEmail] Hoş Geldiniz e-postası REST fallback ile gönderildi: ${cleanEmail}`);
+      return true;
+    } catch (restErr) {
+      // Fail-Safe: Hata loglanır fakat hata fırlatılmaz, kayıt süreci ASLA aksamaz.
+      console.warn("[WelcomeEmail] Hoş Geldiniz e-postası gönderilemedi (Kayıt işlemi etkilenmedi):", restErr);
+      return false;
+    }
+  }
 }
 
 /**

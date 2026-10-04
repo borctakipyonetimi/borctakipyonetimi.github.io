@@ -206,6 +206,9 @@ export async function epostaIleGirisYap(email: string, sifre: string): Promise<U
 export async function epostaIleKayitOl(email: string, sifre: string): Promise<User> {
   const cleanEmail = email.trim().toLowerCase();
   const credential = await createUserWithEmailAndPassword(auth, cleanEmail, sifre);
+  try {
+    import("./newsletterService").then(m => m.sendWelcomeEmail(cleanEmail)).catch(() => {});
+  } catch {}
   return credential.user;
 }
 

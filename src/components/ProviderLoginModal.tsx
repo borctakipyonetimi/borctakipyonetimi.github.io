@@ -38,6 +38,7 @@ import {
   checkIsPremiumEmailInFirestore,
   checkUserTrialUsedInFirestore
 } from "../utils/deviceSessionService";
+import { sendWelcomeEmail } from "../utils/newsletterService";
 
 export type LoginPortalTab = "premium" | "guest_trial";
 
@@ -265,6 +266,15 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         localStorage.removeItem("trial_end_date");
         if (deviceUuid) {
           localStorage.setItem("active_device_id", deviceUuid);
+        }
+
+        // Yeni üye Hoş Geldiniz e-postası (Fail-Safe: E-posta servisi hata verse bile kayıt aksamaz)
+        try {
+          sendWelcomeEmail(cleanUserEmail).catch(mailErr => {
+            console.warn("[Premium Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+          });
+        } catch (err) {
+          console.warn("[Premium Register] Hoş Geldiniz e-postası fail-safe:", err);
         }
 
         setSyncLogs(prev => [
@@ -538,6 +548,17 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         } else {
           localStorage.removeItem("trial_end_date");
           localStorage.removeItem("premium_source");
+        }
+
+        // Yeni üye Hoş Geldiniz e-postası (Fail-Safe: E-posta servisi hata verse bile kayıt aksamaz)
+        if (guestSubMode === "register") {
+          try {
+            sendWelcomeEmail(cleanUserEmail).catch(mailErr => {
+              console.warn("[Guest Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+            });
+          } catch (err) {
+            console.warn("[Guest Register] Hoş Geldiniz e-postası fail-safe:", err);
+          }
         }
 
         setIsLoading(false);

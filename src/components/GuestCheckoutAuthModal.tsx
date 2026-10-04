@@ -26,6 +26,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../utils/firebase";
 import { saveUserSessionToFirestore, getDeviceUuid } from "../utils/deviceSessionService";
+import { sendWelcomeEmail } from "../utils/newsletterService";
 
 interface GuestCheckoutAuthModalProps {
   isOpen: boolean;
@@ -175,6 +176,17 @@ export const GuestCheckoutAuthModal: React.FC<GuestCheckoutAuthModalProps> = ({
       localStorage.setItem("is_guest", "false");
       localStorage.setItem("user_created_at", nowIso);
       localStorage.removeItem("skip_initial_login");
+
+      // Yeni üye Hoş Geldiniz e-postası (Fail-Safe: E-posta servisi hata verse bile kayıt aksamaz)
+      if (authMode === "register") {
+        try {
+          sendWelcomeEmail(finalUserEmail).catch(mailErr => {
+            console.warn("[GuestCheckoutAuth] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+          });
+        } catch (err) {
+          console.warn("[GuestCheckoutAuth] Hoş Geldiniz e-postası fail-safe:", err);
+        }
+      }
 
       setStatusStep("✅ Hesap hazır! Kartla güvenli ödeme adımına aktarılıyorsunuz...");
 
