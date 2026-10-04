@@ -73,6 +73,7 @@ export interface Expense {
   amount: number;
   description: string;
   date: string;
+  isRecurring?: boolean;
 }
 
 export interface ExpenseCategory {

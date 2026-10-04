@@ -1000,6 +1000,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [expenseAlarm, setExpenseAlarm] = useState(false);
   const [isCategoryManuallySelected, setIsCategoryManuallySelected] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
 
   // Auto-categorization based on description input
   useEffect(() => {
@@ -1078,6 +1079,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setDescription("");
     setIsCatDropdownOpen(false);
     setIsCategoryManuallySelected(false);
+    setIsRecurring(false);
     
     // Choose dynamic smart default date for past/future monthly addition support
     const today = new Date();
@@ -1102,6 +1104,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     );
     setIsCatDropdownOpen(false);
     setIsCategoryManuallySelected(true);
+    setIsRecurring(e.isRecurring === true);
     setIsExpModalOpen(true);
   };
 
@@ -1122,6 +1125,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       amount: parsedAmount,
       description: description.trim(),
       date: date || new Date().toISOString(),
+      isRecurring,
     });
     setIsExpModalOpen(false);
   };
@@ -1261,6 +1265,15 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const filteredMonthExpenses = expenses.filter((e) => {
     if (selectedMonthStr === "all") return true;
     if (!e.date) return false;
+    if (e.isRecurring === true) {
+      const parts = e.date.split("-");
+      const selParts = selectedMonthStr.split("-");
+      if (parts.length >= 2 && selParts.length === 2) {
+        const expTime = parseInt(parts[0], 10) * 12 + (parseInt(parts[1], 10) - 1);
+        const selTime = parseInt(selParts[0], 10) * 12 + (parseInt(selParts[1], 10) - 1);
+        return selTime >= expTime;
+      }
+    }
     return getExpenseYearMonth(e.date) === selectedMonthStr;
   });
 
@@ -2443,8 +2456,21 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white font-medium"
                 />
+              </div>
+
+              {/* Her Ay Düzenli Gider Checkbox */}
+              <div 
+                className="flex items-center gap-2 p-2.5 bg-slate-50/70 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700/60 cursor-pointer select-none"
+                onClick={() => setIsRecurring(!isRecurring)}
+              >
+                <div className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center transition-all ${isRecurring ? "bg-rose-600 border-rose-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
+                  {isRecurring && <Check className="w-3.5 h-3.5 text-white" />}
+                </div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  🔄 Her Ay Düzenli / Sabit Gider (Kira, Fatura, Aidat vb.)
+                </label>
               </div>
 
               <div className="bg-slate-50/50 dark:bg-slate-900/40 p-2.5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80">

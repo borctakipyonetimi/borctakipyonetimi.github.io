@@ -4140,12 +4140,18 @@ export default function App() {
       }
     });
 
-    // 2. Expenses scoped to chosen period
+    // 2. Expenses scoped to chosen period (Recurring regular expenses stay active in subsequent months)
     const filteredExpensesForStats = expenses.filter((e) => {
       if (selectedMonth === null || selectedYear === null) return true;
       const parts = parseDateParts(e.date);
       if (!parts) return true;
-      return parts.month === selectedMonth && parts.year === selectedYear;
+      if (e.isRecurring === true) {
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const expTime = parts.year * 12 + parts.month;
+        return selectedTime >= expTime;
+      } else {
+        return parts.month === selectedMonth && parts.year === selectedYear;
+      }
     });
 
     // 3. Payments scoped to chosen period
@@ -4434,7 +4440,13 @@ export default function App() {
       if (selectedMonth === null || selectedYear === null) return true;
       const dParts = parseDateParts(e.date);
       if (!dParts) return true;
-      return dParts.month === selectedMonth && dParts.year === selectedYear;
+      if (e.isRecurring === true) {
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const expTime = dParts.year * 12 + dParts.month;
+        return selectedTime >= expTime;
+      } else {
+        return dParts.month === selectedMonth && dParts.year === selectedYear;
+      }
     });
 
     return {
@@ -4975,14 +4987,15 @@ export default function App() {
   const handleSaveExpense = (expData: Partial<Expense>) => {
     let updated: Expense[] = [];
     if (expData.id) {
-      updated = expenses.map((e) => (e.id === expData.id ? (expData as Expense) : e));
+      updated = expenses.map((e) => (e.id === expData.id ? { ...(e as Expense), ...expData } : e));
     } else {
       const newE: Expense = {
         id: generateId(expenses),
         categoryId: expData.categoryId || 1,
         amount: expData.amount || 0,
         description: expData.description || "",
-        date: expData.date || new Date().toISOString()
+        date: expData.date || new Date().toISOString(),
+        isRecurring: expData.isRecurring === true
       };
       updated = [...expenses, newE];
     }
@@ -6323,14 +6336,129 @@ export default function App() {
   };
 
   const computeFinancialReportData = (startDate?: string, endDate?: string) => {
-    // 1. Gelir ve Gider filtrelemeleri
-    const filteredIncomes = incomes.filter(inc => isDateWithinRange(inc.date, startDate, endDate));
-    const filteredExpenses = expenses.filter(exp => isDateWithinRange(exp.date, startDate, endDate));
+    // 1. Gelirler Filtreleme ve Dönemsel Devir / Güncelleme Mantığı
+    const filteredIncomes: any[] = [];
+    let filteredTotalIncome = 0;
 
-    const filteredTotalIncome = filteredIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const filteredTotalExpense = filteredExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    incomes.forEach((inc) => {
+      const amt = Number(inc.amount) || 0;
+      if (amt <= 0) return;
 
-    // 2. Kişi Cari Defteri (Contacts Directory ve İşlemleri)
+      if (!startDate && !endDate) {
+        // Tüm zamanlar (filtresiz)
+        filteredIncomes.push({ ...inc, effectiveDate: inc.date });
+        filteredTotalIncome += amt;
+      } else {
+        const isRecurring = inc.isRecurring !== false; // Varsayılan olarak düzenli/sabit gelir
+        const incParts = parseDateParts(inc.date);
+
+        if (!isRecurring) {
+          // Tek seferlik / ek gelir: Sadece seçili tarih aralığındaysa dahil et
+          if (isDateWithinRange(inc.date, startDate, endDate)) {
+            filteredIncomes.push({ ...inc, effectiveDate: inc.date });
+            filteredTotalIncome += amt;
+          }
+        } else {
+          // Tekrarlayan / Aylık Düzenli Gelir (Maaş vb.):
+          // Filtrelenen tarih aralığındaki her aya dinamik olarak devredip eklenir
+          if (incParts) {
+            const startParts = parseDateParts(startDate);
+            const endParts = parseDateParts(endDate);
+
+            const startMonthIdx = startParts ? (startParts.year * 12 + startParts.month) : (incParts.year * 12 + incParts.month);
+            const endMonthIdx = endParts ? (endParts.year * 12 + endParts.month) : (new Date().getFullYear() * 12 + new Date().getMonth());
+            const incMonthIdx = incParts.year * 12 + incParts.month;
+
+            let occurrencesInPeriod = 0;
+            for (let mIdx = startMonthIdx; mIdx <= endMonthIdx; mIdx++) {
+              if (mIdx >= incMonthIdx) {
+                const y = Math.floor(mIdx / 12);
+                const m = mIdx % 12;
+                const maxDays = new Date(y, m + 1, 0).getDate();
+                const d = Math.min(incParts.day, maxDays);
+                const occYMD = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+                if (isDateWithinRange(occYMD, startDate, endDate)) {
+                  occurrencesInPeriod++;
+                  filteredIncomes.push({
+                    ...inc,
+                    effectiveDate: occYMD,
+                    displayName: occurrencesInPeriod > 1 ? `${inc.name} (${String(m + 1).padStart(2, "0")}.${y})` : inc.name
+                  });
+                  filteredTotalIncome += amt;
+                }
+              }
+            }
+          } else if (isDateWithinRange(inc.date, startDate, endDate)) {
+            filteredIncomes.push({ ...inc, effectiveDate: inc.date });
+            filteredTotalIncome += amt;
+          }
+        }
+      }
+    });
+
+    // 2. Giderler Filtreleme ve Dönemsel Devir / Güncelleme Mantığı
+    const filteredExpenses: any[] = [];
+    let filteredTotalExpense = 0;
+
+    expenses.forEach((exp) => {
+      const amt = Number(exp.amount) || 0;
+      if (amt <= 0) return;
+
+      if (!startDate && !endDate) {
+        // Tüm zamanlar (filtresiz)
+        filteredExpenses.push({ ...exp, effectiveDate: exp.date });
+        filteredTotalExpense += amt;
+      } else {
+        const isRecurring = exp.isRecurring === true || (exp as any).recurring === true;
+        const expParts = parseDateParts(exp.date);
+
+        if (!isRecurring) {
+          // Tek seferlik harcama: Sadece seçili tarih aralığındaysa dahil et
+          if (isDateWithinRange(exp.date, startDate, endDate)) {
+            filteredExpenses.push({ ...exp, effectiveDate: exp.date });
+            filteredTotalExpense += amt;
+          }
+        } else {
+          // Tekrarlayan / Aylık Düzenli Gider (Kira, Fatura, Aidat vb.):
+          // Filtrelenen tarih aralığındaki her aya dinamik olarak devredip eklenir
+          if (expParts) {
+            const startParts = parseDateParts(startDate);
+            const endParts = parseDateParts(endDate);
+
+            const startMonthIdx = startParts ? (startParts.year * 12 + startParts.month) : (expParts.year * 12 + expParts.month);
+            const endMonthIdx = endParts ? (endParts.year * 12 + endParts.month) : (new Date().getFullYear() * 12 + new Date().getMonth());
+            const expMonthIdx = expParts.year * 12 + expParts.month;
+
+            let occurrencesInPeriod = 0;
+            for (let mIdx = startMonthIdx; mIdx <= endMonthIdx; mIdx++) {
+              if (mIdx >= expMonthIdx) {
+                const y = Math.floor(mIdx / 12);
+                const m = mIdx % 12;
+                const maxDays = new Date(y, m + 1, 0).getDate();
+                const d = Math.min(expParts.day, maxDays);
+                const occYMD = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+                if (isDateWithinRange(occYMD, startDate, endDate)) {
+                  occurrencesInPeriod++;
+                  filteredExpenses.push({
+                    ...exp,
+                    effectiveDate: occYMD,
+                    displayName: occurrencesInPeriod > 1 ? `${exp.description} (${String(m + 1).padStart(2, "0")}.${y})` : exp.description
+                  });
+                  filteredTotalExpense += amt;
+                }
+              }
+            }
+          } else if (isDateWithinRange(exp.date, startDate, endDate)) {
+            filteredExpenses.push({ ...exp, effectiveDate: exp.date });
+            filteredTotalExpense += amt;
+          }
+        }
+      }
+    });
+
+    // 3. Kişi Cari Defteri (Contacts Directory ve İşlemleri)
     const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
     let contactsDirectory: any[] = [];
     let contactTransactions: any[] = [];
@@ -6378,7 +6506,7 @@ export default function App() {
     const contactReceivablesCollected = filteredContactReceivables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
     const contactReceivablesPending = Math.max(0, contactReceivablesTotal - contactReceivablesCollected);
 
-    // 3. Basit / Kurumsal Borçlar
+    // 4. Basit / Kurumsal Borçlar
     const filteredDebts: any[] = [];
     let simpleDebtsTotal = 0;
     let simpleDebtsPaid = 0;
@@ -6437,69 +6565,104 @@ export default function App() {
     });
     const simpleDebtsRemaining = Math.max(0, simpleDebtsTotal - simpleDebtsPaid);
 
-    // 4. Taksitli Borç ve Kredi Planları
+    // 5. Taksitli Borç ve Kredi Planları (O Dönemin Vadesi Gelen Taksit Tutarı)
     let installmentsTotal = 0;
     let installmentsPaid = 0;
     const filteredInstallments: any[] = [];
 
     installmentDebts.forEach((inst: any) => {
-      const count = inst.installmentCount || 1;
-      const monthlyAmt = (Number(inst.totalAmount) || 0) / count;
+      const count = Number(inst.installmentCount) || 1;
+      const totalAmt = Number(inst.totalAmount) || 0;
+      const monthlyAmt = totalAmt / count;
+      const paidCount = Number(inst.paidInstallmentCount) || 0;
 
       if (!startDate && !endDate) {
-        const planPaid = (inst.paidInstallmentCount || 0) * monthlyAmt;
-        installmentsTotal += (Number(inst.totalAmount) || 0);
+        // Tüm zamanlar (filtresiz)
+        const planPaid = Math.min(totalAmt, paidCount * monthlyAmt);
+        const planRemaining = Math.max(0, totalAmt - planPaid);
+        installmentsTotal += totalAmt;
         installmentsPaid += planPaid;
         filteredInstallments.push({
           ...inst,
-          periodDueAmount: Number(inst.totalAmount) || 0,
+          periodDueAmount: totalAmt,
           periodPaidAmount: planPaid,
-          periodRemainingAmount: Math.max(0, (Number(inst.totalAmount) || 0) - planPaid),
+          periodRemainingAmount: planRemaining,
           periodInstallmentDue: count,
-          periodInstallmentPaidCount: inst.paidInstallmentCount || 0
+          periodInstallmentPaidCount: paidCount
         });
       } else {
+        // Filtrelenen dönem için TÜM ANAPARA DEĞİL, SADECE O DÖNEMDE ÖDENMESİ GEREKEN TAKSİTLER
         let occurrences = 0;
         let paidOccurrences = 0;
+        let lastOccYMD = "";
         const startParts = parseDateParts(inst.firstDueDate);
+
         if (startParts) {
           for (let i = 0; i < count; i++) {
-            const occDate = new Date(startParts.year, startParts.month + i, startParts.day);
-            const occYMD = formatToLocalYMD(occDate);
+            const totalMonths = startParts.month + i;
+            const occYear = startParts.year + Math.floor(totalMonths / 12);
+            const occMonth = totalMonths % 12;
+            const daysInOccMonth = new Date(occYear, occMonth + 1, 0).getDate();
+            const occDay = Math.min(startParts.day, daysInOccMonth);
+            const occYMD = `${occYear}-${String(occMonth + 1).padStart(2, "0")}-${String(occDay).padStart(2, "0")}`;
+
             if (isDateWithinRange(occYMD, startDate, endDate)) {
               occurrences++;
+              lastOccYMD = occYMD;
               const hasInstPaymentLog = payments.some(
                 (p) => p.type === "installment" && p.debtId === inst.id && isDateWithinRange(p.date, startDate, endDate)
               );
-              if ((inst.paidInstallmentCount || 0) > i || hasInstPaymentLog) {
+              if (paidCount > i || hasInstPaymentLog) {
                 paidOccurrences++;
               }
             }
           }
         } else if (isDateWithinRange(inst.firstDueDate, startDate, endDate)) {
           occurrences = 1;
-          if ((inst.paidInstallmentCount || 0) > 0) paidOccurrences = 1;
+          lastOccYMD = inst.firstDueDate;
+          if (paidCount > 0) paidOccurrences = 1;
         }
+
+        // Seçili aralıkta yapılan fiili taksit ödeme logları
+        const paymentsInPeriodForInst = payments.filter(
+          (p) => p.type === "installment" && p.debtId === inst.id && isDateWithinRange(p.date, startDate, endDate)
+        );
+        const extraPaymentLoggedAmt = paymentsInPeriodForInst.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
         if (occurrences > 0) {
           const periodDue = occurrences * monthlyAmt;
-          const periodPaid = paidOccurrences * monthlyAmt;
+          const periodPaid = Math.max(paidOccurrences * monthlyAmt, Math.min(periodDue, extraPaymentLoggedAmt));
+          const periodRemaining = Math.max(0, periodDue - periodPaid);
           installmentsTotal += periodDue;
           installmentsPaid += periodPaid;
           filteredInstallments.push({
             ...inst,
             periodDueAmount: periodDue,
             periodPaidAmount: periodPaid,
-            periodRemainingAmount: Math.max(0, periodDue - periodPaid),
+            periodRemainingAmount: periodRemaining,
             periodInstallmentDue: occurrences,
-            periodInstallmentPaidCount: paidOccurrences
+            periodInstallmentPaidCount: paidOccurrences,
+            installmentDueDateInPeriod: lastOccYMD || inst.firstDueDate
+          });
+        } else if (extraPaymentLoggedAmt > 0) {
+          // Vadesi bu aralıkta olmasa da bu dönemde fiilen ödenmiş taksit kısmı
+          installmentsTotal += extraPaymentLoggedAmt;
+          installmentsPaid += extraPaymentLoggedAmt;
+          filteredInstallments.push({
+            ...inst,
+            periodDueAmount: extraPaymentLoggedAmt,
+            periodPaidAmount: extraPaymentLoggedAmt,
+            periodRemainingAmount: 0,
+            periodInstallmentDue: 1,
+            periodInstallmentPaidCount: 1,
+            installmentDueDateInPeriod: paymentsInPeriodForInst[0]?.date || inst.firstDueDate
           });
         }
       }
     });
     const installmentsRemaining = Math.max(0, installmentsTotal - installmentsPaid);
 
-    // 5. Gerçek Toplamlar (Basit + Taksitli + Kişi Borçları)
+    // 6. Gerçek Toplamlar (Basit + Taksitli + Kişi Borçları)
     const filteredTotalDebt = simpleDebtsTotal + installmentsTotal + contactPayablesTotal;
     const filteredTotalPaid = simpleDebtsPaid + installmentsPaid + contactPayablesPaid;
     const filteredRemainingDebt = Math.max(0, filteredTotalDebt - filteredTotalPaid);
@@ -6592,9 +6755,9 @@ export default function App() {
     csvContent += [esc("Toplam Gelir"), esc(format(filteredTotalIncome)), esc(`${filteredIncomes.length} adet gelir işlemi`)].join(";") + "\n";
     csvContent += [esc("Toplam Gider (Harcama)"), esc(format(filteredTotalExpense)), esc(`${filteredExpenses.length} adet harcama işlemi`)].join(";") + "\n";
     csvContent += [esc("Basit ve Kurumsal Borçlar Kapsamı"), esc(format(simpleDebtsTotal)), esc(`${filteredDebts.length} adet borç kaydı`)].join(";") + "\n";
-    csvContent += [esc("Taksitli Borç ve Kredi Payı"), esc(format(installmentsTotal)), esc(`${filteredInstallments.length} adet taksitli plan`)].join(";") + "\n";
+    csvContent += [esc("Taksitli Borç ve Kredi Payı"), esc(format(installmentsTotal)), esc(`${filteredInstallments.length} adet taksitli plan (Dönem Taksiti)`)].join(";") + "\n";
     csvContent += [esc("Kişilere Olan Borçlarımız (Verecekler)"), esc(format(contactPayablesTotal)), esc(`${filteredContactPayables.length} kişi borç kaydı`)].join(";") + "\n";
-    csvContent += [esc("⭐ GERÇEK TOPLAM BORÇ KAPSAMI"), esc(format(filteredTotalDebt)), esc("Basit + Taksitli + Kişi Borçları Toplamı")].join(";") + "\n";
+    csvContent += [esc("⭐ GERÇEK TOPLAM BORÇ KAPSAMI"), esc(format(filteredTotalDebt)), esc("Döneme Düşen Basit + Taksit + Kişi Borçları")].join(";") + "\n";
     csvContent += [esc("↳ Toplam Ödenen Borç Payı"), esc(format(filteredTotalPaid)), esc("Bu dönemde kapatılan tüm borçlar")].join(";") + "\n";
     csvContent += [esc("↳ Kalan Aktif Gerçek Borç"), esc(format(filteredRemainingDebt)), esc("Ödenmesi gereken güncel net borç")].join(";") + "\n";
     csvContent += [esc("Kişilerden Beklenen Alacaklarımız (Tahsilat)"), esc(format(contactReceivablesTotal)), esc(`${filteredContactReceivables.length} kişi alacak kaydı (Kalan: ${format(contactReceivablesPending)})`)].join(";") + "\n";
@@ -6641,31 +6804,41 @@ export default function App() {
 
     // 4. DETAYLI KAYITLI GELİRLER
     csvContent += [esc("=== 4. DETAYLI KAYITLI GELİRLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Gelir Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Gelir Kategorisi"), esc("Tarih / Not")].join(";") + "\n";
+    csvContent += [esc("Gelir Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Gelir Türü"), esc("Tarih")].join(";") + "\n";
     if (filteredIncomes.length === 0) {
       csvContent += [esc("Seçilen dönemde kayıtlı gelir bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredIncomes.forEach((inc: any) => {
-        csvContent += [esc(inc.title || inc.name || "Gelir"), esc(inc.amount), esc(inc.category || "Genel"), esc(inc.date || "")].join(";") + "\n";
+        csvContent += [
+          esc(inc.displayName || inc.name || "Gelir"),
+          esc(inc.amount),
+          esc(inc.isRecurring !== false ? "Düzenli Gelir (Maaş vb.)" : "Ek Gelir"),
+          esc(inc.effectiveDate || inc.date || "")
+        ].join(";") + "\n";
       });
     }
     csvContent += "\n";
 
     // 5. DETAYLI HARCAMA VE GİDERLER
     csvContent += [esc("=== 5. DETAYLI HARCAMA VE GİDERLER ==="), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Harcama Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Kategori"), esc("Harcama Tarihi")].join(";") + "\n";
+    csvContent += [esc("Harcama Başlığı"), esc(`Miktar (${activeCurrency})`), esc("Kategori / Tür"), esc("Harcama Tarihi")].join(";") + "\n";
     if (filteredExpenses.length === 0) {
       csvContent += [esc("Seçilen dönemde kayıtlı harcama bulunamadı."), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredExpenses.forEach((exp: any) => {
-        csvContent += [esc(exp.title || exp.description || "Gider"), esc(exp.amount), esc(exp.category || "Genel"), esc(exp.date || "")].join(";") + "\n";
+        csvContent += [
+          esc(exp.displayName || exp.description || "Gider"),
+          esc(exp.amount),
+          esc(exp.category || (exp.isRecurring ? "Düzenli Gider (Kira/Fatura)" : "Genel")),
+          esc(exp.effectiveDate || exp.date || "")
+        ].join(";") + "\n";
       });
     }
     csvContent += "\n";
 
     // 6. DETAYLI BASİT VE KURUMSAL BORÇLAR
     csvContent += [esc("=== 6. DETAYLI BASİT VE KURUMSAL BORÇLAR ==="), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Borç Açıklaması"), esc(`Toplam Tutar (${activeCurrency})`), esc("Ödenen Kısım"), esc("Kalan Tutar"), esc("Alacaklı Kurum / Kişi"), esc("Vade Tarihi"), esc("Durum")].join(";") + "\n";
+    csvContent += [esc("Borç Açıklaması"), esc(`Dönem Tutarı (${activeCurrency})`), esc("Ödenen Kısım"), esc("Kalan Tutar"), esc("Alacaklı Kurum / Kategori"), esc("Vade Tarihi"), esc("Durum")].join(";") + "\n";
     if (filteredDebts.length === 0) {
       csvContent += [esc("Seçilen dönemde kayıtlı borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
@@ -6685,9 +6858,9 @@ export default function App() {
     }
     csvContent += "\n";
 
-    // 7. DETAYLI TAKSİTLİ HARCAMA VE KREDİLER
+    // 7. DETAYLI TAKSİTLİ HARCAMA VE KREDİLER (DÖNEM TAKSİTLERİ)
     csvContent += [esc("=== 7. DETAYLI TAKSİTLİ HARCAMA VE KREDİLER ==="), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
-    csvContent += [esc("Kredi / Taksit Adı"), esc("Aylık Tutar"), esc("Dönemdeki Taksit"), esc("Dönem Tutar Payı"), esc("Ödenen Pay"), esc("Kalan Tutar"), esc("İlk Vade Tarihi")].join(";") + "\n";
+    csvContent += [esc("Kredi / Taksit Adı"), esc("Aylık Taksit Tutarı"), esc("Dönemdeki Taksit"), esc(`Dönem Tutar Payı (${activeCurrency})`), esc("Ödenen Pay"), esc("Kalan Tutar"), esc("Vade Tarihi")].join(";") + "\n";
     if (filteredInstallments.length === 0) {
       csvContent += [esc("Seçilen dönemde kayıtlı taksitli borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
@@ -6696,11 +6869,11 @@ export default function App() {
         csvContent += [
           esc(inst.title || inst.name || "Taksit Planı"),
           esc(monthly),
-          esc(`${inst.periodInstallmentDue || inst.installmentCount} taksit`),
-          esc(inst.periodDueAmount || inst.totalAmount),
+          esc(`${inst.periodInstallmentDue || 1} taksit`),
+          esc(inst.periodDueAmount !== undefined ? inst.periodDueAmount : monthly),
           esc(inst.periodPaidAmount || 0),
           esc(inst.periodRemainingAmount || 0),
-          esc(inst.firstDueDate || inst.startDate || "")
+          esc(inst.installmentDueDateInPeriod || inst.firstDueDate || inst.startDate || "")
         ].join(";") + "\n";
       });
     }
