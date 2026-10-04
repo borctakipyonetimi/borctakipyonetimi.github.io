@@ -173,6 +173,7 @@ import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
 import { BiometricAuth, BiyometrikDogrulamaYap } from "./utils/biometricAuth";
+import { scheduleNotification, cancelDebtNotifications, createFromTemplate } from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
 if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
@@ -1294,6 +1295,15 @@ export default function App() {
         frequency: val
       });
     }
+
+    // Kullanıcının seçtiği yeni bildirim sıklığı ve saatine göre tüm aktif borçların hatırlatıcılarını dinamik güncelle
+    const activeDebts = debtsRef.current || debts || [];
+    activeDebts.forEach((d) => {
+      const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
+      if (!isPaid && d.dueDate) {
+        scheduleNotification(d, { frequency: val }).catch(() => {});
+      }
+    });
 
     const labels: Record<string, string> = {
       "1": "Günde 1 Kez (Sabah 09:00)",
@@ -4534,6 +4544,7 @@ export default function App() {
     let updated = [...debts];
     let updatedPayments = [...payments];
     let nextId = generateId(updated);
+    const createdDebts: Debt[] = [];
 
     newDebtsList.forEach((debtData) => {
       const debtName = debtData.name || "İsimsiz Borç";
@@ -4550,11 +4561,21 @@ export default function App() {
         dueDate: dueDate
       };
       updated.push(newD);
+      createdDebts.push(newD);
+    });
+
+    // 1. Otomatik Hatırlatıcı Kurulumu (Şablondan Yükleme):
+    // Şablondan yeni ay için borçlar yüklendiğinde her borç için otomatik bildirim kurulması mantığını (scheduleNotification) tetikle
+    createdDebts.forEach((debt) => {
+      scheduleNotification(debt, { frequency: pushFrequency }).catch((err) => {
+        console.warn("[handleSaveDebtBulk] scheduleNotification hatası:", err);
+      });
     });
 
     setDebts(updated);
     saveAllToUser(updated, incomes, alarms, notifications, installmentDebts, updatedPayments, expenses, expenseCategories);
-    triggerToast(`${newDebtsList.length} Borç Başarıyla Kaydedildi 📋`);
+    syncAllDebtsAndAlarmsToAndroid(alarms, updated, installmentDebts);
+    triggerToast(`${newDebtsList.length} Borç ve Otomatik Hatırlatıcıları Başarıyla Kaydedildi 📋🔔`);
   };
 
   // ---------------- CRUD Operations ----------------
@@ -4748,6 +4769,8 @@ export default function App() {
       } catch {}
       cancelCapacitorAlarm(effectiveId).catch(() => {});
       cancelAndroidDebtAlarm(effectiveId);
+      // 3. Temizleme ve Çakışma Önleme: Dinamik hatırlatıcıları sil/iptal et
+      cancelDebtNotifications(effectiveId);
 
       // Veritabanı ve aktif hatırlatıcılar listesinden ödenmiş borcun alarmını derhal filtrele/kaldır
       updatedAlarms = updatedAlarms.filter(
@@ -4755,6 +4778,10 @@ export default function App() {
       );
       setAlarms(updatedAlarms);
       syncAlarmsWithPushServer(updatedAlarms);
+    }
+
+    if (shouldSetAlarm && dueDate && effectivePaid < effectiveAmount && savedDebt) {
+      scheduleNotification(savedDebt, { frequency: pushFrequency }).catch(() => {});
     }
 
     setDebts(updated);
@@ -4784,6 +4811,8 @@ export default function App() {
         } catch {}
         cancelCapacitorAlarm(id).catch(() => {});
         cancelAndroidDebtAlarm(id);
+        // 3. Temizleme ve Çakışma Önleme: Silinen borcun tüm dinamik hatırlatıcılarını iptal et
+        cancelDebtNotifications(id);
 
         const updatedDebts = debts.filter((d) => d.id !== id);
         const updatedPayments = payments.filter((p) => p.debtId !== id);
@@ -4832,6 +4861,8 @@ export default function App() {
       }
       cancelCapacitorAlarm(borcId).catch(() => {});
       cancelAndroidDebtAlarm(borcId);
+      // 3. Temizleme ve Çakışma Önleme: Borç ödendiği an o borca ait tüm dinamik hatırlatıcıları sil/iptal et
+      cancelDebtNotifications(borcId);
 
       // Veritabanı ve aktif hatırlatıcılar listesinden ödenmiş borcun alarmını derhal filtrele/kaldır
       updatedAlarms = updatedAlarms.filter(
@@ -4841,6 +4872,9 @@ export default function App() {
     } else {
       // Ödeme geri alındığında (Ödenmedi yapıldığında) eğer vade tarihi varsa alarmı tekrar kur
       if (targetDebt?.dueDate) {
+        // Dinamik hatırlatıcıları yeniden kur
+        scheduleNotification(targetDebt, { frequency: pushFrequency }).catch(() => {});
+
         const trig = parseAlarmDateToMillis(targetDebt.dueDate);
         if (trig && trig > Date.now()) {
           const remaining = targetDebt.amount.toLocaleString("tr-TR");

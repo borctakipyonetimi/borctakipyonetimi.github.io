@@ -22,6 +22,7 @@ import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
+import { scheduleNotification, cancelDebtNotifications, createFromTemplate as scheduleTemplateNotifications } from "../utils/notificationScheduler";
 
 interface DebtListProps {
   debts: Debt[];
@@ -597,6 +598,14 @@ export const DebtList: React.FC<DebtListProps> = ({
       } else {
         itemsToSave.forEach((itm) => onSaveDebt(itm));
       }
+
+      // 1. Otomatik Hatırlatıcı Kurulumu (Şablondan Yükleme):
+      // Şablondan yeni ay için borçlar yüklendiğinde her borç için otomatik bildirim kurulması mantığını tetikle
+      itemsToSave.forEach((debt) => {
+        scheduleNotification(debt).catch((err) => {
+          console.warn("[DebtList] Otomatik hatırlatıcı kurulamadı:", err);
+        });
+      });
     }
 
     setIsTemplateModalOpen(false);
@@ -611,6 +620,13 @@ export const DebtList: React.FC<DebtListProps> = ({
     }
   };
 
+  /**
+   * Şablondan yeni ay için borçlar yüklendiğinde otomatik bildirim kurma mantığını tetikleyen fonksiyon
+   */
+  const createFromTemplate = (items: any[]) => {
+    handleImportTemplateItems(items);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -620,7 +636,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       try {
         const parsed = JSON.parse(event.target?.result as string);
         const items = Array.isArray(parsed) ? parsed : (parsed.debts || []);
-        handleImportTemplateItems(items);
+        createFromTemplate(items);
       } catch {
         alert("Dosya okunamadı veya geçersiz JSON formatı!");
       }
@@ -637,7 +653,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     }
     try {
       const parsed = JSON.parse(saved);
-      handleImportTemplateItems(parsed);
+      createFromTemplate(parsed);
     } catch {
       alert("Kayıtlı şablon verisi okunamadı veya bozuk.");
     }
@@ -2857,7 +2873,7 @@ export const DebtList: React.FC<DebtListProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              handleImportTemplateItems(t.debts);
+                              createFromTemplate(t.debts);
                               setIsTemplateModalOpen(false);
                             }}
                             className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer shadow-xs"

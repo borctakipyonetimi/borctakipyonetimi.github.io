@@ -196,11 +196,14 @@ export async function scheduleCapacitorAlarm(
   triggerAtMillis: number,
   message?: string,
   extraDetails?: {
+    debtId?: number | string;
     borcAdi?: string;
     miktar?: string | number;
     tarih?: string;
     durum?: string;
     imageUrl?: string;
+    dayOffset?: number;
+    [key: string]: any;
   }
 ): Promise<boolean> {
   if (triggerAtMillis <= Date.now()) return false;
