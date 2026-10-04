@@ -75,7 +75,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
     },
     {
       q: "Uygulamayı kullanmak için kayıt veya şifre zorunlu mu? Verilerim nerede saklanıyor?",
-      a: "Kesinlikle zorunlu değildir! Bütçem çevrimdışı öncelikli (offline-first) bir felsefeyle çalışır. Verileriniz tamamen cihazınızın güvenli yerel tarayıcı belleğinde (localStorage) saklanır ve hiçbir sunucuya izniniz olmaksızın aktarılmaz. Dilerseniz güvenli e-posta veya Google bulut giriş seçeneklerini aktif ederek, verilerinizi bulutta da yedekleyebilirsiniz."
+      a: "Kesinlikle zorunlu değildir! Bütçem çevrimdışı öncelikli (offline-first) bir felsefeyle çalışır. Verileriniz tamamen cihazınızın güvenli yerel tarayıcı belleğinde (localStorage) saklanır ve hiçbir sunucuya izniniz olmaksızın aktarılmaz. Dilerseniz güvenli e-posta ile giriş ve kayıt ol seçeneğini kullanarak, verilerinizi bulutta da yedekleyebilirsiniz."
     },
     {
       q: "Kartopu (Snowball) ve Çığ (Avalanche) borç ödeme yöntemleri nedir?",

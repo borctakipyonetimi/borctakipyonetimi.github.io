@@ -65,6 +65,16 @@ export function normalizeToYMD(dateStr: string | undefined | null): string | nul
 }
 
 /**
+ * Formats a Date object into local YYYY-MM-DD string without timezone distortion.
+ */
+export function formatToLocalYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Checks if a given date string falls within [startDate, endDate] (inclusive).
  * Safely parses any date format (YYYY-MM-DD, DD.MM.YYYY, ISO).
  * If startDate or endDate is not specified, that boundary is ignored.
@@ -74,23 +84,77 @@ export function isDateWithinRange(
   startDate?: string | null,
   endDate?: string | null
 ): boolean {
-  if (!startDate && !endDate) return true;
-  if (!dateStr) return true;
+  const cleanStart = startDate?.trim() || null;
+  const cleanEnd = endDate?.trim() || null;
+
+  // Filtre yoksa tüm kayıtlar geçerlidir
+  if (!cleanStart && !cleanEnd) return true;
+
+  // Belirli bir tarih aralığı filtrelenirken tarihi olmayan kayıtlar aralığa dahil edilemez
+  if (!dateStr || !dateStr.trim()) return false;
 
   const itemYMD = normalizeToYMD(dateStr);
-  if (!itemYMD) return true; // Keep items with unparseable dates to avoid dropping data
+  if (!itemYMD) return false;
 
-  if (startDate) {
-    const startYMD = normalizeToYMD(startDate) || startDate.slice(0, 10);
+  if (cleanStart) {
+    const startYMD = normalizeToYMD(cleanStart) || cleanStart.slice(0, 10);
     if (itemYMD < startYMD) return false;
   }
 
-  if (endDate) {
-    const endYMD = normalizeToYMD(endDate) || endDate.slice(0, 10);
+  if (cleanEnd) {
+    const endYMD = normalizeToYMD(cleanEnd) || cleanEnd.slice(0, 10);
     if (itemYMD > endYMD) return false;
   }
 
   return true;
+}
+
+/**
+ * Rapor tarih aralıklarını yerel zaman dilimine göre hesaplar (Timezone kayması yaşanmaz).
+ */
+export function getReportPresetDates(
+  preset: "today" | "this_week" | "this_month" | "last_month" | "this_year" | "last_year" | "all"
+): { startDate: string; endDate: string } {
+  const now = new Date();
+
+  if (preset === "today") {
+    const todayStr = formatToLocalYMD(now);
+    return { startDate: todayStr, endDate: todayStr };
+  }
+
+  if (preset === "this_week") {
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Pazartesi
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    return { startDate: formatToLocalYMD(monday), endDate: formatToLocalYMD(sunday) };
+  }
+
+  if (preset === "this_month") {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { startDate: formatToLocalYMD(firstDay), endDate: formatToLocalYMD(lastDay) };
+  }
+
+  if (preset === "last_month") {
+    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { startDate: formatToLocalYMD(firstDay), endDate: formatToLocalYMD(lastDay) };
+  }
+
+  if (preset === "this_year") {
+    const firstDay = new Date(now.getFullYear(), 0, 1);
+    const lastDay = new Date(now.getFullYear(), 11, 31);
+    return { startDate: formatToLocalYMD(firstDay), endDate: formatToLocalYMD(lastDay) };
+  }
+
+  if (preset === "last_year") {
+    const firstDay = new Date(now.getFullYear() - 1, 0, 1);
+    const lastDay = new Date(now.getFullYear() - 1, 11, 31);
+    return { startDate: formatToLocalYMD(firstDay), endDate: formatToLocalYMD(lastDay) };
+  }
+
+  return { startDate: "", endDate: "" };
 }
 
 /**

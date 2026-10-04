@@ -31,7 +31,7 @@ import {
 import { recordCrash } from "./utils/crashLogger";
 import { compressAndResizeImage } from "./utils/imageUtils";
 import { Purchases, PLAY_PRODUCTS, calculatePlanExpiry } from "./utils/purchases";
-import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs } from "./utils/dateUtils";
+import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs, formatToLocalYMD, getReportPresetDates } from "./utils/dateUtils";
 import { subscribeToNewsletter } from "./utils/newsletterService";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -1403,13 +1403,12 @@ export default function App() {
   };
   const isWebView = checkIsWebView();
   const [csvStep, setCsvStep] = useState<"filter" | "preview">("filter");
+  const [csvPreset, setCsvPreset] = useState<string>("this_month");
   const [csvStartDate, setCsvStartDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    return getReportPresetDates("this_month").startDate;
   });
   const [csvEndDate, setCsvEndDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    return getReportPresetDates("this_month").endDate;
   });
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState<boolean>(() => {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
@@ -2469,7 +2468,7 @@ export default function App() {
   });
   const [providerLoginInitialTab, setProviderLoginInitialTab] = useState<"premium" | "guest_trial">("premium");
   const [providerLoginInitialSubMode, setProviderLoginInitialSubMode] = useState<"login" | "register">("login");
-  const [selectedProvider, setSelectedProvider] = useState<"google" | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<"google" | "email" | null>(null);
   const splashTimerRef = useRef<any>(null);
 
   const startSplashAnimation = () => {
@@ -2549,7 +2548,7 @@ export default function App() {
       splashTimerRef.current = null;
     }
 
-    setSelectedProvider("google");
+    setSelectedProvider("email");
     setProviderLoginOpen(true);
   };
 
@@ -6167,16 +6166,8 @@ export default function App() {
           return;
         }
 
-        // mode === "download"
-        triggerToast(`✅ '${fileName}' İndirilenler/Belgeler klasörüne başarıyla kaydedildi!`);
-        try {
-          await Share.share({
-            title: fileName,
-            text: fileName,
-            url: cacheRes.uri,
-            dialogTitle: "Dosyayı Kaydet veya Aç"
-          });
-        } catch {}
+        // mode === "download": Doğrudan cihazın İndirilenler/Belgeler klasörüne kaydet, Paylaşım Menüsü açılmaz
+        triggerToast(`✅ '${fileName}' İndirilenler/Belgeler klasörüne doğrudan kaydedildi!`);
         localStorage.setItem("last_backup_export_date", new Date().toISOString());
         return;
       } catch (capErr: any) {
@@ -6331,12 +6322,7 @@ export default function App() {
     }
   };
 
-  const generateCSVData = (startDate?: string, endDate?: string): { fileName: string; csvContent: string } => {
-    const esc = (val: any) => {
-      const str = String(val === undefined || val === null ? "" : val);
-      return `"${str.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-    };
-
+  const computeFinancialReportData = (startDate?: string, endDate?: string) => {
     // 1. Gelir ve Gider filtrelemeleri
     const filteredIncomes = incomes.filter(inc => isDateWithinRange(inc.date, startDate, endDate));
     const filteredExpenses = expenses.filter(exp => isDateWithinRange(exp.date, startDate, endDate));
@@ -6366,7 +6352,7 @@ export default function App() {
     const filteredContactReceivables: any[] = [];
     if (Array.isArray(contactTransactions)) {
       contactTransactions.forEach((t: any) => {
-        const txDate = t.dueDate || t.createdAt;
+        const txDate = t.dueDate || t.createdAt || t.date;
         if (isDateWithinRange(txDate, startDate, endDate)) {
           const info = contactMap.get(String(t.contactId)) || { name: t.personName || "Kişi", phone: "" };
           const item = {
@@ -6393,18 +6379,62 @@ export default function App() {
     const contactReceivablesPending = Math.max(0, contactReceivablesTotal - contactReceivablesCollected);
 
     // 3. Basit / Kurumsal Borçlar
-    const filteredDebts = debts.filter(d => {
-      if (!startDate && !endDate) return true;
-      if (isDateWithinRange(d.dueDate || (d as any).date, startDate, endDate)) return true;
-      const hasPayment = payments.some(p => p.debtId === d.id && isDateWithinRange(p.date, startDate, endDate));
-      return hasPayment;
-    });
+    const filteredDebts: any[] = [];
+    let simpleDebtsTotal = 0;
+    let simpleDebtsPaid = 0;
 
-    const simpleDebtsTotal = filteredDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const simpleDebtsPaid = filteredDebts.reduce((sum, d) => {
-      const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
-      return sum + Math.min(Number(d.amount) || 0, paidVal);
-    }, 0);
+    debts.forEach((d) => {
+      const amt = Number(d.amount) || 0;
+      const isDueInPeriod = isDateWithinRange(d.dueDate || (d as any).date, startDate, endDate);
+
+      const debtPaymentsInRange = payments.filter((p) => {
+        if (p.debtId !== d.id) return false;
+        return isDateWithinRange(p.date, startDate, endDate);
+      });
+      const paidInRangeFromLogs = debtPaymentsInRange.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+      if (!startDate && !endDate) {
+        // Tüm zamanlar (filtresiz)
+        const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
+        const effectivePaid = Math.min(amt, paidVal);
+        simpleDebtsTotal += amt;
+        simpleDebtsPaid += effectivePaid;
+        filteredDebts.push({
+          ...d,
+          periodDueAmount: amt,
+          periodPaidAmount: effectivePaid,
+          periodRemainingAmount: Math.max(0, amt - effectivePaid)
+        });
+      } else if (isDueInPeriod) {
+        // Vadesi seçili tarih aralığına denk gelen borç
+        let effectivePaid = 0;
+        if (debtPaymentsInRange.length > 0) {
+          effectivePaid = Math.min(amt, paidInRangeFromLogs);
+        } else if ((d as any).paidAmount !== undefined || d.paid) {
+          const directPaid = Number((d as any).paidAmount ?? d.paid) || 0;
+          effectivePaid = Math.min(amt, directPaid);
+        }
+        simpleDebtsTotal += amt;
+        simpleDebtsPaid += effectivePaid;
+        filteredDebts.push({
+          ...d,
+          periodDueAmount: amt,
+          periodPaidAmount: effectivePaid,
+          periodRemainingAmount: Math.max(0, amt - effectivePaid)
+        });
+      } else if (paidInRangeFromLogs > 0) {
+        // Vadesi bu aralıkta olmasa da bu tarih aralığında fiilen ödenmiş borç kısmı
+        simpleDebtsTotal += paidInRangeFromLogs;
+        simpleDebtsPaid += paidInRangeFromLogs;
+        filteredDebts.push({
+          ...d,
+          periodDueAmount: paidInRangeFromLogs,
+          periodPaidAmount: paidInRangeFromLogs,
+          periodRemainingAmount: 0,
+          isExtraPeriodPayment: true
+        });
+      }
+    });
     const simpleDebtsRemaining = Math.max(0, simpleDebtsTotal - simpleDebtsPaid);
 
     // 4. Taksitli Borç ve Kredi Planları
@@ -6435,10 +6465,13 @@ export default function App() {
         if (startParts) {
           for (let i = 0; i < count; i++) {
             const occDate = new Date(startParts.year, startParts.month + i, startParts.day);
-            const occYMD = occDate.toISOString().slice(0, 10);
+            const occYMD = formatToLocalYMD(occDate);
             if (isDateWithinRange(occYMD, startDate, endDate)) {
               occurrences++;
-              if ((inst.paidInstallmentCount || 0) > i) {
+              const hasInstPaymentLog = payments.some(
+                (p) => p.type === "installment" && p.debtId === inst.id && isDateWithinRange(p.date, startDate, endDate)
+              );
+              if ((inst.paidInstallmentCount || 0) > i || hasInstPaymentLog) {
                 paidOccurrences++;
               }
             }
@@ -6484,6 +6517,64 @@ export default function App() {
     } else if (endDate) {
       periodLabel = `${endDate} öncesindeki kayıtlar`;
     }
+
+    return {
+      filteredIncomes,
+      filteredExpenses,
+      filteredTotalIncome,
+      filteredTotalExpense,
+      filteredContactPayables,
+      filteredContactReceivables,
+      contactPayablesTotal,
+      contactPayablesPaid,
+      contactPayablesRemaining,
+      contactReceivablesTotal,
+      contactReceivablesCollected,
+      contactReceivablesPending,
+      filteredDebts,
+      simpleDebtsTotal,
+      simpleDebtsPaid,
+      simpleDebtsRemaining,
+      filteredInstallments,
+      installmentsTotal,
+      installmentsPaid,
+      installmentsRemaining,
+      filteredTotalDebt,
+      filteredTotalPaid,
+      filteredRemainingDebt,
+      filteredNetReserve,
+      periodLabel
+    };
+  };
+
+  const generateCSVData = (startDate?: string, endDate?: string): { fileName: string; csvContent: string } => {
+    const esc = (val: any) => {
+      const str = String(val === undefined || val === null ? "" : val);
+      return `"${str.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+    };
+
+    const rep = computeFinancialReportData(startDate, endDate);
+    const {
+      filteredIncomes,
+      filteredExpenses,
+      filteredTotalIncome,
+      filteredTotalExpense,
+      filteredContactPayables,
+      filteredContactReceivables,
+      contactPayablesTotal,
+      contactPayablesPaid,
+      contactReceivablesTotal,
+      contactReceivablesPending,
+      filteredDebts,
+      simpleDebtsTotal,
+      filteredInstallments,
+      installmentsTotal,
+      filteredTotalDebt,
+      filteredTotalPaid,
+      filteredRemainingDebt,
+      filteredNetReserve,
+      periodLabel
+    } = rep;
 
     let csvContent = "";
     csvContent += "\uFEFF"; // UTF-8 BOM byte sequence Excel Türkçe karakter desteği
@@ -6579,8 +6670,8 @@ export default function App() {
       csvContent += [esc("Seçilen dönemde kayıtlı borç bulunamadı."), esc(""), esc(""), esc(""), esc(""), esc(""), esc("")].join(";") + "\n";
     } else {
       filteredDebts.forEach((d: any) => {
-        const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
-        const amt = Number(d.amount) || 0;
+        const amt = d.periodDueAmount !== undefined ? Number(d.periodDueAmount) : (Number(d.amount) || 0);
+        const paidVal = d.periodPaidAmount !== undefined ? Number(d.periodPaidAmount) : ((d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0));
         csvContent += [
           esc(d.title || d.name || "Borç"),
           esc(amt),
@@ -10055,115 +10146,54 @@ export default function App() {
       {/* CSV Filter and Range Download Modal */}
       <AnimatePresence>
         {isCsvModalOpen && (() => {
-          const previewIncomes = incomes.filter(inc => isDateWithinRange(inc.date, csvStartDate, csvEndDate));
-          const previewExpenses = expenses.filter(exp => isDateWithinRange(exp.date, csvStartDate, csvEndDate));
-
-          // Load contacts and map names
-          const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-          let contactsDirectory: any[] = [];
-          let contactTransactions: any[] = [];
-          try {
-            contactsDirectory = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_directory`) || "[]");
-          } catch {}
-          try {
-            contactTransactions = JSON.parse(localStorage.getItem(`${spaceKey}_contacts_transactions`) || "[]");
-          } catch {}
-
-          const contactMap = new Map<string, { name: string; phone: string }>();
-          if (Array.isArray(contactsDirectory)) {
-            contactsDirectory.forEach((c: any) => {
-              contactMap.set(String(c.id), { name: c.name || "Kişi", phone: c.phone || "" });
-            });
-          }
-
-          let previewContactPayables: any[] = [];
-          let previewContactReceivables: any[] = [];
-          if (Array.isArray(contactTransactions)) {
-            contactTransactions.forEach((t: any) => {
-              const txDate = t.dueDate || t.createdAt;
-              if (isDateWithinRange(txDate, csvStartDate, csvEndDate)) {
-                const info = contactMap.get(String(t.contactId)) || { name: t.personName || "Kişi", phone: "" };
-                const item = { ...t, displayName: info.name, displayPhone: info.phone, effectiveDate: txDate };
-                if (t.type === "payable") {
-                  previewContactPayables.push(item);
-                } else if (t.type === "receivable") {
-                  previewContactReceivables.push(item);
-                }
-              }
-            });
-          }
-
-          const previewContactPayablesTotal = previewContactPayables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-          const previewContactPayablesPaid = previewContactPayables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
-          const previewContactPayablesRemaining = Math.max(0, previewContactPayablesTotal - previewContactPayablesPaid);
-
-          const previewContactReceivablesTotal = previewContactReceivables.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-          const previewContactReceivablesCollected = previewContactReceivables.reduce((sum, c) => sum + (c.isPaid ? (Number(c.amount) || 0) : 0), 0);
-          const previewContactReceivablesPending = Math.max(0, previewContactReceivablesTotal - previewContactReceivablesCollected);
-
-          const previewTotalIncome = previewIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-          const previewTotalExpense = previewExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-
-          const previewDebts = debts.filter(d => {
-            if (!csvStartDate && !csvEndDate) return true;
-            if (isDateWithinRange(d.dueDate || (d as any).date, csvStartDate, csvEndDate)) return true;
-            const hasPayment = payments.some(p => p.debtId === d.id && isDateWithinRange(p.date, csvStartDate, csvEndDate));
-            return hasPayment;
-          });
-
-          const previewSimpleDebtsTotal = previewDebts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-          const previewSimpleDebtsPaid = previewDebts.reduce((sum, d) => {
-            const paidVal = (d as any).paidAmount !== undefined ? Number((d as any).paidAmount) : (Number(d.paid) || 0);
-            return sum + Math.min(Number(d.amount) || 0, paidVal);
-          }, 0);
-          const previewSimpleDebtsRemaining = Math.max(0, previewSimpleDebtsTotal - previewSimpleDebtsPaid);
-
-          let previewInstallmentsTotal = 0;
-          let previewInstallmentsPaid = 0;
-          let previewInstallmentsCount = 0;
-
-          installmentDebts.forEach((inst: any) => {
-            const count = inst.installmentCount || 1;
-            const monthlyAmt = (Number(inst.totalAmount) || 0) / count;
-
-            if (!csvStartDate && !csvEndDate) {
-              previewInstallmentsTotal += (Number(inst.totalAmount) || 0);
-              previewInstallmentsPaid += ((inst.paidInstallmentCount || 0) * monthlyAmt);
-              previewInstallmentsCount++;
-            } else {
-              let occ = 0;
-              let paidOcc = 0;
-              const startParts = parseDateParts(inst.firstDueDate);
-              if (startParts) {
-                for (let i = 0; i < count; i++) {
-                  const occDate = new Date(startParts.year, startParts.month + i, startParts.day);
-                  const occYMD = occDate.toISOString().slice(0, 10);
-                  if (isDateWithinRange(occYMD, csvStartDate, csvEndDate)) {
-                    occ++;
-                    if ((inst.paidInstallmentCount || 0) > i) paidOcc++;
-                  }
-                }
-              } else if (isDateWithinRange(inst.firstDueDate, csvStartDate, csvEndDate)) {
-                occ = 1;
-                if ((inst.paidInstallmentCount || 0) > 0) paidOcc = 1;
-              }
-
-              if (occ > 0) {
-                previewInstallmentsTotal += (occ * monthlyAmt);
-                previewInstallmentsPaid += (paidOcc * monthlyAmt);
-                previewInstallmentsCount++;
-              }
-            }
-          });
-          const previewInstallmentsRemaining = Math.max(0, previewInstallmentsTotal - previewInstallmentsPaid);
-
-          const previewTotalDebt = previewSimpleDebtsTotal + previewInstallmentsTotal + previewContactPayablesTotal;
-          const previewTotalPaid = previewSimpleDebtsPaid + previewInstallmentsPaid + previewContactPayablesPaid;
-          const previewRemainingDebt = Math.max(0, previewTotalDebt - previewTotalPaid);
-          const previewNetReserve = previewTotalIncome - previewTotalExpense - previewTotalPaid;
+          const rep = computeFinancialReportData(csvStartDate, csvEndDate);
+          const previewIncomes = rep.filteredIncomes;
+          const previewExpenses = rep.filteredExpenses;
+          const previewDebts = rep.filteredDebts;
+          const previewSimpleDebtsTotal = rep.simpleDebtsTotal;
+          const previewSimpleDebtsPaid = rep.simpleDebtsPaid;
+          const previewSimpleDebtsRemaining = rep.simpleDebtsRemaining;
+          const previewInstallments = rep.filteredInstallments;
+          const previewInstallmentsTotal = rep.installmentsTotal;
+          const previewInstallmentsPaid = rep.installmentsPaid;
+          const previewInstallmentsRemaining = rep.installmentsRemaining;
+          const previewInstallmentsCount = rep.filteredInstallments.length;
+          const previewContactPayables = rep.filteredContactPayables;
+          const previewContactPayablesTotal = rep.contactPayablesTotal;
+          const previewContactPayablesPaid = rep.contactPayablesPaid;
+          const previewContactReceivables = rep.filteredContactReceivables;
+          const previewContactReceivablesTotal = rep.contactReceivablesTotal;
+          const previewContactReceivablesPending = rep.contactReceivablesPending;
+          const previewTotalIncome = rep.filteredTotalIncome;
+          const previewTotalExpense = rep.filteredTotalExpense;
+          const previewTotalDebt = rep.filteredTotalDebt;
+          const previewTotalPaid = rep.filteredTotalPaid;
+          const previewRemainingDebt = rep.filteredRemainingDebt;
+          const previewNetReserve = rep.filteredNetReserve;
 
           const totalDebtOperationsCount = previewDebts.length + previewInstallmentsCount + previewContactPayables.length;
           const totalRecords = previewIncomes.length + previewExpenses.length + totalDebtOperationsCount + previewContactReceivables.length;
+
+          const isPresetActive = (presetKey: "today" | "this_week" | "this_month" | "last_month" | "this_year" | "last_year" | "all") => {
+            if (presetKey === "all") {
+              return (!csvStartDate && !csvEndDate) || csvPreset === "all";
+            }
+            if (csvPreset === presetKey) return true;
+            const dates = getReportPresetDates(presetKey);
+            return csvStartDate === dates.startDate && csvEndDate === dates.endDate;
+          };
+
+          const applyPreset = (presetKey: "today" | "this_week" | "this_month" | "last_month" | "this_year" | "last_year" | "all") => {
+            setCsvPreset(presetKey);
+            if (presetKey === "all") {
+              setCsvStartDate("");
+              setCsvEndDate("");
+              return;
+            }
+            const dates = getReportPresetDates(presetKey);
+            setCsvStartDate(dates.startDate);
+            setCsvEndDate(dates.endDate);
+          };
 
           return (
             <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 dark:bg-slate-950/70 backdrop-blur-xs">
@@ -10209,84 +10239,67 @@ export default function App() {
                         <div className="grid grid-cols-3 gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const todayStr = now.toISOString().slice(0, 10);
-                              setCsvStartDate(todayStr);
-                              setCsvEndDate(todayStr);
-                            }}
-                            className={`py-2 px-2 rounded-xl font-bold transition text-[11px] text-center shrink-0 cursor-pointer border ${
-                              csvStartDate === csvEndDate && csvStartDate === new Date().toISOString().slice(0, 10)
-                                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-transparent hover:border-emerald-500/30"
+                            onClick={() => applyPreset("today")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("today")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
                             }`}
                           >
                             📅 Bugün (Günlük)
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const day = now.getDay();
-                              const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-                              const monday = new Date(now.setDate(diff));
-                              const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
-                              setCsvStartDate(monday.toISOString().slice(0, 10));
-                              setCsvEndDate(sunday.toISOString().slice(0, 10));
-                            }}
-                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                            onClick={() => applyPreset("this_week")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("this_week")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
+                            }`}
                           >
                             📅 Bu Hafta
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                              const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
-                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
-                            }}
-                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                            onClick={() => applyPreset("this_month")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("this_month")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
+                            }`}
                           >
                             📅 Bu Ay (Aylık)
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                              const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
-                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
-                            }}
-                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                            onClick={() => applyPreset("last_month")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("last_month")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
+                            }`}
                           >
                             📅 Geçen Ay
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const firstDay = new Date(now.getFullYear(), 0, 1);
-                              const lastDay = new Date(now.getFullYear(), 11, 31);
-                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
-                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
-                            }}
-                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                            onClick={() => applyPreset("this_year")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("this_year")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
+                            }`}
                           >
                             📅 Bu Yıl (Yıllık)
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const now = new Date();
-                              const firstDay = new Date(now.getFullYear() - 1, 0, 1);
-                              const lastDay = new Date(now.getFullYear() - 1, 11, 31);
-                              setCsvStartDate(firstDay.toISOString().slice(0, 10));
-                              setCsvEndDate(lastDay.toISOString().slice(0, 10));
-                            }}
-                            className="py-2 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition border border-transparent hover:border-emerald-500/30 text-[11px] text-center shrink-0 cursor-pointer"
+                            onClick={() => applyPreset("last_year")}
+                            className={`py-2 px-2 rounded-xl text-[11px] text-center shrink-0 cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("last_year")
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-md font-black ring-2 ring-emerald-500/30 scale-[1.02]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 font-bold"
+                            }`}
                           >
                             📅 Geçen Yıl
                           </button>
@@ -10294,14 +10307,11 @@ export default function App() {
                         <div className="mt-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setCsvStartDate("");
-                              setCsvEndDate("");
-                            }}
-                            className={`w-full py-2 px-3 rounded-xl font-bold transition text-[11px] text-center cursor-pointer border ${
-                              !csvStartDate && !csvEndDate
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                : "bg-slate-100 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 border-transparent hover:border-indigo-500/30"
+                            onClick={() => applyPreset("all")}
+                            className={`w-full py-2.5 px-3 rounded-xl text-[11px] text-center cursor-pointer border transition-all duration-150 ${
+                              isPresetActive("all")
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-md font-black ring-2 ring-indigo-500/30 scale-[1.01]"
+                                : "bg-slate-100 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800 hover:border-indigo-500/30 font-bold"
                             }`}
                           >
                             🚀 Tüm Zamanlar (Filtresiz)
@@ -10318,7 +10328,10 @@ export default function App() {
                           <input
                             type="date"
                             value={csvStartDate}
-                            onChange={(e) => setCsvStartDate(e.target.value)}
+                            onChange={(e) => {
+                              setCsvStartDate(e.target.value);
+                              setCsvPreset("custom");
+                            }}
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl font-extrabold focus:outline-none focus:ring-1 focus:ring-emerald-500"
                           />
                         </div>
@@ -10329,7 +10342,10 @@ export default function App() {
                           <input
                             type="date"
                             value={csvEndDate}
-                            onChange={(e) => setCsvEndDate(e.target.value)}
+                            onChange={(e) => {
+                              setCsvEndDate(e.target.value);
+                              setCsvPreset("custom");
+                            }}
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl font-extrabold focus:outline-none focus:ring-1 focus:ring-emerald-500"
                           />
                         </div>

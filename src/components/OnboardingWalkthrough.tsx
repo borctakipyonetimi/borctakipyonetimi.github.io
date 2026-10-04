@@ -282,11 +282,11 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
       badge: "🚀 2. ADIM • GÜVENLİ BULUT & UYGULAMAYA BAŞLA",
       badgeColor: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
       title: "Hesabınızı Bağlayın veya Doğrudan Başlayın",
-      subtitle: "Verilerinizin Google Cloud güvencesinde saklanması ve tüm cihazlarınızdan anlık erişebilmeniz için hesabınızı bağlayabilir veya hiçbir hesap açmadan anında çevrimdışı kullanmaya başlayabilirsiniz.",
+      subtitle: "Verilerinizin güvenli bulut altyapısında saklanması ve tüm cihazlarınızdan anlık erişebilmeniz için e-posta ile giriş yapabilir veya kayıt olabilirsiniz. Dilerseniz hiçbir hesap açmadan anında çevrimdışı kullanmaya başlayabilirsiniz.",
       features: [
         {
           icon: <Cloud className="w-4 h-4 text-sky-400" />,
-          title: "Firebase Firestore Bulut Güvencesi",
+          title: "Güvenli Bulut Altyapısı",
           desc: "256-Bit SSL şifrelemeyle tüm verileriniz bulutta yedeklenir, telefon ve bilgisayar arasında anlık eşitlenir.",
           tag: "Bulut Yedekleme"
         },
@@ -305,7 +305,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
         {
           icon: <Zap className="w-4 h-4 text-purple-400" />,
           title: "Esnek & Güvenli Mimari",
-          desc: "İstediğiniz an Ayarlar menüsünden Google hesabınızı bağlayabilir veya yedeklerinizi dışa aktarabilirsiniz.",
+          desc: "İstediğiniz an Ayarlar menüsünden e-posta hesabınızla giriş yapabilir veya yedeklerinizi dışa aktarabilirsiniz.",
           tag: "Tam Kontrol"
         }
       ],
@@ -539,7 +539,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                     Hesabınızı Bağlayın veya Doğrudan Başlayın
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
-                    Verilerinizin bulutta güvende kalması ve tüm cihazlarınızdan erişebilmeniz için Google ile bağlanın. Dilerseniz hiçbir hesap açmadan uygulamayı anında çevrimdışı kullanabilirsiniz.
+                    Verilerinizin bulutta güvende kalması ve tüm cihazlarınızdan erişebilmeniz için e-posta ile giriş yapın veya kayıt olun. Dilerseniz hiçbir hesap açmadan uygulamayı anında çevrimdışı kullanabilirsiniz.
                   </p>
                 </div>
 
@@ -585,7 +585,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                             </div>
                             <div>
                               <h3 className="text-xs sm:text-sm font-black text-white tracking-wide">
-                                Google & Gmail Bulut Girişi
+                                E-Posta ile Giriş ve Kayıt Ol
                               </h3>
                               <p className="text-[10.5px] text-slate-400">Otomatik yedekleme ve tüm cihazlarda anlık eşitleme</p>
                             </div>
@@ -611,7 +611,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
 
                               <div>
                                 <div className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                                  <span>E-Posta / Google ile Giriş Yap & Kayıt Ol</span>
+                                  <span>E-Posta ile Giriş ve Kayıt Ol</span>
                                 </div>
                                 <p className="text-xs text-amber-200/90 font-medium mt-0.5">
                                   👑 Sadece Premium üyelere özel bulut eşitleme ve yedekleme
@@ -676,7 +676,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
                       <Cloud className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-white">Google & Cloud Güvencesi</h4>
+                      <h4 className="text-xs font-bold text-white">Güvenli Bulut Altyapısı</h4>
                       <p className="text-[10.5px] text-slate-400 leading-snug">
                         256-Bit SSL şifreleme ve anında otomatik bulut yedekleme.
                       </p>
@@ -798,7 +798,7 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({
       {/* Uygulama İçi E-Posta / Şifre Giriş & Kayıt Modalı */}
       <ProviderLoginModal
         isOpen={showEmailLoginModal}
-        provider="google"
+        provider="email"
         isPremium={isPremium}
         onOpenUpgradeModal={onOpenUpgradeModal}
         onClose={() => setShowEmailLoginModal(false)}

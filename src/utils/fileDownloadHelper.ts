@@ -33,48 +33,47 @@ export interface SaveImageOptions {
 export async function downloadFileWithCustomName(options: DownloadFileOptions): Promise<boolean> {
   const { fileName, content, mimeType = "application/json;charset=utf-8", onSuccess, onError } = options;
 
-  // 1. Capacitor Native Android / iOS APK Platformu
+  // 1. Modern Web File System Access API (showSaveFilePicker)
+  // Kullanıcının seçeceği kayıt dizinine (Storage / FileSaver API) doğrudan kaydeder
+  if (typeof window !== "undefined" && typeof (window as any).showSaveFilePicker === "function") {
+    try {
+      const ext = fileName.includes(".") ? `.${fileName.split(".").pop()}` : ".json";
+      const cleanMime = mimeType.split(";")[0];
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{
+          description: `${ext.toUpperCase().replace(".", "")} Dosyası`,
+          accept: { [cleanMime]: [ext] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      if (onSuccess) onSuccess();
+      return true;
+    } catch (pickerErr: any) {
+      if (pickerErr?.name === "AbortError") {
+        // Kullanıcı seçiciyi kapattı/vazgeçti
+        return false;
+      }
+      console.warn("[downloadFileWithCustomName] showSaveFilePicker hatası, diğer yöntemlere geçiliyor:", pickerErr);
+    }
+  }
+
+  // 2. Capacitor Native Android / iOS APK Platformu (Doğrudan Documents / Downloads klasörüne yazar, Paylaşım Menüsü açmaz)
   if (Capacitor.isNativePlatform()) {
     try {
       const isBase64 = content.startsWith("data:") || (mimeType && mimeType.startsWith("image/"));
       const cleanData = isBase64 && content.includes(",") ? content.split(",")[1] : content;
 
-      // Cihazın Documents klasörüne dosya adıyla kaydet
-      const docResult = await Filesystem.writeFile({
+      // Cihazın Documents klasörüne dosya adıyla doğrudan kaydet
+      await Filesystem.writeFile({
         path: fileName,
         data: cleanData,
         directory: Directory.Documents,
         encoding: isBase64 ? undefined : Encoding.UTF8,
         recursive: true
       });
-
-      // Paylaşım menüsü (Share provider) için Cache klasörüne de güvenle yaz
-      let shareUri = docResult.uri;
-      try {
-        const cacheResult = await Filesystem.writeFile({
-          path: fileName,
-          data: cleanData,
-          directory: Directory.Cache,
-          encoding: isBase64 ? undefined : Encoding.UTF8,
-          recursive: true
-        });
-        shareUri = cacheResult.uri;
-      } catch {}
-
-      // Android Yerel Paylaşım / Kayıt Arayüzünü tetikle (Google Drive, WhatsApp, İndirilenler, Dosyalarım vb.)
-      try {
-        await Share.share({
-          title: fileName,
-          text: fileName,
-          url: shareUri,
-          dialogTitle: "Dosyayı Kaydet veya Aç"
-        });
-      } catch (shareErr: any) {
-        // Kullanıcı menüyü kapatırsa veya iptal ederse dosya zaten Documents klasöründe kayıtlıdır
-        if (shareErr?.name !== "AbortError") {
-          console.log("[downloadFileWithCustomName] Share dialog info:", shareErr);
-        }
-      }
 
       if (onSuccess) onSuccess();
       return true;
