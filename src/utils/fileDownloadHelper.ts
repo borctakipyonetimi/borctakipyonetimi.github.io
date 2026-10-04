@@ -33,40 +33,12 @@ export interface SaveImageOptions {
 export async function downloadFileWithCustomName(options: DownloadFileOptions): Promise<boolean> {
   const { fileName, content, mimeType = "application/json;charset=utf-8", onSuccess, onError } = options;
 
-  // 1. Modern Web File System Access API (showSaveFilePicker)
-  // Kullanıcının seçeceği kayıt dizinine (Storage / FileSaver API) doğrudan kaydeder
-  if (typeof window !== "undefined" && typeof (window as any).showSaveFilePicker === "function") {
-    try {
-      const ext = fileName.includes(".") ? `.${fileName.split(".").pop()}` : ".json";
-      const cleanMime = mimeType.split(";")[0];
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: fileName,
-        types: [{
-          description: `${ext.toUpperCase().replace(".", "")} Dosyası`,
-          accept: { [cleanMime]: [ext] }
-        }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-      if (onSuccess) onSuccess();
-      return true;
-    } catch (pickerErr: any) {
-      if (pickerErr?.name === "AbortError") {
-        // Kullanıcı seçiciyi kapattı/vazgeçti
-        return false;
-      }
-      console.warn("[downloadFileWithCustomName] showSaveFilePicker hatası, diğer yöntemlere geçiliyor:", pickerErr);
-    }
-  }
-
-  // 2. Capacitor Native Android / iOS APK Platformu (Doğrudan Documents / Downloads klasörüne yazar, Paylaşım Menüsü açmaz)
+  // 1. Capacitor Native Android / iOS APK Platformu (Doğrudan Documents / Downloads klasörüne yazar)
   if (Capacitor.isNativePlatform()) {
     try {
       const isBase64 = content.startsWith("data:") || (mimeType && mimeType.startsWith("image/"));
       const cleanData = isBase64 && content.includes(",") ? content.split(",")[1] : content;
 
-      // Cihazın Documents klasörüne dosya adıyla doğrudan kaydet
       await Filesystem.writeFile({
         path: fileName,
         data: cleanData,
@@ -95,12 +67,47 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
     }
   }
 
-  // 2. Doğrudan Tarayıcı İndirmesi (Blob + HTML5 <a> download)
+  // 3. Doğrudan Tarayıcı İndirmesi (Blob + HTML5 <a> download)
+  // Türkçe karakter desteği ve Excel için CSV/metin içeriklerine UTF-8 BOM eklenir
   try {
-    const blob = new Blob([content], { type: mimeType });
+    const isCsvOrText = mimeType.includes("csv") || mimeType.includes("text");
+    const contentToDownload = isCsvOrText && typeof content === "string" && !content.startsWith("\uFEFF")
+      ? `\uFEFF${content}`
+      : content;
+
+    const blob = new Blob([contentToDownload], { type: mimeType });
     const localUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    link.style.display = "none";
     link.href = localUrl;
+    link.setAttribute("download", fileName);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(localUrl);
+    }, 1500);
+
+    if (onSuccess) onSuccess();
+    return true;
+  } catch (e) {
+    console.warn("[downloadFileWithCustomName] Blob download error, trying Data URI and server fallbacks:", e);
+  }
+
+  // 4. Data URI Fallback
+  try {
+    const isCsvOrText = mimeType.includes("csv") || mimeType.includes("text");
+    const contentToDownload = isCsvOrText && typeof content === "string" && !content.startsWith("\uFEFF")
+      ? `\uFEFF${content}`
+      : content;
+    const encodedUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(contentToDownload)}`;
+    const link = document.createElement("a");
+    link.style.display = "none";
+    link.href = encodedUri;
     link.setAttribute("download", fileName);
     link.download = fileName;
     document.body.appendChild(link);
@@ -109,15 +116,14 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
       if (document.body.contains(link)) {
         document.body.removeChild(link);
       }
-      URL.revokeObjectURL(localUrl);
-    }, 800);
+    }, 1500);
     if (onSuccess) onSuccess();
     return true;
-  } catch (e) {
-    console.warn("[downloadFileWithCustomName] Blob download error, trying server fallback:", e);
+  } catch (dataUriErr) {
+    console.warn("[downloadFileWithCustomName] Data URI download error:", dataUriErr);
   }
 
-  // 3. Fallback: Sunucu üzerinden açık dosya adı ile indirme
+  // 5. Sunucu üzerinden geçici dosya indirme fallback'i
   try {
     const res = await fetch(getApiUrl("/api/temp-backup"), {
       method: "POST",
@@ -129,6 +135,7 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
       const encodedName = encodeURIComponent(fileName);
       const downloadUrl = getApiUrl(`/api/download-temp/${encodedName}?key=${data.key}&filename=${encodedName}`);
       const downloadLink = document.createElement("a");
+      downloadLink.style.display = "none";
       downloadLink.href = downloadUrl;
       downloadLink.setAttribute("download", fileName);
       downloadLink.download = fileName;
@@ -138,7 +145,7 @@ export async function downloadFileWithCustomName(options: DownloadFileOptions): 
         if (document.body.contains(downloadLink)) {
           document.body.removeChild(downloadLink);
         }
-      }, 1000);
+      }, 1500);
       if (onSuccess) onSuccess();
       return true;
     }
