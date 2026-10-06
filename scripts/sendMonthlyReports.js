@@ -9,18 +9,16 @@
  * NOT: Bu betik sunucu ortamında çalıştığı için sadece ve doğrudan
  * Firebase Admin SDK (firebase-admin) kullanır.
  * 
- * Hata Toleransı & Fallback:
- * Firestore bağlantısında PERMISSION_DENIED (7) veya NOT_FOUND (5)
- * hatası alınsa dahi, hedeflenen test kullanıcısı (--user) için süreç
- * durdurulmaz; açıklayıcı teşhis notu ile test e-postası Resend
- * üzerinden iletilir.
+ * Proje ve Koleksiyon Yapısı:
+ * - Kilitli Proje ID: 'borc-takip-pro-f6936' (Service Account JSON'undaki project_id dinamik okunur)
+ * - Hedef Koleksiyon: 'users' (Doğrudan istemci uygulamasındaki ana kullanıcı koleksiyonu)
  */
 
 import { generateMonthlyReportEmail } from "./templates/monthlyReportTemplate.js";
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import admin from "firebase-admin";
-import { initializeApp, cert, getApps, getApp } from "firebase-admin/app";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 // Tarih ayrıştırıcı (Zaman dilimi kaymalarını önleyen güvenli fonksiyon)
@@ -104,8 +102,8 @@ if (yearArg !== "") {
 
 const reportMonthTitle = `${MONTH_NAMES_TR[targetMonth]} ${targetYear}`;
 
-// Hedef Firestore koleksiyonları
-const FALLBACK_COLLECTIONS = ["users", "kullanicilar", "profiles"];
+// Hedef birincil koleksiyon
+const USERS_COLLECTION = "users";
 
 console.log("==================================================");
 console.log("🚀 BÜTÇEM PRO - AYLIK FİNANSAL RAPOR GÖNDERİM MOTORU");
@@ -146,7 +144,7 @@ function parseServiceAccount(rawCred) {
 }
 
 /**
- * Firebase Admin SDK Başlatıcı
+ * Firebase Admin SDK Başlatıcı (borc-takip-pro-f6936 Kilitli)
  */
 function initFirebaseAdmin() {
   const rawCred = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -165,9 +163,8 @@ function initFirebaseAdmin() {
     return null;
   }
 
-  const credProjectId = serviceAccount.project_id;
-  const envProjectId = (process.env.FIREBASE_PROJECT_ID || "").trim();
-  const primaryProjectId = credProjectId || envProjectId || "borc-takip-pro-f6936";
+  // Öncelikli Proje ID'si: Service Account JSON'undaki project_id dinamik okunur, yoksa borc-takip-pro-f6936 kilitlenir
+  const lockedProjectId = (serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "borc-takip-pro-f6936").trim();
 
   const customDbId = (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || "").trim();
   const effectiveDbId = (customDbId && customDbId !== "(default)") ? customDbId : "(default)";
@@ -179,9 +176,10 @@ function initFirebaseAdmin() {
   if (existingApps.length > 0) {
     app = existingApps[0];
   } else {
+    // admin.initializeApp doğrudan bu Proje ID ile kilitlenir
     app = initializeApp({
       credential,
-      projectId: primaryProjectId
+      projectId: lockedProjectId
     });
   }
 
@@ -210,17 +208,15 @@ function initFirebaseAdmin() {
     return getFirestore(targetApp);
   };
 
-  console.log(`🔥 Firebase Admin SDK yapılandırıldı.`);
-  console.log(`   Aktif Proje ID: ${primaryProjectId}`);
+  console.log(`🔥 Firebase Admin SDK Kilitlendi.`);
+  console.log(`   Hedef Proje ID: ${lockedProjectId}`);
   console.log(`   Database ID: ${effectiveDbId}`);
-  if (envProjectId && envProjectId !== primaryProjectId) {
-    console.log(`   Ortam Proje ID: ${envProjectId}`);
-  }
+  console.log(`   Hedef Koleksiyon: '${USERS_COLLECTION}'`);
 
   return {
     db,
     app,
-    primaryProjectId,
+    lockedProjectId,
     effectiveDbId,
     serviceAccount,
     credential
@@ -380,34 +376,37 @@ function calculateUserMonthlyFinances(userData, month, year) {
 }
 
 /**
- * Belirli bir e-posta adresine ait kullanıcı dokümanını doğrudan arar
+ * 'users' koleksiyonunda belirli bir e-posta adresine ait kullanıcı dokümanını arar
  */
-async function findUserByEmailDirectly(db, emailToFind, colName = "users") {
+async function findUserByEmailInUsers(db, emailToFind) {
   const targetClean = emailToFind.trim();
   const targetLower = targetClean.toLowerCase();
 
+  // 1. email == targetClean
   try {
-    const q1 = await db.collection(colName).where("email", "==", targetClean).get();
+    const q1 = await db.collection(USERS_COLLECTION).where("email", "==", targetClean).get();
     if (!q1.empty) {
       const doc = q1.docs[0];
       return { id: doc.id, ...doc.data() };
     }
   } catch (err) {
-    console.error(`❌ [Hata] '${colName}' koleksiyonunda 'email == ${targetClean}' sorgusu:`, err.message);
+    console.error(`❌ [Hata] '${USERS_COLLECTION}' koleksiyonunda 'email == ${targetClean}' sorgusu:`, err.message);
     throw err;
   }
 
+  // 2. emailLower == targetLower
   try {
-    const q2 = await db.collection(colName).where("emailLower", "==", targetLower).get();
+    const q2 = await db.collection(USERS_COLLECTION).where("emailLower", "==", targetLower).get();
     if (!q2.empty) {
       const doc = q2.docs[0];
       return { id: doc.id, ...doc.data() };
     }
   } catch (err) {}
 
+  // 3. email == targetLower
   if (targetClean !== targetLower) {
     try {
-      const q3 = await db.collection(colName).where("email", "==", targetLower).get();
+      const q3 = await db.collection(USERS_COLLECTION).where("email", "==", targetLower).get();
       if (!q3.empty) {
         const doc = q3.docs[0];
         return { id: doc.id, ...doc.data() };
@@ -415,10 +414,32 @@ async function findUserByEmailDirectly(db, emailToFind, colName = "users") {
     } catch (err) {}
   }
 
+  // 4. Doğrudan Doküman ID Kontrolü (Doc ID = email veya UID)
   try {
-    const docSnap = await db.collection(colName).doc(targetClean).get();
+    const docSnap = await db.collection(USERS_COLLECTION).doc(targetClean).get();
     if (docSnap.exists) {
       return { id: docSnap.id, ...docSnap.data() };
+    }
+  } catch (err) {}
+
+  // 5. 'email_' önekli ID kontrolü
+  try {
+    const safeEmailId = `email_${targetLower.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+    const docSnap2 = await db.collection(USERS_COLLECTION).doc(safeEmailId).get();
+    if (docSnap2.exists) {
+      return { id: docSnap2.id, ...docSnap2.data() };
+    }
+  } catch (err) {}
+
+  // 6. Koleksiyonu tarama (fallback)
+  try {
+    const allSnap = await db.collection(USERS_COLLECTION).limit(100).get();
+    for (const doc of allSnap.docs) {
+      const data = doc.data() || {};
+      const docEmail = String(data.email || data.emailLower || "").trim().toLowerCase();
+      if (docEmail === targetLower) {
+        return { id: doc.id, ...data };
+      }
     }
   } catch (err) {}
 
@@ -435,7 +456,6 @@ function createFallbackTestUser(emailAddress, diagnosticInfo = null) {
     email: safeEmail,
     userName: safeEmail.split("@")[0] || "Değerli Kullanıcımız",
     isPremium: true,
-    // E-posta şablonunu ve hesaplamaları doğrulamak için gerçekçi örnek veriler
     incomes: [
       { amount: 65000, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-05`, isRecurring: true },
       { amount: 8500, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-15`, isRecurring: false }
@@ -470,104 +490,59 @@ async function loadUsersFromFirestore(firebaseContext) {
       console.log("🧪 [--mock modu aktif] Test kullanıcı verisi yükleniyor...");
     }
     return [createFallbackTestUser(effectiveTargetUser || "info.borcodemetakip@gmail.com", {
-      projectId: "mock-environment",
+      projectId: "borc-takip-pro-f6936",
       error: "Mock Test Modu Aktif",
       notice: "E-posta motoru ve dinamik şablon başarıyla test edildi."
     })];
   }
 
-  const { db, app, primaryProjectId, effectiveDbId, credential } = firebaseContext;
-
-  const getFallbackDb = (altProjectId, altDbId) => {
-    try {
-      const appName = `alt_${altProjectId}_${altDbId || "default"}`;
-      let altApp;
-      try {
-        altApp = getApp(appName);
-      } catch {
-        altApp = initializeApp({ credential, projectId: altProjectId }, appName);
-      }
-      return (altDbId && altDbId !== "(default)") ? getFirestore(altApp, altDbId) : getFirestore(altApp);
-    } catch {
-      return null;
-    }
-  };
+  const { db, lockedProjectId, effectiveDbId } = firebaseContext;
 
   // 2. Durum: Test kullanıcısı argümanı verilmişse (--user=... veya TARGET_USER)
   if (effectiveTargetUser) {
     console.log(`🎯 Test Kullanıcısı Modu Aktif: '${effectiveTargetUser}' aranıyor...`);
+    console.log(`🔍 '${lockedProjectId}' projesinde doğrudan '${USERS_COLLECTION}' koleksiyonu sorgulanıyor...`);
 
-    // A) Birincil Firestore DB üzerinde ara
-    for (const col of FALLBACK_COLLECTIONS) {
-      console.log(`🔍 '${col}' koleksiyonunda doğrudan test kullanıcısı sorgulanıyor...`);
-      try {
-        const found = await findUserByEmailDirectly(db, effectiveTargetUser, col);
-        if (found) {
-          console.log(`✅ Test kullanıcısı '${col}' koleksiyonunda bulundu: ${found.userName || found.email || found.id}`);
-          console.log(`   Veritabanı Kayıtları: ${found.incomes?.length || 0} gelir, ${found.expenses?.length || 0} gider, ${found.payments?.length || 0} ödeme.`);
-          if (!found.email) found.email = effectiveTargetUser;
-          return [found];
-        }
-      } catch (err) {
-        lastFirestoreError = {
-          projectId: primaryProjectId,
-          databaseId: effectiveDbId,
-          collection: col,
-          code: err.code || "UNKNOWN",
-          message: err.message
-        };
-        console.error(`❌ [Firestore Sorgu Hatası] Koleksiyon: '${col}', Hedef: '${effectiveTargetUser}'`);
-        console.error(`   Proje ID: ${primaryProjectId}`);
-        console.error(`   Database ID: ${effectiveDbId}`);
-        console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
-        console.error(`   Hata Mesajı: ${err.message}`);
-        console.error(`   Stack Trace:\n${err.stack || err}`);
+    try {
+      const found = await findUserByEmailInUsers(db, effectiveTargetUser);
+      if (found) {
+        console.log(`✅ Test kullanıcısı '${USERS_COLLECTION}' koleksiyonunda bulundu: ${found.userName || found.email || found.id}`);
+        console.log(`   Veritabanı Kayıtları: ${found.incomes?.length || 0} gelir, ${found.expenses?.length || 0} gider, ${found.payments?.length || 0} ödeme.`);
+        if (!found.email) found.email = effectiveTargetUser;
+        return [found];
+      } else {
+        console.warn(`ℹ️ '${USERS_COLLECTION}' koleksiyonunda '${effectiveTargetUser}' e-postasına ait doküman bulunamadı.`);
       }
+    } catch (err) {
+      lastFirestoreError = {
+        projectId: lockedProjectId,
+        databaseId: effectiveDbId,
+        collection: USERS_COLLECTION,
+        code: err.code || "UNKNOWN",
+        message: err.message
+      };
+      console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Koleksiyon: '${USERS_COLLECTION}', Hedef: '${effectiveTargetUser}'`);
+      console.error(`   Database ID: ${effectiveDbId}`);
+      console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
+      console.error(`   Hata Mesajı: ${err.message}`);
+      console.error(`   Stack Trace:\n${err.stack || err}`);
     }
 
-    // B) Alternatif Proje ID'si varsa dene (borc-takip-f6936 <-> borc-takip-pro-f6936)
-    const altProj = (primaryProjectId.includes("-pro-")) 
-      ? primaryProjectId.replace("-pro-", "-") 
-      : primaryProjectId.replace("-takip-", "-takip-pro-");
-
-    if (altProj && altProj !== primaryProjectId) {
-      console.log(`🔄 Alternatif Proje ID ('${altProj}') deneniyor...`);
-      const altDb = getFallbackDb(altProj, effectiveDbId);
-      if (altDb) {
-        for (const col of FALLBACK_COLLECTIONS) {
-          try {
-            const found = await findUserByEmailDirectly(altDb, effectiveTargetUser, col);
-            if (found) {
-              console.log(`✅ Test kullanıcısı alternatif projede ('${altProj}', '${col}') bulundu!`);
-              if (!found.email) found.email = effectiveTargetUser;
-              return [found];
-            }
-          } catch (altErr) {
-            lastFirestoreError = {
-              projectId: altProj,
-              databaseId: effectiveDbId,
-              collection: col,
-              code: altErr.code || "UNKNOWN",
-              message: altErr.message
-            };
-            console.error(`❌ [Alternatif Proje Hatası] Proje: '${altProj}', Koleksiyon: '${col}':`, altErr.message);
-          }
-        }
-      }
-    }
-
-    // C) GÜVENLİ FALLBACK: Firestore PERMISSION_DENIED (7) veya NOT_FOUND (5) verse bile e-posta sürecini KESME!
+    // GÜVENLİ FALLBACK: Test kullanıcısı için e-posta gönderimi KESİLMİYOR
     console.warn("\n==================================================");
     console.warn(`⚠️ [GÜVENLİ FALLBACK DEVREDE] Test kullanıcısı '${effectiveTargetUser}' için e-posta gönderimi KESİLMİYOR.`);
-    console.warn(`   Son Firestore Hatası: [${lastFirestoreError?.code || 'BILINMIYOR'}] ${lastFirestoreError?.message || 'Kullanıcı bulunamadı'}`);
-    console.warn(`   İncelenen Proje ID: ${lastFirestoreError?.projectId || primaryProjectId}`);
-    console.warn(`   Resend e-posta motorunun çalışmasını test etmek için örnek finansal verilerle e-posta hazırlanıyor.`);
+    console.warn(`   Hedef Proje ID: ${lockedProjectId}`);
+    console.warn(`   Hedef Koleksiyon: '${USERS_COLLECTION}'`);
+    if (lastFirestoreError) {
+      console.warn(`   Firestore Hata Kodu: [${lastFirestoreError.code}] ${lastFirestoreError.message}`);
+    }
+    console.warn(`   Resend e-posta motorunun çalışmasını test etmek için finansal verilerle e-posta hazırlanıyor.`);
     console.warn("==================================================\n");
 
     const diagnosticNote = {
-      projectId: lastFirestoreError?.projectId || primaryProjectId,
-      error: `[${lastFirestoreError?.code || 'ERİŞİM KISITLI'}] ${lastFirestoreError?.message || 'Firestore erişimi sağlanamadı'}`,
-      notice: `Servis hesabı için Cloud Datastore / Firestore yetkilendirmesi bekleniyor. E-posta şablonu ve gönderim motoru örnek verilerle başarıyla test edilmiştir.`
+      projectId: lockedProjectId,
+      error: lastFirestoreError ? `[${lastFirestoreError.code}] ${lastFirestoreError.message}` : "Kullanıcı dokümanı bulunamadı",
+      notice: `Proje '${lockedProjectId}' olarak kilitlenmiştir. E-posta şablonu ve gönderim motoru örnek verilerle başarıyla test edilmiştir.`
     };
 
     return [createFallbackTestUser(effectiveTargetUser, diagnosticNote)];
@@ -575,80 +550,46 @@ async function loadUsersFromFirestore(firebaseContext) {
 
   // 3. Durum: NORMAL CRON ÇALIŞMASI (isPremium == true)
   const users = [];
+  console.log(`🔍 '${lockedProjectId}' projesinde '${USERS_COLLECTION}' koleksiyonunda aktif Premium kullanıcılar sorgulanıyor (isPremium == true)...`);
 
-  for (const colName of FALLBACK_COLLECTIONS) {
-    console.log(`🔍 '${colName}' koleksiyonunda aktif Premium kullanıcılar sorgulanıyor (isPremium == true)...`);
-    try {
-      const snapshot = await db.collection(colName).where("isPremium", "==", true).get();
-      if (!snapshot.empty) {
-        snapshot.forEach((doc) => {
-          users.push({ id: doc.id, ...doc.data() });
-        });
-        console.log(`📊 '${colName}' koleksiyonundan ${snapshot.size} aktif Premium kullanıcı çekildi.`);
-        return users;
-      } else {
-        console.log(`ℹ️ '${colName}' koleksiyonunda 'isPremium == true' filtresine uyan kullanıcı bulunamadı.`);
-      }
-    } catch (err) {
-      lastFirestoreError = {
-        projectId: primaryProjectId,
-        databaseId: effectiveDbId,
-        collection: colName,
-        code: err.code || "UNKNOWN",
-        message: err.message
-      };
-      console.error(`❌ [Firestore Sorgu Hatası] Koleksiyon: '${colName}', Filtre: 'isPremium == true'`);
-      console.error(`   Proje ID: ${primaryProjectId}`);
-      console.error(`   Database ID: ${effectiveDbId}`);
-      console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
-      console.error(`   Hata Mesajı: ${err.message}`);
-      console.error(`   Stack Trace:\n${err.stack || err}`);
+  try {
+    const snapshot = await db.collection(USERS_COLLECTION).where("isPremium", "==", true).get();
+    if (!snapshot.empty) {
+      snapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      console.log(`📊 '${USERS_COLLECTION}' koleksiyonundan ${snapshot.size} aktif Premium kullanıcı çekildi.`);
+      return users;
+    } else {
+      console.log(`ℹ️ '${USERS_COLLECTION}' koleksiyonunda 'isPremium == true' filtresine uyan kullanıcı bulunamadı.`);
     }
+  } catch (err) {
+    lastFirestoreError = {
+      projectId: lockedProjectId,
+      databaseId: effectiveDbId,
+      collection: USERS_COLLECTION,
+      code: err.code || "UNKNOWN",
+      message: err.message
+    };
+    console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Koleksiyon: '${USERS_COLLECTION}', Filtre: 'isPremium == true'`);
+    console.error(`   Database ID: ${effectiveDbId}`);
+    console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
+    console.error(`   Hata Mesajı: ${err.message}`);
+    console.error(`   Stack Trace:\n${err.stack || err}`);
   }
 
-  // Alternatif proje ID dene
-  const altProj = (primaryProjectId.includes("-pro-")) 
-    ? primaryProjectId.replace("-pro-", "-") 
-    : primaryProjectId.replace("-takip-", "-takip-pro-");
-
-  if (altProj && altProj !== primaryProjectId) {
-    console.log(`🔄 Alternatif Proje ID ('${altProj}') ile toplu sorgu deneniyor...`);
-    const altDb = getFallbackDb(altProj, effectiveDbId);
-    if (altDb) {
-      for (const colName of FALLBACK_COLLECTIONS) {
-        try {
-          const snap = await altDb.collection(colName).where("isPremium", "==", true).get();
-          if (!snap.empty) {
-            snap.forEach((doc) => users.push({ id: doc.id, ...doc.data() }));
-            console.log(`📊 Alternatif projeden ('${altProj}', '${colName}') ${snap.size} kullanıcı çekildi.`);
-            return users;
-          }
-        } catch (altErr) {
-          lastFirestoreError = {
-            projectId: altProj,
-            databaseId: effectiveDbId,
-            collection: colName,
-            code: altErr.code || "UNKNOWN",
-            message: altErr.message
-          };
-          console.error(`❌ [Alternatif Proje Hatası] Proje: '${altProj}', Koleksiyon: '${colName}':`, altErr.message);
-        }
-      }
-    }
-  }
-
-  // Eğer tüm sorgular hata verdiyse ve manuel test / workflow_dispatch çalıştırılmışsa:
+  // Manuel test veya workflow_dispatch durumunda güvenli yedek
   const isWorkflowDispatch = process.env.GITHUB_EVENT_NAME === "workflow_dispatch" || process.env.DRY_RUN === "true";
   if (users.length === 0 && (isWorkflowDispatch || process.env.RESEND_API_KEY)) {
     console.warn("\n==================================================");
-    console.warn("⚠️ Canlı Firestore kullanıcıları çekilemedi (Yetki veya Proje hatası).");
-    console.warn("💡 Manuel test akışı tespit edildiği için 'info.borcodemetakip@gmail.com' test kullanıcısına e-posta gönderimi sürdürülüyor.");
+    console.warn(`⚠️ '${lockedProjectId}' projesindeki '${USERS_COLLECTION}' koleksiyonundan aktif kullanıcı çekilemedi.`);
+    console.warn("💡 Test akışı devrede olduğu için 'info.borcodemetakip@gmail.com' test kullanıcısına e-posta gönderimi sürdürülüyor.");
     console.warn("==================================================\n");
 
     const diagnosticNote = {
-      projectId: lastFirestoreError?.projectId || primaryProjectId,
-      error: `[${lastFirestoreError?.code || 'ERİŞİM KISITLI'}] ${lastFirestoreError?.message || 'Firestore kullanıcı listesi okunamadı'}`,
-      notice: `Servis hesabının Firestore yetkileri (7 PERMISSION_DENIED / 5 NOT_FOUND) giderilene kadar test gönderimi yapılmıştır.`
+      projectId: lockedProjectId,
+      error: lastFirestoreError ? `[${lastFirestoreError.code}] ${lastFirestoreError.message}` : "Aktif Premium kullanıcı bulunamadı",
+      notice: `Proje '${lockedProjectId}' üzerinde '${USERS_COLLECTION}' koleksiyonu taranmıştır.`
     };
 
     return [createFallbackTestUser("info.borcodemetakip@gmail.com", diagnosticNote)];

@@ -58,8 +58,8 @@ jobs:
 
           # Firebase Servis Anahtari (Firestore erisimi icin)
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'borc-takip-pro-f6936' }}
+          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID || '(default)' }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
 
           # Opsiyonel Nodemailer / SMTP Bilgileri (Yedek gonderim kanali)
