@@ -70,6 +70,7 @@ jobs:
 
           # Manuel tetikleme girdileri
           DRY_RUN: ${{ inputs.dry_run }}
+          TARGET_USER: ${{ inputs.target_user }}
         run: |
           CLI_ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then

@@ -5,11 +5,18 @@
  * Her ayın 1'inde çalışarak aktif Premium kullanıcıların (isPremium == true)
  * bir önceki aya ait Gerçek Gelir, Gider ve Ödenen Borç verilerini derler,
  * dinamik HTML şablonunu oluşturur ve Resend (veya Nodemailer) ile iletir.
+ * 
+ * NOT: Bu betik sunucu ortamında (GitHub Actions) çalıştığı için sadece
+ * ve doğrudan Firebase Admin SDK (firebase-admin) kullanır.
+ * Client SDK (firebase/firestore) tamamen kaldırılmıştır.
  */
 
 import { generateMonthlyReportEmail } from "./templates/monthlyReportTemplate.js";
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
+import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 // Tarih ayrıştırıcı (Zaman dilimi kaymalarını önleyen güvenli fonksiyon)
 function parseDateParts(dateStr) {
@@ -53,10 +60,21 @@ const MONTH_NAMES_TR = [
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
 ];
 
-// CLI argümanlarını ayrıştır
+// CLI argümanlarını ve ortam değişkenlerini ayrıştır
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run") || process.env.DRY_RUN === "true";
-const targetEmailArg = (args.find(a => a.startsWith("--user=")) || "").replace("--user=", "").trim();
+const isMockMode = args.includes("--mock");
+
+// Hedef kullanıcı (--user=... veya TARGET_USER env)
+let rawTargetUser = (
+  args.find(a => a.startsWith("--user="))?.replace("--user=", "") ||
+  process.env.TARGET_USER ||
+  ""
+).trim();
+// Tırnak işaretlerini temizle
+rawTargetUser = rawTargetUser.replace(/^["']|["']$/g, "").trim();
+const targetEmailArg = rawTargetUser;
+
 const monthArg = (args.find(a => a.startsWith("--month=")) || "").replace("--month=", "").trim();
 const yearArg = (args.find(a => a.startsWith("--year=")) || "").replace("--year=", "").trim();
 
@@ -86,8 +104,85 @@ console.log("==================================================");
 console.log("🚀 BÜTÇEM PRO - AYLIK FİNANSAL RAPOR GÖNDERİM MOTORU");
 console.log(`📅 Rapor Dönemi: ${reportMonthTitle} (Ay: ${targetMonth + 1}, Yıl: ${targetYear})`);
 console.log(`⚙️ Mod: ${isDryRun ? "DRY RUN (Test Modu - E-posta gönderilmeyecek)" : "CANLI (E-postalar gönderilecek)"}`);
-if (targetEmailArg) console.log(`🎯 Hedef Test Kullanıcısı: ${targetEmailArg}`);
+if (targetEmailArg) console.log(`🎯 Hedef Test Kullanıcısı Önceliği: ${targetEmailArg}`);
 console.log("==================================================");
+
+/**
+ * Güvenli Servis Hesabı Ayrıştırıcı
+ * String, Base64 veya escape edilmiş JSON biçimlerini sorunsuz parse eder.
+ */
+function parseServiceAccount(rawCred) {
+  if (!rawCred) return null;
+  let str = String(rawCred).trim();
+
+  // Tırnak işaretiyle sarılmışsa kaldır
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.substring(1, str.length - 1).trim();
+  }
+
+  // Base64 kodlanmışsa çöz
+  if (!str.startsWith("{")) {
+    try {
+      const decoded = Buffer.from(str, "base64").toString("utf-8").trim();
+      if (decoded.startsWith("{")) {
+        str = decoded;
+      }
+    } catch {}
+  }
+
+  try {
+    const parsed = JSON.parse(str);
+    // Private key içindeki kaçış karakterlerini (\n) gerçek alt satırlara dönüştür
+    if (parsed.private_key && typeof parsed.private_key === "string" && parsed.private_key.includes("\\n")) {
+      parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`FIREBASE_SERVICE_ACCOUNT JSON parse hatası: ${err.message}`);
+  }
+}
+
+/**
+ * Firebase Admin SDK Başlatıcı (Firestore Bağlantısı)
+ */
+function initFirebaseAdmin() {
+  const rawCred = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!rawCred) {
+    if (isMockMode) {
+      console.log("ℹ️ FIREBASE_SERVICE_ACCOUNT tanımlanmamış, ancak --mock modunda çalışıldığı için devam ediliyor.");
+      return null;
+    }
+    throw new Error("FIREBASE_SERVICE_ACCOUNT gizli anahtarı bulunamadı! Lütfen GitHub Secrets içerisine ekleyin.");
+  }
+
+  const serviceAccount = parseServiceAccount(rawCred);
+  if (!serviceAccount || !serviceAccount.project_id) {
+    throw new Error("Geçerli bir Firebase Servis Hesabı JSON nesnesi ayrıştırılamadı!");
+  }
+
+  const credential = cert(serviceAccount);
+
+  const existingApps = getApps();
+  const app = existingApps.length > 0 
+    ? existingApps[0] 
+    : initializeApp({
+        credential,
+        projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id || "borc-takip-pro-f6936"
+      });
+
+  const db = getFirestore(app);
+
+  // admin nesnesi geriye dönük uyumluluk köprüsü
+  if (!admin.credential) {
+    admin.credential = { cert };
+  }
+  if (!admin.firestore) {
+    admin.firestore = () => db;
+  }
+
+  console.log(`🔥 Firebase Admin SDK ve Firestore başarıyla başlatıldı (Proje: ${serviceAccount.project_id}).`);
+  return db;
+}
 
 /**
  * E-posta Gönderici Servisi
@@ -214,7 +309,7 @@ function calculateUserMonthlyFinances(userData, month, year) {
     }
   });
 
-  // Eğer detaylı payments logu tutulmamışsa basit borç ve taksitlerden dönemsel ödenenleri ekle
+  // Detaylı payments logu tutulmamışsa basit borç ve taksitlerden dönemsel ödenenleri ekle
   if (!hasPaymentLogs) {
     debts.forEach((d) => {
       const p = parseDateParts(d.dueDate || d.date);
@@ -250,15 +345,15 @@ function calculateUserMonthlyFinances(userData, month, year) {
 }
 
 /**
- * Firestore'dan kullanıcıları yükler
+ * Firestore'dan kullanıcıları yükler (Admin SDK)
  */
-async function loadPremiumUsers() {
-  if (args.includes("--mock")) {
-    console.log("🧪 [--mock bayrağı aktif] Test amaçlı örnek kullanıcı verileri yükleniyor...");
+async function loadUsersFromFirestore(db) {
+  if (isMockMode || !db) {
+    console.log("🧪 [--mock modu aktif] Test amaçlı örnek kullanıcı verileri yükleniyor...");
     return [
       {
         id: "mock_user_1",
-        email: targetEmailArg || "test.kullanici@example.com",
+        email: targetEmailArg || "info.borcodemetakip@gmail.com",
         userName: "Ahmet Yılmaz",
         isPremium: true,
         incomes: [
@@ -278,83 +373,99 @@ async function loadPremiumUsers() {
     ];
   }
 
-  // 1. Firebase Admin SDK Kontrolü (Servis Hesabı Varsa)
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // 1. ÖNCELİK: Test kullanıcısı argümanı verilmişse (--user=...)
+  if (targetEmailArg) {
+    console.log(`🎯 Test Kullanıcısı Sorgusu: '${targetEmailArg}' Firestore'dan aranıyor...`);
+    const targetClean = targetEmailArg.trim();
+    const targetLower = targetClean.toLowerCase();
+
+    const matchedUsers = [];
+
+    // A) email alanına göre doğrudan eşleşme
     try {
-      const admin = await import("firebase-admin");
-      let credential;
-      let rawCred = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+      const q1 = await db.collection("users").where("email", "==", targetClean).get();
+      q1.forEach(doc => matchedUsers.push({ id: doc.id, ...doc.data() }));
+    } catch (e1) {
+      console.warn("⚠️ email sorgusu:", e1.message);
+    }
 
-      // Base64 kodlanmışsa çöz
-      if (!rawCred.startsWith("{") && !rawCred.includes("\n")) {
-        try {
-          rawCred = Buffer.from(rawCred, "base64").toString("utf-8");
-        } catch {}
+    // B) emailLower alanına göre eşleşme
+    if (matchedUsers.length === 0) {
+      try {
+        const q2 = await db.collection("users").where("emailLower", "==", targetLower).get();
+        q2.forEach(doc => matchedUsers.push({ id: doc.id, ...doc.data() }));
+      } catch (e2) {
+        console.warn("⚠️ emailLower sorgusu:", e2.message);
       }
+    }
 
-      if (rawCred.startsWith("{")) {
-        credential = admin.default.credential.cert(JSON.parse(rawCred));
-      } else {
-        credential = admin.default.credential.cert(rawCred);
+    // C) Küçük harf ile email sorgusu
+    if (matchedUsers.length === 0 && targetClean !== targetLower) {
+      try {
+        const q3 = await db.collection("users").where("email", "==", targetLower).get();
+        q3.forEach(doc => matchedUsers.push({ id: doc.id, ...doc.data() }));
+      } catch (e3) {
+        console.warn("⚠️ lowercase email sorgusu:", e3.message);
       }
+    }
 
-      if (!admin.default.apps.length) {
-        admin.default.initializeApp({ credential });
+    // D) Doküman ID veya tüm kullanıcılar içinde arama (Geniş fallback)
+    if (matchedUsers.length === 0) {
+      console.log(`ℹ️ Doğrudan index eşleşmedi, doküman ID veya koleksiyon içi arama yapılıyor...`);
+      try {
+        // Doküman doğrudan ID olabilir
+        const docById = await db.collection("users").doc(targetClean).get();
+        if (docById.exists) {
+          matchedUsers.push({ id: docById.id, ...docById.data() });
+        }
+      } catch {}
+
+      if (matchedUsers.length === 0) {
+        const allSnap = await db.collection("users").get();
+        allSnap.forEach(doc => {
+          const d = doc.data() || {};
+          const docEmail = String(d.email || d.emailLower || "").trim().toLowerCase();
+          if (docEmail === targetLower || doc.id.toLowerCase() === targetLower) {
+            matchedUsers.push({ id: doc.id, ...d });
+          }
+        });
       }
+    }
 
-      const db = admin.default.firestore();
-      
-      // 10 saniye zaman aşımı koruması
-      const snapshotPromise = db.collection("users").where("isPremium", "==", true).get();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Firestore bağlantı zaman aşımı (10s)")), 10000)
-      );
-
-      const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
-      const users = [];
-      snapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() });
-      });
-      console.log(`[Firebase Admin] ${users.length} aktif Premium kullanıcı çekildi.`);
-      return users;
-    } catch (adminErr) {
-      console.warn("[Firebase Admin] Başlatma/okuma uyarısı:", adminErr.message);
+    if (matchedUsers.length > 0) {
+      const user = matchedUsers[0];
+      console.log(`✅ Test kullanıcısı Firestore'da bulundu: ${user.userName || user.email || user.id}`);
+      console.log(`   Veritabanı Kayıtları: ${user.incomes?.length || 0} gelir, ${user.expenses?.length || 0} gider, ${user.debts?.length || 0} borç, ${user.installmentDebts?.length || 0} taksit, ${user.payments?.length || 0} ödeme.`);
+      // Test kullanıcısına garanti e-posta adresi ata
+      if (!user.email) user.email = targetClean;
+      return [user];
+    } else {
+      console.warn(`⚠️ Veritabanında '${targetEmailArg}' adresine ait kullanıcı dokümanı bulunamadı.`);
+      console.log(`💡 Hedef adrese sıfır bakiyeli test şablonu iletilecektir.`);
+      return [{
+        id: "test_" + targetLower,
+        email: targetClean,
+        userName: targetClean.split("@")[0],
+        isPremium: true,
+        incomes: [],
+        expenses: [],
+        debts: [],
+        installmentDebts: [],
+        payments: []
+      }];
     }
   }
 
-  // 2. Firebase Client SDK Kontrolü (Zaman aşımı korumalı)
-  try {
-    const { initializeApp, getApps } = await import("firebase/app");
-    const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
+  // 2. NORMAL CRON ÇALIŞMASI: Aktif Premium kullanıcılar (isPremium == true)
+  console.log("🔍 Aktif Premium kullanıcılar sorgulanıyor (isPremium == true)...");
+  const snapshot = await db.collection("users").where("isPremium", "==", true).get();
+  const users = [];
+  snapshot.forEach((doc) => {
+    users.push({ id: doc.id, ...doc.data() });
+  });
 
-    const firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDnMbBVsN37dGjNEYSL4XJnWVBIeiF1F4c",
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN || "borc-takip-pro-f6936.firebaseapp.com",
-      projectId: process.env.FIREBASE_PROJECT_ID || "borc-takip-pro-f6936"
-    };
-
-    const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const q = query(collection(db, "users"), where("isPremium", "==", true));
-    const queryPromise = getDocs(q);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Firestore Client zaman aşımı (8s)")), 8000)
-    );
-
-    const querySnapshot = await Promise.race([queryPromise, timeoutPromise]);
-    const users = [];
-    querySnapshot.forEach((doc) => {
-      users.push({ id: doc.id, ...doc.data() });
-    });
-
-    console.log(`[Firebase Client] ${users.length} aktif Premium kullanıcı çekildi.`);
-    return users;
-  } catch (clientErr) {
-    console.warn("[Firebase Client] Veri çekme uyarısı:", clientErr.message);
-  }
-
-  return [];
+  console.log(`📊 Toplam ${users.length} aktif Premium kullanıcı çekildi.`);
+  return users;
 }
 
 /**
@@ -362,10 +473,15 @@ async function loadPremiumUsers() {
  */
 async function run() {
   const startTime = Date.now();
-  const users = await loadPremiumUsers();
+
+  // Firebase Admin Firestore bağlantısını kur
+  const db = initFirebaseAdmin();
+
+  // Kullanıcıları yükle
+  const users = await loadUsersFromFirestore(db);
 
   if (!users || users.length === 0) {
-    console.log("ℹ️ Gönderilecek aktif Premium kullanıcı bulunamadı.");
+    console.log("ℹ️ Gönderilecek aktif kullanıcı bulunamadı.");
     return;
   }
 
@@ -374,7 +490,7 @@ async function run() {
   let skippedCount = 0;
 
   for (const user of users) {
-    const email = (user.email || "").trim();
+    const email = (user.email || user.emailLower || "").trim();
     const userName = user.userName || user.name || user.displayName || user.user || email.split("@")[0] || "Değerli Kullanıcımız";
 
     if (!email || !email.includes("@")) {
@@ -383,16 +499,11 @@ async function run() {
       continue;
     }
 
-    if (targetEmailArg && email.toLowerCase() !== targetEmailArg.toLowerCase()) {
-      skippedCount++;
-      continue;
-    }
-
     try {
-      // Kullanıcının ilgili aya ait hesaplamasını yap
+      // Kullanıcının hedef aya ait gerçek finansal hesaplamasını yap
       const { totalIncome, totalExpense, paidDebts, netBalance } = calculateUserMonthlyFinances(user, targetMonth, targetYear);
 
-      // Dinamik HTML şablonunu oluştur
+      // Dinamik modern HTML şablonunu oluştur
       const emailHtml = generateMonthlyReportEmail({
         user_name: userName,
         report_month: reportMonthTitle,
@@ -418,14 +529,14 @@ async function run() {
           html: emailHtml,
           text: textFallback
         });
-        console.log(`✅ Başarıyla iletildi (${result.provider}): ${email} (ID: ${result.id || "N/A"})`);
+        console.log(`✅ Başarıyla iletildi (${result.provider}): ${email} (Mesaj ID: ${result.id || "N/A"})`);
         successCount++;
 
-        // Hız sınırlamasını (rate limit) önlemek için kısa bekleme (150ms)
+        // Resend rate limit sınırlarına takılmamak için kısa bekleme (150ms)
         await new Promise((res) => setTimeout(res, 150));
       }
     } catch (userErr) {
-      // HATA TOLERANSI: Tek kullanıcının hatası tüm süreci durdurmaz!
+      // HATA TOLERANSI: Tek kullanıcının hatası diğer gönderimleri aksatmaz!
       console.error(`❌ [Hata] '${email}' kullanıcısına rapor gönderilemedi:`, userErr.message);
       failureCount++;
     }
@@ -442,6 +553,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error("💥 Kritik betik hatası:", err);
+  console.error("💥 Kritik betik hatası:", err.message || err);
   process.exit(1);
 });
