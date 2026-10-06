@@ -59,6 +59,7 @@ jobs:
           # Firebase Servis Anahtari (Firestore erisimi icin)
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'borc-takip-pro-f6936' }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL || 'https://borc-takip-pro-f6936-default-rtdb.firebaseio.com' }}
           FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID || 'ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e' }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
 
