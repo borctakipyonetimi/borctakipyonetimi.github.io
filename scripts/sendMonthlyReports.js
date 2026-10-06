@@ -166,8 +166,10 @@ function initFirebaseAdmin() {
   // Öncelikli Proje ID'si: Service Account JSON'undaki project_id dinamik okunur, yoksa borc-takip-pro-f6936 kilitlenir
   const lockedProjectId = (serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "borc-takip-pro-f6936").trim();
 
-  const customDbId = (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || "").trim();
-  const effectiveDbId = (customDbId && customDbId !== "(default)") ? customDbId : "(default)";
+  // Veritabanı Kimliği (Database ID): Varsayılan (default) yerine özel ID
+  const FIRESTORE_DATABASE_ID = "ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e";
+  const customDbId = (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || FIRESTORE_DATABASE_ID).trim();
+  const effectiveDbId = (customDbId && customDbId !== "(default)") ? customDbId : FIRESTORE_DATABASE_ID;
 
   const credential = cert(serviceAccount);
 
@@ -183,17 +185,21 @@ function initFirebaseAdmin() {
     });
   }
 
+  // Firestore DB bağlantısını doğrudan belirtilen Database ID ile başlat
   let db;
   try {
-    if (effectiveDbId && effectiveDbId !== "(default)") {
-      console.log(`ℹ️ Özel Firestore Database ID kullanılıyor: '${effectiveDbId}'`);
-      db = getFirestore(app, effectiveDbId);
-    } else {
+    console.log(`ℹ️ Firestore Database ID bağlanıyor: '${effectiveDbId}'`);
+    db = getFirestore(app, effectiveDbId);
+  } catch (dbErr) {
+    console.warn(`⚠️ getFirestore(app, '${effectiveDbId}') başlatma uyarısı:`, dbErr.message);
+    try {
+      db = getFirestore(app);
+      if (typeof db.settings === "function") {
+        db.settings({ databaseId: effectiveDbId, ignoreUndefinedProperties: true });
+      }
+    } catch {
       db = getFirestore(app);
     }
-  } catch (dbErr) {
-    console.warn(`⚠️ getFirestore başlatma uyarısı:`, dbErr.message);
-    db = getFirestore(app);
   }
 
   if (!admin.credential) {
@@ -202,10 +208,7 @@ function initFirebaseAdmin() {
   admin.firestore = (appInstance, databaseId) => {
     const targetApp = appInstance || app;
     const targetDbId = databaseId || effectiveDbId;
-    if (targetDbId && targetDbId !== "(default)") {
-      return getFirestore(targetApp, targetDbId);
-    }
-    return getFirestore(targetApp);
+    return getFirestore(targetApp, targetDbId);
   };
 
   console.log(`🔥 Firebase Admin SDK Kilitlendi.`);
