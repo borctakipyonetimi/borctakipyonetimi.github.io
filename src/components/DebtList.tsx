@@ -83,7 +83,6 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
   const itemsPerPage = 8;
-  const [showPeriodOnlyForAddedDebts, setShowPeriodOnlyForAddedDebts] = useState(false);
 
   // Template Manager States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -736,14 +735,27 @@ export const DebtList: React.FC<DebtListProps> = ({
     } catch { return true; }
   });
   
-  // Sadece Ekli / Eklenmiş Borçlar Hesaplaması (Taksitli Borçlar ve Kişi Borçları Kesinlikle Hariç)
-  const simpleDebtsAllTimeTotal = debts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const simpleDebtsAllTimePaid = debts.reduce((sum, d) => sum + (Number(d.paid) || 0), 0);
-  const simpleDebtsAllTimeRemaining = debts.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+  // Sadece o ayki ödenmemiş eklenmiş borçlar (alttaki borç kartlarıyla %100 birebir örtüşür, taksitler kesinlikle hariç)
+  const currentMonthUnpaidDebts = debts.filter((d) => {
+    // 1. Sadece ödenmemiş borçlar
+    if (d.paid >= d.amount) return false;
 
-  const simpleDebtsInPeriodTotal = debtsInPeriod.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const simpleDebtsInPeriodPaid = debtsInPeriod.reduce((sum, d) => sum + (Number(d.paid) || 0), 0);
-  const simpleDebtsInPeriodRemaining = debtsInPeriod.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+    // 2. Seçili ay ve yıl filtresi (alttaki borç listesiyle birebir aynı parseDateParts mantığı)
+    if (selectedMonth !== null && selectedYear !== null) {
+      if (!d.dueDate) return true;
+      const dParts = parseDateParts(d.dueDate);
+      if (!dParts) return true;
+
+      const selectedTime = selectedYear * 12 + selectedMonth;
+      const debtTime = dParts.year * 12 + dParts.month;
+      return debtTime === selectedTime;
+    }
+    return true;
+  });
+
+  // O ayki ödenmemiş borç kartlarının toplam borç miktarı
+  const currentMonthUnpaidDebtsTotal = currentMonthUnpaidDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const currentMonthUnpaidDebtsCount = currentMonthUnpaidDebts.length;
 
   const installmentsInPeriod = installmentDebts.map((inst) => {
     const perMonth = inst.totalAmount / (inst.installmentCount || 1);
@@ -1593,31 +1605,22 @@ export const DebtList: React.FC<DebtListProps> = ({
 
       {/* Top Level Key Debt Aggregates Cards matching Dashboard */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
-        {/* 0. EKLİ BORÇLAR TOPLAMI (SADECE EKLENMİŞ BORÇLAR - TAKSİTLER KESİNLİKLE HARİÇ) */}
+        {/* 0. EKLENMİŞ BORÇLAR (SADECE O AYKİ ÖDENMEMİŞ BORÇ KARTLARI - TAKSİTLER KESİNLİKLE HARİÇ) */}
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          onClick={() => {
-            if (selectedMonth !== null && selectedYear !== null) {
-              setShowPeriodOnlyForAddedDebts((prev) => !prev);
-            }
-          }}
-          title={`Ekli Borçlar Toplamı: ${format(simpleDebtsAllTimeTotal)} | Kalan: ${format(simpleDebtsAllTimeRemaining)} | Ödenen: ${format(simpleDebtsAllTimePaid)} (Taksitli borçlar hariç tutulmuştur)${selectedMonth !== null && selectedYear !== null ? ' - Dokunarak dönem/genel geçişi yapabilirsiniz' : ''}`}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-800 dark:from-cyan-950 dark:via-blue-950 dark:to-slate-900 border-2 border-cyan-400/40 dark:border-cyan-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-cyan-600/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer group"
+          title={`Eklenmiş Borçlar: ${format(currentMonthUnpaidDebtsTotal)} (${currentMonthUnpaidDebtsCount} Borç Kaydı - Taksitli borçlar hariç tutulmuştur)`}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-800 dark:from-cyan-950 dark:via-blue-950 dark:to-slate-900 border-2 border-cyan-400/40 dark:border-cyan-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-cyan-600/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] group"
         >
           <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-100 uppercase tracking-wide">
             <Receipt className="w-3 h-3 text-cyan-200" />
-            <span>{showPeriodOnlyForAddedDebts && selectedMonth !== null && selectedYear !== null ? "BU AY EKLİ BORÇ" : "EKLİ BORÇLAR"}</span>
+            <span>EKLENMİŞ BORÇLAR</span>
           </div>
           <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
-            {format(showPeriodOnlyForAddedDebts && selectedMonth !== null && selectedYear !== null ? simpleDebtsInPeriodTotal : simpleDebtsAllTimeTotal)}
+            {format(currentMonthUnpaidDebtsTotal)}
           </p>
           <span className="text-[8.5px] font-medium text-cyan-100/90 block">
-            {selectedMonth !== null && selectedYear !== null
-              ? (showPeriodOnlyForAddedDebts 
-                  ? `Tüm Ekli: ${format(simpleDebtsAllTimeTotal)} • Taksitsiz`
-                  : `Bu Ay: ${format(simpleDebtsInPeriodTotal)} • Taksitler Hariç`)
-              : `Sadece Eklenenler (${debts.length} Borç • Taksitsiz)`}
+            {currentMonthUnpaidDebtsCount} Borç Kaydı • Taksitler Hariç
           </span>
         </motion.div>
 
