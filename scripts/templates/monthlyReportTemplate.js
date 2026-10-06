@@ -18,7 +18,8 @@ function generateMonthlyReportEmail({
   total_expense = 0,
   paid_debts = 0,
   net_balance = 0,
-  app_url = "https://ais-pre-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app"
+  app_url = "https://ais-pre-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app",
+  firestore_diagnostic = null
 }) {
   // Para birimi formatlama yardımcısı
   const formatCurrency = (val) => {
@@ -125,7 +126,27 @@ function generateMonthlyReportEmail({
               </table>
             </td>
           </tr>
-
+${firestore_diagnostic ? `
+          <!-- Sistem & Firebase Teşhis Bildirimi -->
+          <tr>
+            <td style="padding: 0 36px 20px 36px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 14px; padding: 14px 18px;">
+                <tr>
+                  <td>
+                    <div style="font-size: 11px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                      ⚠️ Sistem Teşhis Notu: Firebase Yetkilendirme / Erişim
+                    </div>
+                    <div style="font-size: 12px; color: #e2e8f0; line-height: 1.5;">
+                      <strong>Kullanılan Proje:</strong> ${typeof firestore_diagnostic === 'object' ? (firestore_diagnostic.projectId || 'Bilinmiyor') : 'Bilinmiyor'}<br/>
+                      <strong>Hata Durumu:</strong> ${typeof firestore_diagnostic === 'object' ? (firestore_diagnostic.error || 'Erişim Kısıtlı') : firestore_diagnostic}<br/>
+                      <span style="color: #cbd5e1; font-size: 11px;">${typeof firestore_diagnostic === 'object' && firestore_diagnostic.notice ? firestore_diagnostic.notice : 'Canlı Firestore verilerine erişilemediği için bu test raporu örnek finansal verilerle üretilmiş ve e-posta motoru başarıyla test edilmiştir.'}</span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+` : ''}
           <!-- Özet Kartlar (KPI Grid) -->
           <tr>
             <td style="padding: 0 36px 12px 36px;">

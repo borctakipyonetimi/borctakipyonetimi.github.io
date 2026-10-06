@@ -14,10 +14,10 @@ on:
         type: boolean
         default: false
       target_user:
-        description: 'Belirli bir kullanıcıya test gönderimi yap (Boş bırakılırsa tüm premium kullanıcılara gider)'
+        description: 'Belirli bir kullanıcıya test gönderimi yap (Varsayılan: info.borcodemetakip@gmail.com)'
         required: false
         type: string
-        default: ''
+        default: 'info.borcodemetakip@gmail.com'
       month:
         description: 'Raporlanacak ay indeksi (0-11, boş bırakılırsa otomatik bir önceki ay alınır)'
         required: false
