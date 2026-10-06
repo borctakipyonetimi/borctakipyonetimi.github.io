@@ -6,12 +6,10 @@
  * Gerçek Gelir, Gider ve Ödenen Borç verilerini derler, dinamik HTML
  * şablonunu oluşturur ve Resend (veya Nodemailer) ile iletir.
  * 
- * NOT: Bu betik sunucu ortamında çalıştığı için sadece ve doğrudan
- * Firebase Admin SDK (firebase-admin) kullanır.
- * 
- * Proje ve Koleksiyon Yapısı:
- * - Kilitli Proje ID: 'borc-takip-pro-f6936' (Service Account JSON'undaki project_id dinamik okunur)
- * - Hedef Koleksiyon: 'users' (Doğrudan istemci uygulamasındaki ana kullanıcı koleksiyonu)
+ * Veritabanı Yapılandırması:
+ * - Proje ID: 'borc-takip-pro-f6936'
+ * - Database ID: 'ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e'
+ * - Ana Koleksiyon: 'users' ve ilgili alt koleksiyonlar (incomes, expenses, debts, etc.)
  */
 
 import { generateMonthlyReportEmail } from "./templates/monthlyReportTemplate.js";
@@ -20,43 +18,6 @@ import nodemailer from "nodemailer";
 import admin from "firebase-admin";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-
-// Tarih ayrıştırıcı (Zaman dilimi kaymalarını önleyen güvenli fonksiyon)
-function parseDateParts(dateStr) {
-  if (!dateStr) return null;
-  const str = String(dateStr).trim();
-  if (!str) return null;
-
-  const isoPart = str.split("T")[0];
-  const dashParts = isoPart.split("-");
-  if (dashParts.length === 3) {
-    const y = parseInt(dashParts[0], 10);
-    const m = parseInt(dashParts[1], 10) - 1; // 0-indexed ay
-    const d = parseInt(dashParts[2], 10);
-    if (!isNaN(y) && !isNaN(m) && !isNaN(d) && y > 1900 && m >= 0 && m <= 11) {
-      return { year: y, month: m, day: d };
-    }
-  }
-
-  const dotParts = isoPart.split(".");
-  if (dotParts.length === 3) {
-    const d = parseInt(dotParts[0], 10);
-    const m = parseInt(dotParts[1], 10) - 1;
-    const y = parseInt(dotParts[2], 10);
-    if (!isNaN(y) && !isNaN(m) && !isNaN(d) && y > 1900 && m >= 0 && m <= 11) {
-      return { year: y, month: m, day: d };
-    }
-  }
-
-  try {
-    const dt = new Date(str);
-    if (!isNaN(dt.getTime())) {
-      return { year: dt.getFullYear(), month: dt.getMonth(), day: dt.getDate() };
-    }
-  } catch {}
-
-  return null;
-}
 
 const MONTH_NAMES_TR = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -102,15 +63,166 @@ if (yearArg !== "") {
 
 const reportMonthTitle = `${MONTH_NAMES_TR[targetMonth]} ${targetYear}`;
 
-// Hedef birincil koleksiyon
+// Firestore Veritabanı ve Koleksiyon Sabitleri
+const FIRESTORE_DATABASE_ID = "ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e";
 const USERS_COLLECTION = "users";
 
 console.log("==================================================");
 console.log("🚀 BÜTÇEM PRO - AYLIK FİNANSAL RAPOR GÖNDERİM MOTORU");
-console.log(`📅 Rapor Dönemi: ${reportMonthTitle} (Ay: ${targetMonth + 1}, Yıl: ${targetYear})`);
+console.log(`📅 Rapor Dönemi: ${reportMonthTitle} (Hedef Ay: ${targetMonth + 1}/${targetYear})`);
 console.log(`⚙️ Mod: ${isDryRun ? "DRY RUN (Test Modu - E-posta gönderilmeyecek)" : "CANLI (E-postalar gönderilecek)"}`);
 if (targetEmailArg) console.log(`🎯 Hedef Test Kullanıcısı: ${targetEmailArg}`);
 console.log("==================================================");
+
+/**
+ * 1. ESNEK TARİH DÖNÜŞTÜRÜCÜ
+ * Firebase Timestamp (seconds / _seconds), ISO string, YYYY-MM-DD, DD.MM.YYYY,
+ * DD/MM/YYYY, epoch sayıları (ms ve sec) ve JS Date objelerini güvenle ayrıştırır.
+ */
+function parseFlexibleDate(rawDate) {
+  if (!rawDate && rawDate !== 0) return null;
+
+  // A) Firebase Timestamp nesnesi veya Date objesi
+  if (typeof rawDate === "object") {
+    if (typeof rawDate.toDate === "function") {
+      try {
+        const d = rawDate.toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) {
+          return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), dateObj: d };
+        }
+      } catch {}
+    }
+    const sec = rawDate.seconds ?? rawDate._seconds;
+    if (typeof sec === "number") {
+      const d = new Date(sec * 1000);
+      if (!isNaN(d.getTime())) {
+        return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), dateObj: d };
+      }
+    }
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+      return { year: rawDate.getFullYear(), month: rawDate.getMonth(), day: rawDate.getDate(), dateObj: rawDate };
+    }
+  }
+
+  // B) Epoch zaman damgası (sayı)
+  if (typeof rawDate === "number") {
+    const ms = rawDate < 10000000000 ? rawDate * 1000 : rawDate;
+    const d = new Date(ms);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1970 && d.getFullYear() < 2100) {
+      return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), dateObj: d };
+    }
+  }
+
+  // C) String biçimleri
+  if (typeof rawDate === "string") {
+    let str = rawDate.trim();
+    if (!str) return null;
+
+    // Epoch sayısal string (örn: "1726358400000")
+    if (/^\d{10,13}$/.test(str)) {
+      const num = parseInt(str, 10);
+      const ms = num < 10000000000 ? num * 1000 : num;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) {
+        return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), dateObj: d };
+      }
+    }
+
+    const isoPart = str.split("T")[0].split(" ")[0];
+
+    // YYYY-MM-DD veya YYYY/MM/DD veya YYYY.MM.DD
+    const ymdMatch = isoPart.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (ymdMatch) {
+      const y = parseInt(ymdMatch[1], 10);
+      const m = parseInt(ymdMatch[2], 10) - 1; // 0-indexed
+      const d = parseInt(ymdMatch[3], 10);
+      if (y > 1900 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+        return { year: y, month: m, day: d, dateObj: new Date(y, m, d) };
+      }
+    }
+
+    // DD.MM.YYYY veya DD/MM/YYYY veya DD-MM-YYYY
+    const dmyMatch = isoPart.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (dmyMatch) {
+      const d = parseInt(dmyMatch[1], 10);
+      const m = parseInt(dmyMatch[2], 10) - 1;
+      const y = parseInt(dmyMatch[3], 10);
+      if (y > 1900 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+        return { year: y, month: m, day: d, dateObj: new Date(y, m, d) };
+      }
+    }
+
+    // Standart Date parse
+    try {
+      const d = new Date(str);
+      if (!isNaN(d.getTime()) && d.getFullYear() > 1900) {
+        return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), dateObj: d };
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
+/**
+ * 2. ESNEK TUTAR / MİKTAR ÇIKARICI
+ * amount, tutar, price, value, miktar, totalAmount, toplamTutar, paid vb.
+ * alanları ve string ("15.000,50 ₺", "1500,50") formatlarını güvenle sayıya çevirir.
+ */
+function extractAmount(item) {
+  if (!item || typeof item !== "object") return 0;
+
+  const raw = item.amount ?? 
+              item.tutar ?? 
+              item.price ?? 
+              item.value ?? 
+              item.miktar ?? 
+              item.totalAmount ?? 
+              item.toplamTutar ?? 
+              item.cost ?? 
+              item.odenenTutar ?? 
+              item.paidAmount ?? 
+              item.paid ??
+              0;
+
+  if (typeof raw === "number") {
+    return isNaN(raw) ? 0 : raw;
+  }
+
+  if (typeof raw === "string") {
+    let clean = raw.replace(/[^\d.,-]/g, "").trim();
+    if (clean.includes(",") && clean.includes(".")) {
+      clean = clean.replace(/\./g, "").replace(",", ".");
+    } else if (clean.includes(",")) {
+      clean = clean.replace(",", ".");
+    }
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
+/**
+ * Kayıttan tarih alanını çıkarır
+ */
+function extractItemDate(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const raw = item.date ?? 
+              item.tarih ?? 
+              item.dueDate ?? 
+              item.vadeTarihi ?? 
+              item.firstDueDate ?? 
+              item.paymentDate ?? 
+              item.odemeTarihi ?? 
+              item.createdAt ?? 
+              item.olusturmaTarihi ?? 
+              item.timestamp ?? 
+              item.zaman;
+
+  return parseFlexibleDate(raw);
+}
 
 /**
  * Güvenli Servis Hesabı Ayrıştırıcı
@@ -144,7 +256,7 @@ function parseServiceAccount(rawCred) {
 }
 
 /**
- * Firebase Admin SDK Başlatıcı (borc-takip-pro-f6936 Kilitli)
+ * Firebase Admin SDK Başlatıcı (Kilitli Proje ve Database ID)
  */
 function initFirebaseAdmin() {
   const rawCred = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -163,11 +275,7 @@ function initFirebaseAdmin() {
     return null;
   }
 
-  // Öncelikli Proje ID'si: Service Account JSON'undaki project_id dinamik okunur, yoksa borc-takip-pro-f6936 kilitlenir
   const lockedProjectId = (serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "borc-takip-pro-f6936").trim();
-
-  // Veritabanı Kimliği (Database ID): Varsayılan (default) yerine özel ID
-  const FIRESTORE_DATABASE_ID = "ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e";
   const customDbId = (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || FIRESTORE_DATABASE_ID).trim();
   const effectiveDbId = (customDbId && customDbId !== "(default)") ? customDbId : FIRESTORE_DATABASE_ID;
 
@@ -178,28 +286,19 @@ function initFirebaseAdmin() {
   if (existingApps.length > 0) {
     app = existingApps[0];
   } else {
-    // admin.initializeApp doğrudan bu Proje ID ile kilitlenir
     app = initializeApp({
       credential,
       projectId: lockedProjectId
     });
   }
 
-  // Firestore DB bağlantısını doğrudan belirtilen Database ID ile başlat
   let db;
   try {
     console.log(`ℹ️ Firestore Database ID bağlanıyor: '${effectiveDbId}'`);
     db = getFirestore(app, effectiveDbId);
   } catch (dbErr) {
-    console.warn(`⚠️ getFirestore(app, '${effectiveDbId}') başlatma uyarısı:`, dbErr.message);
-    try {
-      db = getFirestore(app);
-      if (typeof db.settings === "function") {
-        db.settings({ databaseId: effectiveDbId, ignoreUndefinedProperties: true });
-      }
-    } catch {
-      db = getFirestore(app);
-    }
+    console.warn(`⚠️ getFirestore(app, '${effectiveDbId}') uyarısı:`, dbErr.message);
+    db = getFirestore(app);
   }
 
   if (!admin.credential) {
@@ -274,7 +373,153 @@ async function sendEmail({ to, subject, html, text }) {
 }
 
 /**
- * Kullanıcı dokümanından önceki aya ait gerçek finansal rakamları hesaplar
+ * 3. KAPSAMLI KULLANICI FİNANSAL VERİLERİNİ TOPLAYICI
+ * Kullanıcı doküman dizilerini, alt koleksiyonlarını (subcollections) ve kök koleksiyonları
+ * birleştirip tek bir nesne olarak döndürür.
+ */
+async function fetchCompleteUserData(db, userDocSnap) {
+  const userId = userDocSnap.id;
+  const docData = userDocSnap.data() || {};
+  const userRef = userDocSnap.ref;
+
+  console.log(`\n==================================================`);
+  console.log(`🔍 [KULLANICI VERİLERİ DETAYLI ANALİZİ]`);
+  console.log(`👤 Doküman ID: ${userId}`);
+  console.log(`📧 E-posta: ${docData.email || docData.emailLower || "Bilinmiyor"}`);
+  console.log(`--------------------------------------------------`);
+
+  // A) Ana Doküman Dizileri
+  let incomes = Array.isArray(docData.incomes) ? [...docData.incomes] : (Array.isArray(docData.gelirler) ? [...docData.gelirler] : []);
+  let expenses = Array.isArray(docData.expenses) ? [...docData.expenses] : (Array.isArray(docData.giderler) ? [...docData.giderler] : []);
+  let debts = Array.isArray(docData.debts) ? [...docData.debts] : (Array.isArray(docData.borclar) ? [...docData.borclar] : []);
+  let installmentDebts = Array.isArray(docData.installmentDebts) ? [...docData.installmentDebts] : (Array.isArray(docData.taksitler) ? [...docData.taksitler] : []);
+  let payments = Array.isArray(docData.payments) ? [...docData.payments] : (Array.isArray(docData.odemeler) ? [...docData.odemeler] : []);
+
+  console.log(`📁 Ana Doküman İçi Veriler:`);
+  console.log(`   - incomes: ${incomes.length} kayıt`);
+  console.log(`   - expenses: ${expenses.length} kayıt`);
+  console.log(`   - debts: ${debts.length} kayıt`);
+  console.log(`   - installmentDebts: ${installmentDebts.length} kayıt`);
+  console.log(`   - payments: ${payments.length} kayıt`);
+
+  // B) Alt Koleksiyon Kontrolü (Sub-collections: users/{userId}/incomes vb.)
+  const checkSubCollection = async (subName) => {
+    try {
+      const snap = await userRef.collection(subName).get();
+      if (!snap.empty) {
+        console.log(`   ✨ Alt Koleksiyon Bulundu: 'users/${userId}/${subName}' (${snap.size} doküman)`);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch {}
+    return [];
+  };
+
+  const subIncomes = await checkSubCollection("incomes");
+  const subGelirler = await checkSubCollection("gelirler");
+  const subExpenses = await checkSubCollection("expenses");
+  const subGiderler = await checkSubCollection("giderler");
+  const subDebts = await checkSubCollection("debts");
+  const subBorclar = await checkSubCollection("borclar");
+  const subInstallments = await checkSubCollection("installmentDebts");
+  const subTaksitler = await checkSubCollection("taksitler");
+  const subPayments = await checkSubCollection("payments");
+  const subOdemeler = await checkSubCollection("odemeler");
+
+  // Alt koleksiyonları ana listeye birleştir
+  const mergeById = (existing, incoming) => {
+    const map = new Map();
+    existing.forEach(item => {
+      const key = item.id || JSON.stringify(item);
+      map.set(key, item);
+    });
+    incoming.forEach(item => {
+      const key = item.id || JSON.stringify(item);
+      map.set(key, item);
+    });
+    return Array.from(map.values());
+  };
+
+  incomes = mergeById(incomes, [...subIncomes, ...subGelirler]);
+  expenses = mergeById(expenses, [...subExpenses, ...subGiderler]);
+  debts = mergeById(debts, [...subDebts, ...subBorclar]);
+  installmentDebts = mergeById(installmentDebts, [...subInstallments, ...subTaksitler]);
+  payments = mergeById(payments, [...subPayments, ...subOdemeler]);
+
+  // C) Kök Koleksiyon Kontrolü (root: incomes, expenses where userId == ... veya email == ...)
+  const userEmail = docData.email || docData.emailLower || targetEmailArg;
+  const checkRootCollection = async (colName) => {
+    try {
+      const docs = [];
+      const qUser = await db.collection(colName).where("userId", "==", userId).get();
+      qUser.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (userEmail) {
+        const qEmail = await db.collection(colName).where("email", "==", userEmail).get();
+        qEmail.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      }
+      if (docs.length > 0) {
+        console.log(`   ✨ Kök Koleksiyon Bulundu: '${colName}' (${docs.length} doküman)`);
+      }
+      return docs;
+    } catch {
+      return [];
+    }
+  };
+
+  const rootIncomes = await checkRootCollection("incomes");
+  const rootGelirler = await checkRootCollection("gelirler");
+  const rootExpenses = await checkRootCollection("expenses");
+  const rootGiderler = await checkRootCollection("giderler");
+  const rootDebts = await checkRootCollection("debts");
+  const rootBorclar = await checkRootCollection("borclar");
+  const rootInstallments = await checkRootCollection("installmentDebts");
+  const rootTaksitler = await checkRootCollection("taksitler");
+  const rootPayments = await checkRootCollection("payments");
+  const rootOdemeler = await checkRootCollection("odemeler");
+
+  incomes = mergeById(incomes, [...rootIncomes, ...rootGelirler]);
+  expenses = mergeById(expenses, [...rootExpenses, ...rootGiderler]);
+  debts = mergeById(debts, [...rootDebts, ...rootBorclar]);
+  installmentDebts = mergeById(installmentDebts, [...rootInstallments, ...rootTaksitler]);
+  payments = mergeById(payments, [...rootPayments, ...rootOdemeler]);
+
+  // D) İLK HAM VERİLERİ TERMİNALE YAZDIR (Debug İsteği 1)
+  console.log(`\n📊 [BİRLEŞTİRİLMİŞ TOPLAM KAYIT SAYILARI]:`);
+  console.log(`   - Toplam Gelir: ${incomes.length}`);
+  if (incomes.length > 0) {
+    console.log(`🔍 [İLK GELİR HAM VERİSİ]:`, JSON.stringify(incomes[0], null, 2));
+  }
+  console.log(`   - Toplam Gider: ${expenses.length}`);
+  if (expenses.length > 0) {
+    console.log(`🔍 [İLK GİDER HAM VERİSİ]:`, JSON.stringify(expenses[0], null, 2));
+  }
+  console.log(`   - Toplam Borç: ${debts.length}`);
+  if (debts.length > 0) {
+    console.log(`🔍 [İLK BORÇ HAM VERİSİ]:`, JSON.stringify(debts[0], null, 2));
+  }
+  console.log(`   - Toplam Taksit: ${installmentDebts.length}`);
+  if (installmentDebts.length > 0) {
+    console.log(`🔍 [İLK TAKSİT HAM VERİSİ]:`, JSON.stringify(installmentDebts[0], null, 2));
+  }
+  console.log(`   - Toplam Ödeme: ${payments.length}`);
+  if (payments.length > 0) {
+    console.log(`🔍 [İLK ÖDEME HAM VERİSİ]:`, JSON.stringify(payments[0], null, 2));
+  }
+  console.log(`==================================================\n`);
+
+  return {
+    ...docData,
+    id: userId,
+    email: userEmail,
+    incomes,
+    expenses,
+    debts,
+    installmentDebts,
+    payments
+  };
+}
+
+/**
+ * 4. HEDEF AYA AİT GERÇEK FİNANSAL RAKAMLARI HESAPLAR
  */
 function calculateUserMonthlyFinances(userData, month, year) {
   const incomes = Array.isArray(userData.incomes) ? userData.incomes : [];
@@ -283,50 +528,69 @@ function calculateUserMonthlyFinances(userData, month, year) {
   const installmentDebts = Array.isArray(userData.installmentDebts) ? userData.installmentDebts : [];
   const payments = Array.isArray(userData.payments) ? userData.payments : [];
 
+  const targetPeriodText = `${MONTH_NAMES_TR[month]} ${year} (Ay İndeksi: ${month}, Yıl: ${year})`;
+  console.log(`🧮 [FİNANSAL HESAPLAMA BAŞLATILDI] Hedef: ${targetPeriodText}`);
+
   // 1. Toplam Gelir
   let totalIncome = 0;
-  incomes.forEach((inc) => {
-    const amt = Number(inc.amount) || 0;
+  incomes.forEach((inc, idx) => {
+    const amt = extractAmount(inc);
     if (amt <= 0) return;
-    const p = parseDateParts(inc.date);
+    const p = extractItemDate(inc);
+    const isRecurring = inc.isRecurring !== false && inc.duzenli !== false && inc.tekrarlayan !== false;
 
-    if (inc.isRecurring !== false) {
+    if (isRecurring) {
       if (!p) {
         totalIncome += amt;
+        console.log(`   🟢 [Düzenli Gelir Eklendi]: ₺${amt} (Tarihsiz düzenli gelir)`);
       } else {
         const incTime = p.year * 12 + p.month;
         const targetTime = year * 12 + month;
         if (targetTime >= incTime) {
           totalIncome += amt;
+          console.log(`   🟢 [Düzenli Gelir Eklendi]: ₺${amt} (Başlangıç: ${p.day}.${p.month + 1}.${p.year})`);
+        } else {
+          console.log(`   ⏳ [İleri Tarihli Düzenli Gelir]: ₺${amt} (Başlangıç: ${p.day}.${p.month + 1}.${p.year} > Hedef)`);
         }
       }
     } else {
       if (p && p.year === year && p.month === month) {
         totalIncome += amt;
+        console.log(`   🟢 [Tek Seferlik Gelir Eklendi]: ₺${amt} (Tarih: ${p.day}.${p.month + 1}.${p.year})`);
+      } else {
+        console.log(`   ℹ️ [Gelir Dönem Dışı]: #${idx + 1} Tutar: ₺${amt}, Tarih: ${p ? `${p.day}.${p.month + 1}.${p.year}` : 'Geçersiz'}`);
       }
     }
   });
 
   // 2. Toplam Gider
   let totalExpense = 0;
-  expenses.forEach((exp) => {
-    const amt = Number(exp.amount) || 0;
+  expenses.forEach((exp, idx) => {
+    const amt = extractAmount(exp);
     if (amt <= 0) return;
-    const p = parseDateParts(exp.date);
+    const p = extractItemDate(exp);
+    const isRecurring = exp.isRecurring === true || exp.duzenli === true || exp.tekrarlayan === true;
 
-    if (exp.isRecurring === true) {
+    if (isRecurring) {
       if (!p) {
         totalExpense += amt;
+        console.log(`   🔴 [Düzenli Gider Eklendi]: ₺${amt} (Tarihsiz düzenli gider)`);
       } else {
         const expTime = p.year * 12 + p.month;
         const targetTime = year * 12 + month;
         if (targetTime >= expTime) {
           totalExpense += amt;
+          console.log(`   🔴 [Düzenli Gider Eklendi]: ₺${amt} (Başlangıç: ${p.day}.${p.month + 1}.${p.year})`);
+        } else {
+          console.log(`   ⏳ [İleri Tarihli Düzenli Gider]: ₺${amt} (Başlangıç: ${p.day}.${p.month + 1}.${p.year} > Hedef)`);
         }
       }
     } else {
       if (p && p.year === year && p.month === month) {
         totalExpense += amt;
+        console.log(`   🔴 [Tek Seferlik Gider Eklendi]: ₺${amt} (Tarih: ${p.day}.${p.month + 1}.${p.year})`);
+      } else {
+        console.log(`   ℹ️ [Gider Dönem Dışı]: #${idx + 1} Tutar: ₺${amt}, Tarih: ${p ? `${p.day}.${p.month + 1}.${p.year}` : 'Geçersiz'}`);
       }
     }
   });
@@ -334,64 +598,79 @@ function calculateUserMonthlyFinances(userData, month, year) {
   // 3. Ödenen Borçlar ve Taksitler
   let paidDebts = 0;
 
-  const hasPaymentLogs = payments.length > 0;
-  payments.forEach((pay) => {
-    const amt = Number(pay.amount) || 0;
+  // Payments kayıtları
+  payments.forEach((pay, idx) => {
+    const amt = extractAmount(pay);
     if (amt <= 0) return;
-    const p = parseDateParts(pay.date);
+    const p = extractItemDate(pay);
     if (p && p.year === year && p.month === month) {
       paidDebts += amt;
+      console.log(`   🔵 [Ödeme Eklendi]: ₺${amt} (Tarih: ${p.day}.${p.month + 1}.${p.year})`);
+    } else {
+      console.log(`   ℹ️ [Ödeme Dönem Dışı]: #${idx + 1} Tutar: ₺${amt}, Tarih: ${p ? `${p.day}.${p.month + 1}.${p.year}` : 'Geçersiz'}`);
     }
   });
 
-  if (!hasPaymentLogs) {
-    debts.forEach((d) => {
-      const p = parseDateParts(d.dueDate || d.date);
-      if (p && p.year === year && p.month === month) {
-        paidDebts += Number(d.paid) || 0;
-      }
-    });
+  // Basit borçlar (Eğer detaylı payment logu bu borç için yoksa)
+  debts.forEach((d) => {
+    const p = extractItemDate(d);
+    const paidAmt = extractAmount({ amount: d.paid ?? d.odenen ?? d.odenenTutar ?? 0 });
+    if (p && p.year === year && p.month === month && paidAmt > 0) {
+      paidDebts += paidAmt;
+      console.log(`   🔵 [Borç Ödemesi Eklendi]: ₺${paidAmt} (Vade: ${p.day}.${p.month + 1}.${p.year})`);
+    }
+  });
 
-    installmentDebts.forEach((inst) => {
-      const perMonth = (Number(inst.totalAmount) || 0) / (Number(inst.installmentCount) || 1);
-      const startP = parseDateParts(inst.firstDueDate);
-      if (startP) {
-        const startTime = startP.year * 12 + startP.month;
-        const targetTime = year * 12 + month;
-        const monthDiff = targetTime - startTime;
-        if (monthDiff >= 0 && monthDiff < (inst.installmentCount || 1)) {
-          if ((inst.paidInstallmentCount || 0) > monthDiff) {
-            paidDebts += perMonth;
-          }
+  // Taksitler
+  installmentDebts.forEach((inst) => {
+    const totalInstAmt = extractAmount(inst);
+    const instCount = Number(inst.installmentCount || inst.taksitSayisi) || 1;
+    const perMonth = totalInstAmt / instCount;
+    const startP = extractItemDate({ date: inst.firstDueDate || inst.ilkVadeTarihi || inst.date || inst.startDate });
+
+    if (startP) {
+      const startTime = startP.year * 12 + startP.month;
+      const targetTime = year * 12 + month;
+      const monthDiff = targetTime - startTime;
+      if (monthDiff >= 0 && monthDiff < instCount) {
+        const paidCount = Number(inst.paidInstallmentCount || inst.odenenTaksitSayisi) || 0;
+        if (paidCount > monthDiff) {
+          paidDebts += perMonth;
+          console.log(`   🔵 [Taksit Ödemesi Eklendi]: ₺${perMonth.toFixed(2)} (Taksit #${monthDiff + 1}/${instCount})`);
         }
       }
-    });
-  }
+    }
+  });
 
   const netBalance = totalIncome - totalExpense - paidDebts;
 
-  return {
+  const results = {
     totalIncome: Math.round(totalIncome * 100) / 100,
     totalExpense: Math.round(totalExpense * 100) / 100,
     paidDebts: Math.round(paidDebts * 100) / 100,
     netBalance: Math.round(netBalance * 100) / 100
   };
+
+  console.log(`\n📊 [HESAPLAMA SONUÇLARI]:`);
+  console.log(`   🟢 Toplam Gelir: ₺${results.totalIncome}`);
+  console.log(`   🔴 Toplam Gider: ₺${results.totalExpense}`);
+  console.log(`   🔵 Ödenen Borç: ₺${results.paidDebts}`);
+  console.log(`   ⭐ Net Bakiye: ₺${results.netBalance}\n`);
+
+  return results;
 }
 
 /**
- * 'users' koleksiyonunda belirli bir e-posta adresine ait kullanıcı dokümanını arar
+ * 'users' koleksiyonunda hedef e-posta adresini arar
  */
-async function findUserByEmailInUsers(db, emailToFind) {
+async function findUserDocByEmail(db, emailToFind) {
   const targetClean = emailToFind.trim();
   const targetLower = targetClean.toLowerCase();
 
   // 1. email == targetClean
   try {
     const q1 = await db.collection(USERS_COLLECTION).where("email", "==", targetClean).get();
-    if (!q1.empty) {
-      const doc = q1.docs[0];
-      return { id: doc.id, ...doc.data() };
-    }
+    if (!q1.empty) return q1.docs[0];
   } catch (err) {
     console.error(`❌ [Hata] '${USERS_COLLECTION}' koleksiyonunda 'email == ${targetClean}' sorgusu:`, err.message);
     throw err;
@@ -400,49 +679,37 @@ async function findUserByEmailInUsers(db, emailToFind) {
   // 2. emailLower == targetLower
   try {
     const q2 = await db.collection(USERS_COLLECTION).where("emailLower", "==", targetLower).get();
-    if (!q2.empty) {
-      const doc = q2.docs[0];
-      return { id: doc.id, ...doc.data() };
-    }
+    if (!q2.empty) return q2.docs[0];
   } catch (err) {}
 
   // 3. email == targetLower
   if (targetClean !== targetLower) {
     try {
       const q3 = await db.collection(USERS_COLLECTION).where("email", "==", targetLower).get();
-      if (!q3.empty) {
-        const doc = q3.docs[0];
-        return { id: doc.id, ...doc.data() };
-      }
+      if (!q3.empty) return q3.docs[0];
     } catch (err) {}
   }
 
-  // 4. Doğrudan Doküman ID Kontrolü (Doc ID = email veya UID)
+  // 4. Doğrudan Doküman ID (Doc ID = email veya UID)
   try {
     const docSnap = await db.collection(USERS_COLLECTION).doc(targetClean).get();
-    if (docSnap.exists) {
-      return { id: docSnap.id, ...docSnap.data() };
-    }
+    if (docSnap.exists) return docSnap;
   } catch (err) {}
 
-  // 5. 'email_' önekli ID kontrolü
+  // 5. 'email_' önekli ID (src/App.tsx içerisindeki format)
   try {
     const safeEmailId = `email_${targetLower.replace(/[^a-zA-Z0-9_]/g, "_")}`;
     const docSnap2 = await db.collection(USERS_COLLECTION).doc(safeEmailId).get();
-    if (docSnap2.exists) {
-      return { id: docSnap2.id, ...docSnap2.data() };
-    }
+    if (docSnap2.exists) return docSnap2;
   } catch (err) {}
 
-  // 6. Koleksiyonu tarama (fallback)
+  // 6. Koleksiyonu tara
   try {
     const allSnap = await db.collection(USERS_COLLECTION).limit(100).get();
     for (const doc of allSnap.docs) {
       const data = doc.data() || {};
       const docEmail = String(data.email || data.emailLower || "").trim().toLowerCase();
-      if (docEmail === targetLower) {
-        return { id: doc.id, ...data };
-      }
+      if (docEmail === targetLower) return doc;
     }
   } catch (err) {}
 
@@ -450,7 +717,7 @@ async function findUserByEmailInUsers(db, emailToFind) {
 }
 
 /**
- * Örnek finansal verilerle test kullanıcısı oluşturur
+ * Örnek finansal verilerle test kullanıcısı oluşturur (Son çare fallback)
  */
 function createFallbackTestUser(emailAddress, diagnosticInfo = null) {
   const safeEmail = emailAddress || "info.borcodemetakip@gmail.com";
@@ -485,10 +752,9 @@ async function loadUsersFromFirestore(firebaseContext) {
   let lastFirestoreError = null;
   const effectiveTargetUser = targetEmailArg || (process.env.TARGET_USER ? process.env.TARGET_USER.trim() : "");
 
-  // 1. Durum: Mock Modu veya Firebase Yapılandırması Yok
   if (isMockMode || !firebaseContext) {
     if (!firebaseContext) {
-      console.warn("⚠️ Firebase Context mevcut değil. Güvenli test modu devreye alınıyor.");
+      console.warn("⚠️ Firebase Context mevcut değil. Mock test modu aktif.");
     } else {
       console.log("🧪 [--mock modu aktif] Test kullanıcı verisi yükleniyor...");
     }
@@ -501,18 +767,18 @@ async function loadUsersFromFirestore(firebaseContext) {
 
   const { db, lockedProjectId, effectiveDbId } = firebaseContext;
 
-  // 2. Durum: Test kullanıcısı argümanı verilmişse (--user=... veya TARGET_USER)
+  // 1. Durum: Hedef test kullanıcısı argümanı verilmişse
   if (effectiveTargetUser) {
     console.log(`🎯 Test Kullanıcısı Modu Aktif: '${effectiveTargetUser}' aranıyor...`);
-    console.log(`🔍 '${lockedProjectId}' projesinde doğrudan '${USERS_COLLECTION}' koleksiyonu sorgulanıyor...`);
+    console.log(`🔍 '${lockedProjectId}' projesinde ('${effectiveDbId}') doğrudan '${USERS_COLLECTION}' koleksiyonu taranıyor...`);
 
     try {
-      const found = await findUserByEmailInUsers(db, effectiveTargetUser);
-      if (found) {
-        console.log(`✅ Test kullanıcısı '${USERS_COLLECTION}' koleksiyonunda bulundu: ${found.userName || found.email || found.id}`);
-        console.log(`   Veritabanı Kayıtları: ${found.incomes?.length || 0} gelir, ${found.expenses?.length || 0} gider, ${found.payments?.length || 0} ödeme.`);
-        if (!found.email) found.email = effectiveTargetUser;
-        return [found];
+      const userDocSnap = await findUserDocByEmail(db, effectiveTargetUser);
+      if (userDocSnap) {
+        console.log(`✅ Test kullanıcısı dokümanı '${USERS_COLLECTION}' koleksiyonunda bulundu: ${userDocSnap.id}`);
+        // Kullanıcının alt koleksiyonlarını ve ana doküman verilerini eksiksiz çek
+        const completeUserData = await fetchCompleteUserData(db, userDocSnap);
+        return [completeUserData];
       } else {
         console.warn(`ℹ️ '${USERS_COLLECTION}' koleksiyonunda '${effectiveTargetUser}' e-postasına ait doküman bulunamadı.`);
       }
@@ -524,18 +790,17 @@ async function loadUsersFromFirestore(firebaseContext) {
         code: err.code || "UNKNOWN",
         message: err.message
       };
-      console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Koleksiyon: '${USERS_COLLECTION}', Hedef: '${effectiveTargetUser}'`);
-      console.error(`   Database ID: ${effectiveDbId}`);
+      console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Database: '${effectiveDbId}', Koleksiyon: '${USERS_COLLECTION}'`);
       console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
       console.error(`   Hata Mesajı: ${err.message}`);
       console.error(`   Stack Trace:\n${err.stack || err}`);
     }
 
-    // GÜVENLİ FALLBACK: Test kullanıcısı için e-posta gönderimi KESİLMİYOR
+    // GÜVENLİ FALLBACK: Kullanıcı dokümanı bulunamazsa veya hata olursa e-posta sürecini KESME
     console.warn("\n==================================================");
     console.warn(`⚠️ [GÜVENLİ FALLBACK DEVREDE] Test kullanıcısı '${effectiveTargetUser}' için e-posta gönderimi KESİLMİYOR.`);
-    console.warn(`   Hedef Proje ID: ${lockedProjectId}`);
-    console.warn(`   Hedef Koleksiyon: '${USERS_COLLECTION}'`);
+    console.warn(`   Hedef Proje: ${lockedProjectId}`);
+    console.warn(`   Database ID: ${effectiveDbId}`);
     if (lastFirestoreError) {
       console.warn(`   Firestore Hata Kodu: [${lastFirestoreError.code}] ${lastFirestoreError.message}`);
     }
@@ -545,23 +810,24 @@ async function loadUsersFromFirestore(firebaseContext) {
     const diagnosticNote = {
       projectId: lockedProjectId,
       error: lastFirestoreError ? `[${lastFirestoreError.code}] ${lastFirestoreError.message}` : "Kullanıcı dokümanı bulunamadı",
-      notice: `Proje '${lockedProjectId}' olarak kilitlenmiştir. E-posta şablonu ve gönderim motoru örnek verilerle başarıyla test edilmiştir.`
+      notice: `Proje '${lockedProjectId}' (${effectiveDbId}) üzerinde '${USERS_COLLECTION}' koleksiyonu sorgulanmıştır.`
     };
 
     return [createFallbackTestUser(effectiveTargetUser, diagnosticNote)];
   }
 
-  // 3. Durum: NORMAL CRON ÇALIŞMASI (isPremium == true)
+  // 2. Durum: NORMAL CRON ÇALIŞMASI (isPremium == true)
   const users = [];
   console.log(`🔍 '${lockedProjectId}' projesinde '${USERS_COLLECTION}' koleksiyonunda aktif Premium kullanıcılar sorgulanıyor (isPremium == true)...`);
 
   try {
     const snapshot = await db.collection(USERS_COLLECTION).where("isPremium", "==", true).get();
     if (!snapshot.empty) {
-      snapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() });
-      });
-      console.log(`📊 '${USERS_COLLECTION}' koleksiyonundan ${snapshot.size} aktif Premium kullanıcı çekildi.`);
+      console.log(`📊 '${USERS_COLLECTION}' koleksiyonundan ${snapshot.size} aktif Premium kullanıcı bulundu. Alt koleksiyonlar derleniyor...`);
+      for (const docSnap of snapshot.docs) {
+        const fullUser = await fetchCompleteUserData(db, docSnap);
+        users.push(fullUser);
+      }
       return users;
     } else {
       console.log(`ℹ️ '${USERS_COLLECTION}' koleksiyonunda 'isPremium == true' filtresine uyan kullanıcı bulunamadı.`);
@@ -574,8 +840,7 @@ async function loadUsersFromFirestore(firebaseContext) {
       code: err.code || "UNKNOWN",
       message: err.message
     };
-    console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Koleksiyon: '${USERS_COLLECTION}', Filtre: 'isPremium == true'`);
-    console.error(`   Database ID: ${effectiveDbId}`);
+    console.error(`❌ [Firestore Sorgu Hatası] Proje: '${lockedProjectId}', Database: '${effectiveDbId}', Filtre: 'isPremium == true'`);
     console.error(`   Hata Kodu: ${err.code || 'Bilinmiyor'}`);
     console.error(`   Hata Mesajı: ${err.message}`);
     console.error(`   Stack Trace:\n${err.stack || err}`);
@@ -592,7 +857,7 @@ async function loadUsersFromFirestore(firebaseContext) {
     const diagnosticNote = {
       projectId: lockedProjectId,
       error: lastFirestoreError ? `[${lastFirestoreError.code}] ${lastFirestoreError.message}` : "Aktif Premium kullanıcı bulunamadı",
-      notice: `Proje '${lockedProjectId}' üzerinde '${USERS_COLLECTION}' koleksiyonu taranmıştır.`
+      notice: `Proje '${lockedProjectId}' (${effectiveDbId}) üzerinde '${USERS_COLLECTION}' koleksiyonu taranmıştır.`
     };
 
     return [createFallbackTestUser("info.borcodemetakip@gmail.com", diagnosticNote)];
