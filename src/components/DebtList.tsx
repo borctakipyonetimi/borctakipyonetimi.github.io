@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins, Receipt } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
@@ -83,6 +83,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
   const itemsPerPage = 8;
+  const [showPeriodOnlyForAddedDebts, setShowPeriodOnlyForAddedDebts] = useState(false);
 
   // Template Manager States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -734,6 +735,15 @@ export const DebtList: React.FC<DebtListProps> = ({
       return dDate.getMonth() === selectedMonth && dDate.getFullYear() === selectedYear;
     } catch { return true; }
   });
+  
+  // Sadece Ekli / Eklenmiş Borçlar Hesaplaması (Taksitli Borçlar ve Kişi Borçları Kesinlikle Hariç)
+  const simpleDebtsAllTimeTotal = debts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const simpleDebtsAllTimePaid = debts.reduce((sum, d) => sum + (Number(d.paid) || 0), 0);
+  const simpleDebtsAllTimeRemaining = debts.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+
+  const simpleDebtsInPeriodTotal = debtsInPeriod.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const simpleDebtsInPeriodPaid = debtsInPeriod.reduce((sum, d) => sum + (Number(d.paid) || 0), 0);
+  const simpleDebtsInPeriodRemaining = debtsInPeriod.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
 
   const installmentsInPeriod = installmentDebts.map((inst) => {
     const perMonth = inst.totalAmount / (inst.installmentCount || 1);
@@ -1582,7 +1592,35 @@ export const DebtList: React.FC<DebtListProps> = ({
       />
 
       {/* Top Level Key Debt Aggregates Cards matching Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        {/* 0. EKLİ BORÇLAR TOPLAMI (SADECE EKLENMİŞ BORÇLAR - TAKSİTLER KESİNLİKLE HARİÇ) */}
+        <motion.div 
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          onClick={() => {
+            if (selectedMonth !== null && selectedYear !== null) {
+              setShowPeriodOnlyForAddedDebts((prev) => !prev);
+            }
+          }}
+          title={`Ekli Borçlar Toplamı: ${format(simpleDebtsAllTimeTotal)} | Kalan: ${format(simpleDebtsAllTimeRemaining)} | Ödenen: ${format(simpleDebtsAllTimePaid)} (Taksitli borçlar hariç tutulmuştur)${selectedMonth !== null && selectedYear !== null ? ' - Dokunarak dönem/genel geçişi yapabilirsiniz' : ''}`}
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-800 dark:from-cyan-950 dark:via-blue-950 dark:to-slate-900 border-2 border-cyan-400/40 dark:border-cyan-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-cyan-600/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] cursor-pointer group"
+        >
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-100 uppercase tracking-wide">
+            <Receipt className="w-3 h-3 text-cyan-200" />
+            <span>{showPeriodOnlyForAddedDebts && selectedMonth !== null && selectedYear !== null ? "BU AY EKLİ BORÇ" : "EKLİ BORÇLAR"}</span>
+          </div>
+          <p className="text-sm sm:text-base font-black font-mono tracking-tight text-white">
+            {format(showPeriodOnlyForAddedDebts && selectedMonth !== null && selectedYear !== null ? simpleDebtsInPeriodTotal : simpleDebtsAllTimeTotal)}
+          </p>
+          <span className="text-[8.5px] font-medium text-cyan-100/90 block">
+            {selectedMonth !== null && selectedYear !== null
+              ? (showPeriodOnlyForAddedDebts 
+                  ? `Tüm Ekli: ${format(simpleDebtsAllTimeTotal)} • Taksitsiz`
+                  : `Bu Ay: ${format(simpleDebtsInPeriodTotal)} • Taksitler Hariç`)
+              : `Sadece Eklenenler (${debts.length} Borç • Taksitsiz)`}
+          </span>
+        </motion.div>
+
         {/* 1. TOPLAM BORÇ / GENEL LİMİT */}
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
@@ -1647,7 +1685,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         <motion.div 
           whileHover={{ y: -2, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px]"
+          className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/40 dark:border-rose-500/40 text-white rounded-2xl space-y-1 relative overflow-hidden shadow-lg shadow-rose-500/20 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[102px] col-span-2 sm:col-span-1 lg:col-span-1"
         >
           <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-100 uppercase tracking-wide">
             <AlertCircle className="w-3 h-3 text-rose-200" />

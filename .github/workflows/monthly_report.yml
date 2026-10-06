@@ -1,0 +1,90 @@
+name: Butcem Pro Aylik Finansal Rapor Gonderimi
+
+on:
+  # Her ayın 1'inde gece yarısı UTC (00:00 UTC) otomatik çalışır
+  schedule:
+    - cron: '0 0 1 * *'
+
+  # GitHub Actions arayüzünden manuel tetikleme desteği (Test & Manuel Gönderim)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry Run (Test Modu - E-posta göndermeden sadece konsola dök)'
+        required: false
+        type: boolean
+        default: false
+      target_user:
+        description: 'Belirli bir kullanıcıya test gönderimi yap (Boş bırakılırsa tüm premium kullanıcılara gider)'
+        required: false
+        type: string
+        default: ''
+      month:
+        description: 'Raporlanacak ay indeksi (0-11, boş bırakılırsa otomatik bir önceki ay alınır)'
+        required: false
+        type: string
+        default: ''
+      year:
+        description: 'Raporlanacak yıl (Örn: 2026, boş bırakılırsa otomatik hesaplanır)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  send-monthly-reports:
+    name: Aylik Raporlari Derle ve Gonder
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu Klonla (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Node.js 22 Ortamini Hazirla
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Bagimliliklari Yukle
+        run: |
+          npm install --legacy-peer-deps || npm install
+
+      - name: Aylik Finansal Rapor Betigini Calistir
+        env:
+          # Resend API Key (Ayda 3.000 e-posta ucretsiz)
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+
+          # Firebase Servis Anahtari (Firestore erisimi icin)
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'borc-takip-pro-f6936' }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+
+          # Opsiyonel Nodemailer / SMTP Bilgileri (Yedek gonderim kanali)
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+
+          # Manuel tetikleme girdileri
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          CLI_ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            CLI_ARGS="$CLI_ARGS --dry-run"
+          fi
+          if [ -n "${{ inputs.target_user }}" ]; then
+            CLI_ARGS="$CLI_ARGS --user=${{ inputs.target_user }}"
+          fi
+          if [ -n "${{ inputs.month }}" ]; then
+            CLI_ARGS="$CLI_ARGS --month=${{ inputs.month }}"
+          fi
+          if [ -n "${{ inputs.year }}" ]; then
+            CLI_ARGS="$CLI_ARGS --year=${{ inputs.year }}"
+          fi
+
+          echo "🚀 Betik baslatiliyor: node scripts/sendMonthlyReports.js $CLI_ARGS"
+          node scripts/sendMonthlyReports.js $CLI_ARGS
