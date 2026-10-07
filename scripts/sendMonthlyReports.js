@@ -163,9 +163,26 @@ function parseFlexibleDate(rawDate) {
 }
 
 /**
- * 2. ESNEK TUTAR ÇIKARICI
- * amount, tutar, price, value, miktar, totalAmount, paid vb. alanları ve
- * para birimli/virgüllü stringleri güvenle sayıya dönüştürür.
+ * 2. ESNEK TUTAR VE SAYISAL DEĞER AYRIŞTIRICI
+ */
+function parseNumeric(raw) {
+  if (raw === null || raw === undefined) return 0;
+  if (typeof raw === "number") return isNaN(raw) ? 0 : raw;
+  if (typeof raw === "string") {
+    let clean = raw.replace(/[^\d.,-]/g, "").trim();
+    if (clean.includes(",") && clean.includes(".")) {
+      clean = clean.replace(/\./g, "").replace(",", ".");
+    } else if (clean.includes(",")) {
+      clean = clean.replace(",", ".");
+    }
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
+/**
+ * Gelir veya gider kaydından tutarı çeker
  */
 function extractAmount(item) {
   if (!item || typeof item !== "object") return 0;
@@ -178,31 +195,103 @@ function extractAmount(item) {
               item.totalAmount ?? 
               item.toplamTutar ?? 
               item.cost ?? 
-              item.odenenTutar ?? 
-              item.paidAmount ?? 
-              item.paid ??
               0;
 
-  if (typeof raw === "number") {
-    return isNaN(raw) ? 0 : raw;
+  return parseNumeric(raw);
+}
+
+/**
+ * İşlemin/borcun/taksitin GERÇEKTEN ÖDENMİŞ olup olmadığını doğrular
+ * (isPaid == true veya status == 'paid' veya odendi == true)
+ */
+function isItemPaid(item) {
+  if (!item || typeof item !== "object") return false;
+  if (item.isPaid === true || item.odendi === true) return true;
+  if (typeof item.status === "string") {
+    const s = item.status.toLowerCase().trim();
+    if (s === "paid" || s === "completed" || s === "odendi" || s === "success") return true;
+  }
+  return false;
+}
+
+/**
+ * Bir ödeme/borç/taksit kaydından SADECE GERÇEK ÖDEME TARİHİNİ çeker
+ * Asla dueDate (vade tarihi) KULLANMAZ!
+ */
+function extractPaymentDate(item, isFromPaymentsLog = false) {
+  if (!item || typeof item !== "object") return null;
+
+  // 1. Doğrudan ödeme tarihi alanları (En yüksek öncelik)
+  const raw = item.paymentDate ?? 
+              item.odemeTarihi ?? 
+              item.paidAt ?? 
+              item.odendiTarihi ?? 
+              item.transactionDate;
+  if (raw) return parseFlexibleDate(raw);
+
+  // 2. Eğer kayıt zaten ödeme logu tablosundan (payments) geliyorsa date ödeme tarihidir
+  if (isFromPaymentsLog) {
+    const logDate = item.date ?? item.tarih ?? item.createdAt ?? item.timestamp;
+    if (logDate) return parseFlexibleDate(logDate);
   }
 
-  if (typeof raw === "string") {
-    let clean = raw.replace(/[^\d.,-]/g, "").trim();
-    if (clean.includes(",") && clean.includes(".")) {
-      clean = clean.replace(/\./g, "").replace(",", ".");
-    } else if (clean.includes(",")) {
-      clean = clean.replace(",", ".");
+  // 3. Eğer işlem açıkça ödenmişse (isPaid == true) ve date alanı varsa
+  if (isItemPaid(item)) {
+    const paidDate = item.date ?? item.tarih ?? item.updatedAt;
+    if (paidDate) return parseFlexibleDate(paidDate);
+  }
+
+  return null;
+}
+
+/**
+ * Borç/Taksit/Ödeme kaydından SADECE ÖDENEN MİKTARI (paidAmount) çeker
+ * ASLA totalAmount veya anapara amount tutarını almaz!
+ */
+function extractPaidAmountOnly(item, isFromPaymentsLog = false) {
+  if (!item || typeof item !== "object") return 0;
+
+  // 1. Doğrudan ödenen miktar alanları
+  const explicitPaid = item.paidAmount ?? 
+                       item.odenenTutar ?? 
+                       item.amountPaid ?? 
+                       item.odenen ??
+                       null;
+  if (explicitPaid !== null && explicitPaid !== undefined) {
+    const val = parseNumeric(explicitPaid);
+    if (val > 0) return val;
+  }
+
+  // 2. Eğer doğrudan 'payments' log kaydı ise, kaydın kendi amount/tutar alanı ödenen tutardır
+  if (isFromPaymentsLog) {
+    const logAmt = item.amount ?? item.tutar ?? item.paid ?? 0;
+    return parseNumeric(logAmt);
+  }
+
+  // 3. Borç nesnesindeki 'paid' alanı (sayısal ödenen miktar)
+  if (typeof item.paid === "number" && item.paid > 0) {
+    return item.paid;
+  }
+  if (typeof item.paid === "string") {
+    const p = parseNumeric(item.paid);
+    if (p > 0) return p;
+  }
+
+  // 4. Eğer işlem TEK BİR İŞLEM / FATURA olarak açıkça ödenmişse (isPaid == true)
+  // ve bu bir çoklu taksit planı DEĞİLSE
+  if (isItemPaid(item)) {
+    const hasInstallments = Boolean(item.installmentCount && Number(item.installmentCount) > 1);
+    if (!hasInstallments) {
+      const singleAmt = item.amount ?? item.tutar ?? 0;
+      return parseNumeric(singleAmt);
     }
-    const parsed = parseFloat(clean);
-    return isNaN(parsed) ? 0 : parsed;
   }
 
   return 0;
 }
 
 /**
- * Kayıttan tarih alanını çıkarır
+ * Kayıttan tarih alanını çıkarır (Gelir ve Giderler için)
  */
 function extractItemDate(item) {
   if (!item || typeof item !== "object") return null;
@@ -359,6 +448,16 @@ async function sendEmail({ to, subject, html, text }) {
 
 /**
  * 3. HEDEF AYA AİT GERÇEK FİNANSAL RAKAMLARI HESAPLAR
+ * 
+ * Mantık Kriterleri:
+ * - Toplam Gelir: İlgili ayda gerçekleşen tek seferlik veya o aya kadar başlamış düzenli gelirler.
+ * - Toplam Gider: İlgili ayda gerçekleşen tek seferlik veya o aya kadar başlamış düzenli giderler.
+ * - Ödenen Borç & Taksitler:
+ *     * YALNIZCA ilgili rapor ayında (Örn: 01.09.2026 - 30.09.2026) Gerçekleşmiş / Ödenmiş (isPaid == true veya status == 'paid') olan ödemeler/taksitler.
+ *     * Borcun toplam tutarı (totalAmount / anapara) ASLA alınmaz; yalnızca o ay içinde fiilen ödenmiş olan taksit/ödeme miktarı (paidAmount / perMonth) toplanır.
+ *     * Vadesi (dueDate) o ayda olsa bile, ödenmemiş (bekleyen) borçlar ASLA dahil edilmez.
+ *     * Çift sayma (duplicate) koruması: Payments logunda yer alan işlemler borç/taksit listelerinden tekrar eklenmez.
+ * - Net Kalan Bakiye: (Toplam Gelir) - (Toplam Gider + İlgili Ayda Gerçekten Ödenen Borçlar)
  */
 function calculateUserMonthlyFinances(userData, month, year) {
   const incomes = Array.isArray(userData.incomes) ? userData.incomes : [];
@@ -366,11 +465,12 @@ function calculateUserMonthlyFinances(userData, month, year) {
   const debts = Array.isArray(userData.debts) ? userData.debts : [];
   const installmentDebts = Array.isArray(userData.installmentDebts) ? userData.installmentDebts : [];
   const payments = Array.isArray(userData.payments) ? userData.payments : [];
+  const contactTransactions = Array.isArray(userData.contactTransactions) ? userData.contactTransactions : [];
 
   const targetPeriodText = `${MONTH_NAMES_TR[month]} ${year} (Ay: ${month + 1}, Yıl: ${year})`;
   console.log(`\n🧮 [FİNANSAL HESAPLAMA BAŞLATILDI] Hedef: ${targetPeriodText}`);
 
-  // 1. Toplam Gelir
+  // 1. TOPLAM GELİR
   let totalIncome = 0;
   incomes.forEach((inc, idx) => {
     const amt = extractAmount(inc);
@@ -402,7 +502,7 @@ function calculateUserMonthlyFinances(userData, month, year) {
     }
   });
 
-  // 2. Toplam Gider
+  // 2. TOPLAM GİDER
   let totalExpense = 0;
   expenses.forEach((exp, idx) => {
     const amt = extractAmount(exp);
@@ -434,54 +534,146 @@ function calculateUserMonthlyFinances(userData, month, year) {
     }
   });
 
-  // 3. Ödenen Borçlar ve Taksitler
+  // 3. ÖDENEN BORÇ & TAKSİTLER
   let paidDebts = 0;
+  const countedPaymentKeys = new Set();
+  const countedDebtIdsInThisMonth = new Set();
 
-  // Payments logları
+  console.log(`\n💳 [ÖDENEN BORÇ & TAKSİT ANALİZİ - ${MONTH_NAMES_TR[month]} ${year}]:`);
+
+  // A) Payments Log Tablosu (En güvenilir ödeme hareketleri)
   payments.forEach((pay, idx) => {
-    const amt = extractAmount(pay);
-    if (amt <= 0) return;
-    const p = extractItemDate(pay);
-    if (p && p.year === year && p.month === month) {
-      paidDebts += amt;
-      console.log(`   🔵 [Ödeme Eklendi]: ₺${amt} (Tarih: ${p.day}.${p.month + 1}.${p.year})`);
+    if (pay.isPaid === false || pay.status === "cancelled" || pay.status === "failed" || pay.status === "pending") {
+      return;
+    }
+
+    const pDate = extractPaymentDate(pay, true);
+    if (!pDate) {
+      console.log(`   ℹ️ [Ödeme Logu Tarihsiz]: #${idx + 1} atlandı.`);
+      return;
+    }
+
+    if (pDate.year === year && pDate.month === month) {
+      const amt = extractPaidAmountOnly(pay, true);
+      if (amt > 0) {
+        paidDebts += amt;
+        if (pay.debtId) countedDebtIdsInThisMonth.add(pay.debtId);
+        const key = `${pay.debtId || pay.id || idx}_${amt.toFixed(2)}`;
+        countedPaymentKeys.add(key);
+        console.log(`   🔵 [Gerçekleşen Ödeme Logu]: ₺${amt} (Tarih: ${pDate.day}.${pDate.month + 1}.${pDate.year}, Tip: ${pay.type || 'ödeme'})`);
+      }
     } else {
-      console.log(`   ℹ️ [Ödeme Dönem Dışı]: #${idx + 1} Tutar: ₺${amt}, Tarih: ${p ? `${p.day}.${p.month + 1}.${p.year}` : 'Geçersiz'}`);
+      console.log(`   ⏳ [Ödeme Logu Dönem Dışı]: #${idx + 1} Tutar: ₺${extractPaidAmountOnly(pay, true)}, Tarih: ${pDate.day}.${pDate.month + 1}.${pDate.year}`);
     }
   });
 
-  // Basit borçlar
-  debts.forEach((d) => {
-    const p = extractItemDate(d);
-    const paidAmt = extractAmount({ amount: d.paid ?? d.odenen ?? d.odenenTutar ?? 0 });
-    if (p && p.year === year && p.month === month && paidAmt > 0) {
-      paidDebts += paidAmt;
-      console.log(`   🔵 [Borç Ödemesi Eklendi]: ₺${paidAmt} (Vade: ${p.day}.${p.month + 1}.${p.year})`);
-    }
-  });
-
-  // Taksitler
+  // B) Taksitli Borçlar (Installment Debts)
   installmentDebts.forEach((inst) => {
-    const totalInstAmt = extractAmount(inst);
-    const instCount = Number(inst.installmentCount || inst.taksitSayisi) || 1;
-    const perMonth = totalInstAmt / instCount;
-    const startP = extractItemDate({ date: inst.firstDueDate || inst.ilkVadeTarihi || inst.date || inst.startDate });
+    // 1. Taksit nesnesinin içinde alt taksit detay dizisi varsa
+    const subList = Array.isArray(inst.installments) ? inst.installments :
+                    Array.isArray(inst.taksitListesi) ? inst.taksitListesi :
+                    Array.isArray(inst.taksitler) ? inst.taksitler : null;
 
-    if (startP) {
-      const startTime = startP.year * 12 + startP.month;
+    if (subList && subList.length > 0) {
+      subList.forEach((sub, subIdx) => {
+        if (!isItemPaid(sub)) return; // Sadece ödenmiş taksitler
+        const pDate = extractPaymentDate(sub, false);
+        if (pDate && pDate.year === year && pDate.month === month) {
+          const instCount = Number(inst.installmentCount || inst.taksitSayisi) || 1;
+          const amt = extractPaidAmountOnly(sub, false) || (parseNumeric(inst.totalAmount) / instCount);
+          const key = `sub_${inst.id}_${sub.id || subIdx}_${amt.toFixed(2)}`;
+          if (!countedPaymentKeys.has(key) && amt > 0) {
+            paidDebts += amt;
+            countedPaymentKeys.add(key);
+            console.log(`   🔵 [Ödenen Taksit Eklendi]: ₺${amt} (Plan: ${inst.name || 'Taksit'}, Taksit #${subIdx + 1})`);
+          }
+        }
+      });
+      return;
+    }
+
+    // 2. Alt dizi yoksa: Payments logunda bu taksit için ödeme zaten işlenmişse mükerrer ekleme
+    if (countedDebtIdsInThisMonth.has(inst.id)) {
+      console.log(`   ℹ️ [Taksit Payments Logundan Zaten Eklendi]: '${inst.name}' (Tekrar sayılmadı)`);
+      return;
+    }
+
+    // Payments tablosunda yoksa, bu ayın taksiti gerçekten ödenmiş mi hesapla:
+    const startParts = parseFlexibleDate(inst.firstDueDate || inst.ilkVadeTarihi || inst.startDate);
+    const instCount = Number(inst.installmentCount || inst.taksitSayisi) || 1;
+    const totalAmt = parseNumeric(inst.totalAmount ?? inst.toplamTutar);
+    const perMonth = instCount > 0 ? (totalAmt / instCount) : 0;
+
+    if (startParts && perMonth > 0) {
+      const startTime = startParts.year * 12 + startParts.month;
       const targetTime = year * 12 + month;
       const monthDiff = targetTime - startTime;
+
       if (monthDiff >= 0 && monthDiff < instCount) {
         const paidCount = Number(inst.paidInstallmentCount || inst.odenenTaksitSayisi) || 0;
-        if (paidCount > monthDiff) {
+        // İlgili ayın taksit dilimi fiilen ödenmiş mi?
+        if (paidCount >= monthDiff + 1 || isItemPaid(inst)) {
           paidDebts += perMonth;
-          console.log(`   🔵 [Taksit Ödemesi Eklendi]: ₺${perMonth.toFixed(2)} (Taksit #${monthDiff + 1}/${instCount})`);
+          console.log(`   🔵 [Aylık Taksit Ödemesi Eklendi]: ₺${perMonth.toFixed(2)} (Plan: ${inst.name}, #${monthDiff + 1}/${instCount}. Taksit - Anapara DEĞİL)`);
+        } else {
+          console.log(`   ⏳ [Ödenmemiş Taksit]: '${inst.name}' #${monthDiff + 1}. taksit bu ay ödenmemiş (Ödenen Sayısı: ${paidCount}).`);
         }
       }
     }
   });
 
-  const netBalance = totalIncome - totalExpense - paidDebts;
+  // C) Basit Borçlar (Debts)
+  debts.forEach((d) => {
+    // Payments logunda bu borç için ödeme zaten işlenmişse mükerrer ekleme
+    if (countedDebtIdsInThisMonth.has(d.id)) {
+      console.log(`   ℹ️ [Borç Payments Logundan Zaten Eklendi]: '${d.name}' (Tekrar sayılmadı)`);
+      return;
+    }
+
+    // Yalnızca GERÇEKTEN ÖDENMİŞ borçlar
+    const pDate = extractPaymentDate(d, false);
+    const isPaid = isItemPaid(d);
+
+    if (pDate && pDate.year === year && pDate.month === month && (isPaid || parseNumeric(d.paidAmount || d.odenenTutar || d.paid) > 0)) {
+      // Borcun toplam tutarını (totalAmount / amount) DEĞİL, sadece bu ay içinde ödenmiş miktarı topla:
+      let paidAmt = parseNumeric(d.paidAmount ?? d.odenenTutar ?? d.amountPaid);
+      if (paidAmt <= 0 && isPaid) {
+        paidAmt = parseNumeric(d.paid ?? d.odenen ?? d.amount ?? d.tutar);
+      }
+      if (paidAmt > 0) {
+        paidDebts += paidAmt;
+        console.log(`   🔵 [Gerçekleşen Borç Kapatma Eklendi]: ₺${paidAmt} (Borç: ${d.name}, Ödeme Tarihi: ${pDate.day}.${pDate.month + 1}.${pDate.year})`);
+      }
+    } else {
+      // Vadesi bu ayda olsa bile, ödenmediyse ASLA dahil etme
+      if (d.dueDate) {
+        const vDate = parseFlexibleDate(d.dueDate);
+        if (vDate && vDate.year === year && vDate.month === month) {
+          console.log(`   ℹ️ [Vadesi Bu Ay Olan Borç Ödenmemiş / Bekliyor]: '${d.name}' Tutar: ₺${d.amount}, Vade: ${d.dueDate} (Ödenmediği için rapora eklenmedi)`);
+        }
+      }
+    }
+  });
+
+  // D) Kişi Borçları (Varsa)
+  contactTransactions.forEach((t) => {
+    if (t.type !== "payable" && t.tur !== "borc") return;
+    if (!isItemPaid(t)) return;
+
+    const pDate = extractPaymentDate(t, false);
+    if (pDate && pDate.year === year && pDate.month === month) {
+      const paidAmt = parseNumeric(t.paidAmount ?? t.odenenTutar ?? t.amount ?? t.tutar);
+      if (paidAmt > 0) {
+        paidDebts += paidAmt;
+        console.log(`   🔵 [Kişi Borcu Kapatma Eklendi]: ₺${paidAmt} (Kişi: ${t.contactName || t.kisi || 'Belirtilmemiş'})`);
+      }
+    }
+  });
+
+  // 4. NET KALAN REZERV / BAKİYE HESAPLAMASI
+  // Formül: (Toplam Gelir) - (Toplam Gider + İlgili Ayda Gerçekten Ödenen Borçlar)
+  const totalOutflow = totalExpense + paidDebts;
+  const netBalance = totalIncome - totalOutflow;
 
   const results = {
     totalIncome: Math.round(totalIncome * 100) / 100,
@@ -493,8 +685,8 @@ function calculateUserMonthlyFinances(userData, month, year) {
   console.log(`\n📊 [HESAPLAMA SONUÇLARI - ${reportMonthTitle}]:`);
   console.log(`   🟢 Toplam Gelir: ₺${results.totalIncome}`);
   console.log(`   🔴 Toplam Gider: ₺${results.totalExpense}`);
-  console.log(`   🔵 Ödenen Borç: ₺${results.paidDebts}`);
-  console.log(`   ⭐ Net Bakiye: ₺${results.netBalance}\n`);
+  console.log(`   🔵 Gerçekten Ödenen Borç & Taksit: ₺${results.paidDebts}`);
+  console.log(`   ⭐ Net Bakiye / Rezerv: ₺${results.netBalance} (${results.netBalance >= 0 ? 'POZİTİF (NET KALAN REZERV)' : 'NEGATİF (DÖNEM BAKİYESİ AÇIK)'})\n`);
 
   return results;
 }
@@ -537,11 +729,12 @@ async function loadUsersFromRTDB(firebaseContext) {
         { amount: 4800, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-20`, isRecurring: false }
       ],
       payments: [
-        { amount: 8000, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-12`, type: "debt" },
-        { amount: 6500, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-18`, type: "installment" }
+        { amount: 8000, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-12`, type: "debt", isPaid: true, status: "paid" },
+        { amount: 6500, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-18`, type: "installment", isPaid: true, status: "paid" }
       ],
       debts: [],
-      installmentDebts: []
+      installmentDebts: [],
+      contactTransactions: []
     }];
   }
 
@@ -612,8 +805,9 @@ async function loadUsersFromRTDB(firebaseContext) {
       const incomes = normalizeToArray(veriler.incomes || veriler.gelirler);
       const expenses = normalizeToArray(veriler.expenses || veriler.giderler);
       const debts = normalizeToArray(veriler.debts || veriler.borclar);
-      const installmentDebts = normalizeToArray(veriler.installmentDebts || veriler.taksitler);
+      const installmentDebts = normalizeToArray(veriler.installmentDebts || veriler.taksitler || veriler.taksitli_borclar);
       const payments = normalizeToArray(veriler.payments || veriler.odemeler);
+      const contactTransactions = normalizeToArray(veriler.contactTransactions || veriler.contacts || veriler.savedContactTxs || veriler.kisi_borclari);
 
       parsedUsers.push({
         id: uid,
@@ -626,7 +820,8 @@ async function loadUsersFromRTDB(firebaseContext) {
         debts,
         installmentDebts,
         payments,
-        rawNode: { uid, email: userEmail, incomesCount: incomes.length, expensesCount: expenses.length, debtsCount: debts.length }
+        contactTransactions,
+        rawNode: { uid, email: userEmail, incomesCount: incomes.length, expensesCount: expenses.length, debtsCount: debts.length, paymentsCount: payments.length }
       });
     }
 
@@ -731,11 +926,12 @@ async function loadUsersFromRTDB(firebaseContext) {
         { amount: 4800, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-20`, isRecurring: false }
       ],
       payments: [
-        { amount: 8000, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-12`, type: "debt" },
-        { amount: 6500, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-18`, type: "installment" }
+        { amount: 8000, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-12`, type: "debt", isPaid: true, status: "paid" },
+        { amount: 6500, date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-18`, type: "installment", isPaid: true, status: "paid" }
       ],
       debts: [],
       installmentDebts: [],
+      contactTransactions: [],
       firestore_diagnostic: {
         projectId: lockedProjectId,
         error: `[${lastRTDBError?.code || 'RTDB_FAIL'}] ${lastRTDBError?.message || 'Realtime Database okunamadı'}`,

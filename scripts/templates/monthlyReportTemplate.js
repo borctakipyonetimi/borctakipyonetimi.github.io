@@ -223,7 +223,7 @@ ${firestore_diagnostic ? `
                 <tr>
                   <td align="center">
                     <span style="font-size: 11px; font-weight: 900; color: ${isPositiveBalance ? '#6ee7b7' : '#fca5a5'}; text-transform: uppercase; letter-spacing: 1.5px; display: block; margin-bottom: 8px;">
-                      ${isPositiveBalance ? '⭐ NET KALAN REZERV (TASARRUF)' : '⚠️ DÖNEM BAKİYESİ (AÇIK)'}
+                      ${isPositiveBalance ? '⭐ NET KALAN REZERV' : '⚠️ DÖNEM BAKİYESİ (AÇIK)'}
                     </span>
                     <div class="balance-amount" style="font-size: 32px; font-weight: 900; color: #ffffff; font-family: 'Courier New', Courier, monospace; letter-spacing: -0.5px; margin-bottom: 8px;">
                       ${formattedNetBalance}
