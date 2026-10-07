@@ -17,8 +17,17 @@ import { generateMonthlyReportEmail } from "./templates/monthlyReportTemplate.js
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import admin from "firebase-admin";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { initializeApp, cert, getApps, deleteApp } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
+
+// admin.app() desteği (modular Firebase Admin ESM uyumluluğu)
+admin.app = (name) => {
+  const apps = getApps();
+  const target = name ? apps.find(a => a.name === name) : (apps[0] || null);
+  if (!target) return { delete: async () => {} };
+  if (!target.delete) target.delete = async () => deleteApp(target);
+  return target;
+};
 
 const MONTH_NAMES_TR = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -1026,10 +1035,23 @@ async function run() {
   console.log(`❌ Hatalı Gönderim: ${failureCount}`);
   console.log(`⏭️ Atlanan: ${skippedCount}`);
   console.log("==================================================");
+
+  try {
+    await admin.app().delete();
+  } catch (e) {
+    console.log("Firebase kapatılırken hata:", e);
+  }
+  process.exit(0);
 }
 
-run().catch((err) => {
+run().then(() => {
+  process.exit(0);
+}).catch((err) => {
   console.error("💥 Kritik betik hatası:", err.message || err);
   if (err.stack) console.error("Stack Trace:\n" + err.stack);
+  try {
+    admin.app().delete().catch(() => {});
+  } catch (_) {}
   process.exit(1);
 });
+
