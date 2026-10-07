@@ -13,7 +13,7 @@
  * - Ana Düğümler: /kullanicilar/{userId}/veriler ve /users/{userId}/veriler
  */
 
-import { generateMonthlyReportEmail } from "./templates/monthlyReportTemplate.js";
+import { generateMonthlyReportEmail, MONTHLY_REPORT_HTML_TEMPLATE } from "./templates/monthlyReportTemplate.js";
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import admin from "firebase-admin";

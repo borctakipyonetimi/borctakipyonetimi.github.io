@@ -1,304 +1,180 @@
 /**
  * Bütçem Pro - Aylık Finansal Faaliyet Raporu E-posta Şablonu
- * Koyu temalı (Dark Mode), Indigo/Purple marka paletine uygun, modern HTML e-posta şablonu.
- *
- * @param {Object} params
- * @param {string} params.user_name - Kullanıcı adı veya hitap
- * @param {string} params.report_month - Raporun ait olduğu ay (Örn: "Eylül 2026", "Ekim 2026")
- * @param {number|string} params.total_income - İlgili aydaki toplam gelir
- * @param {number|string} params.total_expense - İlgili aydaki toplam harcama / gider
- * @param {number|string} params.paid_debts - İlgili ayda kapatılan / ödenen borç ve taksitler
- * @param {number|string} params.net_balance - Net kalan bakiye (Gelir - Gider - Ödenen Borç)
- * @returns {string} - Dinamik ve uyumlu HTML e-posta gövdesi
+ * Modern kart mimarisine sahip Premium HTML e-posta tasarımı.
  */
-function generateMonthlyReportEmail({
-  user_name = "Değerli Kullanıcımız",
-  report_month = "Geçtiğimiz Ay",
-  total_income = 0,
-  total_expense = 0,
-  paid_debts = 0,
-  net_balance = 0,
-  app_url = "https://ais-pre-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app",
-  firestore_diagnostic = null
-}) {
-  // Para birimi formatlama yardımcısı
-  const formatCurrency = (val) => {
-    if (typeof val === "string" && (val.includes("₺") || val.includes("TL"))) {
-      return val;
-    }
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(num);
-  };
 
-  const numNetBalance = typeof net_balance === "number" ? net_balance : (parseFloat(String(net_balance).replace(/[^0-9.-]+/g, "")) || 0);
-  const isPositiveBalance = numNetBalance >= 0;
+function formatNumberTR(val) {
+  if (val === null || val === undefined) return "0,00";
+  if (typeof val === "string") {
+    val = val.replace(/[₺TL\s]/g, "").trim();
+  }
+  const num = Number(val) || 0;
+  return new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
+}
 
-  const formattedIncome = formatCurrency(total_income);
-  const formattedExpense = formatCurrency(total_expense);
-  const formattedPaidDebts = formatCurrency(paid_debts);
-  const formattedNetBalance = formatCurrency(net_balance);
-
-  const cleanUserName = (user_name && user_name.trim()) ? user_name.trim() : "Değerli Kullanıcımız";
-
-  return `<!DOCTYPE html>
+const MONTHLY_REPORT_HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bütçem Pro - ${report_month} Finansal Raporu</title>
+  <title>Aylık Finansal Rapor</title>
   <style>
-    /* Reset & Temel Uyumluluk */
-    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
-    body { margin: 0; padding: 0; width: 100% !important; background-color: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-    @media only screen and (max-width: 600px) {
-      .container-table { width: 100% !important; padding: 12px !important; }
-      .grid-card { width: 100% !important; display: block !important; margin-bottom: 12px !important; }
-      .kpi-table { width: 100% !important; }
-      .header-title { font-size: 20px !important; }
-      .balance-amount { font-size: 26px !important; }
-    }
+    body { margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #111827; padding: 32px 24px; border-radius: 16px; border: 1px solid #1f2937; }
+    .brand { text-align: center; margin-bottom: 24px; }
+    .brand-title { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
+    .brand-badge { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; margin-left: 8px; vertical-align: middle; }
+    .period-title { font-size: 14px; text-align: center; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 28px; }
+    
+    .greeting-card { background: #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #6366f1; }
+    .greeting-title { font-size: 18px; font-weight: 600; color: #ffffff; margin: 0 0 8px 0; }
+    .greeting-text { font-size: 14px; color: #9ca3af; margin: 0; line-height: 1.5; }
+
+    .grid-2 { width: 100%; border-collapse: separate; border-spacing: 12px; margin: -12px -12px 12px -12px; }
+    .stat-card { background: #1f2937; border-radius: 12px; padding: 18px; border: 1px solid #374151; }
+    .stat-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .stat-value { font-size: 22px; font-weight: 700; margin: 0; }
+
+    .income .stat-label { color: #10b981; }
+    .income .stat-value { color: #34d399; }
+    .expense .stat-label { color: #f43f5e; }
+    .expense .stat-value { color: #fb7185; }
+
+    .full-card { background: #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #374151; }
+    .full-card .stat-label { color: #3b82f6; }
+    .full-card .stat-value { color: #60a5fa; }
+
+    .status-card { border-radius: 12px; padding: 22px; text-align: center; margin-bottom: 24px; }
+    .status-positive { background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; }
+    .status-positive .status-title { color: #34d399; }
+    .status-negative { background: rgba(244, 63, 94, 0.1); border: 1px solid #f43f5e; }
+    .status-negative .status-title { color: #fb7185; }
+
+    .status-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .status-value { font-size: 28px; font-weight: 800; color: #ffffff; margin-bottom: 8px; }
+    .status-desc { font-size: 13px; color: #d1d5db; margin: 0; }
+
+    .tip-card { background: #1e1b4b; border-radius: 12px; padding: 16px; border: 1px solid #4338ca; }
+    .tip-title { font-size: 13px; font-weight: 600; color: #a5b4fc; margin-bottom: 4px; }
+    .tip-text { font-size: 13px; color: #c7d2fe; margin: 0; line-height: 1.4; }
+
+    .footer { text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #1f2937; font-size: 12px; color: #6b7280; }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #090d16; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <!-- Dış Arka Plan Sarmalayıcı -->
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #090d16; padding: 30px 10px;">
-    <tr>
-      <td align="center">
-        <!-- Ana Konteyner Tablosu (Maksimum 600px) -->
-        <table class="container-table" width="600" border="0" cellspacing="0" cellpadding="0" style="width: 600px; max-width: 600px; background-color: #0f172a; border-radius: 24px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
-          
-          <!-- Üst Degrade Işık Çizgisi (Indigo/Purple) -->
-          <tr>
-            <td style="height: 5px; background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%); line-height: 5px; font-size: 1px;">&nbsp;</td>
-          </tr>
+<body>
+  <div style="padding: 20px 10px;">
+    <div class="container">
+      
+      <!-- Brand & Header -->
+      <div class="brand">
+        <span class="brand-title">Bütçem<span class="brand-badge">PRO</span></span>
+      </div>
+      <div class="period-title">📅 {{RAPOR_DONEMI}} Finansal Özeti</div>
 
-          <!-- Başlık ve Logo Bölümü -->
-          <tr>
-            <td style="padding: 36px 36px 20px 36px; text-align: center;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center">
-                    <!-- Rozet -->
-                    <table border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 16px;">
-                      <tr>
-                        <td style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 9999px; padding: 6px 16px; text-align: center;">
-                          <span style="color: #a5b4fc; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">
-                            ✨ PREMIUM AYLIK HESAP ÖZETİ
-                          </span>
-                        </td>
-                      </tr>
-                    </table>
+      <!-- User Greeting -->
+      <div class="greeting-card">
+        <h2 class="greeting-title">Merhaba {{KULLANICI_ADI}} 👋</h2>
+        <p class="greeting-text">{{RAPOR_DONEMI}} dönemine ait tüm gelir, gider ve ödediğiniz borç kayıtlarınız analiz edilerek aşağıda özetlenmiştir.</p>
+      </div>
 
-                    <!-- Marka & Başlık -->
-                    <h1 class="header-title" style="margin: 0 0 8px 0; color: #ffffff; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">
-                      Bütçem <span style="background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: #818cf8; color: #818cf8;">Pro</span>
-                    </h1>
-                    <div style="font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
-                      📅 ${report_month} Finansal Faaliyet Raporu
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <!-- Stats Grid -->
+      <table class="grid-2" width="100%">
+        <tr>
+          <td width="50%" class="stat-card income">
+            <div class="stat-label">🟢 Toplam Gelir</div>
+            <div class="stat-value">₺{{TOPLAM_GELIR}}</div>
+          </td>
+          <td width="50%" class="stat-card expense">
+            <div class="stat-label">🔴 Toplam Gider</div>
+            <div class="stat-value">₺{{TOPLAM_GIDER}}</div>
+          </td>
+        </tr>
+      </table>
 
-          <!-- Kişiselleştirilmiş Karşılama -->
-          <tr>
-            <td style="padding: 0 36px 24px 36px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 18px 20px;">
-                <tr>
-                  <td>
-                    <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #f8fafc;">
-                      Merhaba ${cleanUserName}, 👋
-                    </p>
-                    <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #94a3b8;">
-                      <strong style="color: #cbd5e1;">${report_month}</strong> döneminde gerçekleştirdiğiniz tüm nakit akışınız, harcamalarınız ve ödediğiniz borç kayıtlarınız analiz edilerek aşağıda özetlenmiştir.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-${firestore_diagnostic ? `
-          <!-- Sistem & Firebase Teşhis Bildirimi -->
-          <tr>
-            <td style="padding: 0 36px 20px 36px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 14px; padding: 14px 18px;">
-                <tr>
-                  <td>
-                    <div style="font-size: 11px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                      ⚠️ Sistem Teşhis Notu: Firebase Yetkilendirme / Erişim
-                    </div>
-                    <div style="font-size: 12px; color: #e2e8f0; line-height: 1.5;">
-                      <strong>Kullanılan Proje:</strong> ${typeof firestore_diagnostic === 'object' ? (firestore_diagnostic.projectId || 'Bilinmiyor') : 'Bilinmiyor'}<br/>
-                      <strong>Hata Durumu:</strong> ${typeof firestore_diagnostic === 'object' ? (firestore_diagnostic.error || 'Erişim Kısıtlı') : firestore_diagnostic}<br/>
-                      <span style="color: #cbd5e1; font-size: 11px;">${typeof firestore_diagnostic === 'object' && firestore_diagnostic.notice ? firestore_diagnostic.notice : 'Canlı Firestore verilerine erişilemediği için bu test raporu örnek finansal verilerle üretilmiş ve e-posta motoru başarıyla test edilmiştir.'}</span>
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-` : ''}
-          <!-- Özet Kartlar (KPI Grid) -->
-          <tr>
-            <td style="padding: 0 36px 12px 36px;">
-              <table class="kpi-table" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <!-- 1. Satır: Gelir ve Gider -->
-                <tr>
-                  <td width="48%" style="padding-bottom: 12px; vertical-align: top;">
-                    <!-- Toplam Gelir Kartı -->
-                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 16px 18px;">
-                      <tr>
-                        <td>
-                          <div style="font-size: 11px; font-weight: 800; color: #6ee7b7; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                            🟢 TOPLAM GELİR
-                          </div>
-                          <div style="font-size: 18px; font-weight: 900; color: #34d399; font-family: 'Courier New', Courier, monospace;">
-                            ${formattedIncome}
-                          </div>
-                          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">
-                            Maaş ve düzenli kazançlar
-                          </div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <td width="4%">&nbsp;</td>
-                  <td width="48%" style="padding-bottom: 12px; vertical-align: top;">
-                    <!-- Toplam Gider Kartı -->
-                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 16px; padding: 16px 18px;">
-                      <tr>
-                        <td>
-                          <div style="font-size: 11px; font-weight: 800; color: #fda4af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                            🔴 TOPLAM GİDER
-                          </div>
-                          <div style="font-size: 18px; font-weight: 900; color: #fb7185; font-family: 'Courier New', Courier, monospace;">
-                            ${formattedExpense}
-                          </div>
-                          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">
-                            Aylık harcama toplamı
-                          </div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
+      <!-- Debt Card -->
+      <div class="full-card">
+        <div class="stat-label">💳 Ödenen Borç & Taksitler</div>
+        <div class="stat-value">₺{{ODENEN_BORC}}</div>
+      </div>
 
-                <!-- 2. Satır: Ödenen Borçlar & Taksitler -->
-                <tr>
-                  <td colspan="3" style="padding-bottom: 12px;">
-                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 16px; padding: 16px 20px;">
-                      <tr>
-                        <td>
-                          <div style="font-size: 11px; font-weight: 800; color: #7dd3fc; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                            💳 ÖDENEN BORÇ & TAKSİTLER
-                          </div>
-                          <div style="font-size: 20px; font-weight: 900; color: #38bdf8; font-family: 'Courier New', Courier, monospace;">
-                            ${formattedPaidDebts}
-                          </div>
-                          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">
-                            Bu ay başarıyla kapatılan borç ve taksit tutarı
-                          </div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <!-- Net Balance Status -->
+      <!-- Pozitif Durum için status-positive, Negatif Durum için status-negative sınıfını kullanın -->
+      <div class="status-card {{BAKIYE_DURUM_SINIFI}}">
+        <div class="status-title">{{BAKIYE_DURUM_BASLIK}}</div>
+        <div class="status-value">₺{{NET_BAKIYE}}</div>
+        <p class="status-desc">{{BAKIYE_DURUM_ACIKLAMA}}</p>
+      </div>
 
-          <!-- Vurgulu Net Bakiye Kartı (Hero KPI) -->
-          <tr>
-            <td style="padding: 0 36px 28px 36px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: ${isPositiveBalance ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(249, 115, 22, 0.15) 100%)'}; border: 2px solid ${isPositiveBalance ? '#10b981' : '#ef4444'}; border-radius: 20px; padding: 22px 24px; text-align: center;">
-                <tr>
-                  <td align="center">
-                    <span style="font-size: 11px; font-weight: 900; color: ${isPositiveBalance ? '#6ee7b7' : '#fca5a5'}; text-transform: uppercase; letter-spacing: 1.5px; display: block; margin-bottom: 8px;">
-                      ${isPositiveBalance ? '⭐ NET KALAN REZERV' : '⚠️ DÖNEM BAKİYESİ (AÇIK)'}
-                    </span>
-                    <div class="balance-amount" style="font-size: 32px; font-weight: 900; color: #ffffff; font-family: 'Courier New', Courier, monospace; letter-spacing: -0.5px; margin-bottom: 8px;">
-                      ${formattedNetBalance}
-                    </div>
-                    <p style="margin: 0; font-size: 12px; color: #cbd5e1; line-height: 1.5;">
-                      ${isPositiveBalance 
-                        ? 'Tebrikler! Gelirleriniz harcama ve borç ödemelerinizin üzerinde gerçekleşti.' 
-                        : 'Bu dönem harcama ve borç ödemeleriniz gelirlerinizi aştı. Yeni ayda harcama planı yapmanız önerilir.'}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <!-- AI / Smart Tip -->
+      <div class="tip-card">
+        <div class="tip-title">💡 Yeni Ay İçin İpucu</div>
+        <div class="tip-text">Bütçem Pro uygulamasından yaklaşan taksitlerinize hatırlatıcı kurarak gecikme maliyetlerini sıfırlayabilirsiniz.</div>
+      </div>
 
-          <!-- Akıllı Tavsiye Kutusu -->
-          <tr>
-            <td style="padding: 0 36px 28px 36px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background: #131d33; border-left: 4px solid #8b5cf6; border-radius: 12px; padding: 14px 18px;">
-                <tr>
-                  <td>
-                    <p style="margin: 0 0 4px 0; font-size: 12px; font-weight: 800; color: #c4b5fd;">
-                      💡 Yeni Ay İçin Tasarruf İpucu
-                    </p>
-                    <p style="margin: 0; font-size: 11.5px; color: #94a3b8; line-height: 1.5;">
-                      Bütçem Pro menüsünden yaklaşan taksitlerinizi inceleyin ve vadesi gelen borçlar için hatırlatıcı kurarak gecikme maliyetlerini sıfırlayın.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <!-- Footer -->
+      <div class="footer">
+        Bu e-posta Bütçem Pro Premium üyelerine özel otomatik olarak üretilmiştir.<br>
+        © 2026 Bütçem Pro. Tüm hakları saklıdır.
+      </div>
 
-          <!-- Aksiyon Butonu (CTA) -->
-          <tr>
-            <td align="center" style="padding: 0 36px 36px 36px;">
-              <table border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center" style="border-radius: 14px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
-                    <a href="${app_url}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 14px; font-weight: 800; color: #ffffff; text-decoration: none; border-radius: 14px; letter-spacing: 0.3px;">
-                      Bütçem Pro'yu Aç ve İncele ➔
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Alt Bilgi (Footer) -->
-          <tr>
-            <td style="background-color: #0b1120; border-top: 1px solid #1e293b; padding: 24px 36px; text-align: center;">
-              <p style="margin: 0 0 8px 0; font-size: 11px; font-weight: 700; color: #64748b;">
-                Bütçem Pro — Akıllı Bireysel Bütçe ve Borç Yönetimi
-              </p>
-              <p style="margin: 0 0 6px 0; font-size: 10px; color: #475569; line-height: 1.5;">
-                Bu e-posta, Bütçem Pro Premium üyeliğiniz kapsamında her ayın başında otomatik olarak gönderilir.
-              </p>
-              <p style="margin: 0; font-size: 10px; color: #334155;">
-                © ${new Date().getFullYear()} Bütçem Pro. Tüm hakları saklıdır.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
+    </div>
+  </div>
 </body>
 </html>`;
+
+/**
+ * Dinamik değişkenleri doldurarak HTML e-posta gövdesini oluşturur
+ */
+function generateMonthlyReportEmail({
+  user_name = "Değerli Kullanıcımız",
+  report_month = "Ekim 2026",
+  total_income = 0,
+  total_expense = 0,
+  paid_debts = 0,
+  net_balance = 0
+}) {
+  const numNetBalance = typeof net_balance === "number" ? net_balance : (parseFloat(String(net_balance).replace(/[^0-9.-]+/g, "")) || 0);
+  const isPositive = numNetBalance >= 0;
+
+  const raporDonemi = report_month || "Ekim 2026";
+  const kullaniciAdi = (user_name && user_name.trim()) ? user_name.trim() : "Değerli Kullanıcımız";
+  const toplamGelir = formatNumberTR(total_income);
+  const toplamGider = formatNumberTR(total_expense);
+  const odenenBorc = formatNumberTR(paid_debts);
+
+  const bakiyeDurumSinifi = isPositive ? "status-positive" : "status-negative";
+  const bakiyeDurumBaslik = isPositive ? "Net Kalan Rezerve" : "Dönem Bakiyesi (Açık)";
+  const bakiyeDurumAciklama = isPositive
+    ? "Tebrikler! Gelirleriniz harcama ve borç ödemelerinizin üzerinde gerçekleşti."
+    : "Bu dönem harcama ve borç ödemeleriniz gelirlerinizi aştı. Yeni ayda harcama planı yapmanız önerilir.";
+
+  let html = MONTHLY_REPORT_HTML_TEMPLATE;
+  html = html.replace(/\{\{RAPOR_DONEMI\}\}/g, raporDonemi);
+  html = html.replace(/\{\{KULLANICI_ADI\}\}/g, kullaniciAdi);
+  html = html.replace(/\{\{TOPLAM_GELIR\}\}/g, toplamGelir);
+  html = html.replace(/\{\{TOPLAM_GIDER\}\}/g, toplamGider);
+  html = html.replace(/\{\{ODENEN_BORC\}\}/g, odenenBorc);
+
+  if (numNetBalance < 0) {
+    html = html.replace("₺{{NET_BAKIYE}}", `-₺${formatNumberTR(Math.abs(numNetBalance))}`);
+    html = html.replace(/\{\{NET_BAKIYE\}\}/g, `-${formatNumberTR(Math.abs(numNetBalance))}`);
+  } else {
+    html = html.replace(/\{\{NET_BAKIYE\}\}/g, formatNumberTR(numNetBalance));
+  }
+
+  html = html.replace(/\{\{BAKIYE_DURUM_SINIFI\}\}/g, bakiyeDurumSinifi);
+  html = html.replace(/\{\{BAKIYE_DURUM_BASLIK\}\}/g, bakiyeDurumBaslik);
+  html = html.replace(/\{\{BAKIYE_DURUM_ACIKLAMA\}\}/g, bakiyeDurumAciklama);
+
+  return html;
 }
 
-// CommonJS ve ES Modules ortak dışa aktarımı
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { generateMonthlyReportEmail };
+  module.exports = { generateMonthlyReportEmail, MONTHLY_REPORT_HTML_TEMPLATE };
   module.exports.default = generateMonthlyReportEmail;
 }
-export { generateMonthlyReportEmail };
+export { generateMonthlyReportEmail, MONTHLY_REPORT_HTML_TEMPLATE };
 export default generateMonthlyReportEmail;
