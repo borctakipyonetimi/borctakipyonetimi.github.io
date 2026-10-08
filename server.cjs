@@ -80,6 +80,12 @@ app.get("/api/health", (req, res) => {
     smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass)
   });
 });
+app.get("/logo.png", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.sendFile(import_path.default.join(process.cwd(), "public", "logo.png"));
+});
 var tempWebviewBackups = /* @__PURE__ */ new Map();
 setInterval(() => {
   try {
