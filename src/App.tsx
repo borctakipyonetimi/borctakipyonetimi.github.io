@@ -33,6 +33,7 @@ import { compressAndResizeImage } from "./utils/imageUtils";
 import { Purchases, PLAY_PRODUCTS, calculatePlanExpiry } from "./utils/purchases";
 import { parseDateParts, isSameMonthYear, isDateWithinRange, getNotificationPeriodMs, formatToLocalYMD, getReportPresetDates } from "./utils/dateUtils";
 import { subscribeToNewsletter } from "./utils/newsletterService";
+import appLogo from "./assets/logo.png";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Menu,
@@ -7565,11 +7566,11 @@ export default function App() {
             </button>
 
             {/* Official APK Application Logo */}
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900/90 border border-indigo-500/30 p-0.5 shadow-md shadow-indigo-500/20 shrink-0 overflow-hidden flex items-center justify-center">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-amber-500/30 p-0.5 shadow-md shadow-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
               <img
-                src="/logo.png"
+                src={appLogo}
                 alt="Bütçem Pro"
-                className="w-full h-full object-cover rounded-lg"
+                className="w-full h-full object-contain rounded-lg"
               />
             </div>
             
@@ -8335,15 +8336,11 @@ export default function App() {
           {/* Workspace Title & Close Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-slate-700/60 p-0.5 shadow-md shadow-indigo-500/20 shrink-0 overflow-hidden flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
                 <img
-                  src="/logo.png"
+                  src={appLogo}
                   alt="Bütçem Pro"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-xl"
-                  onError={(e: any) => {
-                    e.currentTarget.style.display = "none";
-                  }}
+                  className="w-full h-full object-contain rounded-xl"
                 />
               </div>
               <div className="min-w-0">

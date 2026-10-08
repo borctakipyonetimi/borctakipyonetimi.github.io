@@ -83,6 +83,14 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Explicit route for application logo to guarantee immediate update and zero-cache delivery
+app.get("/logo.png", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.sendFile(path.join(process.cwd(), "public", "logo.png"));
+});
+
 // Memory cache for temporary backups (lasts 30 minutes for sharing via WhatsApp / Drive)
 const tempWebviewBackups = new Map<string, { content: string, filename: string, expires: number }>();
 
