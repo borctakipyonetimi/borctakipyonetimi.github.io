@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   ref, 
   get, 
   set, 
@@ -118,6 +119,7 @@ import {
 
 // Import Modular Sub-Components
 import { useCurrency, CurrencyType } from "./utils/CurrencyContext";
+import { COLOR_THEMES, getThemeById, applyThemeToDom } from "./utils/themeContext";
 import { DashboardOverview } from "./components/DashboardOverview";
 import { DebtList } from "./components/DebtList";
 import { IncomesList } from "./components/IncomesList";
@@ -2985,15 +2987,7 @@ export default function App() {
 
   // Sync color theme overrides on documents
   useEffect(() => {
-    const themes = ["theme-default", "theme-green", "theme-purple", "theme-orange"];
-    themes.forEach((t) => {
-      document.documentElement.classList.remove(t);
-      document.body.classList.remove(t);
-    });
-    
-    const activeClass = `theme-${colorTheme}`;
-    document.documentElement.classList.add(activeClass);
-    document.body.classList.add(activeClass);
+    applyThemeToDom(colorTheme);
   }, [colorTheme]);
 
   // Load appropriate data when user target profile changes or mounts (local + Firebase Firestore sync)
@@ -3001,10 +2995,10 @@ export default function App() {
     let active = true;
 
     const defaultCategories: ExpenseCategory[] = [
-      { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
+      { id: 1, name: "Kira", color: "#F43F5E", icon: "🏠" },
       { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-      { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-      { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
+      { id: 3, name: "Ulaşım", color: "#34D399", icon: "🚗" },
+      { id: 4, name: "Yeme İçme", color: "#D946EF", icon: "🍔" },
       { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
     ];
 
@@ -4551,6 +4545,108 @@ export default function App() {
     );
   };
 
+  // Google Play & GDPR: Hesap ve Tüm Verileri Kalıcı Olarak Silme Fonksiyonu
+  const handleDeleteAccount = async () => {
+    try {
+      const fbUser = auth.currentUser;
+      const uid = fbUser?.uid;
+      const email = currentUser || fbUser?.email || "";
+
+      // 1. Firebase Realtime Database: kullanicilar/{uid} ve users/{uid} verilerini sil
+      if (uid) {
+        try {
+          await set(ref(db, `kullanicilar/${uid}`), null);
+          await set(ref(db, `users/${uid}`), null);
+        } catch (rtdbErr) {
+          console.warn("RTDB silme uyarısı:", rtdbErr);
+        }
+      }
+
+      // 2. Cloud Firestore: users/{uid} ve users/{email} verilerini sil
+      if (uid) {
+        try {
+          await deleteDoc(doc(firestore, "users", uid));
+        } catch (fsErr) {
+          console.warn("Firestore uid silme uyarısı:", fsErr);
+        }
+      }
+      if (email) {
+        try {
+          await deleteDoc(doc(firestore, "users", email.trim().toLowerCase()));
+        } catch (fsErr2) {
+          console.warn("Firestore email silme uyarısı:", fsErr2);
+        }
+      }
+
+      // 3. Firebase Auth kullanıcı hesabını kalıcı olarak sil
+      if (fbUser) {
+        try {
+          await fbUser.delete();
+        } catch (authErr: any) {
+          console.warn("Auth delete uyarısı (kullanıcı çıkışı yapılacak):", authErr);
+          await signOut(auth).catch(() => {});
+        }
+      } else {
+        await signOut(auth).catch(() => {});
+      }
+
+      // 4. Yerel cihaz hafızasını (LocalStorage) tamamen temizle
+      localStorage.removeItem("currentUser");
+      localStorage.removeItem("user_profile_name");
+      localStorage.removeItem("user_profile_avatar");
+      localStorage.removeItem("is_premium");
+      localStorage.removeItem("is_guest");
+      localStorage.removeItem("premium_plan");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("premium_type");
+      localStorage.removeItem("premium_expiry_date");
+      localStorage.removeItem("trial_end_date");
+      localStorage.removeItem("user_created_at");
+      localStorage.removeItem("active_device_id");
+      localStorage.removeItem("user_gemini_api_key");
+      localStorage.removeItem("butcem_device_id");
+      localStorage.removeItem("has_used_trial");
+      localStorage.removeItem("debts");
+      localStorage.removeItem("incomes");
+      localStorage.removeItem("expenses");
+      localStorage.removeItem("expenseCategories");
+      localStorage.removeItem("installmentDebts");
+      localStorage.removeItem("payments");
+      localStorage.removeItem("notifications");
+      localStorage.removeItem("alarms");
+      localStorage.removeItem("app_security_pin");
+      localStorage.removeItem("app_pin_configured");
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+
+      // 5. State ve Context sıfırlaması
+      setUserProfileName("");
+      setUserAvatar("");
+      setCurrentUser(null);
+      setIsPremium(false);
+      setIsTrialExpiredLocked(false);
+      setIsUpgradeModalOpen(false);
+      setTrialStatus(null);
+      setDebts([]);
+      setIncomes([]);
+      setAlarms([]);
+      setNotifications([]);
+      setInstallmentDebts([]);
+      setPayments([]);
+      setExpenses([]);
+
+      // 6. Giriş / Karşılama ekranına yönlendir
+      setActiveTab("overview");
+      setProviderLoginInitialTab("guest_trial");
+      setProviderLoginOpen(true);
+      triggerToast("Hesabınız ve tüm verileriniz kalıcı olarak silindi. 👋");
+    } catch (err: any) {
+      console.error("Hesap ve veri silme hatası:", err);
+      triggerToast(`Hata: ${err?.message || "Hesap silinemedi."}`);
+      throw err;
+    }
+  };
+
   const handleSaveDebtBulk = (newDebtsList: Partial<Debt>[]) => {
     if (!newDebtsList || newDebtsList.length === 0) return;
     let updated = [...debts];
@@ -4985,10 +5081,71 @@ export default function App() {
     saveAllToUser(debts, updatedIncomes, alarms, notifications, installmentDebts, payments, expenses, expenseCategories);
   };
 
+  // Kategori Bütçe Limiti Bildirim Kontrolü (%80 ve %100 aşımında Local Notification)
+  const checkCategoryBudgetLimitNotification = (currentExpenses: Expense[], categoryId: number) => {
+    const cat = expenseCategories.find((c) => c.id === categoryId);
+    if (!cat || !cat.budgetLimit || cat.budgetLimit <= 0) return;
+
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth();
+
+    const monthCatExpenses = currentExpenses.filter((e) => {
+      if (e.categoryId !== categoryId) return false;
+      const d = new Date(e.date);
+      return d.getFullYear() === curYear && d.getMonth() === curMonth;
+    });
+
+    const totalSpent = monthCatExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const limit = Number(cat.budgetLimit);
+    const ratio = totalSpent / limit;
+
+    if (ratio >= 1.0) {
+      const title = `🚨 Bütçe Limiti Aşıldı: ${cat.name}`;
+      const message = `${cat.name} kategorisinde bu ayki harcamanız (${format(totalSpent)}) belirlenen ${format(limit)} bütçe limitini %100 aştı!`;
+      triggerToast(title);
+
+      const newNotif: NotificationItem = {
+        id: Date.now(),
+        title: `${title} - ${message}`
+      };
+      setNotifications((prev) => [newNotif, ...prev]);
+
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(title, { body: message, icon: "/assets/icon.png" });
+        } catch {}
+      }
+    } else if (ratio >= 0.8) {
+      const title = `⚠️ Bütçe Uyarısı: ${cat.name}`;
+      const message = `${cat.name} kategorisinde bu ayki harcamanız (${format(totalSpent)}) bütçe limitinizin %80'ine (${format(limit)}) ulaştı.`;
+      triggerToast(title);
+
+      const newNotif: NotificationItem = {
+        id: Date.now(),
+        title: `${title} - ${message}`
+      };
+      setNotifications((prev) => [newNotif, ...prev]);
+
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(title, { body: message, icon: "/assets/icon.png" });
+        } catch {}
+      }
+    }
+  };
+
   const handleSaveExpense = (expData: Partial<Expense>) => {
     let updated: Expense[] = [];
+    let targetCatId = expData.categoryId || 1;
     if (expData.id) {
-      updated = expenses.map((e) => (e.id === expData.id ? { ...(e as Expense), ...expData } : e));
+      updated = expenses.map((e) => {
+        if (e.id === expData.id) {
+          targetCatId = expData.categoryId || e.categoryId;
+          return { ...(e as Expense), ...expData };
+        }
+        return e;
+      });
     } else {
       const newE: Expense = {
         id: generateId(expenses),
@@ -4998,10 +5155,14 @@ export default function App() {
         date: expData.date || new Date().toISOString(),
         isRecurring: expData.isRecurring === true
       };
+      targetCatId = newE.categoryId;
       updated = [...expenses, newE];
     }
     setExpenses(updated);
     saveAllToUser(debts, incomes, alarms, notifications, installmentDebts, payments, updated, expenseCategories);
+
+    // Bütçe limiti kontrolü ve yerel bildirim
+    checkCategoryBudgetLimitNotification(updated, targetCatId);
   };
 
   const handleDeleteExpense = (id: number) => {
@@ -5020,7 +5181,9 @@ export default function App() {
       const newC: ExpenseCategory = {
         id: generateId(expenseCategories),
         name: catData.name || "Kategori",
-        color: catData.color || randomColor
+        color: catData.color || randomColor,
+        icon: catData.icon || "🛒",
+        budgetLimit: catData.budgetLimit
       };
       updated = [...expenseCategories, newC];
     }
@@ -5913,10 +6076,10 @@ export default function App() {
       const rawExpenses = parsed.expenses || parsed.allExpenses || parsed.expenseList || [];
       const rawCategoriesTemp = parsed.expenseCategories || parsed.categories || parsed.categoryList || [];
       const defaultCategories = [
-        { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
+        { id: 1, name: "Kira", color: "#F43F5E", icon: "🏠" },
         { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-        { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-        { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
+        { id: 3, name: "Ulaşım", color: "#34D399", icon: "🚗" },
+        { id: 4, name: "Yeme İçme", color: "#D946EF", icon: "🍔" },
         { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
       ];
       const rawCategories = (rawCategoriesTemp && rawCategoriesTemp.length > 0) ? rawCategoriesTemp : defaultCategories;
@@ -7546,125 +7709,94 @@ export default function App() {
       {/* Header Container - Premium Glossy Mesh Header */}
       <header 
         style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
-        className="sticky top-0 z-30 bg-gradient-to-r from-slate-950 via-[#0b132b] to-[#1c2541] dark:from-slate-950 dark:via-black dark:to-slate-950 border-b border-indigo-500/20 text-white shadow-2xl px-4 sm:px-8 pb-5 md:pb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between backdrop-blur-lg transition-all duration-300 relative overflow-hidden group"
+        className="sticky top-0 z-30 bg-gradient-to-r from-slate-950 via-[#0b132b] to-[#1c2541] dark:from-slate-950 dark:via-black dark:to-slate-950 border-b border-indigo-500/20 text-white shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-all duration-300 relative group"
       >
         
         {/* Decorative ambient lighting overlays */}
-        <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80 animate-pulse duration-[3000ms]" />
-        <div className="absolute top-[-40%] right-[10%] w-72 h-24 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-[-20%] left-[2%] w-56 h-16 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80 animate-pulse duration-[3000ms]" />
+          <div className="absolute top-[-40%] right-[10%] w-72 h-24 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-[-20%] left-[2%] w-56 h-16 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+        </div>
         
-        {/* Inner layout for logo and title */}
-        <div className="flex items-center justify-between gap-3 sm:gap-4 min-w-0 relative z-10 w-full md:w-auto">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            <button
-              onClick={() => setIsSidebarOpen((prev) => !prev)}
-              className="p-2 sm:p-2.5 shrink-0 focus:outline-none bg-white/[0.04] hover:bg-white/[0.1] active:scale-95 rounded-2xl border border-white/10 transition-all cursor-pointer flex items-center justify-center shadow-md shadow-black/30"
-              title="Menüyü Aç/Kapat"
-            >
-              <Menu className="w-5 h-5 text-indigo-200 group-hover:text-white transition" />
-            </button>
+        {/* Row 1: Top row with Logo/Title on left and Welcome Button on right */}
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <button
+                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                className="p-2 sm:p-2.5 shrink-0 focus:outline-none bg-white/[0.04] hover:bg-white/[0.1] active:scale-95 rounded-2xl border border-white/10 transition-all cursor-pointer flex items-center justify-center shadow-md shadow-black/30"
+                title="Menüyü Aç/Kapat"
+              >
+                <Menu className="w-5 h-5 text-indigo-200 group-hover:text-white transition" />
+              </button>
 
-            {/* Official APK Application Logo */}
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-amber-500/30 p-0.5 shadow-md shadow-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
-              <img
-                src={appLogo}
-                alt="Bütçem Pro"
-                className="w-full h-full object-contain rounded-lg"
-              />
-            </div>
-            
-            <div className="space-y-1 min-w-0">
-              <h1 className="text-lg sm:text-2xl md:text-2xl lg:text-3xl font-black tracking-normal flex items-center select-none whitespace-nowrap gap-1.5 sm:gap-3 leading-none bg-gradient-to-r from-white via-slate-100 to-indigo-100 bg-clip-text text-transparent">
-                <span className="animate-wave-flag inline-block shrink-0 select-none">
-                  <svg viewBox="0 0 1200 800" className="w-[18px] h-[12px] sm:w-[32px] sm:h-[21.5px] md:w-[38px] md:h-[25.5px] rounded-xs shadow-md overflow-hidden shrink-0 inline-block border border-white/10" style={{ minWidth: "18px" }}>
-                    <rect width="1200" height="800" fill="#e30a17"/>
-                    <circle cx="400" cy="400" r="200" fill="#ffffff"/>
-                    <circle cx="450" cy="400" r="160" fill="#e30a17"/>
-                    <polygon points="585,400 643.78,419.1 607.45,369.1 607.45,430.9 643.78,380.9" fill="#ffffff" transform="rotate(-30 585 400)"/>
-                  </svg>
-                </span>
-                <span>
-                  BÜTÇEM
-                </span>
-                <span className="text-[8px] sm:text-[10px] md:text-xs px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-500 rounded-lg font-black tracking-widest uppercase animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.2)]">
-                  PRO
-                </span>
-              </h1>
-              <p className={`text-[7px] sm:text-[10px] font-black tracking-wider uppercase flex items-center gap-1 sm:gap-1.5 select-none leading-none ${isOfflineMode ? "text-amber-400" : "text-emerald-400/90"}`}>
-                <span className="relative flex h-1.5 w-1.5 shrink-0">
-                  {isOfflineMode ? (
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 animate-pulse"></span>
-                  ) : (
-                    <>
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_4px_#10b981]"></span>
-                    </>
-                  )}
-                </span>
-                <span className="hidden sm:inline">{isOfflineMode ? "ÇEVRİMDIŞI (GÜVENLİ)" : "FİNANSAL ÖZGÜRLÜĞÜNÜZÜ BİZİMLE KEŞFEDİN"}</span>
-                <span className="sm:hidden">{isOfflineMode ? "GÜVENLİ" : "AKILLI ASİSTAN"}</span>
-              </p>
+              {/* Official APK Application Logo */}
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-amber-500/30 p-0.5 shadow-md shadow-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
+                <img
+                  src={appLogo}
+                  alt="Bütçem Pro"
+                  className="w-full h-full object-contain rounded-lg"
+                />
+              </div>
+              
+              <div className="space-y-1 min-w-0">
+                <h1 className="text-lg sm:text-2xl md:text-2xl lg:text-3xl font-black tracking-normal flex items-center select-none whitespace-nowrap gap-1.5 sm:gap-3 leading-none bg-gradient-to-r from-white via-slate-100 to-indigo-100 bg-clip-text text-transparent">
+                  <span className="animate-wave-flag inline-block shrink-0 select-none">
+                    <svg viewBox="0 0 1200 800" className="w-[18px] h-[12px] sm:w-[32px] sm:h-[21.5px] md:w-[38px] md:h-[25.5px] rounded-xs shadow-md overflow-hidden shrink-0 inline-block border border-white/10" style={{ minWidth: "18px" }}>
+                      <rect width="1200" height="800" fill="#e30a17"/>
+                      <circle cx="400" cy="400" r="200" fill="#ffffff"/>
+                      <circle cx="450" cy="400" r="160" fill="#e30a17"/>
+                      <polygon points="585,400 643.78,419.1 607.45,369.1 607.45,430.9 643.78,380.9" fill="#ffffff" transform="rotate(-30 585 400)"/>
+                    </svg>
+                  </span>
+                  <span>
+                    BÜTÇEM
+                  </span>
+                  <span className="text-[8px] sm:text-[10px] md:text-xs px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-500 rounded-lg font-black tracking-widest uppercase animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+                    PRO
+                  </span>
+                </h1>
+                <p className={`text-[7px] sm:text-[10px] font-black tracking-wider uppercase flex items-center gap-1 sm:gap-1.5 select-none leading-none ${isOfflineMode ? "text-amber-400" : "text-emerald-400/90"}`}>
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    {isOfflineMode ? (
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 animate-pulse"></span>
+                    ) : (
+                      <>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_4px_#10b981]"></span>
+                      </>
+                    )}
+                  </span>
+                  <span className="hidden sm:inline">{isOfflineMode ? "ÇEVRİMDIŞI (GÜVENLİ)" : "FİNANSAL ÖZGÜRLÜĞÜNÜZÜ BİZİMLE KEŞFEDİN"}</span>
+                  <span className="sm:hidden">{isOfflineMode ? "GÜVENLİ" : "AKILLI ASİSTAN"}</span>
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* User welcome message styled beautifully inside a glossy container with a custom editable name trigger */}
-          {(() => {
-            const rawUser = currentUser || "";
-            const cleanDisplayName = userProfileName?.trim() || (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser);
-            const displayGreeting = cleanDisplayName.trim() || (currentUser ? (language === "tr" ? "İsim Girin" : "Add Name") : (language === "tr" ? "Ziyaretçi (Giriş Yap)" : "Visitor (Sign In)"));
+          {/* Top Right: Only Welcome / Visitor Button */}
+          <div className="flex items-center shrink-0 relative z-10 select-none">
+            {/* User welcome message */}
+            {(() => {
+              const rawUser = currentUser || "";
+              const cleanDisplayName = userProfileName?.trim() || (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser);
+              const displayGreeting = cleanDisplayName.trim() || (currentUser ? "İsim Girin" : "Ziyaretçi");
 
-            const getWelcomeThemeStyles = () => {
-              switch (colorTheme) {
-                case "green":
-                  return {
-                    bg: "from-emerald-500/15 via-emerald-600/5 to-teal-500/15 hover:shadow-emerald-500/20",
-                    border: "border-emerald-500/30 hover:border-emerald-500/60",
-                    textGradient: "text-emerald-400 group-hover:text-emerald-300",
-                    iconContainerBg: "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30 text-white",
-                    pencilColor: "text-emerald-400 group-hover:text-emerald-300",
-                    glow: "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_12px_rgba(16,185,129,0.15)]"
-                  };
-                case "purple":
-                  return {
-                    bg: "from-purple-500/15 via-purple-600/5 to-indigo-500/15 hover:shadow-purple-500/20",
-                    border: "border-purple-500/30 hover:border-purple-500/60",
-                    textGradient: "text-purple-400 group-hover:text-purple-300",
-                    iconContainerBg: "bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-500/30 text-white",
-                    pencilColor: "text-purple-400 group-hover:text-purple-300",
-                    glow: "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_12px_rgba(168,85,247,0.15)]"
-                  };
-                case "orange":
-                  return {
-                    bg: "from-amber-500/15 via-orange-600/5 to-rose-500/15 hover:shadow-amber-500/20",
-                    border: "border-amber-500/30 hover:border-amber-500/60",
-                    textGradient: "text-amber-400 group-hover:text-amber-300",
-                    iconContainerBg: "bg-gradient-to-br from-amber-500 to-rose-600 shadow-amber-500/30 text-white",
-                    pencilColor: "text-amber-400 group-hover:text-amber-300",
-                    glow: "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_12px_rgba(245,158,11,0.15)]"
-                  };
-                default:
-                  return {
-                    bg: "from-indigo-500/15 via-indigo-600/5 to-cyan-500/15 hover:shadow-indigo-500/20",
-                    border: "border-indigo-500/30 hover:border-indigo-500/60",
-                    textGradient: "text-indigo-400 group-hover:text-indigo-300",
-                    iconContainerBg: "bg-gradient-to-br from-indigo-500 to-cyan-600 shadow-indigo-500/30 text-white",
-                    pencilColor: "text-indigo-400 group-hover:text-indigo-300",
-                    glow: "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_12px_rgba(99,102,241,0.15)]"
-                  };
-              }
-            };
-
-            const themeStyles = getWelcomeThemeStyles();
-            return (
-              <motion.div 
-                key={(userProfileName || cleanDisplayName) + colorTheme}
-                initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                whileHover={{ scale: 1.02 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                className="flex items-center shrink-0 max-w-[150px] xs:max-w-[180px] sm:max-w-none ml-1 sm:ml-2"
-              >
+              const getWelcomeThemeStyles = () => {
+                switch (colorTheme) {
+                  case "purple": return { bg: "from-purple-500/15 to-indigo-500/15", border: "border-purple-500/30", textGradient: "text-purple-400", iconContainerBg: "bg-purple-500 text-white", pencilColor: "text-purple-400" };
+                  case "green": return { bg: "from-emerald-500/15 to-teal-500/15", border: "border-emerald-500/30", textGradient: "text-emerald-400", iconContainerBg: "bg-emerald-500 text-white", pencilColor: "text-emerald-400" };
+                  case "blue": return { bg: "from-sky-500/15 to-blue-500/15", border: "border-sky-500/30", textGradient: "text-sky-400", iconContainerBg: "bg-sky-500 text-white", pencilColor: "text-sky-400" };
+                  case "pink": return { bg: "from-pink-500/15 to-rose-500/15", border: "border-pink-500/30", textGradient: "text-pink-400", iconContainerBg: "bg-pink-500 text-white", pencilColor: "text-pink-400" };
+                  case "orange": return { bg: "from-amber-500/15 to-rose-500/15", border: "border-amber-500/30", textGradient: "text-amber-400", iconContainerBg: "bg-amber-500 text-white", pencilColor: "text-amber-400" };
+                  case "cyan": return { bg: "from-cyan-500/15 to-teal-500/15", border: "border-cyan-500/30", textGradient: "text-cyan-400", iconContainerBg: "bg-cyan-500 text-white", pencilColor: "text-cyan-400" };
+                  case "coral": return { bg: "from-rose-500/15 to-red-500/15", border: "border-rose-500/30", textGradient: "text-rose-400", iconContainerBg: "bg-rose-500 text-white", pencilColor: "text-rose-400" };
+                  default: return { bg: "from-indigo-500/15 to-cyan-500/15", border: "border-indigo-500/30", textGradient: "text-indigo-400", iconContainerBg: "bg-indigo-500 text-white", pencilColor: "text-indigo-400" };
+                }
+              };
+              const themeStyles = getWelcomeThemeStyles();
+              return (
                 <button 
                   onClick={() => {
                     if (!currentUser) {
@@ -7675,216 +7807,207 @@ export default function App() {
                       handlePromptEditName();
                     }
                   }}
-                  title={!currentUser ? (language === "tr" ? "Giriş Yapmak veya Kaydolmak için tıkla" : "Click to Sign In or Sign Up") : (language === "tr" ? "İsmini değiştirmek veya yazmak için tıkla" : "Click to change or write your name")}
-                  className={`group flex items-center gap-1.5 sm:gap-2.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 sm:px-3 py-1.5 rounded-xl border ${themeStyles.border} ${themeStyles.glow} transition-all duration-300 cursor-pointer select-none shrink-0 w-full hover:brightness-110 active:scale-95`}
+                  title={!currentUser ? "Giriş Yap" : "İsmi Değiştir"}
+                  className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
                 >
-                  <div className={`p-1.5 ${themeStyles.iconContainerBg} rounded-lg group-hover:scale-110 group-hover:rotate-[12deg] transition-all duration-300 flex items-center justify-center shrink-0`}>
-                    <User className="w-3 sm:w-3.5 h-3 sm:h-3.5 animate-pulse" />
+                  <div className={`p-1 ${themeStyles.iconContainerBg} rounded-lg flex items-center justify-center shrink-0`}>
+                    <User className="w-2.5 h-2.5" />
                   </div>
-                  <div className="flex flex-col text-left leading-tight min-w-0 pr-0.5 select-none text-ellipsis overflow-hidden">
-                    <span className="text-[7px] sm:text-[9.5px] font-black uppercase tracking-widest text-slate-400">
-                      {language === "tr" ? "HOŞ GELDİNİZ" : "WELCOME"}
+                  <div className="flex flex-col text-left leading-tight min-w-0 pr-0.5 select-none">
+                    <span className="text-[6px] font-black uppercase tracking-widest text-slate-400">
+                      HOŞGELDİNİZ
                     </span>
-                    <div className="flex items-center gap-1 mt-0.5 min-w-0">
-                      <span className={`text-[10px] sm:text-xs font-bold leading-tight ${themeStyles.textGradient} transition-all duration-300 truncate max-w-[65px] xs:max-w-[90px] sm:max-w-[140px] tracking-wide inline-block`}>
+                    <div className="flex items-center gap-0.5">
+                      <span className={`text-[9px] font-bold leading-tight ${themeStyles.textGradient} truncate max-w-[65px] xs:max-w-[85px]`}>
                         {displayGreeting}
                       </span>
-                      <Pencil className={`w-2.5 h-2.5 ${themeStyles.pencilColor} shrink-0 opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-200`} />
+                      <Pencil className={`w-2 h-2 ${themeStyles.pencilColor} shrink-0 opacity-80`} />
                     </div>
                   </div>
                 </button>
-              </motion.div>
-            );
-          })()}
+              );
+            })()}
+          </div>
         </div>
 
-        {/* Right side navigation toolbar / tools */}
-        <div className="flex items-center overflow-x-auto scrollbar-none gap-1.5 sm:gap-2 shrink-0 relative z-10 w-full md:w-auto border-t md:border-t-0 border-white/5 pt-2.5 md:pt-0 justify-between md:justify-end">
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 select-none shrink-0">
-            {/* Animated Contacts Directory Logo */}
-            <motion.button
-              onClick={() => {
-                handleNavClick("contacts");
-                triggerToast("Cari Hesaplar & Kişi Rehberi Açıldı! 👤📖");
-              }}
-              title="Kişi Rehberi & Cari Hesaplar"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{
-                y: [0, -2, 0],
-                rotate: [0, -1, 1, 0]
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl transition-all duration-305 flex items-center justify-center border cursor-pointer shrink-0 relative ${
-                activeTab === "contacts"
-                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
-                  : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:border-indigo-500/30"
-              }`}
-            >
-              {/* Binder spiral rings of directory book */}
-              <div className="absolute left-1 top-1 bottom-1 w-0.5 rounded flex flex-col justify-around py-0.5">
-                <div className="w-[3px] h-[3px] bg-indigo-400/80 rounded-full" />
-                <div className="w-[3px] h-[3px] bg-indigo-400/80 rounded-full" />
-                <div className="w-[3px] h-[3px] bg-indigo-400/80 rounded-full" />
-              </div>
-              
-              <Users className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1 text-indigo-300 group-hover:text-white ${activeTab === "contacts" ? "animate-pulse" : "animate-bounce"}`} style={{ animationDuration: "2.5s" }} />
-              
-              <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-              </span>
-            </motion.button>
-
-            <button
-              onClick={() => {
-                openUpgradeModal();
-              }}
-              title="Abonelik ve Deneme Durumu"
-              className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all flex items-center justify-center space-x-1 duration-300 cursor-pointer shrink-0 active:scale-95 ${
-                isPaidPremium 
-                  ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border-amber-500/40 shadow-sm" 
-                  : isTrialActive
-                  ? "bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border-indigo-500/40 shadow-sm"
-                  : isTrialExpiredLocked
-                  ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border-rose-500/40 shadow-sm animate-pulse"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500 shadow-md shadow-indigo-600/20"
-              }`}
-            >
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span className="text-[8px] sm:text-[9px] font-black tracking-wide uppercase">
-                {isPaidPremium 
-                  ? "PREMIUM" 
-                  : isTrialActive 
-                  ? `DENEME (${trialDaysRemaining}G)` 
-                  : isTrialExpiredLocked
-                  ? "DENEME BİTTİ"
-                  : "PRO'YA GEÇ"}
-              </span>
-            </button>
-
-            <button
-              onClick={() => handleNavClick("settings")}
-              title="Güvenlik ve Ayarlar"
-              className={`p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0 active:scale-95 ${
-                activeTab === "settings"
-                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
-                  : "bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300"
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-
-            <button
-              onClick={() => {
-                if (themeMode === "auto") {
-                  const nextDark = !darkMode;
-                  const nextMode = nextDark ? "dark" : "light";
-                  setThemeMode(nextMode);
-                  setDarkMode(nextDark);
-                  localStorage.setItem("themeMode", nextMode);
-                  triggerToast(nextDark ? "Karanlık Mod Sabitlendi 🌙 (Otomatik için tekrar dokunun)" : "Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
-                } else if (themeMode === "dark") {
-                  setThemeMode("light");
-                  setDarkMode(false);
-                  localStorage.setItem("themeMode", "light");
-                  triggerToast("Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
-                } else {
-                  setThemeMode("auto");
-                  localStorage.setItem("themeMode", "auto");
-                  const isSysDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-                  setDarkMode(!!isSysDark);
-                  triggerToast(`Telefona Uyarlandı (Otomatik Mod) 📱 (${isSysDark ? "Karanlık" : "Aydınlık"})`);
-                }
-              }}
-              title={`Tema: ${themeMode === "auto" ? "Telefona Göre Otomatik 📱" : themeMode === "dark" ? "Karanlık Mod 🌙" : "Aydınlık Mod ☀️"}`}
-              className="p-1.5 sm:p-2 lg:p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner shrink-0 relative"
-            >
-              {darkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-200" />}
-              {themeMode === "auto" && (
-                <span className="absolute -top-1 -right-1 px-1 py-0.2 text-[7px] font-black bg-emerald-500 text-slate-950 rounded-full leading-none shadow-xs">
-                  OTO
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
-                triggerToast("Uygulama Yenileniyor... 🔄");
-                setTimeout(() => {
-                  window.location.reload();
-                }, 350);
-              }}
-              title="Sayfayı Yenile"
-              className="p-1.5 sm:p-2 lg:p-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
-            >
-              <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 animate-spin [animation-duration:15s]" />
-            </button>
-
-            <button
-              onClick={() => {
-                handleNavClick("notifications");
-                const el = document.getElementById("main-nav-tabs") || document.getElementById("notifications-container");
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth" });
-                }
-              }}
-              title={`Bildirimler ve Alarmlar (${notifications.length})`}
-              className="p-2 sm:p-2.5 lg:p-3 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
-            >
-              <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300 hover:text-white transition-colors" />
-              {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[9px] sm:text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center ring-2 ring-slate-900 shadow-md">
-                  {notifications.length}
-                </span>
-              )}
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <div className="relative shrink-0">
-              <select
-                value={colorTheme}
-                onChange={(e) => {
-                  setColorTheme(e.target.value);
-                  localStorage.setItem("colorTheme", e.target.value);
-                }}
-                className="appearance-none pl-2.5 pr-6 py-1.5 sm:py-2 bg-white/5 hover:bg-white/10 border border-white/10 dark:bg-slate-900 text-white rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] md:text-xs font-black tracking-wider uppercase focus:outline-none focus:ring-1 focus:ring-indigo-500/50 cursor-pointer transition active:scale-95 text-center min-w-[65px] sm:min-w-[85px]"
-              >
-                <option value="default" className="text-slate-900 bg-white">MAVİ 🔵</option>
-                <option value="green" className="text-slate-900 bg-white">YEŞİL 🟢</option>
-                <option value="purple" className="text-slate-900 bg-white">MOR 🟣</option>
-                <option value="orange" className="text-slate-900 bg-white">TURUNCU 🟠</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-white/50 text-[7px]" style={{ right: "6px" }}>
-                ▼
-              </div>
+        {/* Row 2: Bottom row inside header containing Contacts, Pro, Settings, Theme, Refresh, Notifications, Color Theme, and Currency */}
+        <div className="flex items-center gap-1.5 shrink-0 relative z-10 flex-nowrap select-none overflow-x-auto scrollbar-none pt-1.5 border-t border-white/10">
+          {/* Animated Contacts Directory Logo */}
+          <motion.button
+            onClick={() => {
+              handleNavClick("contacts");
+              triggerToast("Cari Hesaplar & Kişi Rehberi Açıldı! 👤📖");
+            }}
+            title="Kişi Rehberi & Cari Hesaplar"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            animate={{
+              y: [0, -2, 0],
+              rotate: [0, -1, 1, 0]
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className={`p-1.5 sm:p-2 rounded-xl transition-all duration-305 flex items-center justify-center border cursor-pointer shrink-0 relative ${
+              activeTab === "contacts"
+                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:border-indigo-500/30"
+            }`}
+          >
+            <div className="absolute left-0.5 top-1 bottom-1 w-0.5 rounded flex flex-col justify-around py-0.5">
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
             </div>
+            
+            <Users className={`w-3.5 h-3.5 ml-0.5 text-indigo-300 group-hover:text-white ${activeTab === "contacts" ? "animate-pulse" : "animate-bounce"}`} style={{ animationDuration: "2.5s" }} />
+            
+            <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+            </span>
+          </motion.button>
 
-            {/* Currency (Döviz) Selector Dropdown */}
-            <div className="relative shrink-0">
-              <select
-                value={activeCurrency}
-                onChange={(e) => {
-                  setActiveCurrency(e.target.value as any);
-                  triggerToast(`Hesaplama Birimi Değiştirildi: ${e.target.value}`);
-                }}
-                title="Para Birimi Değiştir"
-                className="appearance-none pl-2.5 pr-6 py-1.5 sm:py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] md:text-xs font-black tracking-wider uppercase focus:outline-none focus:ring-1 focus:ring-emerald-500/50 cursor-pointer transition active:scale-95 text-center min-w-[65px] sm:min-w-[85px]"
-              >
-                <option value="TRY" className="text-slate-900 bg-white">TRY (₺)</option>
-                <option value="USD" className="text-slate-900 bg-white">USD ($)</option>
-                <option value="EUR" className="text-slate-900 bg-white font-mono">EUR (€)</option>
-                <option value="GBP" className="text-slate-900 bg-white font-mono">GBP (£)</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-emerald-300/60 text-[7px]" style={{ right: "6px" }}>
-                ▼
-              </div>
+          <button
+            onClick={() => {
+              openUpgradeModal();
+            }}
+            title="Abonelik ve Deneme Durumu"
+            className={`px-2 py-1.5 rounded-xl border transition-all flex items-center justify-center space-x-1 duration-300 cursor-pointer shrink-0 active:scale-95 ${
+              isPaidPremium 
+                ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border-amber-500/40 shadow-sm" 
+                : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500 shadow-md shadow-indigo-600/20 animate-pulse"
+            }`}
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span className="text-[8px] sm:text-[9px] font-black tracking-wide uppercase">
+              {isPaidPremium ? "PREMIUM" : "PRO'YA GEÇ"}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick("settings")}
+            title="Güvenlik ve Ayarlar"
+            className={`p-1.5 sm:p-2 rounded-xl border transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0 active:scale-95 ${
+              activeTab === "settings"
+                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                : "bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300"
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => {
+              if (themeMode === "auto") {
+                const nextDark = !darkMode;
+                const nextMode = nextDark ? "dark" : "light";
+                setThemeMode(nextMode);
+                setDarkMode(nextDark);
+                localStorage.setItem("themeMode", nextMode);
+                triggerToast(nextDark ? "Karanlık Mod Sabitlendi 🌙 (Otomatik için tekrar dokunun)" : "Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
+              } else if (themeMode === "dark") {
+                setThemeMode("light");
+                setDarkMode(false);
+                localStorage.setItem("themeMode", "light");
+                triggerToast("Aydınlık Mod Sabitlendi ☀️ (Otomatik için tekrar dokunun)");
+              } else {
+                setThemeMode("auto");
+                localStorage.setItem("themeMode", "auto");
+                const isSysDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                setDarkMode(!!isSysDark);
+                triggerToast(`Telefona Uyarlandı (Otomatik Mod) 📱 (${isSysDark ? "Karanlık" : "Aydınlık"})`);
+              }
+            }}
+            title={`Tema: ${themeMode === "auto" ? "Telefona Göre Otomatik 📱" : themeMode === "dark" ? "Karanlık Mod 🌙" : "Aydınlık Mod ☀️"}`}
+            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner shrink-0 relative"
+          >
+            {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-sky-200" />}
+            {themeMode === "auto" && (
+              <span className="absolute -top-1 -right-1 px-1 py-0.2 text-[7px] font-black bg-emerald-500 text-slate-950 rounded-full leading-none shadow-xs">
+                OTO
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              triggerToast("Uygulama Yenileniyor... 🔄");
+              setTimeout(() => {
+                window.location.reload();
+              }, 350);
+            }}
+            title="Sayfayı Yenile"
+            className="p-1.5 sm:p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
+          >
+            <RotateCw className="w-3.5 h-3.5 text-indigo-400 animate-spin [animation-duration:15s]" />
+          </button>
+
+          <button
+            onClick={() => {
+              handleNavClick("notifications");
+              const el = document.getElementById("main-nav-tabs") || document.getElementById("notifications-container");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
+            title={`Bildirimler ve Alarmlar (${notifications.length})`}
+            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
+          >
+            <Bell className="w-4 h-4 text-indigo-300 hover:text-white transition-colors" />
+            {notifications.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] font-black h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center ring-1 ring-slate-900 shadow-md">
+                {notifications.length}
+              </span>
+            )}
+          </button>
+
+          {/* Canlı Renk Teması Selector Dropdown */}
+          <div className="relative shrink-0">
+            <select
+              value={colorTheme === "default" ? "indigo" : colorTheme}
+              onChange={(e) => {
+                setColorTheme(e.target.value);
+                localStorage.setItem("colorTheme", e.target.value);
+              }}
+              title="Canlı Renk Teması Seç"
+              className="appearance-none pl-1.5 pr-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 dark:bg-slate-900 text-white rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[66px] sm:w-[76px]"
+            >
+              {COLOR_THEMES.map((theme) => (
+                <option
+                  key={theme.id}
+                  value={theme.id}
+                  className="text-slate-900 bg-white dark:bg-slate-900 dark:text-slate-100 font-bold"
+                >
+                  {theme.emoji} {theme.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-white/50 text-[7px]" style={{ right: "4px" }}>
+              ▼
+            </div>
+          </div>
+
+          {/* Currency (Döviz) Selector Dropdown */}
+          <div className="relative shrink-0">
+            <select
+              value={activeCurrency}
+              onChange={(e) => {
+                setActiveCurrency(e.target.value as any);
+                triggerToast(`Hesaplama Birimi Değiştirildi: ${e.target.value}`);
+              }}
+              title="Para Birimi / Kur Çevirici Değiştir"
+              className="appearance-none pl-1 pr-3.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[48px] sm:w-[56px]"
+            >
+              <option value="TRY" className="text-slate-900 bg-white font-bold">₺ TRY</option>
+              <option value="USD" className="text-slate-900 bg-white font-bold">$ USD</option>
+              <option value="EUR" className="text-slate-900 bg-white font-mono font-bold">€ EUR</option>
+              <option value="GBP" className="text-slate-900 bg-white font-mono font-bold">£ GBP</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-emerald-300/60 text-[7px]" style={{ right: "4px" }}>
+              ▼
             </div>
           </div>
         </div>
@@ -8043,16 +8166,6 @@ export default function App() {
 
         const getAlertThemeStyles = () => {
           switch (colorTheme) {
-            case "green":
-              return {
-                barBg: "bg-gradient-to-r from-emerald-50/95 via-emerald-100/95 to-emerald-50/95 dark:from-emerald-950/40 dark:via-emerald-900/40 dark:to-emerald-950/40 border-b-2 border-emerald-500/40",
-                badgeBg: "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500/20",
-                buttonBorder: "border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30",
-                overdueLabelBg: "bg-emerald-600",
-                overdueText: "text-emerald-900 dark:text-emerald-100",
-                priceBg: "bg-emerald-100/80 dark:bg-emerald-950/75 border-emerald-500/20 text-emerald-700 dark:text-emerald-200",
-                separator: "bg-emerald-300 dark:bg-emerald-800"
-              };
             case "purple":
               return {
                 barBg: "bg-gradient-to-r from-purple-50/95 via-purple-100/95 to-purple-50/95 dark:from-purple-950/40 dark:via-purple-900/40 dark:to-purple-950/40 border-b-2 border-purple-500/40",
@@ -8063,6 +8176,36 @@ export default function App() {
                 priceBg: "bg-purple-100/80 dark:bg-purple-950/75 border-purple-500/20 text-purple-700 dark:text-purple-200",
                 separator: "bg-purple-300 dark:bg-purple-800"
               };
+            case "green":
+              return {
+                barBg: "bg-gradient-to-r from-emerald-50/95 via-emerald-100/95 to-emerald-50/95 dark:from-emerald-950/40 dark:via-emerald-900/40 dark:to-emerald-950/40 border-b-2 border-emerald-500/40",
+                badgeBg: "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500/20",
+                buttonBorder: "border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30",
+                overdueLabelBg: "bg-emerald-600",
+                overdueText: "text-emerald-900 dark:text-emerald-100",
+                priceBg: "bg-emerald-100/80 dark:bg-emerald-950/75 border-emerald-500/20 text-emerald-700 dark:text-emerald-200",
+                separator: "bg-emerald-300 dark:bg-emerald-800"
+              };
+            case "blue":
+              return {
+                barBg: "bg-gradient-to-r from-sky-50/95 via-sky-100/95 to-sky-50/95 dark:from-sky-950/40 dark:via-sky-900/40 dark:to-sky-950/40 border-b-2 border-sky-500/40",
+                badgeBg: "bg-gradient-to-r from-sky-600 to-sky-700 border-sky-500/20",
+                buttonBorder: "border-sky-200/60 dark:border-sky-800/50 hover:bg-sky-50 dark:hover:bg-sky-950/30",
+                overdueLabelBg: "bg-sky-600",
+                overdueText: "text-sky-900 dark:text-sky-100",
+                priceBg: "bg-sky-100/80 dark:bg-sky-950/75 border-sky-500/20 text-sky-700 dark:text-sky-200",
+                separator: "bg-sky-300 dark:bg-sky-800"
+              };
+            case "pink":
+              return {
+                barBg: "bg-gradient-to-r from-pink-50/95 via-pink-100/95 to-pink-50/95 dark:from-pink-950/40 dark:via-pink-900/40 dark:to-pink-950/40 border-b-2 border-pink-500/40",
+                badgeBg: "bg-gradient-to-r from-pink-600 to-pink-700 border-pink-500/20",
+                buttonBorder: "border-pink-200/60 dark:border-pink-800/50 hover:bg-pink-50 dark:hover:bg-pink-950/30",
+                overdueLabelBg: "bg-pink-600",
+                overdueText: "text-pink-900 dark:text-pink-100",
+                priceBg: "bg-pink-100/80 dark:bg-pink-950/75 border-pink-500/20 text-pink-700 dark:text-pink-200",
+                separator: "bg-pink-300 dark:bg-pink-800"
+              };
             case "orange":
               return {
                 barBg: "bg-gradient-to-r from-amber-50/95 via-amber-100/95 to-amber-50/95 dark:from-amber-950/40 dark:via-amber-900/40 dark:to-amber-950/40 border-b-2 border-amber-500/40",
@@ -8072,6 +8215,26 @@ export default function App() {
                 overdueText: "text-amber-900 dark:text-amber-100",
                 priceBg: "bg-amber-100/80 dark:bg-amber-950/75 border-amber-500/20 text-amber-700 dark:text-amber-200",
                 separator: "bg-amber-300 dark:bg-amber-800"
+              };
+            case "cyan":
+              return {
+                barBg: "bg-gradient-to-r from-cyan-50/95 via-cyan-100/95 to-cyan-50/95 dark:from-cyan-950/40 dark:via-cyan-900/40 dark:to-cyan-950/40 border-b-2 border-cyan-500/40",
+                badgeBg: "bg-gradient-to-r from-cyan-600 to-cyan-700 border-cyan-500/20",
+                buttonBorder: "border-cyan-200/60 dark:border-cyan-800/50 hover:bg-cyan-50 dark:hover:bg-cyan-950/30",
+                overdueLabelBg: "bg-cyan-600",
+                overdueText: "text-cyan-900 dark:text-cyan-100",
+                priceBg: "bg-cyan-100/80 dark:bg-cyan-950/75 border-cyan-500/20 text-cyan-700 dark:text-cyan-200",
+                separator: "bg-cyan-300 dark:bg-cyan-800"
+              };
+            case "coral":
+              return {
+                barBg: "bg-gradient-to-r from-rose-50/95 via-rose-100/95 to-rose-50/95 dark:from-rose-950/40 dark:via-rose-900/40 dark:to-rose-950/40 border-b-2 border-rose-500/40",
+                badgeBg: "bg-gradient-to-r from-rose-600 to-rose-700 border-rose-500/20",
+                buttonBorder: "border-rose-200/60 dark:border-rose-800/50 hover:bg-rose-50 dark:hover:bg-rose-950/30",
+                overdueLabelBg: "bg-rose-600",
+                overdueText: "text-rose-900 dark:text-rose-100",
+                priceBg: "bg-rose-100/80 dark:bg-rose-950/75 border-rose-500/20 text-rose-700 dark:text-rose-200",
+                separator: "bg-rose-300 dark:bg-rose-800"
               };
             default: // indigo / default
               return {
@@ -9776,6 +9939,13 @@ export default function App() {
             isGuestTrialUser={isGuestTrialUser}
             isGuestTrialExpired={isGuestTrialExpired}
             onOpenUpgradeModal={(name) => openUpgradeModal(name || "Pro Özellikler")}
+            onOpenAddExpense={() => {
+              handleNavClick("expenses");
+              setTimeout(() => {
+                const btn = document.getElementById("add-expense-btn") || Array.from(document.querySelectorAll("button")).find(b => b.textContent?.includes("Gider Ekle"));
+                if (btn) (btn as HTMLButtonElement).click();
+              }, 200);
+            }}
           />
         )}
 
@@ -9820,6 +9990,7 @@ export default function App() {
             onProcessBackupJSON={processBackupJSON}
             isOfflineMode={isOfflineMode}
             onBack={() => setActiveTab("overview")}
+            onDeleteAccount={handleDeleteAccount}
           />
         )}
 
@@ -10150,14 +10321,22 @@ export default function App() {
             return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:scale-105 cursor-pointer";
           }
           switch (colorTheme) {
-            case "green":
-              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100/30 dark:border-emerald-900/30 scale-105 shadow-xs font-black cursor-pointer";
             case "purple":
-              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-100/30 dark:border-purple-900/30 scale-105 shadow-xs font-black cursor-pointer";
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200/50 dark:border-purple-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            case "green":
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/50 dark:border-emerald-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            case "blue":
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border border-sky-200/50 dark:border-sky-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            case "pink":
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 border border-pink-200/50 dark:border-pink-800/50 scale-105 shadow-xs font-black cursor-pointer";
             case "orange":
-              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-100/30 dark:border-amber-900/30 scale-105 shadow-xs font-black cursor-pointer";
-            default:
-              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100/30 dark:border-indigo-900/30 scale-105 shadow-xs font-black cursor-pointer";
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/50 dark:border-amber-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            case "cyan":
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200/50 dark:border-cyan-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            case "coral":
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-800/50 scale-105 shadow-xs font-black cursor-pointer";
+            default: // indigo / default
+              return "flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all duration-200 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-800/50 scale-105 shadow-xs font-black cursor-pointer";
           }
         };
 

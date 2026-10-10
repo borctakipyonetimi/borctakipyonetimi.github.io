@@ -299,6 +299,24 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           themeBtnHover = "hover:bg-purple-200/80 text-purple-950 dark:hover:bg-purple-950/50 dark:hover:text-purple-300";
           themeLabelColor = "text-purple-800 dark:text-purple-300";
           themeSelectBorder = "border-purple-300/90 dark:border-slate-700/80";
+        } else if (colorTheme === "blue") {
+          themeCardBg = "bg-gradient-to-r from-sky-100 via-blue-100/90 to-cyan-100 dark:from-slate-900/95 dark:via-sky-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-sky-400/90 dark:border-sky-700/50";
+          themeIconBg = "bg-gradient-to-tr from-sky-600 to-blue-500 text-white shadow-md shadow-sky-500/30";
+          themeIconText = "text-white";
+          themeFocusRing = "focus:ring-sky-500";
+          themeBtnHover = "hover:bg-sky-200/80 text-sky-950 dark:hover:bg-sky-950/50 dark:hover:text-sky-300";
+          themeLabelColor = "text-sky-800 dark:text-sky-300";
+          themeSelectBorder = "border-sky-300/90 dark:border-slate-700/80";
+        } else if (colorTheme === "pink") {
+          themeCardBg = "bg-gradient-to-r from-pink-100 via-rose-100/90 to-fuchsia-100 dark:from-slate-900/95 dark:via-pink-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-pink-400/90 dark:border-pink-700/50";
+          themeIconBg = "bg-gradient-to-tr from-pink-600 to-rose-500 text-white shadow-md shadow-pink-500/30";
+          themeIconText = "text-white";
+          themeFocusRing = "focus:ring-pink-500";
+          themeBtnHover = "hover:bg-pink-200/80 text-pink-950 dark:hover:bg-pink-950/50 dark:hover:text-pink-300";
+          themeLabelColor = "text-pink-800 dark:text-pink-300";
+          themeSelectBorder = "border-pink-300/90 dark:border-slate-700/80";
         } else if (colorTheme === "orange") {
           themeCardBg = "bg-gradient-to-r from-amber-100 via-orange-100/90 to-yellow-100 dark:from-slate-900/95 dark:via-amber-950/40 dark:to-slate-900";
           themeBorder = "border-2 border-amber-400/90 dark:border-amber-700/50";
@@ -308,6 +326,24 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           themeBtnHover = "hover:bg-amber-200/80 text-amber-950 dark:hover:bg-amber-950/50 dark:hover:text-amber-300";
           themeLabelColor = "text-amber-800 dark:text-amber-300";
           themeSelectBorder = "border-amber-300/90 dark:border-slate-700/80";
+        } else if (colorTheme === "cyan") {
+          themeCardBg = "bg-gradient-to-r from-cyan-100 via-teal-100/90 to-sky-100 dark:from-slate-900/95 dark:via-cyan-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-cyan-400/90 dark:border-cyan-700/50";
+          themeIconBg = "bg-gradient-to-tr from-cyan-600 to-teal-500 text-white shadow-md shadow-cyan-500/30";
+          themeIconText = "text-white";
+          themeFocusRing = "focus:ring-cyan-500";
+          themeBtnHover = "hover:bg-cyan-200/80 text-cyan-950 dark:hover:bg-cyan-950/50 dark:hover:text-cyan-300";
+          themeLabelColor = "text-cyan-800 dark:text-cyan-300";
+          themeSelectBorder = "border-cyan-300/90 dark:border-slate-700/80";
+        } else if (colorTheme === "coral") {
+          themeCardBg = "bg-gradient-to-r from-rose-100 via-pink-100/90 to-red-100 dark:from-slate-900/95 dark:via-rose-950/40 dark:to-slate-900";
+          themeBorder = "border-2 border-rose-400/90 dark:border-rose-700/50";
+          themeIconBg = "bg-gradient-to-tr from-rose-600 to-red-500 text-white shadow-md shadow-rose-500/30";
+          themeIconText = "text-white";
+          themeFocusRing = "focus:ring-rose-500";
+          themeBtnHover = "hover:bg-rose-200/80 text-rose-950 dark:hover:bg-rose-950/50 dark:hover:text-rose-300";
+          themeLabelColor = "text-rose-800 dark:text-rose-300";
+          themeSelectBorder = "border-rose-300/90 dark:border-slate-700/80";
         }
 
         return (
@@ -444,9 +480,37 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
               badge: "bg-white/20 text-white border border-white/30"
             };
+          } else if (colorTheme === "blue") {
+            return {
+              debt: "bg-gradient-to-br from-sky-500 via-sky-600 to-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-slate-900 border-2 border-sky-400/50 dark:border-sky-500/40 text-white shadow-lg shadow-sky-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
+            };
+          } else if (colorTheme === "pink") {
+            return {
+              debt: "bg-gradient-to-br from-pink-500 via-pink-600 to-rose-800 dark:from-pink-950 dark:via-rose-950 dark:to-slate-900 border-2 border-pink-400/50 dark:border-pink-500/40 text-white shadow-lg shadow-pink-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
+            };
           } else if (colorTheme === "orange") {
             return {
               debt: "bg-gradient-to-br from-amber-500 via-amber-600 to-orange-800 dark:from-amber-950 dark:via-orange-950 dark:to-slate-900 border-2 border-amber-400/50 dark:border-amber-500/40 text-white shadow-lg shadow-amber-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
+            };
+          } else if (colorTheme === "cyan") {
+            return {
+              debt: "bg-gradient-to-br from-cyan-500 via-cyan-600 to-teal-800 dark:from-cyan-950 dark:via-teal-950 dark:to-slate-900 border-2 border-cyan-400/50 dark:border-cyan-500/40 text-white shadow-lg shadow-cyan-500/25 hover:shadow-xl",
+              income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
+              expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
+              badge: "bg-white/20 text-white border border-white/30"
+            };
+          } else if (colorTheme === "coral") {
+            return {
+              debt: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
               income: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 dark:from-emerald-950 dark:via-teal-950 dark:to-slate-900 border-2 border-emerald-400/50 dark:border-emerald-500/40 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl",
               expense: "bg-gradient-to-br from-rose-500 via-rose-600 to-red-800 dark:from-rose-950 dark:via-rose-900 dark:to-slate-900 border-2 border-rose-400/50 dark:border-rose-500/40 text-white shadow-lg shadow-rose-500/25 hover:shadow-xl",
               badge: "bg-white/20 text-white border border-white/30"

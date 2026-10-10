@@ -643,7 +643,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                   onClick={onOpenOnboarding}
                   className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-200 animate-pulse" /> 5 Sayfalık Tanıtım Turu 🚀
+                  <Sparkles className="w-4 h-4 text-amber-200 animate-pulse" /> Tanıtım Sayfası 🚀
                 </button>
               )}
               <button

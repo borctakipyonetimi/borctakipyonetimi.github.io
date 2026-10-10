@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { AndroidHomeScreenWidget } from "./AndroidHomeScreenWidget";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Sparkles,
@@ -90,6 +91,7 @@ interface GPlayEnhancementsProps {
   isGuestTrialUser?: boolean;
   isGuestTrialExpired?: boolean;
   onOpenUpgradeModal?: (name?: string) => void;
+  onOpenAddExpense?: () => void;
 }
 
 interface ProFeatureItem {
@@ -137,7 +139,8 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
   isTrialExpired = false,
   isGuestTrialUser = false,
   isGuestTrialExpired = false,
-  onOpenUpgradeModal
+  onOpenUpgradeModal,
+  onOpenAddExpense
 }) => {
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<"all" | "ai" | "security" | "markets" | "tools">("all");
   
@@ -984,7 +987,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
                     className="w-full mt-2 py-2 px-3 bg-gradient-to-r from-amber-500/10 via-amber-500/20 to-amber-500/10 hover:from-amber-500/20 hover:to-amber-500/30 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-between cursor-pointer shadow-xs"
                   >
                     <span className="flex items-center gap-1.5">
-                      <span>🔑 E-Posta / Google Bulut Girişi</span>
+                      <span>✉️ E-posta ile Giriş Yap</span>
                     </span>
                     <span className="text-[9px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded shadow-xs">
                       👑 PREMİUM
@@ -2053,6 +2056,18 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Android 2x2 Home Screen Widget Preview & SharedPreferences Sync */}
+      <AndroidHomeScreenWidget
+        expenses={expenses}
+        incomes={incomes || []}
+        debts={debts}
+        activeCurrency="TRY"
+        colorTheme="indigo"
+        format={format}
+        onOpenAddExpense={onOpenAddExpense || (() => {})}
+        triggerToast={triggerToast}
+      />
     </div>
   );
 };

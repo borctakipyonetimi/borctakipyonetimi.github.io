@@ -66,47 +66,161 @@ body.dark {
   transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Theme overrides mapping Indigo scale to the selected user theme style */
-.theme-green {
-  --color-indigo-50: #f0fdf4 !important;
-  --color-indigo-100: #dcfce7 !important;
-  --color-indigo-200: #bbf7d0 !important;
-  --color-indigo-300: #86efac !important;
-  --color-indigo-400: #4ade80 !important;
-  --color-indigo-500: #22c55e !important;
-  --color-indigo-600: #10b981 !important;
-  --color-indigo-700: #047857 !important;
-  --color-indigo-800: #065f46 !important;
-  --color-indigo-900: #064e3b !important;
-  --color-indigo-950: #022c22 !important;
+/* ==========================================================================
+   8 CANLI RENK TEMASI (8 VIBRANT COLOR THEMES)
+   Overrides Indigo scale & theme variables so all buttons, borders,
+   glows, active tabs, and highlights dynamically transform.
+   ========================================================================== */
+
+:root {
+  --theme-primary: #6366F1;
+  --theme-accent: #A5B4FC;
+  --theme-glow: rgba(99, 102, 241, 0.25);
 }
 
+/* 1. MOR (Purple): primary: #8B5CF6, accent: #C4B5FD */
 .theme-purple {
+  --theme-primary: #8B5CF6 !important;
+  --theme-accent: #C4B5FD !important;
+  --theme-glow: rgba(139, 92, 246, 0.3) !important;
   --color-indigo-50: #faf5ff !important;
   --color-indigo-100: #f3e8ff !important;
   --color-indigo-200: #e9d5ff !important;
-  --color-indigo-300: #d8b4fe !important;
-  --color-indigo-400: #c084fc !important;
-  --color-indigo-500: #a855f7 !important;
-  --color-indigo-600: #8b5cf6 !important;
+  --color-indigo-300: #c4b5fd !important;
+  --color-indigo-400: #a78bfa !important;
+  --color-indigo-500: #8b5cf6 !important;
+  --color-indigo-600: #7c3aed !important;
   --color-indigo-700: #6d28d9 !important;
   --color-indigo-800: #5b21b6 !important;
   --color-indigo-900: #4c1d95 !important;
   --color-indigo-950: #2e1065 !important;
 }
 
+/* 2. YEŞİL (Emerald): primary: #10B981, accent: #6EE7B7 */
+.theme-green {
+  --theme-primary: #10B981 !important;
+  --theme-accent: #6EE7B7 !important;
+  --theme-glow: rgba(16, 185, 129, 0.3) !important;
+  --color-indigo-50: #ecfdf5 !important;
+  --color-indigo-100: #d1fae5 !important;
+  --color-indigo-200: #a7f3d0 !important;
+  --color-indigo-300: #6ee7b7 !important;
+  --color-indigo-400: #34d399 !important;
+  --color-indigo-500: #10b981 !important;
+  --color-indigo-600: #059669 !important;
+  --color-indigo-700: #047857 !important;
+  --color-indigo-800: #065f46 !important;
+  --color-indigo-900: #064e3b !important;
+  --color-indigo-950: #022c22 !important;
+}
+
+/* 3. MAVİ (Ocean): primary: #0EA5E9, accent: #38BDF8 */
+.theme-blue {
+  --theme-primary: #0EA5E9 !important;
+  --theme-accent: #38BDF8 !important;
+  --theme-glow: rgba(14, 165, 233, 0.3) !important;
+  --color-indigo-50: #f0f9ff !important;
+  --color-indigo-100: #e0f2fe !important;
+  --color-indigo-200: #bae6fd !important;
+  --color-indigo-300: #7dd3fc !important;
+  --color-indigo-400: #38bdf8 !important;
+  --color-indigo-500: #0ea5e9 !important;
+  --color-indigo-600: #0284c7 !important;
+  --color-indigo-700: #0369a1 !important;
+  --color-indigo-800: #075985 !important;
+  --color-indigo-900: #0c4a6e !important;
+  --color-indigo-950: #082f49 !important;
+}
+
+/* 4. PEMBE (Neon Pink): primary: #EC4899, accent: #F472B6 */
+.theme-pink {
+  --theme-primary: #EC4899 !important;
+  --theme-accent: #F472B6 !important;
+  --theme-glow: rgba(236, 72, 153, 0.3) !important;
+  --color-indigo-50: #fdf2f8 !important;
+  --color-indigo-100: #fce7f3 !important;
+  --color-indigo-200: #fbcfe8 !important;
+  --color-indigo-300: #f9a8d4 !important;
+  --color-indigo-400: #f472b6 !important;
+  --color-indigo-500: #ec4899 !important;
+  --color-indigo-600: #db2777 !important;
+  --color-indigo-700: #be185d !important;
+  --color-indigo-800: #9d174d !important;
+  --color-indigo-900: #831843 !important;
+  --color-indigo-950: #500724 !important;
+}
+
+/* 5. AMBER (Gold/Orange): primary: #F59E0B, accent: #FCD34D */
 .theme-orange {
-  --color-indigo-50: #fff7ed !important;
-  --color-indigo-100: #ffedd5 !important;
-  --color-indigo-200: #fed7aa !important;
-  --color-indigo-300: #fdbb74 !important;
-  --color-indigo-400: #fb923c !important;
-  --color-indigo-500: #f97316 !important;
-  --color-indigo-600: #ea580c !important;
-  --color-indigo-700: #c2410c !important;
-  --color-indigo-800: #9a3412 !important;
-  --color-indigo-900: #7c2d12 !important;
-  --color-indigo-950: #431407 !important;
+  --theme-primary: #F59E0B !important;
+  --theme-accent: #FCD34D !important;
+  --theme-glow: rgba(245, 158, 11, 0.3) !important;
+  --color-indigo-50: #fffbeb !important;
+  --color-indigo-100: #fef3c7 !important;
+  --color-indigo-200: #fde68a !important;
+  --color-indigo-300: #fcd34d !important;
+  --color-indigo-400: #fbbf24 !important;
+  --color-indigo-500: #f59e0b !important;
+  --color-indigo-600: #d97706 !important;
+  --color-indigo-700: #b45309 !important;
+  --color-indigo-800: #92400e !important;
+  --color-indigo-900: #78350f !important;
+  --color-indigo-950: #451a03 !important;
+}
+
+/* 6. TURKUAZ (Cyber Cyan): primary: #06B6D4, accent: #67E8F9 */
+.theme-cyan {
+  --theme-primary: #06B6D4 !important;
+  --theme-accent: #67E8F9 !important;
+  --theme-glow: rgba(6, 182, 212, 0.3) !important;
+  --color-indigo-50: #ecfeff !important;
+  --color-indigo-100: #cffafe !important;
+  --color-indigo-200: #a5f3fc !important;
+  --color-indigo-300: #67e8f9 !important;
+  --color-indigo-400: #22d3ee !important;
+  --color-indigo-500: #06b6d4 !important;
+  --color-indigo-600: #0891b2 !important;
+  --color-indigo-700: #0e7490 !important;
+  --color-indigo-800: #155e75 !important;
+  --color-indigo-900: #164e63 !important;
+  --color-indigo-950: #083344 !important;
+}
+
+/* 7. MERCAN (Coral Red): primary: #F43F5E, accent: #FDA4AF */
+.theme-coral {
+  --theme-primary: #F43F5E !important;
+  --theme-accent: #FDA4AF !important;
+  --theme-glow: rgba(244, 63, 94, 0.3) !important;
+  --color-indigo-50: #fff1f2 !important;
+  --color-indigo-100: #ffe4e6 !important;
+  --color-indigo-200: #fecdd3 !important;
+  --color-indigo-300: #fda4af !important;
+  --color-indigo-400: #fb7185 !important;
+  --color-indigo-500: #f43f5e !important;
+  --color-indigo-600: #e11d48 !important;
+  --color-indigo-700: #be123c !important;
+  --color-indigo-800: #9f1239 !important;
+  --color-indigo-900: #881337 !important;
+  --color-indigo-950: #4c0519 !important;
+}
+
+/* 8. İNDİGO (Deep Indigo): primary: #6366F1, accent: #A5B4FC */
+.theme-indigo,
+.theme-default {
+  --theme-primary: #6366F1 !important;
+  --theme-accent: #A5B4FC !important;
+  --theme-glow: rgba(99, 102, 241, 0.3) !important;
+  --color-indigo-50: #eef2ff !important;
+  --color-indigo-100: #e0e7ff !important;
+  --color-indigo-200: #c7d2fe !important;
+  --color-indigo-300: #a5b4fc !important;
+  --color-indigo-400: #818cf8 !important;
+  --color-indigo-500: #6366f1 !important;
+  --color-indigo-600: #4f46e5 !important;
+  --color-indigo-700: #4338ca !important;
+  --color-indigo-800: #3730a3 !important;
+  --color-indigo-900: #312e81 !important;
+  --color-indigo-950: #1e1b4b !important;
 }
 
 /* Custom animations helper */

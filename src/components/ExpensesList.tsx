@@ -869,6 +869,101 @@ const getSavingTipForCategory = (name: string, icon: string): string => {
   return customCategoryDailyTips[dayIndex];
 };
 
+// Canlı Kategori Vurgulu Renk Haritası
+export const VIBRANT_EXPENSE_CATEGORY_COLORS: Record<string, string> = {
+  // Araç: #0EA5E9
+  "araç": "#0EA5E9",
+  "arac": "#0EA5E9",
+  "araba": "#0EA5E9",
+  "yakıt": "#0EA5E9",
+  "yakit": "#0EA5E9",
+  "benzin": "#0EA5E9",
+  "mazot": "#0EA5E9",
+  "lpg": "#0EA5E9",
+  "oto": "#0EA5E9",
+  "otomobil": "#0EA5E9",
+  "motor": "#0EA5E9",
+  "car": "#0EA5E9",
+  "vehicle": "#0EA5E9",
+  "fuel": "#0EA5E9",
+
+  // Yeme İçme: #D946EF
+  "yeme içme": "#D946EF",
+  "yeme icme": "#D946EF",
+  "yemek": "#D946EF",
+  "restoran": "#D946EF",
+  "restaurant": "#D946EF",
+  "kafe": "#D946EF",
+  "cafe": "#D946EF",
+  "kahve": "#D946EF",
+  "fast food": "#D946EF",
+  "paket servis": "#D946EF",
+  "food": "#D946EF",
+  "dining": "#D946EF",
+
+  // Kira: #F43F5E
+  "kira": "#F43F5E",
+  "rent": "#F43F5E",
+  "ev": "#F43F5E",
+  "konut": "#F43F5E",
+  "aidat": "#F43F5E",
+  "apartman": "#F43F5E",
+  "lojman": "#F43F5E",
+
+  // Sigara: #2DD4BF
+  "sigara": "#2DD4BF",
+  "tütün": "#2DD4BF",
+  "tutun": "#2DD4BF",
+  "puro": "#2DD4BF",
+  "nargile": "#2DD4BF",
+  "tobacco": "#2DD4BF",
+  "cigarette": "#2DD4BF",
+  "smoking": "#2DD4BF",
+
+  // Ulaşım: #34D399
+  "ulaşım": "#34D399",
+  "ulasim": "#34D399",
+  "otobüs": "#34D399",
+  "otobus": "#34D399",
+  "metro": "#34D399",
+  "metrobüs": "#34D399",
+  "tramvay": "#34D399",
+  "taksi": "#34D399",
+  "taxi": "#34D399",
+  "dolmuş": "#34D399",
+  "dolmus": "#34D399",
+  "bilet": "#34D399",
+  "transport": "#34D399",
+  "transportation": "#34D399",
+
+  // Sağlık: #F97316
+  "sağlık": "#F97316",
+  "saglik": "#F97316",
+  "eczane": "#F97316",
+  "hastane": "#F97316",
+  "doktor": "#F97316",
+  "ilaç": "#F97316",
+  "ilac": "#F97316",
+  "medikal": "#F97316",
+  "health": "#F97316",
+  "medical": "#F97316",
+  "pharmacy": "#F97316",
+};
+
+export const getVibrantCategoryColor = (name: string = "", fallbackColor?: string, index: number = 0): string => {
+  const norm = (name || "").toLowerCase().trim();
+  for (const [key, color] of Object.entries(VIBRANT_EXPENSE_CATEGORY_COLORS)) {
+    if (norm.includes(key)) {
+      return color;
+    }
+  }
+  if (fallbackColor && fallbackColor !== "#6366f1" && fallbackColor !== "#3b82f6" && fallbackColor !== "#10b981") {
+    return fallbackColor;
+  }
+  const defaultPalette = ["#0EA5E9", "#D946EF", "#F43F5E", "#2DD4BF", "#34D399", "#F97316", "#8B5CF6", "#EC4899", "#EAB308", "#10B981"];
+  return defaultPalette[index % defaultPalette.length];
+};
+
 export const ExpensesList: React.FC<ExpensesListProps> = ({
   expenses,
   expenseCategories,
@@ -1046,6 +1141,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState("#6366f1");
   const [categoryIcon, setCategoryIcon] = useState("🛒");
+  const [categoryBudgetLimit, setCategoryBudgetLimit] = useState("");
   const [isInlineEditingCategory, setIsInlineEditingCategory] = useState(false);
   const [selectedFilterCategoryId, setSelectedFilterCategoryId] = useState<
     number | null
@@ -1136,6 +1232,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setCategoryName("");
     setCategoryColor("#6366f1");
     setCategoryIcon("🛒");
+    setCategoryBudgetLimit("");
     setIsCatModalOpen(true);
   };
 
@@ -1145,6 +1242,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setCategoryName(c.name);
     setCategoryColor(c.color || "#6366f1");
     setCategoryIcon(c.icon || "🛒");
+    setCategoryBudgetLimit(c.budgetLimit ? c.budgetLimit.toString() : "");
     setIsCatModalOpen(true);
   };
 
@@ -1158,6 +1256,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       name: categoryName.trim(),
       color: categoryColor,
       icon: categoryIcon,
+      budgetLimit: categoryBudgetLimit ? parseFloat(categoryBudgetLimit) : undefined,
     });
     setIsCatModalOpen(false);
   };
@@ -1981,57 +2080,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   const currentMonthTotal = categoryCurrentMonthTotals[c.id] || 0;
                   const isSelected = selectedFilterCategoryId === c.id;
 
-                  const CATEGORY_DAY_THEMES = [
-                    {
-                      bg: "from-indigo-100/95 via-sky-50/90 to-blue-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-indigo-300 dark:border-slate-700/60",
-                      glow: "bg-indigo-500/20",
-                      badge: "text-indigo-950 bg-white/95 border border-indigo-300 shadow-xs dark:text-indigo-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-emerald-100/95 via-teal-50/90 to-green-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-emerald-300 dark:border-slate-700/60",
-                      glow: "bg-emerald-500/20",
-                      badge: "text-emerald-950 bg-white/95 border border-emerald-300 shadow-xs dark:text-emerald-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-rose-100/95 via-pink-50/90 to-red-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-rose-300 dark:border-slate-700/60",
-                      glow: "bg-rose-500/20",
-                      badge: "text-rose-950 bg-white/95 border border-rose-300 shadow-xs dark:text-rose-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-amber-100/95 via-yellow-50/90 to-orange-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-amber-300 dark:border-slate-700/60",
-                      glow: "bg-amber-500/20",
-                      badge: "text-amber-950 bg-white/95 border border-amber-300 shadow-xs dark:text-amber-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-purple-100/95 via-fuchsia-50/90 to-violet-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-purple-300 dark:border-slate-700/60",
-                      glow: "bg-purple-500/20",
-                      badge: "text-purple-950 bg-white/95 border border-purple-300 shadow-xs dark:text-purple-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-cyan-100/95 via-sky-50/90 to-teal-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-cyan-300 dark:border-slate-700/60",
-                      glow: "bg-cyan-500/20",
-                      badge: "text-cyan-950 bg-white/95 border border-cyan-300 shadow-xs dark:text-cyan-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-teal-100/95 via-emerald-50/90 to-cyan-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-teal-300 dark:border-slate-700/60",
-                      glow: "bg-teal-500/20",
-                      badge: "text-teal-950 bg-white/95 border border-teal-300 shadow-xs dark:text-teal-300 dark:bg-slate-900/60 dark:border-white/10"
-                    },
-                    {
-                      bg: "from-orange-100/95 via-amber-50/90 to-rose-100/90 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
-                      border: "border-2 border-orange-300 dark:border-slate-700/60",
-                      glow: "bg-orange-500/20",
-                      badge: "text-orange-950 bg-white/95 border border-orange-300 shadow-xs dark:text-orange-300 dark:bg-slate-900/60 dark:border-white/10"
-                    }
-                  ];
-                  const catTheme = CATEGORY_DAY_THEMES[idx % CATEGORY_DAY_THEMES.length];
+                  const catColor = getVibrantCategoryColor(c.name, c.color, idx);
 
                   return (
                     <motion.div
@@ -2057,12 +2106,12 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           setSelectedFilterCategoryId(isSelected ? null : c.id);
                         }
                       }}
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.015 }}
                       whileTap={isInlineEditingCategory ? {} : { scale: 0.98 }}
-                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-300 shadow-md overflow-hidden ${
+                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-200 overflow-hidden ${
                         isSelected
-                          ? "ring-2 ring-indigo-500 bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-xl shadow-indigo-500/25"
-                          : `bg-gradient-to-br ${catTheme.bg} ${catTheme.border} text-slate-900 dark:text-slate-100 hover:shadow-xl`
+                          ? "ring-2 ring-indigo-500 bg-[#1F2937] dark:bg-[#111827] text-white shadow-xl shadow-indigo-500/20 border border-indigo-500/50"
+                          : "bg-[#1F2937] dark:bg-[#111827] text-slate-100 border border-slate-700/60 dark:border-slate-800 hover:border-slate-600 shadow-md hover:shadow-xl"
                       } ${
                         isInlineEditingCategory
                           ? "ring-2 ring-amber-400/80 inline-editing"
@@ -2077,18 +2126,14 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           : ""
                       }`}
                       style={{
-                        borderLeft: `5px solid ${c.color || "#6366f1"}`,
+                        borderLeft: `4px solid ${catColor}`,
                       }}
                       title={
                         isInlineEditingCategory
-                          ? "Kategeri ismini veya rengini doğrudan değiştirin"
+                          ? "Kategori ismini veya rengini doğrudan değiştirin"
                           : "Giderleri filtrelemek için tıklayın | Sürükleyip bırakarak öncelik sırasını değiştirin"
                       }
                     >
-                      {/* Animated ambient background decoration in day & dark mode */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/10 pointer-events-none rounded-2xl" />
-                      <div className={`absolute -right-4 -top-4 w-16 h-16 rounded-full ${catTheme.glow} blur-xl pointer-events-none animate-pulse`} />
-
                       {/* Hover Tooltip - Monthly Category Total (only when not inline editing to save space) */}
                       {!isInlineEditingCategory && (
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-950/95 dark:bg-slate-900/95 text-white text-[10.5px] rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-indigo-500/15 flex flex-col items-center gap-0.5 animate-fade-in-fast">
@@ -2114,10 +2159,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             {c.icon || "🛒"}
                           </span>
                           {/* Premium Custom Inline Color Picker Dot */}
-                          <div className="relative w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer shadow-sm hover:scale-110 active:scale-95 transition-all">
+                          <div className="relative w-5 h-5 rounded-full border border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer shadow-sm hover:scale-110 active:scale-95 transition-all">
                             <input
                               type="color"
-                              value={c.color || "#6366f1"}
+                              value={c.color || catColor}
                               onChange={(e) => {
                                 onSaveCategory({ ...c, color: e.target.value });
                               }}
@@ -2130,12 +2175,12 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             onChange={(e) => {
                               onSaveCategory({ ...c, name: e.target.value });
                             }}
-                            className="px-2 py-1 flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-950 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                            className="px-2 py-1 flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-100 outline-none focus:border-indigo-500 focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                             placeholder="Kategori Adı"
                           />
                           <button
                             onClick={() => onDeleteCategory(c.id)}
-                            className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-55 dark:hover:bg-rose-950/20 rounded-lg transition shrink-0"
+                            className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-950/20 rounded-lg transition shrink-0"
                             title="Kategoriyi Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2147,8 +2192,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           <div className="flex items-center justify-between w-full gap-2 min-w-0 relative z-10">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span
-                                className="w-2 h-2 rounded-full inline-block shrink-0 transition-all duration-500 ease-in-out shadow-xs"
-                                style={{ backgroundColor: c.color || "#6366f1" }}
+                                className="w-2.5 h-2.5 rounded-full inline-block shrink-0 transition-all duration-300 shadow-xs"
+                                style={{ backgroundColor: catColor }}
                               />
                               <span
                                 className="text-sm select-none shrink-0"
@@ -2157,18 +2202,15 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 {c.icon || "🛒"}
                               </span>
                               <span
-                                className={`truncate text-xs font-black leading-none ${isSelected ? "text-white" : "text-slate-900 dark:text-slate-100"}`}
+                                className={`truncate text-xs font-black leading-none ${isSelected ? "text-white" : "text-slate-100"}`}
                                 title={c.name}
                               >
                                 {c.name}
                               </span>
                             </div>
                             <span
-                              className={`text-[9.5px] px-2 py-0.5 rounded-lg font-mono font-bold transition-all shrink-0 select-none ${
-                                isSelected
-                                  ? "bg-indigo-600 text-white dark:bg-indigo-500/50"
-                                  : catTheme.badge
-                              }`}
+                              className="text-[11px] sm:text-xs px-2.5 py-1 rounded-xl font-mono font-bold transition-all shrink-0 select-none bg-slate-900/90 dark:bg-slate-950/90 border border-slate-700/60 shadow-xs"
+                              style={{ color: catColor }}
                               title={`${c.name} bu ayki toplam harcaması`}
                             >
                               {format(currentMonthTotal)}
@@ -2176,7 +2218,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           </div>
 
                           {/* Row 2: Action Toolbar */}
-                          <div className="flex items-center justify-end gap-1 w-full border-t border-slate-100/50 dark:border-slate-800/40 pt-1.5 mt-1">
+                          <div className="flex items-center justify-end gap-1 w-full border-t border-slate-700/40 dark:border-slate-800/60 pt-1.5 mt-1">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -2187,8 +2229,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                               }}
                               className={`px-1.5 py-0.5 rounded-md transition shrink-0 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 ${
                                 showTipCategory?.id === c.id
-                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 scale-105"
-                                  : "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                  ? "bg-amber-500/20 text-amber-300 scale-105"
+                                  : "text-amber-400/80 hover:text-amber-300 hover:bg-amber-950/30"
                               }`}
                               title={`${c.name} için Tasarruf İpucu`}
                             >
@@ -2196,7 +2238,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                               <span className="text-[8.5px] font-black ml-0.5">İpucu</span>
                             </button>
 
-                            <div className="h-3 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+                            <div className="h-3 w-[1px] bg-slate-700/60 mx-0.5" />
 
                             <button
                               type="button"
@@ -2204,7 +2246,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 e.stopPropagation();
                                 handleOpenEditCategory(c);
                               }}
-                              className="px-1.5 py-0.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
                               title="Düzenle"
                             >
                               <Edit className="w-3 h-3 shrink-0" />
@@ -2217,7 +2259,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 e.stopPropagation();
                                 onDeleteCategory(c.id);
                               }}
-                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-500 hover:bg-rose-55 dark:hover:bg-rose-950/20 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
                               title="Sil"
                             >
                               <Trash2 className="w-3 h-3 shrink-0" />
@@ -2579,17 +2621,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               <div className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-950 p-2 rounded-2xl border border-slate-100 dark:border-slate-850 max-h-36 overflow-y-auto pr-1">
                 {[
                   { name: "Market", icon: "🛒", color: "#10b981", d: "Gıda" },
-                  { name: "Kira", icon: "🏠", color: "#3b82f6", d: "Ev" },
-                  { name: "Ulaşım", icon: "🚗", color: "#f59e0b", d: "Yol" },
-                  { name: "Yemek", icon: "🍔", color: "#ec4899", d: "Kafe" },
+                  { name: "Kira", icon: "🏠", color: "#F43F5E", d: "Ev" },
+                  { name: "Ulaşım", icon: "🚗", color: "#34D399", d: "Yol" },
+                  { name: "Araç", icon: "🚘", color: "#0EA5E9", d: "Oto" },
+                  { name: "Yeme İçme", icon: "🍔", color: "#D946EF", d: "Kafe" },
+                  { name: "Sigara", icon: "🚬", color: "#2DD4BF", d: "Tütün" },
+                  { name: "Sağlık", icon: "💊", color: "#F97316", d: "İlaç" },
                   { name: "Faturalar", icon: "⚡", color: "#ef4444", d: "Enerji" },
                   { name: "Eğlence", icon: "🍿", color: "#8b5cf6", d: "Sosyal" },
                   { name: "Eğitim", icon: "🎓", color: "#6366f1", d: "Okul" },
-                  { name: "Sağlık", icon: "💊", color: "#f43f5e", d: "İlaç" },
                   { name: "Kişisel", icon: "💇", color: "#14b8a6", d: "Bakım" },
                   { name: "Spor", icon: "⚽", color: "#22c55e", d: "Hobi" },
-                  { name: "Borçlar", icon: "💰", color: "#eab308", d: "Banka" },
-                  { name: "Hediyeler", icon: "🎁", color: "#d946ef", d: "Özel" },
                 ].map((item) => {
                   const isMatch = categoryName.toLowerCase() === item.name.toLowerCase();
                   return (
@@ -2702,6 +2744,26 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-450 block mb-1">
+                  AYLIK BÜTÇE LİMİTİ (₺) - OPSİYONEL
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={categoryBudgetLimit}
+                    onChange={(e) => setCategoryBudgetLimit(e.target.value)}
+                    placeholder="Örn: 5000 (%80 ve %100 aşımda uyarı alınır)"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs dark:text-white outline-none focus:ring-1 focus:ring-indigo-550 focus:border-indigo-500 font-bold"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">
+                    ₺
+                  </div>
                 </div>
               </div>
             </div>

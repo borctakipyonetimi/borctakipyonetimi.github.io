@@ -543,10 +543,10 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
 
     const categoriesList = [
-      { id: 1, name: "Kira", color: "#3b82f6", icon: "🏠" },
+      { id: 1, name: "Kira", color: "#F43F5E", icon: "🏠" },
       { id: 2, name: "Market", color: "#10b981", icon: "🛒" },
-      { id: 3, name: "Ulaşım", color: "#f59e0b", icon: "🚗" },
-      { id: 4, name: "Yeme İçme", color: "#ec4899", icon: "🍔" },
+      { id: 3, name: "Ulaşım", color: "#34D399", icon: "🚗" },
+      { id: 4, name: "Yeme İçme", color: "#D946EF", icon: "🍔" },
       { id: 5, name: "Faturalar", color: "#ef4444", icon: "⚡" }
     ];
 

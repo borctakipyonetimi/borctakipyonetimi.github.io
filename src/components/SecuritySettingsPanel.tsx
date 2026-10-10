@@ -33,13 +33,15 @@ import {
   ChevronDown,
   Settings as SettingsIcon,
   Check,
-  Folder
+  Folder,
+  Trash2
 } from "lucide-react";
 import { isPassActive } from "../utils/rewardedAdService";
 
 interface SecuritySettingsPanelProps {
   language?: string;
   onSuccessToast: (msg: string) => void;
+  onDeleteAccount?: () => Promise<void> | void;
   marqueeSpeed?: number;
   setMarqueeSpeed?: (speed: number) => void;
   marqueePaused?: boolean;
@@ -98,8 +100,13 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   onProcessBackupJSON,
   initialTab = "cloud",
   onBack,
+  onDeleteAccount,
 }) => {
   const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings" | "none">(initialTab || "cloud");
+
+  // Delete Account State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Cloud Sync state
   const [cloudActiveTab, setCloudActiveTab] = useState<"sync" | "drive" | "restore">("sync");
@@ -714,7 +721,17 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     onClick={onOpenGoogleLogin}
                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition shadow-md shadow-indigo-600/20 flex items-center gap-2 cursor-pointer self-start sm:self-auto active:scale-95"
                   >
-                    <span>🔑 Google ile Giriş Yap</span>
+                    <span>✉️ E-posta ile Giriş Yap</span>
+                  </button>
+                )}
+
+                {currentUser && onOpenGoogleLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenGoogleLogin}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer self-start sm:self-auto active:scale-95"
+                  >
+                    <span>🔄 Farklı E-posta ile Giriş Yap</span>
                   </button>
                 )}
               </div>
@@ -1482,7 +1499,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      Uygulama Tanıtım Turu (5 Sayfa)
+                      Tanıtım Sayfası
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                       Tüm özellikleri ve modülleri adım adım tanıtan görsel rehberi yeniden başlatın.
@@ -1503,7 +1520,105 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
         </div>
       )}
         </div>
+
+        {/* ============================================================ */}
+        {/* SECTION 4: HESABIMI VE TÜM VERİLERİMİ SİL (GOOGLE PLAY / GDPR) */}
+        {/* ============================================================ */}
+        <div className="bg-rose-500/5 dark:bg-rose-950/20 rounded-3xl border border-rose-500/30 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-500 flex items-center justify-center shrink-0">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
+                Hesabımı ve Tüm Verilerimi Kalıcı Olarak Sil
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Google Play Store kullanıcı veri güvenliği standartları gereğince, dilediğiniz zaman hesabınızı ve buluttaki (Firebase RTDB) ile cihazınızdaki tüm borç, gelir, gider, taksit ve profil verilerinizi tek dokunuşla kalıcı olarak silebilirsiniz.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-rose-500/15">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>Bu işlem geri alınamaz ve tüm finansal geçmişinizi kalıcı olarak yok eder.</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="px-5 py-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-2xl text-xs font-black transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Hesabımı ve Tüm Verilerimi Sil</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Onay Pop-Up Modalı (Hesap ve Veri Silme) */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-rose-500/15 text-rose-500 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-8 h-8 animate-bounce" />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                Hesabınızı ve Verilerinizi Silmek İstiyor Musunuz?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Bu işlem <strong className="text-rose-600 dark:text-rose-400 font-black">GERİ ALINAMAZ</strong>. Firebase RTDB üzerindeki <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[11px] font-mono text-rose-500">kullanicilar/{currentUser || "userId"}</code> verileriniz, Firebase Auth kullanıcı kaydınız, tüm borç, gelir, gider, taksit ve ayar kayıtlarınız kalıcı olarak silinecektir.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-3">
+              <button
+                type="button"
+                disabled={isDeletingAccount}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-black transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                Vazgeç
+              </button>
+              
+              <button
+                type="button"
+                disabled={isDeletingAccount}
+                onClick={async () => {
+                  setIsDeletingAccount(true);
+                  try {
+                    if (onDeleteAccount) {
+                      await onDeleteAccount();
+                    }
+                    setIsDeleteModalOpen(false);
+                  } catch (err: any) {
+                    console.error("Hesap silme hatası:", err);
+                    onSuccessToast(`Hata: ${err?.message || "Hesap silinemedi."}`);
+                  } finally {
+                    setIsDeletingAccount(false);
+                  }
+                }}
+                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black transition active:scale-95 shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingAccount ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Siliniyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Evet, Kalıcı Olarak Sil</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

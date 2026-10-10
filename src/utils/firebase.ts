@@ -27,6 +27,7 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   onSnapshot,
   collection,
   query,
@@ -163,7 +164,7 @@ export const db = getDatabase(app);
 
 // Cloud Firestore Database - Doküman tabanlı kullanıcı ve profil veritabanı
 export const firestore = getFirestore(app, "ai-studio-a48384d9-6220-4970-ba14-0574514b3e7e");
-export { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs };
+export { doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs };
 
 // Veritabanı bağlantısını çevrim içi tut
 try {
