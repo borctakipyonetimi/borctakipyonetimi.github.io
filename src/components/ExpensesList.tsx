@@ -950,15 +950,36 @@ export const VIBRANT_EXPENSE_CATEGORY_COLORS: Record<string, string> = {
   "pharmacy": "#F97316",
 };
 
+export const hexToRgba = (colorStr: string = "#6366f1", alpha: number = 1): string => {
+  if (!colorStr) return `rgba(99, 102, 241, ${alpha})`;
+  if (colorStr.startsWith("rgb")) {
+    const match = colorStr.match(/\d+(\.\d+)?/g);
+    if (match && match.length >= 3) {
+      return `rgba(${match[0]}, ${match[1]}, ${match[2]}, ${alpha})`;
+    }
+  }
+  let hex = colorStr.replace("#", "").trim();
+  if (hex.length === 3) {
+    hex = hex.split("").map((c) => c + c).join("");
+  }
+  if (hex.length >= 6) {
+    const r = parseInt(hex.substring(0, 2), 16) || 0;
+    const g = parseInt(hex.substring(2, 4), 16) || 0;
+    const b = parseInt(hex.substring(4, 6), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(99, 102, 241, ${alpha})`;
+};
+
 export const getVibrantCategoryColor = (name: string = "", fallbackColor?: string, index: number = 0): string => {
+  if (fallbackColor && fallbackColor.trim() !== "") {
+    return fallbackColor;
+  }
   const norm = (name || "").toLowerCase().trim();
   for (const [key, color] of Object.entries(VIBRANT_EXPENSE_CATEGORY_COLORS)) {
     if (norm.includes(key)) {
       return color;
     }
-  }
-  if (fallbackColor && fallbackColor !== "#6366f1" && fallbackColor !== "#3b82f6" && fallbackColor !== "#10b981") {
-    return fallbackColor;
   }
   const defaultPalette = ["#0EA5E9", "#D946EF", "#F43F5E", "#2DD4BF", "#34D399", "#F97316", "#8B5CF6", "#EC4899", "#EAB308", "#10B981"];
   return defaultPalette[index % defaultPalette.length];
@@ -2108,25 +2129,32 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       }}
                       whileHover={{ scale: 1.015 }}
                       whileTap={isInlineEditingCategory ? {} : { scale: 0.98 }}
-                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-200 overflow-hidden ${
+                      className={`relative group flex flex-col justify-between gap-2.5 p-3.5 rounded-2xl text-xs font-semibold select-none category-card-animated transition-all duration-300 overflow-hidden backdrop-blur-md ${
                         isSelected
-                          ? "ring-2 ring-indigo-500 bg-[#1F2937] dark:bg-[#111827] text-white shadow-xl shadow-indigo-500/20 border border-indigo-500/50"
-                          : "bg-[#1F2937] dark:bg-[#111827] text-slate-100 border border-slate-700/60 dark:border-slate-800 hover:border-slate-600 shadow-md hover:shadow-xl"
+                          ? "ring-2 ring-indigo-500 shadow-xl"
+                          : "hover:shadow-xl shadow-md"
                       } ${
                         isInlineEditingCategory
                           ? "ring-2 ring-amber-400/80 inline-editing"
                           : "cursor-pointer"
                       } ${
                         isDragged
-                          ? "opacity-30 border-dashed border-indigo-400 bg-indigo-50/10 scale-95"
+                          ? "opacity-30 border-dashed scale-95"
                           : ""
                       } ${
                         isOver && !isDragged
-                          ? "border-indigo-500 ring-2 ring-indigo-500/30 scale-105"
+                          ? "scale-105"
                           : ""
                       }`}
                       style={{
-                        borderLeft: `4px solid ${catColor}`,
+                        backgroundColor: hexToRgba(catColor, isSelected ? 0.28 : 0.16),
+                        backgroundImage: isSelected
+                          ? `linear-gradient(135deg, ${hexToRgba(catColor, 0.38)} 0%, ${hexToRgba(catColor, 0.22)} 100%)`
+                          : `linear-gradient(135deg, ${hexToRgba(catColor, 0.24)} 0%, ${hexToRgba(catColor, 0.12)} 100%)`,
+                        border: `2px solid ${hexToRgba(catColor, isSelected ? 0.95 : 0.55)}`,
+                        boxShadow: isSelected
+                          ? `0 10px 25px -4px ${hexToRgba(catColor, 0.4)}, 0 0 0 2px ${catColor}`
+                          : `0 4px 16px -2px ${hexToRgba(catColor, 0.2)}`,
                       }}
                       title={
                         isInlineEditingCategory
@@ -2159,7 +2187,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             {c.icon || "🛒"}
                           </span>
                           {/* Premium Custom Inline Color Picker Dot */}
-                          <div className="relative w-5 h-5 rounded-full border border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer shadow-sm hover:scale-110 active:scale-95 transition-all">
+                          <div className="relative w-5 h-5 rounded-full border border-slate-400 dark:border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer shadow-sm hover:scale-110 active:scale-95 transition-all">
                             <input
                               type="color"
                               value={c.color || catColor}
@@ -2175,12 +2203,12 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                             onChange={(e) => {
                               onSaveCategory({ ...c, name: e.target.value });
                             }}
-                            className="px-2 py-1 flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-100 outline-none focus:border-indigo-500 focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                            className="px-2 py-1 flex-1 min-w-0 bg-white/90 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                             placeholder="Kategori Adı"
                           />
                           <button
                             onClick={() => onDeleteCategory(c.id)}
-                            className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-950/20 rounded-lg transition shrink-0"
+                            className="p-1 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition shrink-0"
                             title="Kategoriyi Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2192,7 +2220,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           <div className="flex items-center justify-between w-full gap-2 min-w-0 relative z-10">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span
-                                className="w-2.5 h-2.5 rounded-full inline-block shrink-0 transition-all duration-300 shadow-xs"
+                                className="w-2.5 h-2.5 rounded-full inline-block shrink-0 transition-all duration-300 shadow-sm ring-1 ring-black/15 dark:ring-white/20"
                                 style={{ backgroundColor: catColor }}
                               />
                               <span
@@ -2202,15 +2230,18 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 {c.icon || "🛒"}
                               </span>
                               <span
-                                className={`truncate text-xs font-black leading-none ${isSelected ? "text-white" : "text-slate-100"}`}
+                                className="truncate text-xs font-black leading-none text-slate-900 dark:text-white drop-shadow-xs"
                                 title={c.name}
                               >
                                 {c.name}
                               </span>
                             </div>
                             <span
-                              className="text-[11px] sm:text-xs px-2.5 py-1 rounded-xl font-mono font-bold transition-all shrink-0 select-none bg-slate-900/90 dark:bg-slate-950/90 border border-slate-700/60 shadow-xs"
-                              style={{ color: catColor }}
+                              className="text-[11px] sm:text-xs px-2.5 py-1 rounded-xl font-mono font-black transition-all shrink-0 select-none bg-white/90 dark:bg-slate-950/80 border shadow-xs"
+                              style={{
+                                color: catColor,
+                                borderColor: hexToRgba(catColor, 0.5),
+                              }}
                               title={`${c.name} bu ayki toplam harcaması`}
                             >
                               {format(currentMonthTotal)}
@@ -2218,7 +2249,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                           </div>
 
                           {/* Row 2: Action Toolbar */}
-                          <div className="flex items-center justify-end gap-1 w-full border-t border-slate-700/40 dark:border-slate-800/60 pt-1.5 mt-1">
+                          <div
+                            className="flex items-center justify-end gap-1 w-full border-t pt-1.5 mt-1"
+                            style={{ borderColor: hexToRgba(catColor, 0.3) }}
+                          >
                             <button
                               type="button"
                               onClick={(e) => {
@@ -2229,8 +2263,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                               }}
                               className={`px-1.5 py-0.5 rounded-md transition shrink-0 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 ${
                                 showTipCategory?.id === c.id
-                                  ? "bg-amber-500/20 text-amber-300 scale-105"
-                                  : "text-amber-400/80 hover:text-amber-300 hover:bg-amber-950/30"
+                                  ? "bg-amber-500/25 text-amber-700 dark:text-amber-300 scale-105 font-black"
+                                  : "text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 hover:bg-amber-500/15 font-bold"
                               }`}
                               title={`${c.name} için Tasarruf İpucu`}
                             >
@@ -2238,7 +2272,10 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                               <span className="text-[8.5px] font-black ml-0.5">İpucu</span>
                             </button>
 
-                            <div className="h-3 w-[1px] bg-slate-700/60 mx-0.5" />
+                            <div
+                              className="h-3 w-[1px] mx-0.5"
+                              style={{ backgroundColor: hexToRgba(catColor, 0.35) }}
+                            />
 
                             <button
                               type="button"
@@ -2246,7 +2283,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 e.stopPropagation();
                                 handleOpenEditCategory(c);
                               }}
-                              className="px-1.5 py-0.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
+                              className="px-1.5 py-0.5 text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition shrink-0 flex items-center justify-center gap-0.5 font-bold cursor-pointer"
                               title="Düzenle"
                             >
                               <Edit className="w-3 h-3 shrink-0" />
@@ -2259,7 +2296,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                                 e.stopPropagation();
                                 onDeleteCategory(c.id);
                               }}
-                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-md transition shrink-0 flex items-center justify-center gap-0.5"
+                              className="px-1.5 py-0.5 text-rose-700 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 hover:bg-rose-500/15 rounded-md transition shrink-0 flex items-center justify-center gap-0.5 font-bold cursor-pointer"
                               title="Sil"
                             >
                               <Trash2 className="w-3 h-3 shrink-0" />

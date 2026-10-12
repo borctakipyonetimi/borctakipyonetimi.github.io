@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bütçem Pro</string>
+    <string name="title_activity_main">Bütçem Pro</string>
+    <string name="package_name">com.borctakip.app</string>
+    <string name="custom_url">com.borctakip.app</string>
+    <string name="widget_name">Bütçem Pro Hızlı Finansal Özet</string>
+    <string name="widget_description">Net bakiye, bu ayki gider ve tek dokunuşla harcama ekleme 2x2 widget'ı.</string>
+</resources>
