@@ -226,4 +226,15 @@ if (fs.existsSync(appBuildGradlePath)) {
   }
 }
 
+// 8. Ensure strings.xml has clean syntax and escaped apostrophes
+const stringsXmlPath = path.resolve('android/app/src/main/res/values/strings.xml');
+if (fs.existsSync(stringsXmlPath)) {
+  let stringsContent = fs.readFileSync(stringsXmlPath, 'utf8');
+  if (stringsContent.includes("widget'ı")) {
+    stringsContent = stringsContent.replace(/widget'ı/g, "widget\\'ı");
+    fs.writeFileSync(stringsXmlPath, stringsContent, 'utf8');
+    console.log('✅ Fixed unescaped apostrophe in strings.xml');
+  }
+}
+
 console.log('🎉 Android setup script completed successfully!');
