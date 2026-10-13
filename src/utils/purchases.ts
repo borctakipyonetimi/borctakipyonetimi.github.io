@@ -1,5 +1,6 @@
 import { auth, db, firestore, doc, setDoc, ref, set, get, update } from "./firebase";
 import { saveUserSessionToFirestore, getDeviceUuid } from "./deviceSessionService";
+import { scheduleSubscriptionExpiryNotifications } from "./notificationScheduler";
 
 // Product configuration requested by user
 export interface ProductInfo {
@@ -15,34 +16,34 @@ export interface ProductInfo {
 }
 
 export const PLAY_PRODUCTS: Record<string, ProductInfo> = {
-  butcem_pro_aylik: {
-    identifier: "butcem_pro_aylik",
+  butcempro_monthly: {
+    identifier: "butcempro_monthly",
     price: 49.99,
     priceString: "₺49,99 / Ay",
-    title: "Bütçem Pro Premium - Aylık",
-    description: "Tüm kısıtlamaları ve reklamları kaldıran aylık yenilenen abonelik.",
+    title: "Aylık Premium",
+    description: "Her ay otomatik yenilenen tam yetkili premium erişim.",
     subscriptionPeriod: "P1M",
     saving: "Aylık Yenilenen",
     badge: "ESNEK PLAN",
     planType: "monthly"
   },
-  butcem_pro_yillik: {
-    identifier: "butcem_pro_yillik",
-    price: 349.99,
-    priceString: "₺349,99 / Yıl",
-    title: "Bütçem Pro Premium - Yıllık",
-    description: "12 ay boyunca kesintisiz kullanım, %45 tasarruf avantajı ile en çok tercih edilen paket.",
+  butcempro_yearly: {
+    identifier: "butcempro_yearly",
+    price: 399.99,
+    priceString: "₺399,99 / Yıl",
+    title: "Yıllık Premium (En Popüler)",
+    description: "Yıllık tasarruflu paket ile tüm özelliklere kesintisiz erişim.",
     subscriptionPeriod: "P1Y",
-    saving: "Tasarruf: %45",
+    saving: "Tasarruf: %35",
     badge: "EN POPÜLER",
     planType: "yearly"
   },
-  butcem_pro_sinirsiz: {
-    identifier: "butcem_pro_sinirsiz",
-    price: 699.99,
-    priceString: "₺699,99",
-    title: "Bütçem Pro Premium - Sınırsız (Ömür Boyu)",
-    description: "Tek seferlik satın alma ile kalıcı, limitsiz ve ömür boyu tam kullanım lisansı.",
+  butcempro_lifetime: {
+    identifier: "butcempro_lifetime",
+    price: 999.99,
+    priceString: "₺999,99",
+    title: "Ömür Boyu Sınırsız Lisans",
+    description: "Tek seferlik ödeme ile ömür boyu tüm pro özellikler sizin olsun.",
     subscriptionPeriod: "LIFETIME",
     saving: "Tek Seferlik",
     badge: "ÖMÜR BOYU LİSANS",
@@ -63,21 +64,21 @@ export function calculatePlanExpiry(productIdOrPlan: string): {
 } {
   const now = new Date();
   
-  if (productIdOrPlan === "butcem_pro_aylik" || productIdOrPlan === "monthly" || productIdOrPlan === "borc_takip_aylik") {
+  if (productIdOrPlan === "butcempro_monthly" || productIdOrPlan === "monthly" || productIdOrPlan === "butcem_pro_aylik" || productIdOrPlan === "borc_takip_aylik") {
     const expDate = new Date(now);
     expDate.setMonth(expDate.getMonth() + 1);
     return {
       premiumType: "monthly",
       premiumExpiryDate: expDate.toISOString(),
-      productId: "butcem_pro_aylik"
+      productId: "butcempro_monthly"
     };
   }
 
-  if (productIdOrPlan === "butcem_pro_sinirsiz" || productIdOrPlan === "lifetime" || productIdOrPlan === "borc_takip_sinirsiz") {
+  if (productIdOrPlan === "butcempro_lifetime" || productIdOrPlan === "lifetime" || productIdOrPlan === "butcem_pro_sinirsiz" || productIdOrPlan === "borc_takip_sinirsiz") {
     return {
       premiumType: "lifetime",
       premiumExpiryDate: "lifetime",
-      productId: "butcem_pro_sinirsiz"
+      productId: "butcempro_lifetime"
     };
   }
 
@@ -87,7 +88,7 @@ export function calculatePlanExpiry(productIdOrPlan: string): {
   return {
     premiumType: "yearly",
     premiumExpiryDate: expDate.toISOString(),
-    productId: "butcem_pro_yillik"
+    productId: "butcempro_yearly"
   };
 }
 
@@ -120,13 +121,13 @@ class RevenueCatService {
 
     return {
       current: {
-        monthly: { product: PLAY_PRODUCTS.butcem_pro_aylik },
-        annual: { product: PLAY_PRODUCTS.butcem_pro_yillik },
-        lifetime: { product: PLAY_PRODUCTS.butcem_pro_sinirsiz },
+        monthly: { product: PLAY_PRODUCTS.butcempro_monthly },
+        annual: { product: PLAY_PRODUCTS.butcempro_yearly },
+        lifetime: { product: PLAY_PRODUCTS.butcempro_lifetime },
         all: [
-          { product: PLAY_PRODUCTS.butcem_pro_aylik },
-          { product: PLAY_PRODUCTS.butcem_pro_yillik },
-          { product: PLAY_PRODUCTS.butcem_pro_sinirsiz }
+          { product: PLAY_PRODUCTS.butcempro_monthly },
+          { product: PLAY_PRODUCTS.butcempro_yearly },
+          { product: PLAY_PRODUCTS.butcempro_lifetime }
         ]
       }
     };
@@ -165,6 +166,24 @@ class RevenueCatService {
         }
       }
     };
+
+    // 1. Cihazın yerel depolamasında (storage) güvenli bir şekilde sakla
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("is_premium", "true");
+        localStorage.setItem("premium_type", premiumType);
+        localStorage.setItem("premium_expiry_date", premiumExpiryDate);
+        localStorage.setItem("premium_product_id", effectiveProductId);
+        localStorage.setItem("premium_purchased_at", String(Date.now()));
+      } catch {}
+    }
+
+    // 2. Abonelik bitiş tarihi bildirimlerini zamanla veya güncelle
+    try {
+      await scheduleSubscriptionExpiryNotifications(premiumExpiryDate);
+    } catch (e) {
+      console.warn("[Google Play Billing] Abonelik bildirimleri kurulamadı:", e);
+    }
 
     // Google Play ödeme onayı geldi -> Firestore users/{userId} dokümanını güncelle
     const fbUser = auth.currentUser;

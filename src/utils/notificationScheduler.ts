@@ -300,31 +300,103 @@ export async function cancelDebtNotifications(debtId: number | string): Promise<
   return true;
 }
 
+export async function cancelSubscriptionExpiryNotifications(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const stored = localStorage.getItem("subscription_expiry_notif_ids");
+    if (stored) {
+      const ids: number[] = JSON.parse(stored);
+      if (Array.isArray(ids) && ids.length > 0) {
+        if (typeof (LocalNotifications as any)?.cancel === "function") {
+          await LocalNotifications.cancel({
+            notifications: ids.map((id) => ({ id }))
+          }).catch(() => {});
+        }
+        ids.forEach((id) => {
+          cancelCapacitorAlarm(id).catch(() => {});
+          cancelAndroidDebtAlarm(id);
+        });
+      }
+      localStorage.removeItem("subscription_expiry_notif_ids");
+    }
+  } catch (err) {
+    console.warn("[notificationScheduler] cancelSubscriptionExpiryNotifications hatası:", err);
+  }
+}
+
 /**
- * Şablondan borçlar aktarılırken her borç için otomatik bildirim kuran mantık
+ * Abonelik bitiş tarihine son 7 gün kala her gün saat 10:00'da hatırlatıcı bildirim kurar.
  */
-export async function createFromTemplate(
-  debtsToImport: Partial<Debt>[],
-  frequency?: string
-): Promise<{ scheduledDebtsCount: number; totalAlarmsCount: number }> {
-  if (!Array.isArray(debtsToImport) || debtsToImport.length === 0) {
-    return { scheduledDebtsCount: 0, totalAlarmsCount: 0 };
+export async function scheduleSubscriptionExpiryNotifications(expiryDateStr?: string | null): Promise<number[]> {
+  if (typeof window === "undefined") return [];
+  
+  // Önce eski abonelik bitiş bildirimlerini temizle
+  await cancelSubscriptionExpiryNotifications();
+
+  if (!expiryDateStr || expiryDateStr === "lifetime" || expiryDateStr === "false" || expiryDateStr === "null") {
+    return [];
   }
 
-  let scheduledDebtsCount = 0;
-  let totalAlarmsCount = 0;
+  const expiryTime = new Date(expiryDateStr).getTime();
+  if (isNaN(expiryTime) || expiryTime <= Date.now()) {
+    return [];
+  }
 
-  for (const debt of debtsToImport) {
-    if (!debt.dueDate) continue;
-    const isPaid = Number(debt.paid || 0) >= Number(debt.amount || 0);
-    if (isPaid) continue;
+  const now = Date.now();
+  const scheduledIds: number[] = [];
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const timeDifference = expiryTime - now;
 
-    const scheduled = await scheduleNotification(debt, { frequency });
-    if (scheduled.length > 0) {
-      scheduledDebtsCount++;
-      totalAlarmsCount += scheduled.length;
+  // Eğer bitiş tarihine 7 günden az kaldıysa veya tam 7 gün içindeyse bildirimleri kurmaya başla
+  if (timeDifference <= sevenDaysMs) {
+    // Son 7 gün için her gün saat 10:00'da (veya bugün için hemen 1 dakika sonra)
+    for (let dayBefore = 7; dayBefore >= 1; dayBefore--) {
+      const targetDate = new Date(expiryTime - (dayBefore * 24 * 60 * 60 * 1000));
+      targetDate.setHours(10, 0, 0, 0);
+      let triggerAtMillis = targetDate.getTime();
+
+      if (triggerAtMillis <= now) {
+        triggerAtMillis = now + 60000; // Geçmişte kaldıysa 1 dakika sonraya kur
+      }
+
+      const notifId = 990000 + dayBefore;
+      const title = `🚨 Bütçem Pro: Aboneliğinizin Bitmesine ${dayBefore} Gün Kaldı!`;
+      const message = `Premium aboneliğiniz ${new Date(expiryTime).toLocaleDateString("tr-TR")} tarihinde sona erecektir. Kesintisiz kullanım ve ayrıcalıklarınızdan ödün vermemek için lütfen aboneliğinizi yenileyin!`;
+
+      try {
+        await scheduleCapacitorAlarm(
+          notifId,
+          title,
+          triggerAtMillis,
+          message,
+          {
+            isSubscriptionExpiry: true,
+            daysRemaining: dayBefore,
+            expiryDate: new Date(expiryTime).toLocaleDateString("tr-TR")
+          }
+        );
+
+        scheduleAndroidDebtAlarm(
+          notifId,
+          title,
+          triggerAtMillis,
+          message
+        );
+
+        scheduledIds.push(notifId);
+      } catch (err) {
+        console.warn(`[notificationScheduler] Abonelik bitiş bildirimi #${notifId} kurulamadı:`, err);
+      }
+    }
+
+    if (scheduledIds.length > 0) {
+      try {
+        localStorage.setItem("subscription_expiry_notif_ids", JSON.stringify(scheduledIds));
+        localStorage.setItem("subscription_expiry_target_date", expiryDateStr);
+      } catch {}
     }
   }
 
-  return { scheduledDebtsCount, totalAlarmsCount };
+  return scheduledIds;
 }
+

@@ -7687,10 +7687,10 @@ export default function App() {
         }
         planPrice={
           pendingPlanForCheckout === "monthly"
-            ? ((dynamicProducts as any)?.butcem_pro_aylik?.priceString || PLAY_PRODUCTS.butcem_pro_aylik.priceString)
+            ? ((dynamicProducts as any)?.butcempro_monthly?.priceString || PLAY_PRODUCTS.butcempro_monthly.priceString)
             : pendingPlanForCheckout === "yearly"
-            ? ((dynamicProducts as any)?.butcem_pro_yillik?.priceString || PLAY_PRODUCTS.butcem_pro_yillik.priceString)
-            : ((dynamicProducts as any)?.butcem_pro_sinirsiz?.priceString || PLAY_PRODUCTS.butcem_pro_sinirsiz.priceString)
+            ? ((dynamicProducts as any)?.butcempro_yearly?.priceString || PLAY_PRODUCTS.butcempro_yearly.priceString)
+            : ((dynamicProducts as any)?.butcempro_lifetime?.priceString || PLAY_PRODUCTS.butcempro_lifetime.priceString)
         }
         onClose={() => setIsGuestCheckoutAuthOpen(false)}
         onSuccess={(registeredEmail) => {
@@ -11787,13 +11787,13 @@ export default function App() {
                         >
                           <span className="flex items-center gap-1.5">
                             {selectedPlan === "monthly" && (
-                              <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_aylik || PLAY_PRODUCTS.butcem_pro_aylik)?.priceString || "₺49,99 / Ay"}) ⚡</>
+                              <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_monthly || PLAY_PRODUCTS.butcempro_monthly)?.priceString || "₺49,99 / Ay"}) ⚡</>
                             )}
                             {selectedPlan === "yearly" && (
-                              <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_yillik || PLAY_PRODUCTS.butcem_pro_yillik)?.priceString || "₺349,99 / Yıl"}) ⚡</>
+                              <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_yearly || PLAY_PRODUCTS.butcempro_yearly)?.priceString || "₺399,99 / Yıl"}) ⚡</>
                             )}
                             {selectedPlan === "lifetime" && (
-                              <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcem_pro_sinirsiz || PLAY_PRODUCTS.butcem_pro_sinirsiz)?.priceString || "₺699,99"}) ⚡</>
+                              <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_lifetime || PLAY_PRODUCTS.butcempro_lifetime)?.priceString || "₺999,99"}) ⚡</>
                             )}
                           </span>
                         </button>
@@ -11918,19 +11918,19 @@ export default function App() {
                   <div className="flex justify-between items-start">
                     <div className="space-y-0.5">
                       <h4 className="text-sm font-black text-slate-800 dark:text-white leading-tight">
-                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcem_pro_aylik?.title || PLAY_PRODUCTS.butcem_pro_aylik.title)}
-                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcem_pro_yillik?.title || PLAY_PRODUCTS.butcem_pro_yillik.title)}
-                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcem_pro_sinirsiz?.title || PLAY_PRODUCTS.butcem_pro_sinirsiz.title)}
+                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcempro_monthly?.title || PLAY_PRODUCTS.butcempro_monthly.title)}
+                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcempro_yearly?.title || PLAY_PRODUCTS.butcempro_yearly.title)}
+                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcempro_lifetime?.title || PLAY_PRODUCTS.butcempro_lifetime.title)}
                       </h4>
                       <p className="text-[10px] text-slate-500 font-bold font-mono">
-                        Ürün ID: {selectedPlan === "monthly" ? "butcem_pro_aylik" : selectedPlan === "yearly" ? "butcem_pro_yillik" : "butcem_pro_sinirsiz"}
+                        Ürün ID: {selectedPlan === "monthly" ? "butcempro_monthly" : selectedPlan === "yearly" ? "butcempro_yearly" : "butcempro_lifetime"}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-base font-black text-indigo-650 dark:text-indigo-400">
-                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcem_pro_aylik?.priceString || PLAY_PRODUCTS.butcem_pro_aylik.priceString)}
-                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcem_pro_yillik?.priceString || PLAY_PRODUCTS.butcem_pro_yillik.priceString)}
-                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcem_pro_sinirsiz?.priceString || PLAY_PRODUCTS.butcem_pro_sinirsiz.priceString)}
+                        {selectedPlan === "monthly" && ((dynamicProducts as any)?.butcempro_monthly?.priceString || PLAY_PRODUCTS.butcempro_monthly.priceString)}
+                        {selectedPlan === "yearly" && ((dynamicProducts as any)?.butcempro_yearly?.priceString || PLAY_PRODUCTS.butcempro_yearly.priceString)}
+                        {selectedPlan === "lifetime" && ((dynamicProducts as any)?.butcempro_lifetime?.priceString || PLAY_PRODUCTS.butcempro_lifetime.priceString)}
                       </p>
                       <p className="text-[8px] text-slate-400 font-semibold uppercase mt-0.5">
                         {selectedPlan === "lifetime" ? "Tek Seferlik (Ömür Boyu)" : selectedPlan === "monthly" ? "Aylık Otomatik Yenilenir" : "Yıllık Otomatik Yenilenir"}
