@@ -39,7 +39,7 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("[Server Process Guard] Unhandled Rejection caught at:", promise, "reason:", reason);
 });
 var app = (0, import_express.default)();
-var PORT = 3e3;
+var PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
 var SMTP_CONFIG_FILE = import_path.default.join(process.cwd(), "custom_smtp_config.json");
 var currentCustomSmtp = {};
 if (import_fs.default.existsSync(SMTP_CONFIG_FILE)) {
@@ -4057,8 +4057,15 @@ async function startServer() {
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+  });
+  server.on("error", (err) => {
+    if (err && err.code === "EADDRINUSE") {
+      console.error(`[Server Port Conflict] Port ${PORT} is already in use.`);
+    } else {
+      console.error("[Server Error]", err);
+    }
   });
 }
 startServer();
