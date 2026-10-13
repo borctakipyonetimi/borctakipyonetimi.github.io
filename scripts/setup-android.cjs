@@ -6,7 +6,7 @@ console.log('🚀 Running Android setup script...');
 // 1. Ensure resource and Java directories exist
 const resValuesDir = path.resolve('android/app/src/main/res/values');
 const resValuesV31Dir = path.resolve('android/app/src/main/res/values-v31');
-const javaAppDir = path.resolve('android/app/src/main/java/com/borctakip/app');
+const javaAppDir = path.resolve('android/app/src/main/java/com/butcetakip/app');
 
 fs.mkdirSync(resValuesDir, { recursive: true });
 fs.mkdirSync(resValuesV31Dir, { recursive: true });
@@ -142,7 +142,7 @@ if (fs.existsSync(manifestPath)) {
 
 // 6. Inject Native Dark StatusBar in MainActivity.java
 const mainActivityPath = path.join(javaAppDir, 'MainActivity.java');
-const mainActivityJava = `package com.borctakip.app;
+const mainActivityJava = `package com.butcetakip.app;
 
 import android.os.Bundle;
 import android.os.Build;

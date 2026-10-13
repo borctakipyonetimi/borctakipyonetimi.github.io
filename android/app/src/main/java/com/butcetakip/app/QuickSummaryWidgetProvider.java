@@ -1,4 +1,4 @@
-package com.borctakip.app;
+package com.butcetakip.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
@@ -11,7 +11,7 @@ import android.widget.RemoteViews;
 
 public class QuickSummaryWidgetProvider extends AppWidgetProvider {
 
-    public static final String ACTION_OPEN_ADD_EXPENSE = "com.borctakip.app.ACTION_OPEN_ADD_EXPENSE";
+    public static final String ACTION_OPEN_ADD_EXPENSE = "com.butcetakip.app.ACTION_OPEN_ADD_EXPENSE";
     public static final String WIDGET_PREFS = "ButcemProWidgetData";
 
     @Override
@@ -24,7 +24,6 @@ public class QuickSummaryWidgetProvider extends AppWidgetProvider {
     public static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_quick_summary);
 
-        // Fetch saved financial summary data
         SharedPreferences prefs = context.getSharedPreferences(WIDGET_PREFS, Context.MODE_PRIVATE);
         String netBalance = prefs.getString("net_balance", "₺0,00");
         String monthlyExpense = prefs.getString("monthly_expense", "₺0,00");
@@ -32,7 +31,6 @@ public class QuickSummaryWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.txt_net_balance, netBalance);
         views.setTextViewText(R.id.txt_monthly_expense, monthlyExpense);
 
-        // Click on widget root opens MainActivity
         Intent mainIntent = new Intent(context, MainActivity.class);
         mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent mainPendingIntent = PendingIntent.getActivity(
@@ -43,7 +41,6 @@ public class QuickSummaryWidgetProvider extends AppWidgetProvider {
         );
         views.setOnClickPendingIntent(R.id.widget_root, mainPendingIntent);
 
-        // Click on '+' button opens MainActivity with intent to open Add Expense screen
         Intent addExpenseIntent = new Intent(context, MainActivity.class);
         addExpenseIntent.setAction(ACTION_OPEN_ADD_EXPENSE);
         addExpenseIntent.putExtra("target_screen", "expenses");

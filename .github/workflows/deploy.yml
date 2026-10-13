@@ -38,7 +38,7 @@ jobs:
           rm -f capacitor.config.json
           cat << 'EOF' > capacitor.config.json
           {
-            "appId": "com.borctakip.app",
+            "appId": "com.butcetakip.app",
             "appName": "Bütçem Pro",
             "webDir": "www",
             "plugins": {

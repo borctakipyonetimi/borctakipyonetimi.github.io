@@ -1,4 +1,4 @@
-package com.borctakip.app;
+package com.butcetakip.app;
 
 import android.os.Bundle;
 import android.os.Build;
