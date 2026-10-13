@@ -146,8 +146,8 @@ jobs:
       - name: Inject Black and White Notification Icon
         run: |
           bash -c '
-          declare -A sizes=( ["mdpi"]="32" ["hdpi"]="48" ["xhdpi"]="64" ["xxhdpi"]="96" ["xxxhdpi"]="128" )
-          declare -A contents=( ["mdpi"]="30" ["hdpi"]="46" ["xhdpi"]="62" ["xxhdpi"]="92" ["xxxhdpi"]="124" )
+          declare -A large_sizes=( ["mdpi"]="64" ["hdpi"]="96" ["xhdpi"]="128" ["xxhdpi"]="192" ["xxxhdpi"]="256" )
+          declare -A small_sizes=( ["mdpi"]="32" ["hdpi"]="48" ["xhdpi"]="64" ["xxhdpi"]="96" ["xxxhdpi"]="128" )
           SRC_ICON="notification-icon.png"
           if [ ! -s "$SRC_ICON" ]; then SRC_ICON="public/notification-icon.png"; fi
 
@@ -155,17 +155,27 @@ jobs:
             for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
               mkdir -p "android/app/src/main/res/drawable-$dpi"
               mkdir -p "android/app/src/main/res/mipmap-$dpi"
-              size=${sizes[$dpi]}
-              content=${contents[$dpi]}
-              convert "$SRC_ICON" -resize "${content}x${content}" -gravity center -background none -extent "${size}x${size}" PNG32:/tmp/icon_${dpi}.png
-              for name in ic_stat_notify.png ic_stat_notify_large.png ic_notification.png notification_icon.png; do
-                cp /tmp/icon_${dpi}.png "android/app/src/main/res/drawable-$dpi/$name" || true
-                cp /tmp/icon_${dpi}.png "android/app/src/main/res/mipmap-$dpi/$name" || true
+              lsize=${large_sizes[$dpi]}
+              ssize=${small_sizes[$dpi]}
+              convert "$SRC_ICON" -resize "${lsize}x${lsize}" -gravity center -background none -extent "${lsize}x${lsize}" PNG32:/tmp/icon_large_${dpi}.png
+              convert "$SRC_ICON" -resize "${ssize}x${ssize}" -gravity center -background none -extent "${ssize}x${ssize}" PNG32:/tmp/icon_small_${dpi}.png
+
+              # Large icon (displayed on right side of notifications)
+              cp /tmp/icon_large_${dpi}.png "android/app/src/main/res/drawable-$dpi/ic_stat_notify_large.png" || true
+              cp /tmp/icon_large_${dpi}.png "android/app/src/main/res/mipmap-$dpi/ic_stat_notify_large.png" || true
+
+              # Small notification icons
+              for name in ic_stat_notify.png ic_notification.png notification_icon.png; do
+                cp /tmp/icon_small_${dpi}.png "android/app/src/main/res/drawable-$dpi/$name" || true
+                cp /tmp/icon_small_${dpi}.png "android/app/src/main/res/mipmap-$dpi/$name" || true
               done
             done
-            cp /tmp/icon_xxhdpi.png "android/app/src/main/res/drawable/ic_stat_notify.png" || true
-            cp /tmp/icon_xxhdpi.png "android/app/src/main/res/drawable/ic_notification.png" || true
-            echo "✅ Scaled 32dp pure white notification icons successfully injected across all DPI folders."
+            mkdir -p "android/app/src/main/res/drawable"
+            convert "$SRC_ICON" -resize 256x256 -gravity center -background none -extent 256x256 PNG32:"android/app/src/main/res/drawable/ic_stat_notify_large.png" || true
+            cp /tmp/icon_small_xxhdpi.png "android/app/src/main/res/drawable/ic_stat_notify.png" || true
+            cp /tmp/icon_small_xxhdpi.png "android/app/src/main/res/drawable/ic_notification.png" || true
+            cp /tmp/icon_small_xxhdpi.png "android/app/src/main/res/drawable/notification_icon.png" || true
+            echo "✅ Sharp large and small notification icons successfully injected across all DPI folders."
           fi
           '
 

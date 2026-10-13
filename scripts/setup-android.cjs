@@ -241,21 +241,79 @@ if (fs.existsSync(stringsXmlPath)) {
 
 // 9. Ensure notification icons are synced to all res directories
 const densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
-const masterIcon = path.resolve('notification-icon.png');
+const largeSizes = { mdpi: 64, hdpi: 96, xhdpi: 128, xxhdpi: 192, xxxhdpi: 256 };
+const smallSizes = { mdpi: 32, hdpi: 48, xhdpi: 64, xxhdpi: 96, xxxhdpi: 128 };
+let masterIcon = path.resolve('notification-icon.png');
+if (!fs.existsSync(masterIcon) && fs.existsSync(path.resolve('public/notification-icon.png'))) {
+  masterIcon = path.resolve('public/notification-icon.png');
+}
+
 if (fs.existsSync(masterIcon)) {
+  const { execSync } = require('child_process');
+  let hasConvert = false;
+  try {
+    execSync('which convert', { stdio: 'ignore' });
+    hasConvert = true;
+  } catch {}
+
   densities.forEach(dpi => {
     const dDir = path.resolve(`android/app/src/main/res/drawable-${dpi}`);
     const mDir = path.resolve(`android/app/src/main/res/mipmap-${dpi}`);
     fs.mkdirSync(dDir, { recursive: true });
     fs.mkdirSync(mDir, { recursive: true });
-    ['ic_stat_notify.png', 'ic_stat_notify_large.png', 'ic_notification.png', 'notification_icon.png'].forEach(name => {
-      const dTarget = path.join(dDir, name);
-      const mTarget = path.join(mDir, name);
-      if (!fs.existsSync(dTarget)) fs.copyFileSync(masterIcon, dTarget);
-      if (!fs.existsSync(mTarget)) fs.copyFileSync(masterIcon, mTarget);
+
+    const lSize = largeSizes[dpi];
+    const sSize = smallSizes[dpi];
+    const tmpLarge = `/tmp/setup_large_${dpi}.png`;
+    const tmpSmall = `/tmp/setup_small_${dpi}.png`;
+
+    if (hasConvert) {
+      try {
+        execSync(`convert "${masterIcon}" -resize ${lSize}x${lSize} -gravity center -background none -extent ${lSize}x${lSize} PNG32:"${tmpLarge}"`);
+        execSync(`convert "${masterIcon}" -resize ${sSize}x${sSize} -gravity center -background none -extent ${sSize}x${sSize} PNG32:"${tmpSmall}"`);
+      } catch (cErr) {
+        fs.copyFileSync(masterIcon, tmpLarge);
+        fs.copyFileSync(masterIcon, tmpSmall);
+      }
+    } else {
+      fs.copyFileSync(masterIcon, tmpLarge);
+      fs.copyFileSync(masterIcon, tmpSmall);
+    }
+
+    // Large notification icon (for right side of notification)
+    fs.copyFileSync(tmpLarge, path.join(dDir, 'ic_stat_notify_large.png'));
+    fs.copyFileSync(tmpLarge, path.join(mDir, 'ic_stat_notify_large.png'));
+
+    // Small notification icons
+    ['ic_stat_notify.png', 'ic_notification.png', 'notification_icon.png'].forEach(name => {
+      fs.copyFileSync(tmpSmall, path.join(dDir, name));
+      fs.copyFileSync(tmpSmall, path.join(mDir, name));
     });
   });
-  console.log('✅ Verified notification icons in all density directories');
+
+  // Default drawable directory
+  const defaultDrawable = path.resolve('android/app/src/main/res/drawable');
+  fs.mkdirSync(defaultDrawable, { recursive: true });
+  const tmpDefLarge = '/tmp/setup_large_def.png';
+  const tmpDefSmall = '/tmp/setup_small_def.png';
+  if (hasConvert) {
+    try {
+      execSync(`convert "${masterIcon}" -resize 256x256 -gravity center -background none -extent 256x256 PNG32:"${tmpDefLarge}"`);
+      execSync(`convert "${masterIcon}" -resize 96x96 -gravity center -background none -extent 96x96 PNG32:"${tmpDefSmall}"`);
+    } catch {
+      fs.copyFileSync(masterIcon, tmpDefLarge);
+      fs.copyFileSync(masterIcon, tmpDefSmall);
+    }
+  } else {
+    fs.copyFileSync(masterIcon, tmpDefLarge);
+    fs.copyFileSync(masterIcon, tmpDefSmall);
+  }
+  fs.copyFileSync(tmpDefLarge, path.join(defaultDrawable, 'ic_stat_notify_large.png'));
+  fs.copyFileSync(tmpDefSmall, path.join(defaultDrawable, 'ic_stat_notify.png'));
+  fs.copyFileSync(tmpDefSmall, path.join(defaultDrawable, 'ic_notification.png'));
+  fs.copyFileSync(tmpDefSmall, path.join(defaultDrawable, 'notification_icon.png'));
+
+  console.log('✅ Synchronized crisp notification icons (large & small) across all res directories');
 }
 
 console.log('🎉 Android setup script completed successfully!');
