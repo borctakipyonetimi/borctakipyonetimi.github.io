@@ -145,20 +145,29 @@ jobs:
 
       - name: Inject Black and White Notification Icon
         run: |
-          if [ -s notification-icon.png ]; then
-            for dir in android/app/src/main/res/mipmap-* android/app/src/main/res/drawable-*; do
-              if [ -d "$dir" ]; then
-                cp notification-icon.png "$dir/ic_stat_notify.png" || true
-              fi
+          bash -c '
+          declare -A sizes=( ["mdpi"]="32" ["hdpi"]="48" ["xhdpi"]="64" ["xxhdpi"]="96" ["xxxhdpi"]="128" )
+          declare -A contents=( ["mdpi"]="30" ["hdpi"]="46" ["xhdpi"]="62" ["xxhdpi"]="92" ["xxxhdpi"]="124" )
+          SRC_ICON="notification-icon.png"
+          if [ ! -s "$SRC_ICON" ]; then SRC_ICON="public/notification-icon.png"; fi
+
+          if [ -s "$SRC_ICON" ]; then
+            for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              mkdir -p "android/app/src/main/res/drawable-$dpi"
+              mkdir -p "android/app/src/main/res/mipmap-$dpi"
+              size=${sizes[$dpi]}
+              content=${contents[$dpi]}
+              convert "$SRC_ICON" -resize "${content}x${content}" -gravity center -background none -extent "${size}x${size}" PNG32:/tmp/icon_${dpi}.png
+              for name in ic_stat_notify.png ic_stat_notify_large.png ic_notification.png notification_icon.png; do
+                cp /tmp/icon_${dpi}.png "android/app/src/main/res/drawable-$dpi/$name" || true
+                cp /tmp/icon_${dpi}.png "android/app/src/main/res/mipmap-$dpi/$name" || true
+              done
             done
+            cp /tmp/icon_xxhdpi.png "android/app/src/main/res/drawable/ic_stat_notify.png" || true
+            cp /tmp/icon_xxhdpi.png "android/app/src/main/res/drawable/ic_notification.png" || true
+            echo "✅ Scaled 32dp pure white notification icons successfully injected across all DPI folders."
           fi
-          if [ -s public/notification-icon.png ]; then
-            for dir in android/app/src/main/res/mipmap-* android/app/src/main/res/drawable-*; do
-              if [ -d "$dir" ]; then
-                cp public/notification-icon.png "$dir/ic_stat_notify_large.png" || true
-              fi
-            done
-          fi
+          '
 
       - name: Setup System Styles, MainActivity and Permissions
         run: |

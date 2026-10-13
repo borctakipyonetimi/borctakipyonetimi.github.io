@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { AndroidHomeScreenWidget } from "./AndroidHomeScreenWidget";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Sparkles,
@@ -2056,18 +2055,6 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Android 2x2 Home Screen Widget Preview & SharedPreferences Sync */}
-      <AndroidHomeScreenWidget
-        expenses={expenses}
-        incomes={incomes || []}
-        debts={debts}
-        activeCurrency="TRY"
-        colorTheme="indigo"
-        format={format}
-        onOpenAddExpense={onOpenAddExpense || (() => {})}
-        triggerToast={triggerToast}
-      />
     </div>
   );
 };

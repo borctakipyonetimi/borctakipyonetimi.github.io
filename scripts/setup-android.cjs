@@ -136,6 +136,10 @@ if (fs.existsSync(manifestPath)) {
     }
   }
 
+  // Remove any legacy widget receivers if present
+  content = content.replace(/\s*<!--[\s\S]*?Widget[\s\S]*?-->/g, '');
+  content = content.replace(/\s*<receiver[\s\S]*?(?:BudgetWidgetProvider|QuickSummaryWidgetProvider)[\s\S]*?<\/receiver>/g, '');
+
   fs.writeFileSync(manifestPath, content, 'utf8');
   console.log('✅ Updated AndroidManifest.xml with clean XML syntax');
 }
@@ -226,15 +230,32 @@ if (fs.existsSync(appBuildGradlePath)) {
   }
 }
 
-// 8. Ensure strings.xml has clean syntax and escaped apostrophes
+// 8. Ensure strings.xml has clean syntax without widget references
 const stringsXmlPath = path.resolve('android/app/src/main/res/values/strings.xml');
 if (fs.existsSync(stringsXmlPath)) {
   let stringsContent = fs.readFileSync(stringsXmlPath, 'utf8');
-  if (stringsContent.includes("widget'ı")) {
-    stringsContent = stringsContent.replace(/widget'ı/g, "widget\\'ı");
-    fs.writeFileSync(stringsXmlPath, stringsContent, 'utf8');
-    console.log('✅ Fixed unescaped apostrophe in strings.xml');
-  }
+  stringsContent = stringsContent.replace(/\s*<string name="widget_[^"]*">[\s\S]*?<\/string>/g, '');
+  fs.writeFileSync(stringsXmlPath, stringsContent, 'utf8');
+  console.log('✅ Cleaned strings.xml');
+}
+
+// 9. Ensure notification icons are synced to all res directories
+const densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
+const masterIcon = path.resolve('notification-icon.png');
+if (fs.existsSync(masterIcon)) {
+  densities.forEach(dpi => {
+    const dDir = path.resolve(`android/app/src/main/res/drawable-${dpi}`);
+    const mDir = path.resolve(`android/app/src/main/res/mipmap-${dpi}`);
+    fs.mkdirSync(dDir, { recursive: true });
+    fs.mkdirSync(mDir, { recursive: true });
+    ['ic_stat_notify.png', 'ic_stat_notify_large.png', 'ic_notification.png', 'notification_icon.png'].forEach(name => {
+      const dTarget = path.join(dDir, name);
+      const mTarget = path.join(mDir, name);
+      if (!fs.existsSync(dTarget)) fs.copyFileSync(masterIcon, dTarget);
+      if (!fs.existsSync(mTarget)) fs.copyFileSync(masterIcon, mTarget);
+    });
+  });
+  console.log('✅ Verified notification icons in all density directories');
 }
 
 console.log('🎉 Android setup script completed successfully!');
