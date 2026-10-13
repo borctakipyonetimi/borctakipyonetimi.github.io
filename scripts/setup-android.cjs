@@ -195,4 +195,35 @@ public class MainActivity extends BridgeActivity {
 fs.writeFileSync(mainActivityPath, mainActivityJava, 'utf8');
 console.log('✅ Updated MainActivity.java with dark status bar');
 
+// 7. Configure signingConfigs in android/app/build.gradle and ensure keystore exists
+const appBuildGradlePath = path.resolve('android/app/build.gradle');
+const keystoreDest = path.resolve('android/app/upload-keystore.jks');
+const rootKeystore = path.resolve('upload-keystore.jks');
+
+if (fs.existsSync(rootKeystore) && !fs.existsSync(keystoreDest)) {
+  fs.copyFileSync(rootKeystore, keystoreDest);
+  console.log('✅ Copied upload-keystore.jks to android/app');
+}
+
+if (fs.existsSync(appBuildGradlePath)) {
+  let gradleContent = fs.readFileSync(appBuildGradlePath, 'utf8');
+  if (!gradleContent.includes('signingConfigs {')) {
+    const signingBlock = `    signingConfigs {
+        release {
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: "upload-keystore.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "Emir@2014"
+            keyAlias System.getenv("KEY_ALIAS") ?: "butcempro"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "Emir@2014"
+        }
+    }
+    buildTypes {`;
+    gradleContent = gradleContent.replace(/buildTypes\s*\{/, signingBlock);
+    gradleContent = gradleContent.replace(/release\s*\{/, 'release {\n            signingConfig signingConfigs.release');
+    fs.writeFileSync(appBuildGradlePath, gradleContent, 'utf8');
+    console.log('✅ Injected signingConfigs in android/app/build.gradle');
+  } else {
+    console.log('ℹ️ signingConfigs already present in android/app/build.gradle');
+  }
+}
+
 console.log('🎉 Android setup script completed successfully!');

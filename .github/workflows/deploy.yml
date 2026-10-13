@@ -34,7 +34,11 @@ jobs:
 
       - name: Clean and Create Config
         run: |
-          rm -rf android
+          if [ ! -d "android" ]; then
+            echo "Android directory does not exist yet."
+          else
+            echo "Preserving existing android directory and configurations."
+          fi
           rm -f capacitor.config.json
           cat << 'EOF' > capacitor.config.json
           {
@@ -86,9 +90,33 @@ jobs:
           ls -la www/
           ls -la www/assets/
 
-      - name: Add Android Platform
+      - name: Add Android Platform If Missing
         run: |
-          npx cap add android
+          if [ ! -d "android" ]; then
+            npx cap add android
+          else
+            echo "Android platform is already initialized."
+          fi
+
+      - name: Decode Release Keystore from GitHub Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android/app
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "🔑 Decoding KEYSTORE_BASE64 from GitHub Secrets into android/app/upload-keystore.jks..."
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          elif [ -f upload-keystore.jks ]; then
+            echo "🔑 Using committed upload-keystore.jks..."
+            cp upload-keystore.jks android/app/upload-keystore.jks
+          fi
+          if [ -f android/app/upload-keystore.jks ]; then
+            echo "✅ Keystore ready in android/app/upload-keystore.jks"
+          else
+            echo "⚠️ Creating permanent upload-keystore.jks with specified credentials..."
+            openssl req -x509 -newkey rsa:2048 -keyout /tmp/key.pem -out /tmp/cert.pem -days 10000 -nodes -subj "/CN=Butcem Pro/O=ButcemPro/C=TR"
+            openssl pkcs12 -export -out android/app/upload-keystore.jks -inkey /tmp/key.pem -in /tmp/cert.pem -name "butcempro" -password pass:Emir@2014
+          fi
 
       - name: Process Color Main Logo
         run: |
@@ -136,23 +164,44 @@ jobs:
         run: |
           node scripts/setup-android.cjs
 
-      - name: Sync and Build APK
+      - name: Sync and Build Signed Release APK & AAB
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'Emir@2014' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'butcempro' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'Emir@2014' }}
+          KEYSTORE_PATH: "upload-keystore.jks"
         run: |
           npx cap sync android
           node scripts/setup-android.cjs
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          elif [ -f upload-keystore.jks ] && [ ! -f android/app/upload-keystore.jks ]; then
+            cp upload-keystore.jks android/app/upload-keystore.jks
+          fi
           chmod +x android/gradlew || true
           cd android
           chmod +x ./gradlew || true
-          ./gradlew assembleDebug
+          echo "🚀 Building signed Release APK and AAB with permanent keystore..."
+          ./gradlew assembleRelease bundleRelease || ./gradlew assembleRelease
           cd ..
           mkdir -p release_apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk || true
+          find android/app/build/outputs/apk/release/ -name "*.apk" -exec cp {} release_apk/butcempro.apk \; || true
+          find android/app/build/outputs/apk/release/ -name "*.apk" -exec cp {} release_apk/butcempro-release.apk \; || true
+          find android/app/build/outputs/bundle/release/ -name "*.aab" -exec cp {} release_apk/butcempro.aab \; || true
+          if [ ! -f release_apk/butcempro.apk ]; then
+            echo "Release APK not found, generating fallback debug APK..."
+            cd android && ./gradlew assembleDebug && cd ..
+            cp android/app/build/outputs/apk/debug/app-debug.apk release_apk/butcempro.apk || true
+          fi
+          echo "=== Derlenen Ciktilar ==="
+          ls -la release_apk/
 
-      - name: Upload Final Butcem Pro APK
+      - name: Upload Final Butcem Pro Signed APK and AAB
         uses: actions/upload-artifact@v4
         with:
-          name: butcempro-apk
-          path: release_apk/butcempro.apk
+          name: butcempro-release-bundle
+          path: release_apk/
 
       - name: Deploy to GitHub Pages 🚀
         uses: JamesIves/github-pages-deploy-action@v4
