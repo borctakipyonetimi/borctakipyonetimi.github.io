@@ -18,6 +18,25 @@
   backface-visibility: hidden;
 }
 
+/* Virtual Scroll & GPU Accelerated Scrollable Containers (60/120 FPS akıcı kaydırma) */
+.virtual-scroll-container,
+.gpu-scroll-container {
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.virtual-scroll-item {
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
 /* Konfeti Canvas Donanımsal Hızlandırma (GPU Render - 60/120 FPS Kesintisiz Akış) */
 canvas,
 canvas[style*="pointer-events"],

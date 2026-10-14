@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins, Receipt } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins, Receipt, Zap } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
+import { VirtualList } from "./VirtualList";
+import { DebtItemCard, DEBT_CARD_THEMES } from "./DebtItemCard";
 import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
 import { DoughnutChart, BarChart } from "./BudgetCharts";
@@ -161,94 +163,115 @@ export const DebtList: React.FC<DebtListProps> = ({
     "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
   ];
 
-  // 1. Unpaid single debts for the selected period (or all unpaid if all-time)
-  const thisMonthUnpaidSingleDebts = debts.filter((d) => {
-    if (d.paid >= d.amount) return false;
-    if (selectedMonth === null || selectedYear === null) return true;
-    const parts = parseDateParts(d.dueDate);
-    if (!parts) return true;
-    return parts.month === selectedMonth && parts.year === selectedYear;
-  });
+  // 1. Unpaid single debts for the selected period (or all unpaid if all-time) - MEMOIZED
+  const thisMonthUnpaidSingleDebts = useMemo(() => {
+    return debts.filter((d) => {
+      if (d.paid >= d.amount) return false;
+      if (selectedMonth === null || selectedYear === null) return true;
+      const parts = parseDateParts(d.dueDate);
+      if (!parts) return true;
+      return parts.month === selectedMonth && parts.year === selectedYear;
+    });
+  }, [debts, selectedMonth, selectedYear]);
 
-  // 2. Unpaid installments active in the selected period
-  const thisMonthUnpaidInstallmentDebts = installmentDebts.filter((inst) => {
-    if (inst.paidInstallmentCount >= inst.installmentCount) return false;
-    if (selectedMonth === null || selectedYear === null) return true;
-    const startParts = parseDateParts(inst.firstDueDate);
-    if (!startParts) return false;
-    const monthDiff = (selectedYear - startParts.year) * 12 + (selectedMonth - startParts.month);
-    const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
-    const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
-    return isActiveThisMonth && !isPaidThisMonth;
-  });
+  // 2. Unpaid installments active in the selected period - MEMOIZED
+  const thisMonthUnpaidInstallmentDebts = useMemo(() => {
+    return installmentDebts.filter((inst) => {
+      if (inst.paidInstallmentCount >= inst.installmentCount) return false;
+      if (selectedMonth === null || selectedYear === null) return true;
+      const startParts = parseDateParts(inst.firstDueDate);
+      if (!startParts) return false;
+      const monthDiff = (selectedYear - startParts.year) * 12 + (selectedMonth - startParts.month);
+      const isActiveThisMonth = monthDiff >= 0 && monthDiff < inst.installmentCount;
+      const isPaidThisMonth = inst.paidInstallmentCount > monthDiff;
+      return isActiveThisMonth && !isPaidThisMonth;
+    });
+  }, [installmentDebts, selectedMonth, selectedYear]);
 
-  // Unified items for this month's strategy priorities
-  const monthlyUnifiedUnpaid = [
-    ...thisMonthUnpaidSingleDebts.map((d) => ({
-      id: d.id,
-      name: d.name,
-      type: "direct" as const,
-      remaining: Math.max(0, d.amount - d.paid),
-      total: d.amount,
-      paid: d.paid
-    })),
-    ...thisMonthUnpaidInstallmentDebts.map((inst) => {
-      const monthly = inst.totalAmount / (inst.installmentCount || 1);
-      return {
-        id: inst.id,
-        name: `${inst.name} (${selectedMonth !== null ? MONTH_NAMES[selectedMonth] : "Bu Ay"} Taksiti)`,
-        type: "installment" as const,
-        remaining: monthly,
-        total: monthly,
-        paid: 0
-      };
-    })
-  ];
+  // Unified items for this month's strategy priorities - MEMOIZED
+  const monthlyUnifiedUnpaid = useMemo(() => {
+    return [
+      ...thisMonthUnpaidSingleDebts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        type: "direct" as const,
+        remaining: Math.max(0, d.amount - d.paid),
+        total: d.amount,
+        paid: d.paid
+      })),
+      ...thisMonthUnpaidInstallmentDebts.map((inst) => {
+        const monthly = inst.totalAmount / (inst.installmentCount || 1);
+        return {
+          id: inst.id,
+          name: `${inst.name} (${selectedMonth !== null ? MONTH_NAMES[selectedMonth] : "Bu Ay"} Taksiti)`,
+          type: "installment" as const,
+          remaining: monthly,
+          total: monthly,
+          paid: 0
+        };
+      })
+    ];
+  }, [thisMonthUnpaidSingleDebts, thisMonthUnpaidInstallmentDebts, selectedMonth]);
 
-  // Unified items for all-time total principal burden
-  const allTimeUnifiedUnpaid = [
-    ...debts.filter((d) => d.paid < d.amount).map((d) => ({
-      id: d.id,
-      name: d.name,
-      type: "direct" as const,
-      remaining: Math.max(0, d.amount - d.paid),
-      total: d.amount,
-      paid: d.paid
-    })),
-    ...installmentDebts.filter((inst) => inst.paidInstallmentCount < inst.installmentCount).map((inst) => {
-      const monthly = inst.totalAmount / (inst.installmentCount || 1);
-      const remainingPrincipal = inst.totalAmount - (inst.paidInstallmentCount * monthly);
-      return {
-        id: inst.id,
-        name: `${inst.name} (Kalan ${inst.installmentCount - inst.paidInstallmentCount} Taksit)`,
-        type: "installment" as const,
-        remaining: remainingPrincipal,
-        total: inst.totalAmount,
-        paid: inst.paidInstallmentCount * monthly
-      };
-    })
-  ];
+  // Unified items for all-time total principal burden - MEMOIZED
+  const allTimeUnifiedUnpaid = useMemo(() => {
+    return [
+      ...debts.filter((d) => d.paid < d.amount).map((d) => ({
+        id: d.id,
+        name: d.name,
+        type: "direct" as const,
+        remaining: Math.max(0, d.amount - d.paid),
+        total: d.amount,
+        paid: d.paid
+      })),
+      ...installmentDebts.filter((inst) => inst.paidInstallmentCount < inst.installmentCount).map((inst) => {
+        const monthly = inst.totalAmount / (inst.installmentCount || 1);
+        const remainingPrincipal = inst.totalAmount - (inst.paidInstallmentCount * monthly);
+        return {
+          id: inst.id,
+          name: `${inst.name} (Kalan ${inst.installmentCount - inst.paidInstallmentCount} Taksit)`,
+          type: "installment" as const,
+          remaining: remainingPrincipal,
+          total: inst.totalAmount,
+          paid: inst.paidInstallmentCount * monthly
+        };
+      })
+    ];
+  }, [debts, installmentDebts]);
 
   // Candidates for priority action: prefer this month's obligations, or fallback to all-time if this month has none
-  const priorityCandidates = monthlyUnifiedUnpaid.length > 0 ? monthlyUnifiedUnpaid : allTimeUnifiedUnpaid;
+  const priorityCandidates = useMemo(() => {
+    return monthlyUnifiedUnpaid.length > 0 ? monthlyUnifiedUnpaid : allTimeUnifiedUnpaid;
+  }, [monthlyUnifiedUnpaid, allTimeUnifiedUnpaid]);
 
-  const thisMonthTotalRemaining = stats?.thisMonthKalanBorc ?? monthlyUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
-  const overallTotalRemaining = stats?.remaining ?? allTimeUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
+  const thisMonthTotalRemaining = useMemo(() => {
+    return stats?.thisMonthKalanBorc ?? monthlyUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
+  }, [stats?.thisMonthKalanBorc, monthlyUnifiedUnpaid]);
+
+  const overallTotalRemaining = useMemo(() => {
+    return stats?.remaining ?? allTimeUnifiedUnpaid.reduce((sum, ud) => sum + ud.remaining, 0);
+  }, [stats?.remaining, allTimeUnifiedUnpaid]);
+
   const incomeVal = totalIncome || 0;
   
   const debtToIncomeRatio = incomeVal > 0 ? overallTotalRemaining / incomeVal : 0;
-  const hasSmallDebts = priorityCandidates.some((ud) => ud.remaining < 2000);
+  const hasSmallDebts = useMemo(() => priorityCandidates.some((ud) => ud.remaining < 2000), [priorityCandidates]);
   const recommendedStrategy = (debtToIncomeRatio > 3 || !hasSmallDebts) ? "avalanche" : "snowball";
 
   const [activeStrategyView, setActiveStrategyView] = useState<"snowball" | "avalanche" | null>(null);
   const currentStrategyView = activeStrategyView || recommendedStrategy;
 
-  const smallestDebt = priorityCandidates.length > 0 
-    ? [...priorityCandidates].sort((a, b) => a.remaining - b.remaining)[0] 
-    : null;
-  const largestDebt = priorityCandidates.length > 0
-    ? [...priorityCandidates].sort((a, b) => b.remaining - a.remaining)[0]
-    : null;
+  const smallestDebt = useMemo(() => {
+    return priorityCandidates.length > 0 
+      ? [...priorityCandidates].sort((a, b) => a.remaining - b.remaining)[0] 
+      : null;
+  }, [priorityCandidates]);
+
+  const largestDebt = useMemo(() => {
+    return priorityCandidates.length > 0
+      ? [...priorityCandidates].sort((a, b) => b.remaining - a.remaining)[0]
+      : null;
+  }, [priorityCandidates]);
 
   const handleSelectAllDebts = () => {
     if (selectedDebtIds.length === filteredDebts.length) {
@@ -659,55 +682,57 @@ export const DebtList: React.FC<DebtListProps> = ({
     }
   };
 
-  const filteredDebts = debts
-    .filter((d) => {
-      // 1. Tab filter
-      if (activeTab === "unpaid" && d.paid >= d.amount) return false;
-      if (activeTab === "paid" && d.paid < d.amount) return false;
+  const filteredDebts = useMemo(() => {
+    return debts
+      .filter((d) => {
+        // 1. Tab filter
+        if (activeTab === "unpaid" && d.paid >= d.amount) return false;
+        if (activeTab === "paid" && d.paid < d.amount) return false;
 
-      // 2. Search filter: match name, category, or amount
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matchName = (d.name || "").toLowerCase().includes(q);
-        const matchCategory = (d.category || "").toLowerCase().includes(q);
-        const matchAmount = d.amount.toString().includes(q) || (d.amount - d.paid).toString().includes(q);
-        if (!matchName && !matchCategory && !matchAmount) return false;
-      }
+        // 2. Search filter: match name, category, or amount
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          const matchName = (d.name || "").toLowerCase().includes(q);
+          const matchCategory = (d.category || "").toLowerCase().includes(q);
+          const matchAmount = d.amount.toString().includes(q) || (d.amount - d.paid).toString().includes(q);
+          if (!matchName && !matchCategory && !matchAmount) return false;
+        }
 
-      // 3. Period filter: strictly match selected month & year
-      if (selectedMonth !== null && selectedYear !== null) {
-        if (!d.dueDate) return true;
-        const dParts = parseDateParts(d.dueDate);
-        if (!dParts) return true;
+        // 3. Period filter: strictly match selected month & year
+        if (selectedMonth !== null && selectedYear !== null) {
+          if (!d.dueDate) return true;
+          const dParts = parseDateParts(d.dueDate);
+          if (!dParts) return true;
 
-        const selectedTime = selectedYear * 12 + selectedMonth;
-        const debtTime = dParts.year * 12 + dParts.month;
+          const selectedTime = selectedYear * 12 + selectedMonth;
+          const debtTime = dParts.year * 12 + dParts.month;
 
-        return debtTime === selectedTime;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === "amount_desc") {
-        return b.amount - a.amount;
-      }
-      if (sortBy === "amount_asc") {
-        return a.amount - b.amount;
-      }
-      if (sortBy === "due_date_asc") {
-        if (!a.dueDate && !b.dueDate) return 0;
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      }
-      if (sortBy === "due_date_desc") {
-        if (!a.dueDate && !b.dueDate) return 0;
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
-      }
-      return 0;
-    });
+          return debtTime === selectedTime;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "amount_desc") {
+          return b.amount - a.amount;
+        }
+        if (sortBy === "amount_asc") {
+          return a.amount - b.amount;
+        }
+        if (sortBy === "due_date_asc") {
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        }
+        if (sortBy === "due_date_desc") {
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+        }
+        return 0;
+      });
+  }, [debts, activeTab, searchQuery, selectedMonth, selectedYear, sortBy]);
 
   // Helpers for formatting numbers with dots (e.g., 100.000.000)
   const formatNumberWithDots = (val: string): string => {
@@ -722,67 +747,80 @@ export const DebtList: React.FC<DebtListProps> = ({
     return parseFloat(cleaned) || 0;
   };
 
-  // Selected period calculations
+  // Selected period calculations - MEMOIZED
   const selectedYearVal = selectedYear !== null ? selectedYear : new Date().getFullYear();
   const selectedMonthVal = selectedMonth !== null ? selectedMonth : new Date().getMonth();
 
-  const debtsInPeriod = debts.filter((d) => {
-    if (selectedMonth === null || selectedYear === null) return true;
-    if (!d.dueDate) return true;
-    try {
-      const dDate = new Date(d.dueDate);
-      return dDate.getMonth() === selectedMonth && dDate.getFullYear() === selectedYear;
-    } catch { return true; }
-  });
+  const debtsInPeriod = useMemo(() => {
+    return debts.filter((d) => {
+      if (selectedMonth === null || selectedYear === null) return true;
+      if (!d.dueDate) return true;
+      try {
+        const dDate = new Date(d.dueDate);
+        return dDate.getMonth() === selectedMonth && dDate.getFullYear() === selectedYear;
+      } catch { return true; }
+    });
+  }, [debts, selectedMonth, selectedYear]);
   
   // Sadece o ayki ödenmemiş eklenmiş borçlar (alttaki borç kartlarıyla %100 birebir örtüşür, taksitler kesinlikle hariç)
-  const currentMonthUnpaidDebts = debts.filter((d) => {
-    // 1. Sadece ödenmemiş borçlar
-    if (d.paid >= d.amount) return false;
+  const currentMonthUnpaidDebts = useMemo(() => {
+    return debts.filter((d) => {
+      // 1. Sadece ödenmemiş borçlar
+      if (d.paid >= d.amount) return false;
 
-    // 2. Seçili ay ve yıl filtresi (alttaki borç listesiyle birebir aynı parseDateParts mantığı)
-    if (selectedMonth !== null && selectedYear !== null) {
-      if (!d.dueDate) return true;
-      const dParts = parseDateParts(d.dueDate);
-      if (!dParts) return true;
+      // 2. Seçili ay ve yıl filtresi (alttaki borç listesiyle birebir aynı parseDateParts mantığı)
+      if (selectedMonth !== null && selectedYear !== null) {
+        if (!d.dueDate) return true;
+        const dParts = parseDateParts(d.dueDate);
+        if (!dParts) return true;
 
-      const selectedTime = selectedYear * 12 + selectedMonth;
-      const debtTime = dParts.year * 12 + dParts.month;
-      return debtTime === selectedTime;
-    }
-    return true;
-  });
+        const selectedTime = selectedYear * 12 + selectedMonth;
+        const debtTime = dParts.year * 12 + dParts.month;
+        return debtTime === selectedTime;
+      }
+      return true;
+    });
+  }, [debts, selectedMonth, selectedYear]);
 
   // O ayki ödenmemiş borç kartlarının toplam borç miktarı
-  const currentMonthUnpaidDebtsTotal = currentMonthUnpaidDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const currentMonthUnpaidDebtsTotal = useMemo(() => {
+    return currentMonthUnpaidDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  }, [currentMonthUnpaidDebts]);
+
   const currentMonthUnpaidDebtsCount = currentMonthUnpaidDebts.length;
 
-  const installmentsInPeriod = installmentDebts.map((inst) => {
-    const perMonth = inst.totalAmount / (inst.installmentCount || 1);
-    if (selectedMonth === null || selectedYear === null) {
+  const installmentsInPeriod = useMemo(() => {
+    return installmentDebts.map((inst) => {
+      const perMonth = inst.totalAmount / (inst.installmentCount || 1);
+      if (selectedMonth === null || selectedYear === null) {
+        return {
+          due: inst.totalAmount,
+          paid: inst.paidInstallmentCount * perMonth,
+        };
+      }
+      const startDate = new Date(inst.firstDueDate);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const monthDiffCalc = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
+      const isCurrentlyActive = monthDiffCalc >= 0 && monthDiffCalc < inst.installmentCount;
+      const isCurrentlyPaid = inst.paidInstallmentCount > monthDiffCalc;
       return {
-        due: inst.totalAmount,
-        paid: inst.paidInstallmentCount * perMonth,
+        due: isCurrentlyActive ? perMonth : 0,
+        paid: (isCurrentlyActive && isCurrentlyPaid) ? perMonth : 0,
       };
-    }
-    const startDate = new Date(inst.firstDueDate);
-    const startYear = startDate.getFullYear();
-    const startMonth = startDate.getMonth();
-    const monthDiffCalc = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-    const isCurrentlyActive = monthDiffCalc >= 0 && monthDiffCalc < inst.installmentCount;
-    const isCurrentlyPaid = inst.paidInstallmentCount > monthDiffCalc;
-    return {
-      due: isCurrentlyActive ? perMonth : 0,
-      paid: (isCurrentlyActive && isCurrentlyPaid) ? perMonth : 0,
-    };
-  });
+    });
+  }, [installmentDebts, selectedMonth, selectedYear]);
 
   // Monthly filtered stats (used as fallback or extra if needed)
-  const totalAmount = debtsInPeriod.reduce((sum, d) => sum + d.amount, 0) + 
-    installmentsInPeriod.reduce((sum, item) => sum + item.due, 0);
+  const totalAmount = useMemo(() => {
+    return debtsInPeriod.reduce((sum, d) => sum + d.amount, 0) + 
+      installmentsInPeriod.reduce((sum, item) => sum + item.due, 0);
+  }, [debtsInPeriod, installmentsInPeriod]);
 
-  const totalPaid = debtsInPeriod.reduce((sum, d) => sum + d.paid, 0) + 
-    installmentsInPeriod.reduce((sum, item) => sum + item.paid, 0);
+  const totalPaid = useMemo(() => {
+    return debtsInPeriod.reduce((sum, d) => sum + d.paid, 0) + 
+      installmentsInPeriod.reduce((sum, item) => sum + item.paid, 0);
+  }, [debtsInPeriod, installmentsInPeriod]);
 
   const totalRemaining = totalAmount - totalPaid;
 
@@ -1794,443 +1832,44 @@ export const DebtList: React.FC<DebtListProps> = ({
             )}
           </div>
         ) : (
-          (() => {
-            const totalPages = Math.max(1, Math.ceil(filteredDebts.length / itemsPerPage));
-            const activePage = Math.min(currentPage, totalPages);
-            const startIndex = (activePage - 1) * itemsPerPage;
-            const paginatedDebts = filteredDebts.slice(startIndex, startIndex + itemsPerPage);
-
-            const DEBT_CARD_THEMES = [
-              {
-                // 0. Sapphire / Indigo Blue
-                gradient: "from-blue-100 via-indigo-100/90 to-sky-200/80 dark:from-indigo-950/90 dark:via-indigo-900/80 dark:to-slate-900",
-                border: "border-2 border-indigo-400 dark:border-indigo-500/40",
-                glow: "shadow-xl shadow-indigo-200/70 dark:shadow-indigo-500/20",
-                accent: "text-indigo-800 dark:text-indigo-200",
-                badge: "bg-indigo-200/90 text-indigo-950 border-indigo-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-indigo-600 via-blue-600 to-cyan-500 dark:from-indigo-300 dark:via-cyan-300 dark:to-indigo-200",
-                tagBg: "bg-white/95 border-indigo-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 1. Ruby / Crimson Red
-                gradient: "from-rose-100 via-pink-100/90 to-red-200/80 dark:from-rose-950/90 dark:via-rose-900/80 dark:to-slate-900",
-                border: "border-2 border-rose-400 dark:border-rose-500/40",
-                glow: "shadow-xl shadow-rose-200/70 dark:shadow-rose-500/20",
-                accent: "text-rose-800 dark:text-rose-200",
-                badge: "bg-rose-200/90 text-rose-950 border-rose-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-rose-600 via-red-600 to-amber-500 dark:from-rose-300 dark:via-amber-300 dark:to-rose-200",
-                tagBg: "bg-white/95 border-rose-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 2. Emerald / Forest Green
-                gradient: "from-emerald-100 via-teal-100/90 to-green-200/80 dark:from-emerald-950/90 dark:via-emerald-900/80 dark:to-slate-900",
-                border: "border-2 border-emerald-400 dark:border-emerald-500/40",
-                glow: "shadow-xl shadow-emerald-200/70 dark:shadow-emerald-500/20",
-                accent: "text-emerald-800 dark:text-emerald-200",
-                badge: "bg-emerald-200/90 text-emerald-950 border-emerald-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-emerald-600 via-teal-600 to-green-500 dark:from-emerald-300 dark:via-teal-200 dark:to-emerald-300",
-                tagBg: "bg-white/95 border-emerald-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 3. Azure / Ocean Cyan
-                gradient: "from-cyan-100 via-sky-100/90 to-blue-200/80 dark:from-blue-950/90 dark:via-cyan-950/80 dark:to-slate-900",
-                border: "border-2 border-cyan-400 dark:border-cyan-500/40",
-                glow: "shadow-xl shadow-cyan-200/70 dark:shadow-blue-500/20",
-                accent: "text-cyan-800 dark:text-cyan-200",
-                badge: "bg-cyan-200/90 text-cyan-950 border-cyan-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-cyan-600 via-blue-600 to-indigo-500 dark:from-cyan-300 dark:via-blue-200 dark:to-cyan-300",
-                tagBg: "bg-white/95 border-cyan-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 4. Amethyst / Royal Purple
-                gradient: "from-purple-100 via-violet-100/90 to-fuchsia-200/80 dark:from-violet-950/90 dark:via-purple-900/80 dark:to-slate-900",
-                border: "border-2 border-purple-400 dark:border-purple-500/40",
-                glow: "shadow-xl shadow-purple-200/70 dark:shadow-violet-500/20",
-                accent: "text-purple-800 dark:text-violet-200",
-                badge: "bg-purple-200/90 text-purple-950 border-purple-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-purple-600 via-violet-600 to-pink-500 dark:from-violet-300 dark:via-fuchsia-300 dark:to-violet-200",
-                tagBg: "bg-white/95 border-purple-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 5. Sunset Gold / Amber
-                gradient: "from-amber-100 via-orange-100/90 to-yellow-200/80 dark:from-amber-950/90 dark:via-orange-900/80 dark:to-slate-900",
-                border: "border-2 border-amber-400 dark:border-amber-500/40",
-                glow: "shadow-xl shadow-amber-200/70 dark:shadow-amber-500/20",
-                accent: "text-amber-800 dark:text-amber-200",
-                badge: "bg-amber-200/90 text-amber-950 border-amber-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-amber-600 via-orange-600 to-yellow-500 dark:from-amber-300 dark:via-yellow-200 dark:to-orange-300",
-                tagBg: "bg-white/95 border-amber-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 6. Fuchsia / Hot Pink
-                gradient: "from-pink-100 via-rose-100/90 to-fuchsia-200/80 dark:from-fuchsia-950/90 dark:via-pink-900/80 dark:to-slate-900",
-                border: "border-2 border-pink-400 dark:border-pink-500/40",
-                glow: "shadow-xl shadow-pink-200/70 dark:shadow-fuchsia-500/20",
-                accent: "text-pink-800 dark:text-pink-200",
-                badge: "bg-pink-200/90 text-pink-950 border-pink-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-pink-600 via-rose-600 to-purple-500 dark:from-fuchsia-300 dark:via-pink-200 dark:to-rose-300",
-                tagBg: "bg-white/95 border-pink-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 7. Teal / Marine Turquoise
-                gradient: "from-teal-100 via-emerald-100/90 to-cyan-200/80 dark:from-teal-950/90 dark:via-teal-900/80 dark:to-slate-900",
-                border: "border-2 border-teal-400 dark:border-teal-500/40",
-                glow: "shadow-xl shadow-teal-200/70 dark:shadow-teal-500/20",
-                accent: "text-teal-800 dark:text-teal-200",
-                badge: "bg-teal-200/90 text-teal-950 border-teal-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-teal-600 via-cyan-600 to-emerald-500 dark:from-teal-300 dark:via-emerald-200 dark:to-cyan-300",
-                tagBg: "bg-white/95 border-teal-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 8. Scarlet / Warm Coral
-                gradient: "from-orange-100 via-rose-100/90 to-red-200/80 dark:from-red-950/90 dark:via-rose-950/80 dark:to-slate-900",
-                border: "border-2 border-orange-400 dark:border-red-500/40",
-                glow: "shadow-xl shadow-orange-200/70 dark:shadow-red-500/20",
-                accent: "text-orange-800 dark:text-red-200",
-                badge: "bg-orange-200/90 text-orange-950 border-orange-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-red-600 via-rose-600 to-orange-500 dark:from-red-300 dark:via-orange-300 dark:to-rose-200",
-                tagBg: "bg-white/95 border-orange-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              },
-              {
-                // 9. Midnight Obsidian / Slate-Blue
-                gradient: "from-slate-200 via-blue-100/90 to-indigo-200/80 dark:from-slate-800/90 dark:via-slate-900/80 dark:to-slate-950",
-                border: "border-2 border-slate-400 dark:border-slate-500/40",
-                glow: "shadow-xl shadow-slate-300/70 dark:shadow-slate-500/20",
-                accent: "text-slate-900 dark:text-slate-200",
-                badge: "bg-slate-300/90 text-slate-950 border-slate-400/80 dark:bg-white/20 dark:text-white dark:border-white/30 backdrop-blur-xs font-black",
-                progressGradient: "from-slate-700 via-indigo-600 to-blue-600 dark:from-slate-300 dark:via-indigo-200 dark:to-cyan-300",
-                tagBg: "bg-white/95 border-slate-300 dark:bg-black/20 dark:border-white/10 text-slate-900 dark:text-white/85",
-              }
-            ];
-
-            return (
-              <>
-                {/* Top Pagination & Item Count Summary Bar */}
-                <div className="flex items-center justify-between flex-wrap gap-2.5 px-1 py-1 mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-100/90 dark:bg-indigo-950/50 border border-indigo-300/80 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300 text-xs font-black shadow-xs">
-                      <Coins className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Toplam {filteredDebts.length} Borç Kaydı</span>
-                    </div>
-                    {totalPages > 1 && (
-                      <span className="text-xs font-black text-slate-600 dark:text-slate-400">
-                        (Sayfa {activePage} / {totalPages})
-                      </span>
-                    )}
-                  </div>
-
-                  {totalPages > 1 && (
-                    <div className="flex items-center gap-1 text-xs font-bold">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={activePage === 1}
-                        className="px-2.5 py-1.5 border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-indigo-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs select-none text-[11px] font-black"
-                        title="Önceki Sayfa"
-                      >
-                        ← Önceki
-                      </button>
-                      {Array.from({ length: totalPages }).map((_, i) => {
-                        const pageNum = i + 1;
-                        return (
-                          <button
-                            key={`top-page-${pageNum}`}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`w-7 h-7 rounded-xl transition-all flex items-center justify-center cursor-pointer text-[11px] font-black ${
-                              activePage === pageNum
-                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                                : "border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={activePage === totalPages}
-                        className="px-2.5 py-1.5 border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-indigo-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs select-none text-[11px] font-black"
-                        title="Sonraki Sayfa"
-                      >
-                        Sonraki →
-                      </button>
-                    </div>
-                  )}
+          <div className="space-y-3">
+            {/* Header info badge */}
+            <div className="flex items-center justify-between flex-wrap gap-2.5 px-1 py-1 mb-1">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-100/90 dark:bg-indigo-950/50 border border-indigo-300/80 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300 text-xs font-black shadow-xs">
+                  <Coins className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Toplam {filteredDebts.length} Borç Kaydı</span>
                 </div>
-                {paginatedDebts.map((d, itemIdx) => {
-                  const isPaid = d.paid >= d.amount;
-                  const percentage = Math.min(((d.paid / d.amount) * 100), 100);
-                  
-                  const diffDays = (() => {
-                    if (!d.dueDate) return null;
-                    try {
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const due = new Date(d.dueDate);
-                      due.setHours(0, 0, 0, 0);
-                      const diffTime = due.getTime() - today.getTime();
-                      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    } catch { return null; }
-                  })();
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-2xl bg-emerald-100/90 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-black shadow-xs">
+                  <Zap className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>Sanal Liste (60 FPS)</span>
+                </div>
+              </div>
+            </div>
 
-                  const isOverdue = !isPaid && diffDays !== null && diffDays < 0;
-                  const isNearDue = !isPaid && !isOverdue && diffDays !== null && diffDays >= 0 && diffDays <= 3;
-
-                  // Pick unique color theme per debt card based on ID / Name index
-                  const themeIndex = Math.abs((d.id || itemIdx) + (d.name ? d.name.charCodeAt(0) : 0)) % DEBT_CARD_THEMES.length;
-                  const cardTheme = DEBT_CARD_THEMES[themeIndex];
-
-                  return (
-                    <motion.div
-                      key={d.id}
-                      id={`debt-card-${d.id}`}
-                      layout
-                      initial={{ opacity: 0, scale: 0.98, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                      whileHover={{ scale: 1.01, y: -2 }}
-                      className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
-                    >
-                      {/* Ambient animated background decoration */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/25 via-transparent to-white/15 pointer-events-none" />
-                      <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-indigo-500/10 dark:bg-white/10 blur-xl pointer-events-none animate-pulse" />
-                      <div className="absolute -left-8 -bottom-8 w-32 h-32 rounded-full bg-purple-500/10 dark:bg-white/5 blur-xl pointer-events-none animate-pulse" />
-
-                      <div className="space-y-3 flex-1 relative z-10">
-                        {/* Top Header Row: Logo & Name on Left (sol üst köşe), Order Number on Right (sağ üst köşe) */}
-                        <div className="flex items-center justify-between gap-2.5">
-                          {/* Sol Üst Köşe: Logo & Borç Adı */}
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {(() => {
-                              const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
-                              return provider ? (
-                                <div className="shrink-0">
-                                  <ProviderBadge providerId={provider.id} size="md" showLabel={false} />
-                                </div>
-                              ) : (
-                                <div className="w-8 h-8 rounded-xl bg-slate-200/90 dark:bg-white/10 flex items-center justify-center shrink-0 border border-slate-300/70 dark:border-white/20 shadow-xs">
-                                  <Coins className="w-4 h-4 text-slate-700 dark:text-white/80" />
-                                </div>
-                              );
-                            })()}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight truncate">
-                                  {d.name}
-                                </span>
-                                {(() => {
-                                  const provider = getProviderById(d.providerId) || detectProviderFromName(d.name, d.category);
-                                  return provider?.badgeLabel || provider?.name ? (
-                                    <span className="text-[10px] font-bold text-slate-700 dark:text-white/90 bg-slate-100/90 dark:bg-white/15 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/20 backdrop-blur-xs shrink-0">
-                                      {provider.badgeLabel || provider.name}
-                                    </span>
-                                  ) : null;
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Sağ Üst Köşe: Borç Sıra Numarası Rozeti */}
-                          <div 
-                            title={`Borç Sıra Numarası: ${startIndex + itemIdx + 1} / ${filteredDebts.length}`}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-black/45 border-2 border-indigo-400/80 dark:border-white/20 text-slate-900 dark:text-white font-mono font-black text-xs shadow-md shadow-indigo-200/50 dark:shadow-none shrink-0 select-none ml-auto"
-                          >
-                            <span className="w-5 h-5 rounded-lg bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center text-[10.5px] font-black shadow-xs">
-                              {startIndex + itemIdx + 1}
-                            </span>
-                            <span className="text-[10px] font-extrabold text-slate-600 dark:text-white/60">/ {filteredDebts.length} Borç</span>
-                          </div>
-                        </div>
-
-                        {/* Badges row: Category, Status, SKT */}
-                        <div className="flex items-center flex-wrap gap-1.5">
-                          <span className="px-2.5 py-0.5 bg-slate-100/90 dark:bg-white/15 text-slate-700 dark:text-white text-[10.5px] font-bold rounded-full border border-slate-200/80 dark:border-white/20 backdrop-blur-xs">
-                            📁 {d.category}
-                          </span>
-                          {isPaid ? (
-                            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-400/30 text-emerald-700 dark:text-emerald-100 text-[10.5px] font-black rounded-full border border-emerald-200 dark:border-emerald-300/40 backdrop-blur-xs flex items-center gap-1 shadow-xs">
-                              🟢 Ödendi
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 bg-slate-100/90 dark:bg-black/30 text-slate-700 dark:text-white/90 text-[10.5px] font-black rounded-full border border-slate-200/80 dark:border-white/20 backdrop-blur-xs flex items-center gap-1">
-                              🔴 Ödenmedi
-                            </span>
-                          )}
-                          {d.dueDate && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-white/85 bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/10">
-                              <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-300" /> SKT: {new Date(d.dueDate).toLocaleDateString("tr-TR")}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Dedicated Animated Status Indicator Row for Overdue or Near Due */}
-                        {isOverdue && (
-                          <div className="pt-0.5">
-                            <motion.div
-                              animate={{ scale: [1, 1.03, 1] }}
-                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                              className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-rose-600 text-white text-xs font-black shadow-md shadow-rose-500/25 border border-rose-400/80 select-none"
-                            >
-                              <motion.span
-                                animate={{ rotate: [-10, 10, -10] }}
-                                transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
-                                className="inline-block text-sm"
-                              >
-                                ⚠️
-                              </motion.span>
-                              <span>Vadesi Geçmiş {diffDays !== null && `(${Math.abs(diffDays)} gün geçti)`}</span>
-                            </motion.div>
-                          </div>
-                        )}
-
-                        {isNearDue && (
-                          <div className="pt-0.5">
-                            <motion.div
-                              animate={{ scale: [1, 1.03, 1] }}
-                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                              className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-xs font-black shadow-md shadow-amber-500/25 border border-amber-300 select-none"
-                            >
-                              <motion.span
-                                animate={{ rotate: [-14, 14, -14, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
-                                className="inline-flex items-center justify-center"
-                              >
-                                <BellRing className="w-4 h-4 text-slate-950 animate-bounce" />
-                              </motion.span>
-                              <span>Vadesi Yakın {diffDays === 0 ? "(Bugün Son Gün!)" : `(${diffDays} gün kaldı)`}</span>
-                            </motion.div>
-                          </div>
-                        )}
-
-                        {/* Amount indicators stats grid */}
-                        <div className="flex items-center flex-wrap gap-2 text-xs font-medium">
-                          <div className="bg-slate-100/90 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
-                            <span className="text-slate-500 dark:text-white/60 text-[10px] uppercase font-bold">Tutar:</span>
-                            <span className="font-black font-mono text-slate-900 dark:text-white text-xs sm:text-sm">{format(d.amount)}</span>
-                          </div>
-                          <div className="bg-emerald-50 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-emerald-200/70 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
-                            <span className="text-emerald-700 dark:text-emerald-300 text-[10px] uppercase font-bold">Ödenen:</span>
-                            <span className="font-black text-emerald-700 dark:text-emerald-300 font-mono text-xs sm:text-sm">{format(d.paid)}</span>
-                          </div>
-                          <div className="bg-rose-50 dark:bg-black/20 px-2.5 py-1 rounded-xl border border-rose-200/70 dark:border-white/10 flex items-center gap-1.5 shadow-xs">
-                            <span className="text-rose-700 dark:text-rose-300 text-[10px] uppercase font-bold">Kalan:</span>
-                            <span className="font-black text-rose-700 dark:text-rose-300 font-mono text-xs sm:text-sm">{format(d.amount - d.paid)}</span>
-                          </div>
-                        </div>
-
-                        {/* High tech progress bar */}
-                        <div className="space-y-1 pt-1">
-                          <div className="flex justify-between text-[10px] text-slate-500 dark:text-white/70 font-mono font-bold">
-                            <span>Ödeme Oranı</span>
-                            <span>%{percentage.toFixed(0)}</span>
-                          </div>
-                          <div className="w-full bg-slate-200/80 dark:bg-black/30 h-2 rounded-full overflow-hidden shadow-inner border border-slate-300/60 dark:border-white/10">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${percentage}%` }}
-                              transition={{ duration: 0.8, ease: "easeOut" }}
-                              className={`h-full rounded-full transition-all ${
-                                isPaid ? "bg-emerald-500 dark:bg-emerald-300 shadow-sm shadow-emerald-400" : `bg-gradient-to-r ${cardTheme.progressGradient}`
-                              }`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:self-center relative z-10 shrink-0">
-                        <button
-                          onClick={() => handleOpenEdit(d)}
-                          title="Borcu Düzenle"
-                          className="p-2.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteDebt(d.id)}
-                          title="Borcu Sil"
-                          className="p-2.5 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <motion.button
-                          whileHover={{ scale: 1.04 }}
-                          whileTap={{ scale: 0.96 }}
-                          onClick={() => onToggleDebtPaid(d.id)}
-                          className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 select-none cursor-pointer transition-all duration-300 shadow-sm ${
-                            isPaid 
-                              ? "bg-emerald-100/90 text-emerald-800 border border-emerald-300/80 dark:bg-white/20 dark:hover:bg-white/30 dark:text-white dark:border-white/30 backdrop-blur-xs" 
-                              : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-md shadow-slate-300/50 dark:shadow-black/20"
-                          }`}
-                        >
-                          <AnimatePresence mode="wait">
-                            {isPaid ? (
-                              <motion.span
-                                key="checked"
-                                initial={{ scale: 0.4, rotate: -45 }}
-                                animate={{ scale: 1, rotate: 0 }}
-                                exit={{ scale: 0.4 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                                className="flex items-center justify-center"
-                              >
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
-                              </motion.span>
-                            ) : (
-                              <motion.span
-                                key="unchecked"
-                                initial={{ scale: 0.8 }}
-                                animate={{ scale: 1 }}
-                                exit={{ scale: 0.8 }}
-                                className="flex items-center justify-center"
-                              >
-                                <Circle className="w-4 h-4 text-slate-400 dark:text-slate-600" />
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
-                          <span>{isPaid ? "Ödenmedi Yap" : "Ödendi Yap"}</span>
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center flex-wrap gap-1.5 pt-4 text-xs font-bold">
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={activePage === 1}
-                      className="px-3 py-2 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition duration-150 cursor-pointer shadow-xs select-none"
-                    >
-                      ← Önceki
-                    </button>
-                    {Array.from({ length: totalPages }).map((_, i) => {
-                      const pageNum = i + 1;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`w-8 h-8 rounded-xl transition-all duration-150 flex items-center justify-center cursor-pointer shadow-xs ${
-                            activePage === pageNum
-                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                              : "border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={activePage === totalPages}
-                      className="px-3 py-2 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition duration-150 cursor-pointer shadow-xs select-none"
-                    >
-                      Sonraki →
-                    </button>
-                  </div>
-                )}
-              </>
-            );
-          })()
+            {/* Virtualized List Container */}
+            <VirtualList
+              id="virtual-debt-list"
+              items={filteredDebts}
+              estimateSize={175}
+              overscan={4}
+              maxHeight="720px"
+              containerClassName="gpu-scroll-container pr-1"
+              getItemKey={(d) => d.id}
+              renderItem={(d, itemIdx) => (
+                <DebtItemCard
+                  key={d.id}
+                  d={d}
+                  itemIdx={itemIdx}
+                  totalCount={filteredDebts.length}
+                  format={format}
+                  onEdit={handleOpenEdit}
+                  onDelete={onDeleteDebt}
+                  onTogglePaid={onToggleDebtPaid}
+                />
+              )}
+            />
+          </div>
         )}
       </div>
 

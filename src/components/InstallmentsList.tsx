@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { VirtualList } from "./VirtualList";
+import { InstallmentCardItem } from "./InstallmentCardItem";
 import { PlusCircle, CalendarDays, Wallet, Edit, Trash2, Calendar, RotateCcw, Printer, FileText, Download, Upload, Save, Folder, FileJson, CheckCircle2, Copy, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { InstallmentDebt, PaymentLog } from "../types";
@@ -755,230 +757,33 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
         );
       })()}
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        {installmentDebts.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-400 font-medium md:col-span-2">
-            Kayıtlı aktif taksitli borç planı bulunmuyor.
-          </div>
-        ) : (
-          installmentDebts.map((inst) => {
-            const singlePayment = inst.totalAmount / inst.installmentCount;
-            const remaining = (inst.installmentCount - inst.paidInstallmentCount) * singlePayment;
-            const percentage = (inst.paidInstallmentCount / inst.installmentCount) * 100;
-            const isCompleted = inst.paidInstallmentCount === inst.installmentCount;
-
-            // Pick a vibrant color theme matching the modern glassmorphism design
-            const CARD_THEMES = [
-              {
-                gradient: "from-indigo-600 via-indigo-700 to-slate-900 dark:from-indigo-950/95 dark:via-indigo-900/90 dark:to-slate-900",
-                glow: "shadow-indigo-500/25 dark:shadow-indigo-500/20",
-                border: "border-indigo-400/40 dark:border-indigo-400/30",
-                brand: "PREMIUM PLATINUM",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              },
-              {
-                gradient: "from-blue-600 via-blue-700 to-slate-900 dark:from-blue-950/95 dark:via-cyan-950/90 dark:to-slate-900",
-                glow: "shadow-blue-500/25 dark:shadow-blue-500/20",
-                border: "border-blue-400/40 dark:border-blue-400/30",
-                brand: "WORLD SIGNATURE",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              },
-              {
-                gradient: "from-rose-600 via-rose-700 to-slate-900 dark:from-rose-950/95 dark:via-rose-900/90 dark:to-slate-900",
-                glow: "shadow-rose-500/25 dark:shadow-rose-500/20",
-                border: "border-rose-400/40 dark:border-rose-400/30",
-                brand: "AMEX ULTIMATE",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              },
-              {
-                gradient: "from-emerald-600 via-emerald-700 to-slate-900 dark:from-emerald-950/95 dark:via-teal-900/90 dark:to-slate-900",
-                glow: "shadow-emerald-500/25 dark:shadow-emerald-500/20",
-                border: "border-emerald-400/40 dark:border-emerald-400/30",
-                brand: "ECO CAPITAL",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              },
-              {
-                gradient: "from-amber-600 via-orange-700 to-slate-900 dark:from-amber-950/95 dark:via-orange-900/90 dark:to-slate-900",
-                glow: "shadow-amber-500/25 dark:shadow-amber-500/20",
-                border: "border-amber-400/40 dark:border-amber-400/30",
-                brand: "GOLD METALLIC",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              },
-              {
-                gradient: "from-purple-600 via-violet-700 to-slate-900 dark:from-violet-950/95 dark:via-purple-900/90 dark:to-slate-900",
-                glow: "shadow-purple-500/25 dark:shadow-violet-500/20",
-                border: "border-purple-400/40 dark:border-violet-400/30",
-                brand: "TITANIUM BLACK",
-                badge: "bg-white/20 text-white border-white/30 backdrop-blur-xs"
-              }
-            ];
-
-            const themeIndex = (inst.id || 0) % CARD_THEMES.length;
-            const cardTheme = CARD_THEMES[themeIndex];
-
-            // Expiry Date (Valid thru) computation based on the plan count
-            const getExpiryText = (firstDueDate: string, totalCount: number) => {
-              try {
-                const baseDate = new Date(firstDueDate);
-                baseDate.setMonth(baseDate.getMonth() + totalCount);
-                const mm = String(baseDate.getMonth() + 1).padStart(2, "0");
-                const yy = String(baseDate.getFullYear()).slice(-2);
-                return `${mm}/${yy}`;
-              } catch (e) {
-                return "12/28";
-              }
-            };
-
-            const expiryText = getExpiryText(inst.firstDueDate || new Date().toISOString(), inst.installmentCount);
-
-            return (
-              <motion.div
-                key={inst.id}
-                id={`installment-card-${inst.id}`}
-                whileHover={{ scale: 1.02, y: -3 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className={`relative overflow-hidden rounded-3xl p-5 border ${cardTheme.border} text-white bg-gradient-to-br ${cardTheme.gradient} shadow-md ${cardTheme.glow} flex flex-col justify-between min-h-[210px] select-none backdrop-blur-md`}
-              >
-                {/* Decorative intersecting circles context layout */}
-                <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
-                <div className="absolute -left-10 -bottom-10 w-36 h-36 rounded-full bg-white/5 blur-xl pointer-events-none" />
-
-                {/* Upper Deck: Chip, Name, and Brand */}
-                <div className="relative z-10 flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    {/* Simulated golden SIM card chip */}
-                    <div className="w-8 h-6 rounded-md bg-amber-400/90 relative overflow-hidden border border-amber-300/60 shadow-xs shrink-0">
-                      {/* Chip metal grid lines */}
-                      <div className="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-px p-0.5 opacity-60">
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                        <div className="border border-amber-600/40 rounded-xs"></div>
-                      </div>
-                    </div>
-                    <div>
-                      {(() => {
-                        const provider = getProviderById(inst.providerId) || detectProviderFromName(inst.name);
-                        return (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {provider && (
-                              <ProviderBadge providerId={provider.id} size="sm" showLabel={false} />
-                            )}
-                            <h4 className="text-xs font-black tracking-wide uppercase truncate max-w-[140px] text-white" title={inst.name}>
-                              {inst.name}
-                            </h4>
-                            {provider && (
-                              <span className="text-[9px] text-white/80 font-bold">
-                                ({provider.badgeLabel || provider.name})
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <p className="text-[8px] text-white/70 font-mono tracking-widest">{cardTheme.brand}</p>
-                    </div>
-                  </div>
-
-                  <span className={`px-2 py-0.5 border text-[9px] font-black rounded-md tracking-wider shrink-0 shadow-xs uppercase leading-none ${cardTheme.badge}`}>
-                    {inst.paidInstallmentCount} / {inst.installmentCount} Taksit
-                  </span>
-                </div>
-
-                {/* Middle Deck: Large display of monthly payment amount */}
-                <div className="relative z-10 my-3">
-                  <span className="text-[9px] text-white/70 font-black uppercase tracking-widest block leading-none mb-1">
-                    AYLIK ÖDEME TUTARI
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white drop-shadow-xs">
-                      {format(singlePayment)}
-                    </span>
-                    <span className="text-[10px] text-white/80 font-bold">/ ay</span>
-                  </div>
-                </div>
-
-                {/* Bottom Stats & Data section */}
-                <div className="relative z-10 space-y-3">
-                  {/* Real-time slider progress line */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-white/80 font-bold font-mono">
-                      <span>Ödenen {inst.paidInstallmentCount} Taksit</span>
-                      <span>%{percentage.toFixed(0)} pay</span>
-                    </div>
-                    <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden shadow-inner flex">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className={`h-full rounded-full ${isCompleted ? 'bg-emerald-400' : 'bg-gradient-to-r from-teal-300 via-emerald-300 to-amber-300'}`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Valid-thru, totals description and action buttons */}
-                  <div className="flex items-center justify-between text-white/90 text-[10px] font-semibold gap-2 border-t border-white/15 pt-2.5">
-                    <div className="flex gap-4 font-mono">
-                      <div>
-                        <span className="text-[8px] text-white/60 block font-normal leading-none mb-0.5">TOPLAM</span>
-                        <span className="font-extrabold text-white">{format(inst.totalAmount)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] text-white/60 block font-normal leading-none mb-0.5">KALAN</span>
-                        <span className="font-extrabold text-amber-300">{format(remaining)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] text-white/60 block font-normal leading-none mb-0.5">VALİD THRU</span>
-                        <span className="font-extrabold text-white">{expiryText}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => handleOpenEdit(inst)}
-                        className="p-1 px-1.5 bg-white/20 hover:bg-white/30 border border-white/20 text-white rounded-md transition shadow-xs cursor-pointer"
-                        title="Düzenle"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteInstallment(inst.id)}
-                        className="p-1 px-1.5 bg-rose-500/30 hover:bg-rose-500/50 border border-rose-300/30 text-white rounded-md transition shadow-xs cursor-pointer"
-                        title="Sil"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      {onRevertPayment && (
-                        <button
-                          disabled={inst.paidInstallmentCount === 0}
-                          onClick={() => onRevertPayment(inst.id)}
-                          title="Taksiti Geri Al"
-                          className={`p-1 px-1.5 rounded-md transition shadow-xs cursor-pointer ${
-                            inst.paidInstallmentCount === 0
-                              ? "opacity-30 cursor-not-allowed text-white/40 border border-transparent"
-                              : "bg-white/20 hover:bg-white/30 border border-white/20 text-white"
-                          }`}
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {!isCompleted && (
-                        <button
-                          onClick={() => handleOpenPayModal(inst)}
-                          className="px-2.5 py-1 bg-white hover:bg-white/90 text-slate-900 font-extrabold text-[10px] rounded-md shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Wallet className="w-3 h-3 text-slate-900" /> Taksit Öde
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })
-        )}
-      </div>
+      {installmentDebts.length === 0 ? (
+        <div className="text-center py-8 text-xs text-slate-400 font-medium">
+          Kayıtlı aktif taksitli borç planı bulunmuyor.
+        </div>
+      ) : (
+        <VirtualList
+          id="virtual-installments-list"
+          items={installmentDebts}
+          columns={2}
+          estimateSize={230}
+          overscan={4}
+          maxHeight="750px"
+          containerClassName="gpu-scroll-container pr-1"
+          getItemKey={(inst) => inst.id}
+          renderItem={(inst) => (
+            <InstallmentCardItem
+              key={inst.id}
+              inst={inst}
+              format={format}
+              onEdit={handleOpenEdit}
+              onDelete={onDeleteInstallment}
+              onRevert={onRevertPayment}
+              onPay={handleOpenPayModal}
+            />
+          )}
+        />
+      )}
 
       <InstallmentsPortalChart installmentDebts={installmentDebts} />
 

@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { VirtualList } from "./VirtualList";
+import { IncomeCardItem } from "./IncomeCardItem";
 import {
   PlusCircle,
   Trash2,
@@ -587,62 +589,24 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               </div>
             </div>
           ) : (
-            incomes.map((i) => (
-              <motion.div
-                key={i.id}
-                whileHover={{ scale: 1.01, y: -2 }}
-                transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                className="p-4 sm:p-5 bg-gradient-to-br from-white/95 via-emerald-50/50 to-slate-50/90 dark:from-emerald-950/90 dark:via-teal-950 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-500/40 rounded-3xl shadow-md shadow-emerald-100/50 dark:shadow-emerald-500/10 flex items-center justify-between gap-4 transition-all duration-300 relative overflow-hidden backdrop-blur-md group"
-              >
-                {/* Ambient glow */}
-                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-emerald-500/5 dark:bg-white/10 blur-xl pointer-events-none" />
-
-                <div className="flex items-center gap-3.5 relative z-10 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-100/80 dark:bg-white/15 border border-emerald-200/80 dark:border-white/20 flex items-center justify-center shrink-0 backdrop-blur-xs shadow-xs">
-                    <Wallet className="w-5 h-5 text-emerald-700 dark:text-emerald-200" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-black text-sm sm:text-base text-slate-900 dark:text-white truncate tracking-tight">{i.name}</p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <p className="text-[10px] text-slate-600 dark:text-white/80 flex items-center gap-1 font-semibold bg-slate-100/90 dark:bg-black/20 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10">
-                        <Calendar className="w-3 h-3 text-emerald-600 dark:text-emerald-300" /> {new Date(i.date).toLocaleDateString("tr-TR")}
-                      </p>
-                      <span
-                        className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase tracking-wider backdrop-blur-xs border ${
-                          i.isRecurring !== false
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-white/20 dark:text-white dark:border-white/30"
-                            : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-400/30 dark:text-amber-200 dark:border-amber-300/40"
-                        }`}
-                      >
-                        {i.isRecurring !== false ? "🔄 Sabit Gelir" : "✨ Ek Gelir"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 relative z-10 shrink-0">
-                  <span className="font-black text-base sm:text-lg text-emerald-600 dark:text-emerald-200 font-mono tracking-tight drop-shadow-xs">
-                    +{format(i.amount)}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEdit(i)}
-                      className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                      title="Düzenle"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onDeleteIncome(i.id)}
-                      className="p-2 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                      title="Sil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))
+            <VirtualList
+              id="virtual-incomes-list"
+              items={incomes}
+              estimateSize={80}
+              overscan={4}
+              maxHeight="680px"
+              containerClassName="gpu-scroll-container pr-1"
+              getItemKey={(i) => i.id}
+              renderItem={(i) => (
+                <IncomeCardItem
+                  key={i.id}
+                  income={i}
+                  format={format}
+                  onEdit={handleOpenEdit}
+                  onDelete={onDeleteIncome}
+                />
+              )}
+            />
           )}
         </div>
 

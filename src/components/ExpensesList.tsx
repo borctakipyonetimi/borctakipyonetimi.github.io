@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { VirtualList } from "./VirtualList";
+import { ExpenseCardItem } from "./ExpenseCardItem";
 import {
   PlusCircle,
   ShoppingCart,
@@ -1381,21 +1383,23 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     }
   };
 
-  // Dynamically filter expenses according to the selected month (e.g. YYYY-MM)
-  const filteredMonthExpenses = expenses.filter((e) => {
-    if (selectedMonthStr === "all") return true;
-    if (!e.date) return false;
-    if (e.isRecurring === true) {
-      const parts = e.date.split("-");
-      const selParts = selectedMonthStr.split("-");
-      if (parts.length >= 2 && selParts.length === 2) {
-        const expTime = parseInt(parts[0], 10) * 12 + (parseInt(parts[1], 10) - 1);
-        const selTime = parseInt(selParts[0], 10) * 12 + (parseInt(selParts[1], 10) - 1);
-        return selTime >= expTime;
+  // Dynamically filter expenses according to the selected month (e.g. YYYY-MM) - MEMOIZED for 60fps
+  const filteredMonthExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      if (selectedMonthStr === "all") return true;
+      if (!e.date) return false;
+      if (e.isRecurring === true) {
+        const parts = e.date.split("-");
+        const selParts = selectedMonthStr.split("-");
+        if (parts.length >= 2 && selParts.length === 2) {
+          const expTime = parseInt(parts[0], 10) * 12 + (parseInt(parts[1], 10) - 1);
+          const selTime = parseInt(selParts[0], 10) * 12 + (parseInt(selParts[1], 10) - 1);
+          return selTime >= expTime;
+        }
       }
-    }
-    return getExpenseYearMonth(e.date) === selectedMonthStr;
-  });
+      return getExpenseYearMonth(e.date) === selectedMonthStr;
+    });
+  }, [expenses, selectedMonthStr]);
 
   const totalExpenses = filteredMonthExpenses.reduce((s, e) => s + e.amount, 0);
 
@@ -1501,9 +1505,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       ? ((selectedCategoryTotal / totalExpenses) * 100).toFixed(1)
       : "0.0";
 
-  const filteredExpenses = selectedFilterCategoryId
-    ? filteredMonthExpenses.filter((e) => e.categoryId === selectedFilterCategoryId)
-    : filteredMonthExpenses;
+  const filteredExpenses = useMemo(() => {
+    return selectedFilterCategoryId
+      ? filteredMonthExpenses.filter((e) => e.categoryId === selectedFilterCategoryId)
+      : filteredMonthExpenses;
+  }, [filteredMonthExpenses, selectedFilterCategoryId]);
 
   const suggestedCategory = getSuggestedCategory(description, expenseCategories);
 
@@ -1875,106 +1881,33 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                 Bu kategoride henüz bir gider harcaması kaydedilmemiş.
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
-                {filteredExpenses.map((e, idx) => {
-                  const cat = expenseCategories.find(
-                    (c) => c.id === e.categoryId,
-                  );
+              <VirtualList
+                id="virtual-expenses-list"
+                items={filteredExpenses}
+                estimateSize={88}
+                overscan={5}
+                maxHeight="24rem"
+                containerClassName="gpu-scroll-container pr-1"
+                getItemKey={(e) => e.id}
+                renderItem={(e, idx) => {
+                  const cat = expenseCategories.find((c) => c.id === e.categoryId);
                   const theme = getExpenseColorTheme(cat, idx, String(e.id));
                   const isNew = newlyAddedIds.includes(e.id);
                   return (
-                    <motion.div
+                    <ExpenseCardItem
                       key={e.id}
-                      layout
-                      initial={isNew ? { opacity: 0, y: 30 } : {}}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={
-                        isNew
-                          ? { duration: 0.5, ease: "easeOut" }
-                          : { type: "spring", stiffness: 350, damping: 25 }
-                      }
-                      whileHover={{ scale: 1.01, y: -2 }}
-                      className={`relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br ${theme.cardBg} rounded-3xl border ${theme.cardBorder} shadow-md flex items-center justify-between gap-4 transition-all duration-300 backdrop-blur-md ${
-                        isNew
-                          ? "ring-2 ring-amber-400 border-amber-300 shadow-[0_0_25px_rgba(244,63,94,0.4)]"
-                          : ""
-                      }`}
-                      style={{
-                        borderLeft: cat?.color ? `4px solid ${cat.color}` : undefined,
-                      }}
-                    >
-                      {/* Ambient decoration */}
-                      <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full ${theme.ambientGlow} blur-xl pointer-events-none`} />
-
-                      {/* Premium Shimmering Shine Parıltı Effect */}
-                      {isNew && (
-                        <motion.div
-                          initial={{ left: "-100%" }}
-                          animate={{ left: "100%" }}
-                          transition={{
-                            repeat: Infinity,
-                            repeatType: "loop",
-                            duration: 1.6,
-                            ease: "linear",
-                          }}
-                          className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none transform -skew-x-12"
-                        />
-                      )}
-
-                      {/* Sub-bar indicator for newly highlighted item */}
-                      {isNew && (
-                        <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 via-rose-300 to-amber-400 animate-pulse" />
-                      )}
-
-                      <div className="space-y-1.5 relative z-10 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider ${theme.tagBg} ${theme.tagText} border ${theme.tagBorder} backdrop-blur-xs shrink-0 shadow-xs flex items-center gap-1`}
-                            style={cat?.color ? { borderColor: `${cat.color}60` } : undefined}
-                          >
-                            <span
-                              className="w-1.5 h-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: cat?.color || undefined }}
-                            />
-                            {cat
-                              ? `${cat.icon || "🛒"} ${cat.name}`
-                              : "Kategorisiz"}
-                          </span>
-                          <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate tracking-tight">
-                            {e.description || "Harcama açıklaması girmediniz"}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-semibold bg-white/70 dark:bg-black/30 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
-                          <Calendar className={`w-3 h-3 ${theme.amountColor}`} />{" "}
-                          {new Date(e.date).toLocaleDateString("tr-TR")}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3 relative z-10 shrink-0">
-                        <span className={`font-black text-base sm:text-lg ${theme.amountColor} font-mono tracking-tight drop-shadow-xs`}>
-                          -{format(e.amount)}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleOpenEditExpense(e)}
-                            className="p-2 text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/80 dark:text-white/80 dark:hover:text-white dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                            title="Düzenle"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onDeleteExpense(e.id)}
-                            className="p-2 text-rose-600 hover:text-rose-700 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 dark:text-rose-200 dark:hover:text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:border-rose-400/30 rounded-xl transition cursor-pointer backdrop-blur-xs shadow-xs"
-                            title="Sil"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
+                      e={e}
+                      idx={idx}
+                      cat={cat}
+                      theme={theme}
+                      isNew={isNew}
+                      format={format}
+                      onEdit={handleOpenEditExpense}
+                      onDelete={onDeleteExpense}
+                    />
                   );
-                })}
-              </div>
+                }}
+              />
             )}
           </div>
 
