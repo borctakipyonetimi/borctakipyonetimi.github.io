@@ -22,7 +22,7 @@ import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
-import { scheduleNotification, cancelDebtNotifications, createFromTemplate as scheduleTemplateNotifications } from "../utils/notificationScheduler";
+import { scheduleNotification, cancelDebtNotifications } from "../utils/notificationScheduler";
 
 interface DebtListProps {
   debts: Debt[];

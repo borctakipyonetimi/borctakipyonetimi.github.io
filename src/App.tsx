@@ -176,7 +176,7 @@ import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
 import { BiometricAuth, BiyometrikDogrulamaYap } from "./utils/biometricAuth";
-import { scheduleNotification, cancelDebtNotifications, createFromTemplate } from "./utils/notificationScheduler";
+import { scheduleNotification, cancelDebtNotifications } from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
 if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
@@ -2462,7 +2462,7 @@ export default function App() {
       return true;
     }
   });
-  const [splashVisible, setSplashVisible] = useState<boolean>(false);
+
   const [splashProgress, setSplashProgress] = useState(0);
   const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
@@ -2474,50 +2474,7 @@ export default function App() {
   const [selectedProvider, setSelectedProvider] = useState<"google" | "email" | null>(null);
   const splashTimerRef = useRef<any>(null);
 
-  const startSplashAnimation = () => {
-    if (splashTimerRef.current) {
-      clearInterval(splashTimerRef.current);
-    }
-    setSplashProgress(0);
-    setSplashStatus("Sistemler Başlatılıyor...");
-    setSplashVisible(true);
-
-    const totalDuration = 1600; // Ultra-fluid 1.6s high-performance loading flow
-    const intervalTime = 40; // 25 fps state updates to avoid React render lockup
-    const steps = totalDuration / intervalTime;
-    let currentStep = 0;
-
-    splashTimerRef.current = setInterval(() => {
-      currentStep++;
-      const progress = Math.min((currentStep / steps) * 100, 100);
-      setSplashProgress(Math.round(progress));
-
-      if (progress < 30) {
-        setSplashStatus("Sistemler Başlatılıyor...");
-      } else if (progress < 60) {
-        setSplashStatus("Mali Tablolar Hesaplanıyor...");
-      } else if (progress < 90) {
-        setSplashStatus("AI Finans Asistanı Hazırlanıyor...");
-      } else {
-        setSplashStatus("Bağlantı Kuruldu!");
-      }
-
-      if (progress >= 100) {
-        clearInterval(splashTimerRef.current);
-        splashTimerRef.current = null;
-        setTimeout(() => {
-          setSplashVisible(false);
-        }, 50);
-      }
-    }, intervalTime);
-  };
-
   useEffect(() => {
-    // Tanıtım daha önce tamamlanmışsa ve şu an tanıtım gösterilmiyorsa açılış animasyonunu hemen başlat
-    const completed = localStorage.getItem("butcem_onboarding_welcome_v7");
-    if (completed && !showOnboarding) {
-      startSplashAnimation();
-    }
     return () => {
       if (splashTimerRef.current) {
         clearInterval(splashTimerRef.current);
@@ -2533,8 +2490,6 @@ export default function App() {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
     setShowOnboarding(false);
-    // 2 sayfalık tanıtım sayfasından hemen sonra Bütçem Pro egzotik animasyonlu açılış splash sayfası başlar
-    startSplashAnimation();
   };
 
   const handleOnboardingDirectLogin = () => {
@@ -7284,272 +7239,7 @@ export default function App() {
             onDirectLoginClick={handleOnboardingDirectLogin}
           />
         )}
-        {splashVisible && (
-          <motion.div
-            key="premium-splash-loader"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-slate-950 text-white p-6 select-none overflow-hidden"
-          >
-            {/* Background floating visual aesthetics (100% stable, no Math.random hydration bugs) */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
-              {[
-                { left: "12%", top: "20%", duration: 22, text: "₺", delay: 0 },
-                { left: "85%", top: "15%", duration: 18, text: "%", delay: 1 },
-                { left: "75%", top: "78%", duration: 25, text: "$", delay: 2 },
-                { left: "18%", top: "65%", duration: 20, text: "₺", delay: 0.5 },
-                { left: "45%", top: "85%", duration: 28, text: "€", delay: 1.5 },
-                { left: "55%", top: "10%", duration: 24, text: "+", delay: 3 },
-              ].map((p, idx) => (
-                <motion.div
-                  key={idx}
-                  animate={{ 
-                    y: [0, -15, 0],
-                    x: [0, 10, 0],
-                    opacity: [0.15, 0.4, 0.15]
-                  }}
-                  transition={{ 
-                    duration: p.duration, 
-                    repeat: Infinity, 
-                    ease: "easeInOut",
-                    delay: p.delay 
-                  }}
-                  className="absolute text-indigo-400 text-3xl font-black font-mono"
-                  style={{ left: p.left, top: p.top }}
-                >
-                  {p.text}
-                </motion.div>
-              ))}
-            </div>
 
-            {/* Static high-performance glowing gradient backdrops */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
-
-            <div className="text-center space-y-6 max-w-sm w-full relative z-10">
-              {/* Premium Animated 4-Quadrant Logo Loader */}
-              <div className="relative inline-flex flex-col items-center justify-center mx-auto mb-6">
-                {/* Ambient glowing back shadow */}
-                <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl scale-125 pointer-events-none" />
-                <div className="absolute inset-0 bg-cyan-500/15 rounded-full blur-xl pointer-events-none" />
-                
-                {/* Outer spinning dashed ring (Clockwise) with glowing orbit satellite dot */}
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 18, ease: "linear" }}
-                  className="w-44 h-44 border border-dashed border-cyan-400/40 rounded-full absolute flex items-start justify-center"
-                >
-                  <div className="w-2.5 h-2.5 -mt-1 rounded-full bg-cyan-400 shadow-[0_0_12px_#22d3ee] animate-pulse" />
-                </motion.div>
-
-                {/* Middle fast counter-spinning dotted ring */}
-                <motion.div
-                  animate={{ rotate: -360 }}
-                  transition={{ repeat: Infinity, duration: 24, ease: "linear" }}
-                  className="w-38 h-38 border-2 border-dotted border-emerald-400/35 rounded-full absolute flex items-end justify-center"
-                >
-                  <div className="w-2 h-2 -mb-1 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
-                </motion.div>
-
-                {/* Outer glowing pulse border ring */}
-                <motion.div
-                  animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.85, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                  className="w-34 h-34 rounded-full border border-indigo-400/30 absolute pointer-events-none"
-                />
-
-                {/* Main 4-Quadrant Circular Animated Logo */}
-                <motion.div
-                  animate={{
-                    scale: [1, 1.03, 1],
-                    y: [0, -3, 0]
-                  }}
-                  transition={{
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                  className="relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full shadow-[0_0_35px_rgba(14,165,233,0.45)] overflow-hidden flex items-center justify-center p-0.5 bg-slate-900 border-2 border-slate-700/80"
-                >
-                  {/* The 4 Colored Quadrants (Pie Segments) */}
-                  <div className="w-full h-full rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 relative">
-                    {/* 1. Top-Left: Cyan / Blue (Shopping Cart) */}
-                    <div className="bg-[#00b4d8] flex items-center justify-center relative p-2 shadow-inner">
-                      <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
-                    </div>
-
-                    {/* 2. Top-Right: Magenta / Rose (Fuel Pump) */}
-                    <div className="bg-[#e63973] flex items-center justify-center relative p-2 shadow-inner">
-                      <Fuel className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
-                    </div>
-
-                    {/* 3. Bottom-Left: Emerald / Green (Utensils / Food) */}
-                    <div className="bg-[#10b981] flex items-center justify-center relative p-2 shadow-inner">
-                      <Utensils className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
-                    </div>
-
-                    {/* 4. Bottom-Right: Amber / Golden (Coffee / Cafe) */}
-                    <div className="bg-[#eab308] flex items-center justify-center relative p-2 shadow-inner">
-                      <Coffee className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md" />
-                    </div>
-
-                    {/* Center Dark Circular Disc / Hub with Glowing Border */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1e293b] border-2 border-slate-900 shadow-lg flex items-center justify-center z-20">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#090d16] border border-slate-700" />
-                    </div>
-
-                    {/* Subtle division lines between quadrants */}
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-slate-950/60 pointer-events-none z-10" />
-                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-slate-950/60 pointer-events-none z-10" />
-                  </div>
-                </motion.div>
-              </div>
-              
-              {/* Splendid Title Card */}
-              <motion.div
-                initial="hidden"
-                animate="visible"
-                variants={{
-                  hidden: { opacity: 0 },
-                  visible: {
-                    opacity: 1,
-                    transition: { staggerChildren: 0.08 }
-                  }
-                }}
-                className="space-y-3 select-none"
-              >
-                <div className="flex items-center justify-center gap-2 font-black text-3xl sm:text-4xl tracking-tight drop-shadow-[0_0_20px_rgba(99,102,241,0.55)]">
-                  <motion.span
-                    variants={{
-                      hidden: { opacity: 0, y: -20, scale: 0.8 },
-                      visible: { opacity: 1, y: 0, scale: 1 }
-                    }}
-                    transition={{ type: "spring", stiffness: 220, damping: 11 }}
-                    className="text-white inline-block font-black tracking-wider"
-                  >
-                    BÜTÇEM
-                  </motion.span>
-                  
-                  <motion.span
-                    variants={{
-                      hidden: { opacity: 0, y: 20, scale: 1.3, filter: "blur(4px)" },
-                      visible: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }
-                    }}
-                    transition={{ type: "spring", stiffness: 280, damping: 9, delay: 0.2 }}
-                    style={{ textShadow: "0 0 16px rgba(34,211,238,0.85)" }}
-                    className="bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent inline-block font-black tracking-wider"
-                  >
-                    PRO
-                  </motion.span>
-                </div>
-
-                <motion.div
-                  initial={{ scaleX: 0, opacity: 0 }}
-                  animate={{ scaleX: 1, opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.5, ease: "easeOut" }}
-                  className="w-44 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent mx-auto relative"
-                >
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-cyan-300 rounded-full blur-[2px] animate-ping" />
-                </motion.div>
-              </motion.div>
-
-              {/* Progress Slider */}
-              <div className="space-y-3 pt-1">
-                <div className="w-full h-3 bg-slate-900/95 rounded-full border border-white/10 relative p-[2px] overflow-hidden">
-                  {/* Glowing ambient flow back track */}
-                  <div className="absolute inset-x-0 h-full bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-emerald-400/5" />
-                  
-                  <motion.div 
-                    className="h-full rounded-full relative flex items-center justify-end"
-                    initial={{ width: "4%" }}
-                    animate={{ width: `${Math.max(4, splashProgress)}%` }}
-                    transition={{ type: "tween", ease: "linear", duration: 0.05 }}
-                    style={{ 
-                      background: "linear-gradient(90deg, #8b5cf6 0%, #6366f1 40%, #06b6d4 100%)"
-                    }}
-                  >
-                    {/* Glowing front lead cursor tip */}
-                    {splashProgress > 1 && (
-                      <span className="w-1.5 h-1.5 mr-0.5 rounded-full bg-white shadow-[0_0_8px_#ffffff] shrink-0 inline-block animate-pulse" />
-                    )}
-                  </motion.div>
-                </div>
-                
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1">
-                  <span className="animate-pulse flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-indigo-400 animate-ping inline-block" />
-                    {splashStatus}
-                  </span>
-                  <span className="font-mono font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-500/10 shadow-md">{splashProgress}%</span>
-                </div>
-              </div>
-
-              {/* Real-time Loading Systems Checklist */}
-              <div className="bg-slate-900/60 p-3.5 rounded-2xl border border-white/5 space-y-2.5 text-left max-w-xs mx-auto text-[10px] font-bold tracking-wider">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">{splashProgress >= 30 ? "⚡" : "⏳"}</span>
-                    <span className={splashProgress >= 30 ? "text-slate-400 line-through decoration-emerald-500/50" : "text-slate-300"}>
-                      GÜVENLİ VERİ YAPILANDIRMASI
-                    </span>
-                  </div>
-                  <span className={splashProgress >= 30 ? "text-emerald-400 font-extrabold flex items-center gap-1" : "text-indigo-400 animate-pulse font-extrabold"}>
-                    {splashProgress >= 30 ? "TAMAMLANDI ✓" : "YAPILANDIRILIYOR..."}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">{splashProgress >= 65 ? "🧠" : "⏳"}</span>
-                    <span className={splashProgress >= 65 ? "text-slate-400 line-through decoration-emerald-500/50" : "text-slate-300"}>
-                      AKILLI FİNANS MOTORU
-                    </span>
-                  </div>
-                  <span className={splashProgress >= 65 ? "text-emerald-400 font-extrabold flex items-center gap-1" : splashProgress >= 30 ? "text-indigo-400 animate-pulse font-extrabold" : "text-slate-500"}>
-                    {splashProgress >= 65 ? "HAZIR ✓" : splashProgress >= 30 ? "YÜKLENİYOR" : "BEKLENİYOR"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">{splashProgress >= 90 ? "📡" : "⏳"}</span>
-                    <span className={splashProgress >= 90 ? "text-slate-400 line-through decoration-emerald-500/50" : "text-slate-300"}>
-                      PUSH ALARM SUNUCUSU
-                    </span>
-                  </div>
-                  <span className={splashProgress >= 90 ? "text-emerald-400 font-extrabold flex items-center gap-1" : splashProgress >= 65 ? "text-indigo-400 animate-pulse font-extrabold" : "text-slate-500"}>
-                    {splashProgress >= 90 ? "BAĞLANDI ✓" : splashProgress >= 65 ? "YÜKLENİYOR" : "BEKLENİYOR"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Fast forward skip button for super fast launch */}
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => {
-                  setSplashProgress(100);
-                  setSplashStatus("Sistemler Kısayolla Başlatıldı!");
-                  setTimeout(() => {
-                    setSplashVisible(false);
-                  }, 80);
-                }}
-                className="px-6 py-2.5 rounded-full bg-white border border-indigo-100 text-xs font-black uppercase text-indigo-950 tracking-wider shadow-lg hover:bg-slate-100 cursor-pointer select-none transition-all flex items-center gap-2 mx-auto"
-              >
-                <span>HEMEN BAŞLA</span>
-                <span className="text-amber-500 text-sm">⚡</span>
-              </motion.button>
-            </div>
-
-            {/* Footer info lock */}
-            <div className="absolute bottom-6 text-[9px] text-slate-400 tracking-widest uppercase font-black text-center space-y-0.5">
-              <div>Bütçem v1.0</div>
-              <div className="text-[7.5px] text-slate-500 font-mono tracking-normal text-center">Secure AES-256 Workspace Ingress • Verified</div>
-            </div>
-          </motion.div>
-        )}
       </AnimatePresence>
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}

@@ -48,6 +48,39 @@ export const PLAY_PRODUCTS: Record<string, ProductInfo> = {
     saving: "Tek Seferlik",
     badge: "ÖMÜR BOYU LİSANS",
     planType: "lifetime"
+  },
+  butcem_pro_aylik: {
+    identifier: "butcempro_monthly",
+    price: 49.99,
+    priceString: "₺49,99 / Ay",
+    title: "Aylık Premium",
+    description: "Her ay otomatik yenilenen tam yetkili premium erişim.",
+    subscriptionPeriod: "P1M",
+    saving: "Aylık Yenilenen",
+    badge: "ESNEK PLAN",
+    planType: "monthly"
+  },
+  butcem_pro_yillik: {
+    identifier: "butcempro_yearly",
+    price: 399.99,
+    priceString: "₺399,99 / Yıl",
+    title: "Yıllık Premium (En Popüler)",
+    description: "Yıllık tasarruflu paket ile tüm özelliklere kesintisiz erişim.",
+    subscriptionPeriod: "P1Y",
+    saving: "Tasarruf: %35",
+    badge: "EN POPÜLER",
+    planType: "yearly"
+  },
+  butcem_pro_sinirsiz: {
+    identifier: "butcempro_lifetime",
+    price: 999.99,
+    priceString: "₺999,99",
+    title: "Ömür Boyu Sınırsız Lisans",
+    description: "Tek seferlik ödeme ile ömür boyu tüm pro özellikler sizin olsun.",
+    subscriptionPeriod: "LIFETIME",
+    saving: "Tek Seferlik",
+    badge: "ÖMÜR BOYU LİSANS",
+    planType: "lifetime"
   }
 };
 
