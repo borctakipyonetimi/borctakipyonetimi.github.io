@@ -597,7 +597,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
     <AnimatePresence>
       <div 
         id="provider-login-modal-backdrop"
-        className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[1000] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+        className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[999999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       >
         <motion.div
           id="provider-login-modal-card"

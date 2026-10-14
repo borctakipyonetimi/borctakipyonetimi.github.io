@@ -133,7 +133,7 @@ import { GuestCheckoutAuthModal } from "./components/GuestCheckoutAuthModal";
 import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid, checkUserTrialUsedInFirestore, markTrialUsedInFirestore } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
-import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
+import { WelcomeScreen } from "./views/WelcomeScreen";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
@@ -2463,8 +2463,6 @@ export default function App() {
     }
   });
 
-  const [splashProgress, setSplashProgress] = useState(0);
-  const [splashStatus, setSplashStatus] = useState("Veriler Güvenle Yükleniyor...");
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
   const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
     return !localStorage.getItem("currentUser") && !localStorage.getItem("skip_initial_login");
@@ -2472,23 +2470,16 @@ export default function App() {
   const [providerLoginInitialTab, setProviderLoginInitialTab] = useState<"premium" | "guest_trial">("premium");
   const [providerLoginInitialSubMode, setProviderLoginInitialSubMode] = useState<"login" | "register">("login");
   const [selectedProvider, setSelectedProvider] = useState<"google" | "email" | null>(null);
-  const splashTimerRef = useRef<any>(null);
-
-  useEffect(() => {
-    return () => {
-      if (splashTimerRef.current) {
-        clearInterval(splashTimerRef.current);
-      }
-    };
-  }, [showOnboarding]);
 
   const handleCompleteOnboarding = () => {
     try {
       localStorage.setItem("butcem_onboarding_welcome_v7", "true");
       localStorage.setItem("butcem_onboarding_completed_v7", "true");
+      localStorage.setItem("skip_initial_login", "true");
     } catch (e) {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
+    setProviderLoginOpen(false);
     setShowOnboarding(false);
   };
 
@@ -2500,12 +2491,6 @@ export default function App() {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
     setShowOnboarding(false);
-    setSplashVisible(false);
-    if (splashTimerRef.current) {
-      clearInterval(splashTimerRef.current);
-      splashTimerRef.current = null;
-    }
-
     setSelectedProvider("email");
     setProviderLoginOpen(true);
   };
@@ -2559,6 +2544,11 @@ export default function App() {
     setProviderLoginOpen(false);
     setSelectedProvider(null);
     setSessionTerminatedReason(null);
+    setShowOnboarding(false);
+    try {
+      localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+      localStorage.setItem("butcem_onboarding_completed_v7", "true");
+    } catch (_) {}
 
     // 1. KENDİ E-POSTAM (info.borcodemetakip@gmail.com) veya Lisanslı Premium
     if (isTestSuperAccount || finalIsPremium) {
@@ -2674,6 +2664,11 @@ export default function App() {
       }
 
       if (user) {
+        setShowOnboarding(false);
+        try {
+          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+          localStorage.setItem("butcem_onboarding_completed_v7", "true");
+        } catch {}
         // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
         sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
           setSessionTerminatedReason(reason);
@@ -7230,16 +7225,23 @@ export default function App() {
     <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
       <AnimatePresence mode="wait">
         {showOnboarding && (
-          <OnboardingWalkthrough
-            key="onboarding-walkthrough-modal"
-            onComplete={handleCompleteOnboarding}
-            language={language}
-            isPremium={isPremium}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
-            onDirectLoginClick={handleOnboardingDirectLogin}
+          <WelcomeScreen
+            key="welcome-screen-root"
+            onLoginClick={() => {
+              setProviderLoginInitialTab("premium");
+              setProviderLoginInitialSubMode("login");
+              setSelectedProvider("email");
+              setProviderLoginOpen(true);
+            }}
+            onRegisterClick={() => {
+              setProviderLoginInitialTab("premium");
+              setProviderLoginInitialSubMode("register");
+              setSelectedProvider("email");
+              setProviderLoginOpen(true);
+            }}
+            onGuestContinue={handleCompleteOnboarding}
           />
         )}
-
       </AnimatePresence>
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
@@ -12438,8 +12440,10 @@ export default function App() {
             </motion.div>
           </div>
         )}
-        {/* Vade Uyarı Bandı Hız & Akış Hızlı Ayar Modalı */}
-        <AnimatePresence>
+      </AnimatePresence>
+
+      {/* Vade Uyarı Bandı Hız & Akış Hızlı Ayar Modalı */}
+      <AnimatePresence>
           {isMarqueeSpeedModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
               <motion.div
@@ -12600,7 +12604,6 @@ export default function App() {
             </div>
           )}
         </AnimatePresence>
-      </AnimatePresence>
-    </div>
-  );
-}
+      </div>
+    );
+  }

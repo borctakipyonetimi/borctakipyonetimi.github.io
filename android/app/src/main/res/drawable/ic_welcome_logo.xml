@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#050814"
+        android:pathData="M0,0h108v108h-108z"/>
+    <!-- Outer Glowing Ring -->
+    <path
+        android:strokeColor="#6366F1"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M54,18 A36,36 0 1,1 53.9,18 Z"/>
+    <!-- Accent Shield / Wallet Symbol -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M54,28 L74,38 L74,58 C74,70 54,82 54,82 C54,82 34,70 34,58 L34,38 Z"/>
+    <!-- Inner Emblem -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,42 C49.5,42 46,45.5 46,50 C46,54.5 49.5,58 54,58 C58.5,58 62,54.5 62,50 C62,45.5 58.5,42 54,42 Z M54,45 C56.8,45 59,47.2 59,50 C59,52.8 56.8,55 54,55 C51.2,55 49,52.8 49,50 C49,47.2 51.2,45 54,45 Z"/>
+    <!-- Sparkle Star -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M78,24 L80,30 L86,32 L80,34 L78,40 L76,34 L70,32 L76,30 Z"/>
+</vector>
