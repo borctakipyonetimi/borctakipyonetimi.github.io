@@ -2465,6 +2465,10 @@ export default function App() {
 
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
   const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
+    const onboardingWelcomeDone = localStorage.getItem("butcem_onboarding_welcome_v7");
+    if (!onboardingWelcomeDone) {
+      return false;
+    }
     return !localStorage.getItem("currentUser") && !localStorage.getItem("skip_initial_login");
   });
   const [providerLoginInitialTab, setProviderLoginInitialTab] = useState<"premium" | "guest_trial">("premium");
@@ -2694,37 +2698,42 @@ export default function App() {
           localStorage.setItem("is_guest", "false");
           localStorage.setItem("premium_source", "login");
         } else {
-          getDoc(doc(firestore, "users", user.uid))
-            .then((docSnap) => {
-              if (docSnap.exists()) {
-                const uData = docSnap.data();
-                if (uData.hasUsedTrial === true || uData.trialStartDate) {
-                  setHasUsedTrial(true);
-                  localStorage.setItem("has_used_trial", "true");
-                }
-                if (uData.isGuest === true) {
-                  setIsPremium(false);
-                  localStorage.setItem("is_premium", "false");
-                  localStorage.setItem("is_guest", "true");
-                  checkUserTrialExpiration(user, uData);
-                } else if (uData.isPremium === true && uData.isGuest !== true) {
-                  setIsPremium(true);
-                  setIsTrialExpiredLocked(false);
-                  localStorage.setItem("is_premium", "true");
-                  localStorage.setItem("is_guest", "false");
-                  localStorage.setItem("premium_source", "login");
+          if (auth.currentUser) {
+            getDoc(doc(firestore, "users", user.uid))
+              .then((docSnap) => {
+                if (docSnap.exists()) {
+                  const uData = docSnap.data();
+                  if (uData.hasUsedTrial === true || uData.trialStartDate) {
+                    setHasUsedTrial(true);
+                    localStorage.setItem("has_used_trial", "true");
+                  }
+                  if (uData.isGuest === true) {
+                    setIsPremium(false);
+                    localStorage.setItem("is_premium", "false");
+                    localStorage.setItem("is_guest", "true");
+                    checkUserTrialExpiration(user, uData);
+                  } else if (uData.isPremium === true && uData.isGuest !== true) {
+                    setIsPremium(true);
+                    setIsTrialExpiredLocked(false);
+                    localStorage.setItem("is_premium", "true");
+                    localStorage.setItem("is_guest", "false");
+                    localStorage.setItem("premium_source", "login");
+                  } else {
+                    setIsPremium(false);
+                    localStorage.setItem("is_premium", "false");
+                    checkUserTrialExpiration(user, uData);
+                  }
                 } else {
-                  setIsPremium(false);
-                  localStorage.setItem("is_premium", "false");
-                  checkUserTrialExpiration(user, uData);
+                  checkUserTrialExpiration(user, null);
                 }
-              } else {
+              })
+              .catch((err) => {
+                console.warn("Firestore user fetch permitted/handled error:", err?.message);
                 checkUserTrialExpiration(user, null);
-              }
-            })
-            .catch(() => {
-              checkUserTrialExpiration(user, null);
-            });
+              });
+          } else {
+            checkUserTrialExpiration(user, null);
+          }
 
           // email_xxx formatındaki dokümanı da kontrol et
           if (cleanUserEmail && cleanUserEmail !== "info.borcodemetakip@gmail.com") {
@@ -3788,12 +3797,14 @@ export default function App() {
 
         // A) Firestore Senkronizasyonu (Zaman Aşımı Korumalı & Hata İzolasyonlu)
         try {
-          await withTimeout(
-            setDoc(doc(firestore, "users", fbUser.uid), firestorePayload, { merge: true }),
-            6000,
-            "Firestore sunucu yanıt zaman aşımı"
-          );
-          console.log("☁️ Firestore bulut kaydı başarıyla tamamlandı.");
+          if (auth.currentUser) {
+            await withTimeout(
+              setDoc(doc(firestore, "users", fbUser.uid), firestorePayload, { merge: true }),
+              6000,
+              "Firestore sunucu yanıt zaman aşımı"
+            );
+            console.log("☁️ Firestore bulut kaydı başarıyla tamamlandı.");
+          }
         } catch (fErr: any) {
           console.warn("⚠️ Firestore doğrudan kayıt uyarısı / zaman aşımı:", fErr?.message || fErr);
         }
