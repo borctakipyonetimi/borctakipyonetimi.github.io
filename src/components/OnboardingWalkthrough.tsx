@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { authService } from "../services/authService";
 import { ProviderLoginModal } from "./ProviderLoginModal";
+import financePattern from "../assets/images/finance_pattern_1_1791945743028.jpg";
 
 interface SlideItem {
   id: number;
@@ -24,13 +25,13 @@ export const OnboardingWalkthrough: React.FC<{
   const [logoError, setLogoError] = useState(false);
 
   const slides: SlideItem[] = [
-    { 
+      { 
       id: 0, 
       title: "Hoş Geldiniz", 
       subtitle: "Bütçenizi akıllıca yönetin.", 
       gradient: "from-blue-900 to-indigo-950", 
       icon: "🚀",
-      backgroundImage: "/src/assets/images/finance_pattern_1_1791945743028.jpg",
+      backgroundImage: financePattern,
       features: ["Tüm hesaplarınız tek yerde", "Kişisel finans takibi", "Güvenli ve şeffaf veri"]
     },
     { 
@@ -39,7 +40,7 @@ export const OnboardingWalkthrough: React.FC<{
       subtitle: "Borçlarınızı detaylı grafiklerle görün.", 
       gradient: "from-orange-900 to-red-950", 
       icon: "📈",
-      backgroundImage: "/src/assets/images/finance_pattern_1_1791945743028.jpg",
+      backgroundImage: financePattern,
       features: ["Detaylı borç dökümü", "Görsel ödeme takibi", "Taksit planlama"]
     },
     { 
@@ -48,7 +49,7 @@ export const OnboardingWalkthrough: React.FC<{
       subtitle: "Ödemelerinizi anlık takip edin.", 
       gradient: "from-emerald-900 to-green-950", 
       icon: "✅",
-      backgroundImage: "/src/assets/images/finance_pattern_1_1791945743028.jpg",
+      backgroundImage: financePattern,
       features: ["Otomatik hatırlatıcılar", "Yaklaşan borç uyarıları", "Ödeme geçmişi"]
     },
     { 
@@ -57,7 +58,7 @@ export const OnboardingWalkthrough: React.FC<{
       subtitle: "Hemen yönetmeye başlayın.", 
       gradient: "from-cyan-900 to-blue-950", 
       icon: "✨",
-      backgroundImage: "/src/assets/images/finance_pattern_1_1791945743028.jpg",
+      backgroundImage: financePattern,
       features: ["Hızlı kurulum", "Kişiselleştirilmiş kontrol paneli", "Her yerden erişim"]
     }
   ];
@@ -76,7 +77,7 @@ export const OnboardingWalkthrough: React.FC<{
           {slides[currentSlide].backgroundImage && (
             <img 
               src={slides[currentSlide].backgroundImage} 
-              alt="Background" 
+              alt="" 
               className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" 
             />
           )}
