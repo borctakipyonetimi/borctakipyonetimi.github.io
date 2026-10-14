@@ -6,58 +6,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && (
-        request.auth.uid == userId ||
-        (request.auth.token.email != null && userId == request.auth.token.email) ||
-        (request.auth.token.email != null && userId == ('email_' + request.auth.token.email.replace('[^a-zA-Z0-9_]', '_'))) ||
-        (resource != null && resource.data.email == request.auth.token.email) ||
-        (resource != null && resource.data.userUid == request.auth.uid) ||
-        (request.resource != null && request.resource.data.email == request.auth.token.email)
-      );
-    }
-
     // Secure kullanicilar collection for authenticated owner
     match /kullanicilar/{userId} {
-      allow read, write: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (request.auth.token.email != null && userId.matches('^email_.*'))
-      );
+      allow read, write: if isSignedIn();
 
       match /{document=**} {
-        allow read, write: if isSignedIn() && (
-          request.auth.uid == userId ||
-          (request.auth.token.email != null && userId.matches('^email_.*'))
-        );
+        allow read, write: if isSignedIn();
       }
     }
 
     // Secure users workspace doc and subcollections
     match /users/{userId} {
-      // Allow reading user profile doc for authentication, device binding, and premium status verification
-      allow read: if true;
-      allow write: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (request.auth.token.email != null && resource != null && resource.data.email == request.auth.token.email) ||
-        (request.auth.token.email != null && request.resource != null && request.resource.data.email == request.auth.token.email) ||
-        (resource != null && resource.data.userUid == request.auth.uid) ||
-        (request.auth.token.email != null && userId.matches('^email_.*'))
-      );
+      allow read, write: if isSignedIn();
 
-      // Subcollections (debts, history, transactions, etc.) remain strictly locked to authenticated owner
       match /{document=**} {
-        allow read, write: if isSignedIn() && (
-          request.auth.uid == userId ||
-          (request.auth.token.email != null && userId.matches('^email_.*'))
-        );
+        allow read, write: if isSignedIn();
       }
     }
 

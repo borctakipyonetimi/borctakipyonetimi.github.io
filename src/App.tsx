@@ -3155,34 +3155,42 @@ export default function App() {
           setIsOfflineMode(false);
           setFirestoreErrorMessage(null);
 
-          // Realtime Database bağlantısını online tut
-          try {
-            goOnline(db);
-          } catch (netErr: any) {
-            console.warn("Realtime Database goOnline uyarısı:", netErr?.message || netErr);
-          }
-
-          // 1. Birincil kontrol: doğrudan kullanicilar/KULLANICI_UID/veriler düğümü
           const primaryVerilerRef = ref(db, `kullanicilar/${fbUser.uid}/veriler`);
-          let snap = await get(primaryVerilerRef);
+          let loadedFromCloud = false;
 
-          // 2. Yedek kontrol: kullanicilar/KULLANICI_UID veya users/KULLANICI_UID/veriler
-          if (!snap.exists()) {
-            snap = await get(ref(db, `users/${fbUser.uid}/veriler`));
-          }
-          if (!snap.exists()) {
-            snap = await get(ref(db, `kullanicilar/${fbUser.uid}`));
-          }
-          if (!snap.exists()) {
-            snap = await get(ref(db, `users/${fbUser.uid}`));
+          // 1. Birincil kaynak: Cloud Firestore (Güvenli ve izin kuralları tam)
+          try {
+            const userDocSnap = await getDoc(doc(firestore, "users", fbUser.uid));
+            if (userDocSnap.exists()) {
+              const uData = userDocSnap.data();
+              applyDataPayload(uData);
+              loadedFromCloud = true;
+            }
+          } catch (fLoadErr: any) {
+            console.warn("Firestore load uyarısı:", fLoadErr?.message || fLoadErr);
           }
 
-          if (snap.exists() && snap.val()) {
-            const val = snap.val();
-            const resolvedData = val.veriler ? val.veriler : val;
-            applyDataPayload(resolvedData);
-          } else {
-            // Yerel hafızadaki verileri kontrol et ve Realtime Database'e ilk eşitlemeyi yap
+          // 2. Yedek kaynak: Realtime Database (İzin reddi veya hata durumunda sessizce geçilir)
+          if (!loadedFromCloud) {
+            try {
+              const primaryVerilerRef = ref(db, `kullanicilar/${fbUser.uid}/veriler`);
+              let snap = await get(primaryVerilerRef);
+              if (!snap.exists()) {
+                snap = await get(ref(db, `users/${fbUser.uid}/veriler`));
+              }
+              if (snap.exists() && snap.val()) {
+                const val = snap.val();
+                const resolvedData = val.veriler ? val.veriler : val;
+                applyDataPayload(resolvedData);
+                loadedFromCloud = true;
+              }
+            } catch (rtdbLoadErr: any) {
+              console.warn("Realtime Database yükleme yoksayıldı (izin veya ağ):", rtdbLoadErr?.message || rtdbLoadErr);
+            }
+          }
+
+          // 3. Bulutta veri bulunamadıysa LocalStorage'a başvur
+          if (!loadedFromCloud) {
             const cleanEmail = fbUser.email ? fbUser.email.toLowerCase() : null;
             const spaceKey = cleanEmail ? `user_${cleanEmail}` : `user_${fbUser.uid}`;
             const localDataStr = localStorage.getItem(spaceKey) || (currentUser ? localStorage.getItem(`user_${currentUser}`) : null);
@@ -3190,7 +3198,7 @@ export default function App() {
               try {
                 const parsed = JSON.parse(localDataStr);
                 applyDataPayload(parsed);
-                const payload = veriyiTemizle({
+                const payload = deepCleanForFirestore({
                   ...parsed,
                   email: cleanEmail || "",
                   emailLower: cleanEmail || "",
@@ -3199,17 +3207,9 @@ export default function App() {
                   premiumPlan: localStorage.getItem("premium_plan") || "yearly",
                   updatedAt: Date.now()
                 });
-                await Promise.all([
-                  set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), payload),
-                  set(ref(db, `users/${fbUser.uid}/veriler`), payload)
-                ]);
+                setDoc(doc(firestore, "users", fbUser.uid), payload, { merge: true }).catch(() => {});
               } catch (initErr: any) {
-                const initErrCode = initErr?.code || "HATA";
-                const initErrMsg = initErr?.message || String(initErr);
-                const fullInitErr = `[${initErrCode}] ${initErrMsg}`;
-                console.warn("Realtime Database ilk kayıt hatası:", fullInitErr);
-                setFirestoreErrorMessage(`Database İlk Başlatma Hatası: ${fullInitErr}`);
-                triggerToast(`İlk Kayıt Hatası: ${fullInitErr}`, 5000);
+                console.warn("Yerel veri çözümleme uyarısı:", initErr);
                 loadFromLocalStorage();
               }
             } else {

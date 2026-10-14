@@ -70,7 +70,10 @@ export interface SaveSessionParams {
  * - Ağ gecikmelerinde veya Android WebView'da ekranın takılı kalmaması için süre kısıtı (timeout) ile korunmuştur.
  */
 export async function saveUserSessionToFirestore(params: SaveSessionParams): Promise<void> {
-  const { userId, email, isPremium, isGuest, deviceId, premiumType, premiumExpiryDate, productId, createdAt } = params;
+  const authUid = auth.currentUser?.uid;
+  const targetUserId = authUid || params.userId;
+  const userId = targetUserId;
+  const { email, isPremium, isGuest, deviceId, premiumType, premiumExpiryDate, productId, createdAt } = params;
   const cleanEmail = (email || "").trim().toLowerCase();
   const isSuperTestEmail = cleanEmail === "info.borcodemetakip@gmail.com";
   const now = new Date().toISOString();
@@ -80,7 +83,7 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
 
   // Var olan createdAt alanını korumak için kontrol et
   let determinedCreatedAt = createdAt;
-  const userDocRef = doc(firestore, "users", userId);
+  const userDocRef = doc(firestore, "users", targetUserId);
 
   if (!determinedCreatedAt) {
     try {
