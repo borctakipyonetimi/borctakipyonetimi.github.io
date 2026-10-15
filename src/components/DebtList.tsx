@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins, Receipt, Zap } from "lucide-react";
+import { PlusCircle, Printer, FileText, CheckCircle2, Circle, AlertCircle, Edit, Trash2, Calendar, ClipboardList, ArrowUpDown, Sparkles, Camera, X, BellRing, Copy, ArrowRightLeft, Save, Download, Upload, FolderInput, Folder, FileJson, RotateCcw, Search, Coins, Receipt, Zap, CheckSquare, Square } from "lucide-react";
 import { Debt, InstallmentDebt, Expense } from "../types";
 import { VirtualList } from "./VirtualList";
 import { DebtItemCard, DEBT_CARD_THEMES } from "./DebtItemCard";
@@ -51,6 +51,7 @@ interface DebtListProps {
   focusedDebtId?: number | null;
   setFocusedDebtId?: (id: number | null) => void;
   onResetPayments?: (scope: "current_month" | "all") => void;
+  triggerToast?: (msg: string, duration?: number) => void;
 }
 
 export const DebtList: React.FC<DebtListProps> = ({
@@ -76,6 +77,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   focusedDebtId,
   setFocusedDebtId,
   onResetPayments,
+  triggerToast,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
@@ -746,6 +748,38 @@ export const DebtList: React.FC<DebtListProps> = ({
     const start = (currentPage - 1) * itemsPerPage;
     return filteredDebts.slice(start, start + itemsPerPage);
   }, [filteredDebts, currentPage, itemsPerPage]);
+
+  const handleToggleSelect = useCallback((id: number) => {
+    setSelectedDebtIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleSelectAllCurrentPage = useCallback(() => {
+    const pageIds = paginatedDebts.map((d) => d.id);
+    const allSelected = pageIds.every((id) => selectedDebtIds.includes(id));
+    if (allSelected) {
+      setSelectedDebtIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+    } else {
+      setSelectedDebtIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    }
+  }, [paginatedDebts, selectedDebtIds]);
+
+  const handlePaySelected = useCallback(() => {
+    if (selectedDebtIds.length === 0) return;
+    let count = 0;
+    selectedDebtIds.forEach((id) => {
+      const debt = debts.find((d) => d.id === id);
+      if (debt && debt.paid < debt.amount) {
+        onToggleDebtPaid(id);
+        count++;
+      }
+    });
+    if (triggerToast) {
+      triggerToast(`🎉 ${count > 0 ? count : selectedDebtIds.length} adet borç 'Ödendi' olarak işaretlendi!`);
+    }
+    setSelectedDebtIds([]);
+  }, [selectedDebtIds, debts, onToggleDebtPaid, triggerToast]);
 
   const renderPagination = (position: "top" | "bottom") => {
     if (totalPages <= 1) return null;
@@ -1886,13 +1920,34 @@ export const DebtList: React.FC<DebtListProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Header info badge */}
-            <div className="flex items-center justify-between flex-wrap gap-2.5 px-1 py-1 mb-1">
+            {/* Header info badge & Batch Selection Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-1 py-1 mb-1">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-100/90 dark:bg-indigo-950/50 border border-indigo-300/80 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300 text-xs font-black shadow-xs">
                   <Coins className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Toplam {filteredDebts.length} Borç Kaydı (Sayfa başına 5 kart)</span>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleSelectAllCurrentPage}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-600 shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <CheckSquare className="w-4 h-4 text-indigo-500" />
+                  <span>{paginatedDebts.every(d => selectedDebtIds.includes(d.id)) && paginatedDebts.length > 0 ? "Sayfa Seçimini Kaldır" : "Sayfadaki Tümünü Seç"}</span>
+                </button>
+                {selectedDebtIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handlePaySelected}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/30 transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                    <span>Seçilenleri Öde ({selectedDebtIds.length})</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1913,6 +1968,8 @@ export const DebtList: React.FC<DebtListProps> = ({
                     onEdit={handleOpenEdit}
                     onDelete={onDeleteDebt}
                     onTogglePaid={onToggleDebtPaid}
+                    isSelected={selectedDebtIds.includes(d.id)}
+                    onToggleSelect={handleToggleSelect}
                   />
                 );
               })}

@@ -7663,11 +7663,11 @@ export default function App() {
               }
             }}
             title={`Bildirimler ve Alarmlar (${notifications.length})`}
-            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
+            className="p-2 sm:p-2.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 active:scale-95 rounded-2xl transition-all text-amber-300 flex items-center justify-center duration-300 cursor-pointer shadow-md relative shrink-0"
           >
-            <Bell className="w-4 h-4 text-indigo-300 hover:text-white transition-colors" />
+            <Bell className="w-6 h-6 text-amber-400 animate-pulse hover:text-white transition-colors" />
             {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] font-black h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center ring-1 ring-slate-900 shadow-md">
+              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-mono text-[10px] font-black h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center ring-2 ring-slate-900 shadow-lg">
                 {notifications.length}
               </span>
             )}
@@ -8816,6 +8816,7 @@ export default function App() {
             focusedDebtId={focusedDebtId}
             setFocusedDebtId={setFocusedDebtId}
             onResetPayments={handleResetPayments}
+            triggerToast={triggerToast}
           />
         )}
 

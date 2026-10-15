@@ -5,7 +5,7 @@
 
 import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Edit, Trash2, CheckCircle2, Circle, Calendar, Coins, BellRing } from "lucide-react";
+import { Edit, Trash2, CheckCircle2, Circle, Calendar, Coins, BellRing, CheckSquare, Square } from "lucide-react";
 import { Debt } from "../types";
 import { ProviderBadge } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
@@ -121,6 +121,8 @@ export interface DebtItemCardProps {
   onEdit: (d: Debt) => void;
   onDelete: (id: number) => void;
   onTogglePaid: (id: number) => void;
+  isSelected?: boolean;
+  onToggleSelect?: (id: number) => void;
 }
 
 function DebtItemCardComponent({
@@ -131,6 +133,8 @@ function DebtItemCardComponent({
   onEdit,
   onDelete,
   onTogglePaid,
+  isSelected = false,
+  onToggleSelect,
 }: DebtItemCardProps) {
   const isPaid = d.paid >= d.amount;
 
@@ -196,8 +200,26 @@ function DebtItemCardComponent({
       <div className="space-y-3 flex-1 relative z-10">
         {/* Top Header Row: Logo & Name on Left, Order Number on Right */}
         <div className="flex items-center justify-between gap-2.5">
-          {/* Sol Üst Köşe: Logo & Borç Adı */}
+          {/* Sol Üst Köşe: Seçim Kutucuğu, Logo & Borç Adı */}
           <div className="flex items-center gap-2.5 min-w-0">
+            {onToggleSelect && (
+              <button
+                type="button"
+                onClick={() => onToggleSelect(d.id)}
+                className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                  isSelected
+                    ? "bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400"
+                    : "bg-slate-200/90 hover:bg-slate-300 text-slate-500 dark:bg-white/15 dark:hover:bg-white/25 dark:text-white/70"
+                }`}
+                title={isSelected ? "Seçimi Kaldır" : "Borcu Seç"}
+              >
+                {isSelected ? (
+                  <CheckSquare className="w-4 h-4 text-white" />
+                ) : (
+                  <Square className="w-4 h-4 text-slate-500 dark:text-white/70" />
+                )}
+              </button>
+            )}
             {provider ? (
               <div className="shrink-0">
                 <ProviderBadge providerId={provider.id} size="md" showLabel={false} />
