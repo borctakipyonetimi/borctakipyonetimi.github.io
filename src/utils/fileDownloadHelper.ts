@@ -241,6 +241,32 @@ export async function savePdfDocument(doc: any, fileName: string): Promise<boole
   // Ensure valid .pdf extension
   const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
 
+  // 0. File System Access API (Allow user to pick download location / Save As dialog in modern desktop/mobile browsers)
+  if (typeof window !== "undefined" && typeof (window as any).showSaveFilePicker === "function") {
+    try {
+      const opts = {
+        suggestedName: safeName,
+        types: [{
+          description: "PDF Document",
+          accept: { "application/pdf": [".pdf"] }
+        }]
+      };
+      const handle = await (window as any).showSaveFilePicker(opts);
+      const writable = await handle.createWritable();
+      const pdfBlob = doc.output("blob");
+      await writable.write(pdfBlob);
+      await writable.close();
+      return true;
+    } catch (pickerErr: any) {
+      if (pickerErr?.name !== "AbortError") {
+        console.warn("[savePdfDocument] showSaveFilePicker error:", pickerErr);
+      } else {
+        // User cancelled picker dialog
+        return false;
+      }
+    }
+  }
+
   // 1. Capacitor Native Platform (Android / iOS APK)
   if (Capacitor.isNativePlatform()) {
     try {

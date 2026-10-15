@@ -293,13 +293,13 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
         language
       });
       if (res.success) {
-        setPdfSuccessMessage(`📄 '${res.fileName}' başarıyla oluşturuldu ve cihazınıza indirildi!`);
-        setTimeout(() => setPdfSuccessMessage(null), 6000);
+        setPdfSuccessMessage(`📄 '${res.fileName}' başarıyla oluşturuldu ve cihazınıza kaydedildi!`);
+        setTimeout(() => setPdfSuccessMessage(null), 12000);
       }
     } catch (err: any) {
       console.error("Annual PDF generation error:", err);
       setPdfSuccessMessage(`⚠️ PDF oluşturulurken hata: ${err?.message || "Bilinmeyen hata"}`);
-      setTimeout(() => setPdfSuccessMessage(null), 6000);
+      setTimeout(() => setPdfSuccessMessage(null), 12000);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -364,12 +364,21 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
 
       {pdfSuccessMessage && (
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-2 shadow-sm"
+          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="p-4 bg-emerald-500/15 dark:bg-emerald-950/70 border-2 border-emerald-500/50 rounded-3xl text-xs sm:text-sm font-black text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-3 shadow-xl backdrop-blur-md"
         >
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{pdfSuccessMessage}</span>
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 animate-bounce" />
+            <span>{pdfSuccessMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPdfSuccessMessage(null)}
+            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black transition cursor-pointer shrink-0 shadow-sm"
+          >
+            Kapat
+          </button>
         </motion.div>
       )}
 

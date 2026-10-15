@@ -1686,11 +1686,13 @@ export default function App() {
       if (capGranted) {
         setHasNotificationPermission("granted");
         triggerToast("Cihaz Bildirim İzni Verildi 🔔");
-        sendSystemNotification(
-          "Anlık Bildirimler Aktif!", 
-          "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
-          false
-        );
+        try {
+          sendSystemNotification(
+            "Anlık Bildirimler Aktif!", 
+            "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
+            false
+          );
+        } catch {}
         return;
       }
     } catch (capErr) {
@@ -1702,6 +1704,7 @@ export default function App() {
 
     if (!hasNotification && !hasServiceWorker) {
       setHasNotificationPermission("granted");
+      triggerToast("Tarayıcınız bildirimleri destekliyor.");
       return;
     }
 
@@ -1713,11 +1716,13 @@ export default function App() {
         
         if (permission === "granted") {
           triggerToast("Telefon Bildirim İzni Verildi 🔔");
-          sendSystemNotification(
-            "Anlık Bildirimler Aktif!", 
-            "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
-            false
-          );
+          try {
+            sendSystemNotification(
+              "Anlık Bildirimler Aktif!", 
+              "Bütçem Pro bildirimleri artık telefonunuzun bildirim çekmecesine ulaştırılacak.",
+              false
+            );
+          } catch {}
         } else if (permission === "denied") {
           triggerToast("⚠️ Bildirim izni reddedildi. Cihaz/tarayıcı ayarlarından izin verebilirsiniz.");
         }
@@ -1727,6 +1732,7 @@ export default function App() {
     } catch (e) {
       console.error("Permission request error:", e);
       setHasNotificationPermission("granted");
+      triggerToast("Tarayıcı veya cihaz ayarlarından bildirim izinlerini manuel olarak aktif edebilirsiniz.");
     }
 
     try {

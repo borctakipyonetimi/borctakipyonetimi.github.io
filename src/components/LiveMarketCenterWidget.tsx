@@ -16,12 +16,14 @@ interface LiveMarketCenterWidgetProps {
   onAskAI?: (prompt: string) => void;
   className?: string;
   showConverter?: boolean;
+  triggerToast?: (msg: string) => void;
 }
 
 export const LiveMarketCenterWidget: React.FC<LiveMarketCenterWidgetProps> = ({
   onAskAI,
   className = "",
-  showConverter = true
+  showConverter = true,
+  triggerToast
 }) => {
   const {
     rates: exchangeRates,
@@ -51,9 +53,15 @@ export const LiveMarketCenterWidget: React.FC<LiveMarketCenterWidgetProps> = ({
   const handleRefreshRates = async () => {
     setIsManualRefreshing(true);
     try {
-      await updateRatesFromAPI(true);
+      const success = await updateRatesFromAPI(true);
+      if (triggerToast) {
+        triggerToast(success ? "✅ Canlı Döviz ve Altın Fiyatları Güncellendi!" : "⚠️ Güncel kurlar önbellekten yüklendi.");
+      }
     } catch (e) {
       console.warn("Kurlar yenilenirken hata:", e);
+      if (triggerToast) {
+        triggerToast("⚠️ Ağ hatası: Çevrimdışı/önbellek kurları kullanılıyor.");
+      }
     } finally {
       setTimeout(() => setIsManualRefreshing(false), 500);
     }
