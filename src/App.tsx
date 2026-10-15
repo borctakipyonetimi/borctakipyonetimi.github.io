@@ -1870,11 +1870,29 @@ export default function App() {
       const isGranted = hasNotification && (Notification.permission === "granted" || (Notification as any).permission === "granted");
 
       if (isGranted) {
-        const appIcon = window.location.origin + "/logo.png";
-        let sentWithSW = false;
-
         const systemNotifTitle = title || "📊 Bütçem Pro: Güncel Vade Özeti";
         const systemNotifBody = officialSmsMessage;
+        const appIcon = window.location.origin + "/notification-icon.png";
+        let dynamicIcon = appIcon;
+        const lowerCombined = ((systemNotifTitle || "") + " " + (systemNotifBody || "")).toLowerCase();
+        if (lowerCombined.includes("halkbank") || lowerCombined.includes("halk bank")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/halkbank.png";
+        } else if (lowerCombined.includes("garanti")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/garanti.png";
+        } else if (lowerCombined.includes("ziraat")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/ziraat.png";
+        } else if (lowerCombined.includes("iş bank") || lowerCombined.includes("isbank")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/isbank.png";
+        } else if (lowerCombined.includes("vakıfbank") || lowerCombined.includes("vakifbank")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/vakifbank.png";
+        } else if (lowerCombined.includes("yapı kredi") || lowerCombined.includes("yapikredi")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/yapikredi.png";
+        } else if (lowerCombined.includes("akbank")) {
+          dynamicIcon = window.location.origin + "/logos/emblems/akbank.png";
+        }
+
+        let sentWithSW = false;
+
         const uniqueTag = fixedNotifId ? `alarm-${fixedNotifId}` : ("butcempro-alert-" + Date.now());
         const shouldRenotify = !fixedNotifId; // Özel alarmlarda renotify false yapılarak çift bildirim engellenir
 
@@ -1885,8 +1903,9 @@ export default function App() {
             if (isNative) {
               const directNotif = new Notification(systemNotifTitle, {
                 body: systemNotifBody,
-                icon: appIcon,
+                icon: dynamicIcon,
                 badge: appIcon,
+                image: dynamicIcon,
                 vibrate: [300, 100, 300, 100, 400],
                 tag: uniqueTag,
                 renotify: shouldRenotify,
@@ -1909,8 +1928,9 @@ export default function App() {
           const deliverViaSw = (reg: ServiceWorkerRegistration) => {
             reg.showNotification(systemNotifTitle, {
               body: systemNotifBody,
-              icon: appIcon,
+              icon: dynamicIcon,
               badge: appIcon,
+              image: dynamicIcon,
               vibrate: [300, 100, 300, 100, 400],
               tag: uniqueTag,
               renotify: shouldRenotify,
@@ -7663,11 +7683,11 @@ export default function App() {
               }
             }}
             title={`Bildirimler ve Alarmlar (${notifications.length})`}
-            className="p-2 sm:p-2.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 active:scale-95 rounded-2xl transition-all text-amber-300 flex items-center justify-center duration-300 cursor-pointer shadow-md relative shrink-0"
+            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
           >
-            <Bell className="w-6 h-6 text-amber-400 animate-pulse hover:text-white transition-colors" />
+            <Bell className="w-4 h-4 text-indigo-300 hover:text-white transition-colors" />
             {notifications.length > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-mono text-[10px] font-black h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center ring-2 ring-slate-900 shadow-lg">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] font-black h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center ring-1 ring-slate-900 shadow-md">
                 {notifications.length}
               </span>
             )}

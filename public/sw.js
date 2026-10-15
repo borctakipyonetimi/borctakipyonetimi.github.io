@@ -86,6 +86,24 @@ function getDebtCategoryEmoji(name = "", category = "") {
   return "💳";
 }
 
+// Helper to resolve prominent, high-res notification icon (supports bank emblems like Halkbank)
+function resolveNotificationIcon(title, body, fallbackIcon) {
+  const combined = ((title || "") + " " + (body || "")).toLowerCase();
+  const origin = self.location.origin;
+  if (combined.includes("halkbank") || combined.includes("halk bank")) return origin + "/logos/emblems/halkbank.png";
+  if (combined.includes("garanti")) return origin + "/logos/emblems/garanti.png";
+  if (combined.includes("ziraat")) return origin + "/logos/emblems/ziraat.png";
+  if (combined.includes("iş bank") || combined.includes("isbank")) return origin + "/logos/emblems/isbank.png";
+  if (combined.includes("vakıfbank") || combined.includes("vakifbank")) return origin + "/logos/emblems/vakifbank.png";
+  if (combined.includes("yapı kredi") || combined.includes("yapikredi")) return origin + "/logos/emblems/yapikredi.png";
+  if (combined.includes("akbank")) return origin + "/logos/emblems/akbank.png";
+  if (combined.includes("enpara")) return origin + "/logos/emblems/enpara.png";
+  if (combined.includes("denizbank")) return origin + "/logos/emblems/denizbank.png";
+  if (combined.includes("qnb")) return origin + "/logos/emblems/qnb.png";
+  if (combined.includes("kuveyt")) return origin + "/logos/emblems/kuveytturk.png";
+  return fallbackIcon || (origin + "/notification-icon.png");
+}
+
 /**
  * Ödenmemiş tüm borçlar için son ödeme tarihine 3 gün kaladan son güne kadar
  * her gün saat 09:30'a otomatik yerel alarm nesneleri üretir.
@@ -208,11 +226,12 @@ function rescheduleAlarms() {
     // 1. Check if Notification Triggers are natively supported (PWA offline scheduled notifications when closed)
     if (delay > 0 && 'showTrigger' in self.Notification.prototype && typeof self.TimestampTrigger !== 'undefined') {
       try {
+        const notifIcon = resolveNotificationIcon(alarm.title, alarm.body, appIcon);
         self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.body || alarm.title || "Planlanmış ödeme hatırlatıcı zamanı!",
-          icon: appIcon,
+          icon: notifIcon,
           badge: appIcon,
-          image: appIcon,
+          image: notifIcon,
           vibrate: alarm.silent ? [] : [200, 100, 200, 100, 300],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -232,11 +251,12 @@ function rescheduleAlarms() {
     // 2. Active background setTimeout fallback
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
       const timerId = setTimeout(() => {
+        const notifIcon = resolveNotificationIcon(alarm.title, alarm.body, appIcon);
         self.registration.showNotification(alarm.title || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!", {
           body: alarm.body || alarm.title || "Hatırlatıcı zamanı geldi! ⏰",
-          icon: appIcon,
+          icon: notifIcon,
           badge: appIcon,
-          image: appIcon,
+          image: notifIcon,
           vibrate: alarm.silent ? [] : [300, 100, 300, 100, 400],
           tag: `alarm-${alarm.id || Date.now()}`,
           renotify: true,
@@ -812,13 +832,14 @@ self.addEventListener("push", (event) => {
   }
 
   const appIcon = self.location.origin + "/notification-icon.png";
+  const dynamicIcon = resolveNotificationIcon(data.title, data.body, data.icon || appIcon);
   const targetUrl = data.url || "/?tab=notifications";
 
   const notifOptions = {
     body: data.body || "Planlanmış alarm / ödeme hatırlatması! ⏰",
-    icon: data.icon || appIcon,
-    badge: data.badge || appIcon,
-    image: data.image || appIcon,
+    icon: dynamicIcon,
+    badge: appIcon,
+    image: dynamicIcon,
     vibrate: data.silent ? [] : (data.vibrate || [500, 150, 500, 150, 400, 100, 200, 100, 500]),
     tag: data.tag || `alarm-${data.alarmId || Date.now()}`,
     renotify: true,

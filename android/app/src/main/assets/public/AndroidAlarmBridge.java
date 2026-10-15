@@ -16,6 +16,9 @@ import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -212,6 +215,60 @@ public class AndroidAlarmBridge {
         showNotificationInternal(title, message, false);
     }
 
+    public static Bitmap getNotificationLargeIcon(Context context, String title, String message) {
+        if (context == null) return null;
+        try {
+            String combined = ((title != null ? title : "") + " " + (message != null ? message : "")).toLowerCase(Locale.ROOT);
+            String matchedBank = null;
+            if (combined.contains("halkbank") || combined.contains("halk bank")) matchedBank = "halkbank";
+            else if (combined.contains("ziraat")) matchedBank = "ziraat";
+            else if (combined.contains("garanti")) matchedBank = "garanti";
+            else if (combined.contains("iş bank") || combined.contains("isbank")) matchedBank = "isbank";
+            else if (combined.contains("vakıfbank") || combined.contains("vakifbank")) matchedBank = "vakifbank";
+            else if (combined.contains("yapı kredi") || combined.contains("yapikredi")) matchedBank = "yapikredi";
+            else if (combined.contains("akbank")) matchedBank = "akbank";
+            else if (combined.contains("enpara")) matchedBank = "enpara";
+            else if (combined.contains("denizbank")) matchedBank = "denizbank";
+            else if (combined.contains("qnb")) matchedBank = "qnb";
+            else if (combined.contains("kuveyt")) matchedBank = "kuveytturk";
+
+            if (matchedBank != null) {
+                String[] candidatePaths = new String[]{
+                    "public/logos/emblems/" + matchedBank + ".png",
+                    "logos/emblems/" + matchedBank + ".png"
+                };
+                for (String path : candidatePaths) {
+                    try (InputStream is = context.getAssets().open(path)) {
+                        Bitmap bmp = BitmapFactory.decodeStream(is);
+                        if (bmp != null) return bmp;
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // Fallback: App Large Notification Icon
+        try {
+            int largeIconRes = context.getResources().getIdentifier("ic_stat_notify_large", "drawable", context.getPackageName());
+            if (largeIconRes == 0) {
+                largeIconRes = context.getResources().getIdentifier("notification_icon", "drawable", context.getPackageName());
+            }
+            if (largeIconRes == 0) {
+                largeIconRes = context.getApplicationInfo().icon;
+            }
+            if (largeIconRes != 0) {
+                Bitmap bmp = BitmapFactory.decodeResource(context.getResources(), largeIconRes);
+                if (bmp != null) return bmp;
+            }
+        } catch (Exception ignored) {}
+
+        // Fallback from assets
+        try (InputStream is = context.getAssets().open("public/notification-icon.png")) {
+            return BitmapFactory.decodeStream(is);
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
     private void showNotificationInternal(String title, String message, boolean isSilent) {
         try {
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -227,13 +284,32 @@ public class AndroidAlarmBridge {
             PendingIntent pendingIntent = PendingIntent.getActivity(context, notifId, intent, flags);
 
             String channelToUse = isSilent ? SILENT_CHANNEL_ID : CHANNEL_ID;
+
+            int smallIconRes = 0;
+            try {
+                smallIconRes = context.getResources().getIdentifier("ic_stat_notify", "drawable", context.getPackageName());
+            } catch (Exception ignored) {}
+            if (smallIconRes == 0) {
+                smallIconRes = context.getApplicationInfo().icon;
+            }
+            if (smallIconRes == 0) {
+                smallIconRes = android.R.drawable.ic_dialog_info;
+            }
+
+            Bitmap largeIcon = getNotificationLargeIcon(context, title, message);
+
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelToUse)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(smallIconRes)
+                    .setColor(0xFF10B981)
                     .setContentTitle(title)
                     .setContentText(message)
                     .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
                     .setAutoCancel(true)
                     .setContentIntent(pendingIntent);
+
+            if (largeIcon != null) {
+                builder.setLargeIcon(largeIcon);
+            }
 
             if (isSilent) {
                 builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -502,13 +578,32 @@ public class AndroidAlarmBridge {
                 PendingIntent pendingIntent = PendingIntent.getActivity(context, id, mainIntent, flags);
 
                 String channelToUse = isSilent ? SILENT_CHANNEL_ID : CHANNEL_ID;
+
+                int smallIconRes = 0;
+                try {
+                    smallIconRes = context.getResources().getIdentifier("ic_stat_notify", "drawable", context.getPackageName());
+                } catch (Exception ignored) {}
+                if (smallIconRes == 0) {
+                    smallIconRes = context.getApplicationInfo().icon;
+                }
+                if (smallIconRes == 0) {
+                    smallIconRes = android.R.drawable.ic_lock_idle_alarm;
+                }
+
+                Bitmap largeIcon = getNotificationLargeIcon(context, title, message);
+
                 NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelToUse)
-                        .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                        .setSmallIcon(smallIconRes)
+                        .setColor(0xFF10B981)
                         .setContentTitle(title)
                         .setContentText(message)
                         .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
                         .setAutoCancel(true)
                         .setContentIntent(pendingIntent);
+
+                if (largeIcon != null) {
+                    builder.setLargeIcon(largeIcon);
+                }
 
                 if (isSilent) {
                     builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
