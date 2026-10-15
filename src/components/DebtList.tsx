@@ -84,7 +84,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
-  const itemsPerPage = 8;
+  const itemsPerPage = 5;
 
   // Template Manager States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -733,6 +733,59 @@ export const DebtList: React.FC<DebtListProps> = ({
         return 0;
       });
   }, [debts, activeTab, searchQuery, selectedMonth, selectedYear, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDebts.length / itemsPerPage));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedDebts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredDebts.slice(start, start + itemsPerPage);
+  }, [filteredDebts, currentPage, itemsPerPage]);
+
+  const renderPagination = (position: "top" | "bottom") => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className={`flex items-center justify-center gap-1.5 py-2.5 px-2 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-xs ${position === "top" ? "mb-3" : "mt-3"}`}>
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-2 hidden sm:inline">
+          Sayfa:
+        </span>
+        <button
+          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+          disabled={currentPage === 1}
+          className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50 dark:hover:bg-slate-600 transition cursor-pointer"
+        >
+          Önceki
+        </button>
+        <div className="flex items-center gap-1 overflow-x-auto max-w-[240px] px-1 py-0.5">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+            <button
+              key={pageNum}
+              onClick={() => setCurrentPage(pageNum)}
+              className={`w-8 h-8 shrink-0 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                currentPage === pageNum
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 scale-105"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+              }`}
+            >
+              {pageNum}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50 dark:hover:bg-slate-600 transition cursor-pointer"
+        >
+          Sonraki
+        </button>
+      </div>
+    );
+  };
 
   // Helpers for formatting numbers with dots (e.g., 100.000.000)
   const formatNumberWithDots = (val: string): string => {
@@ -1838,37 +1891,35 @@ export const DebtList: React.FC<DebtListProps> = ({
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-100/90 dark:bg-indigo-950/50 border border-indigo-300/80 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300 text-xs font-black shadow-xs">
                   <Coins className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                  <span>Toplam {filteredDebts.length} Borç Kaydı</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-2xl bg-emerald-100/90 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-black shadow-xs">
-                  <Zap className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  <span>Sanal Liste (60 FPS)</span>
+                  <span>Toplam {filteredDebts.length} Borç Kaydı (Sayfa başına 5 kart)</span>
                 </div>
               </div>
             </div>
 
-            {/* Virtualized List Container */}
-            <VirtualList
-              id="virtual-debt-list"
-              items={filteredDebts}
-              estimateSize={175}
-              overscan={4}
-              maxHeight="720px"
-              containerClassName="gpu-scroll-container pr-1"
-              getItemKey={(d) => d.id}
-              renderItem={(d, itemIdx) => (
-                <DebtItemCard
-                  key={d.id}
-                  d={d}
-                  itemIdx={itemIdx}
-                  totalCount={filteredDebts.length}
-                  format={format}
-                  onEdit={handleOpenEdit}
-                  onDelete={onDeleteDebt}
-                  onTogglePaid={onToggleDebtPaid}
-                />
-              )}
-            />
+            {/* Top Pagination Control */}
+            {renderPagination("top")}
+
+            {/* Paginated Debt Cards List */}
+            <div className="space-y-3">
+              {paginatedDebts.map((d, itemIdx) => {
+                const globalIdx = (currentPage - 1) * itemsPerPage + itemIdx;
+                return (
+                  <DebtItemCard
+                    key={d.id}
+                    d={d}
+                    itemIdx={globalIdx}
+                    totalCount={filteredDebts.length}
+                    format={format}
+                    onEdit={handleOpenEdit}
+                    onDelete={onDeleteDebt}
+                    onTogglePaid={onToggleDebtPaid}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Bottom Pagination Control */}
+            {renderPagination("bottom")}
           </div>
         )}
       </div>

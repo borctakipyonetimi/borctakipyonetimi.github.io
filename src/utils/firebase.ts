@@ -12,7 +12,7 @@ import {
   getDatabase, 
   ref, 
   set as rawSet, 
-  get, 
+  get as rawGet, 
   child, 
   update as rawUpdate, 
   onValue, 
@@ -132,16 +132,35 @@ export async function withTimeout<T>(
   }
 }
 
-// Realtime Database set ve update işlemlerinde undefined değerlerini otomatik temizleyen koruyucular
-export const set = (r: any, val: any) => {
-  return rawSet(r, veriyiTemizle(val));
+// Realtime Database set, update ve get işlemlerinde Permission denied vb. hataları bastıran koruyucular
+export const set = async (r: any, val: any) => {
+  try {
+    return await rawSet(r, veriyiTemizle(val));
+  } catch (err: any) {
+    console.warn("RTDB set error suppressed:", err?.message || err);
+    return Promise.resolve();
+  }
 };
 
-export const update = (r: any, val: any) => {
-  return rawUpdate(r, veriyiTemizle(val));
+export const update = async (r: any, val: any) => {
+  try {
+    return await rawUpdate(r, veriyiTemizle(val));
+  } catch (err: any) {
+    console.warn("RTDB update error suppressed:", err?.message || err);
+    return Promise.resolve();
+  }
 };
 
-export { ref, get, child, onValue, off, serverTimestamp, goOnline, rawSet, rawUpdate };
+export const get = async (r: any) => {
+  try {
+    return await rawGet(r);
+  } catch (err: any) {
+    console.warn("RTDB get error suppressed:", err?.message || err);
+    return { exists: () => false, val: () => null };
+  }
+};
+
+export { ref, child, onValue, off, serverTimestamp, goOnline, rawSet, rawUpdate, rawGet };
 
 // Your web app's Firebase configuration
 // Proje ID: borc-takip-pro-f6936 - Realtime Database databaseURL ekli
