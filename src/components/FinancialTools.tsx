@@ -115,19 +115,64 @@ export function FinancialTools({
   const [emergencyMonthlySaveCap, setEmergencyMonthlySaveCap] = useState<number>(5000);
   const [emergencySavedToast, setEmergencySavedToast] = useState<string>("");
 
-  // 3. Net Varlık (Net Worth) State
-  const [assetCash, setAssetCash] = useState<number>(45000);
-  const [assetGoldFx, setAssetGoldFx] = useState<number>(85000);
-  const [assetInvest, setAssetInvest] = useState<number>(60000);
-  const [assetRealEstate, setAssetRealEstate] = useState<number>(1500000);
-  const [assetVehicle, setAssetVehicle] = useState<number>(450000);
-  const [assetReceivables, setAssetReceivables] = useState<number>(15000);
-  const [assetOther, setAssetOther] = useState<number>(10000);
+  // 3. Net Varlık (Net Worth) State - Derived from actual app records (debts, installments, incomes, expenses, contacts) without hardcoded dummy values
+  const [assetCash, setAssetCash] = useState<number>(() => {
+    try {
+      const savedIncomes = incomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+      const savedExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      return Math.max(0, savedIncomes - savedExpenses);
+    } catch {
+      return 0;
+    }
+  });
+  const [assetGoldFx, setAssetGoldFx] = useState<number>(0);
+  const [assetInvest, setAssetInvest] = useState<number>(0);
+  const [assetRealEstate, setAssetRealEstate] = useState<number>(0);
+  const [assetVehicle, setAssetVehicle] = useState<number>(0);
+  
+  const [assetReceivables, setAssetReceivables] = useState<number>(() => {
+    try {
+      const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+      if (savedT) {
+        const txs = JSON.parse(savedT);
+        return txs.filter((t: any) => t.type === "receivable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+      }
+    } catch {}
+    return 0;
+  });
+  const [assetOther, setAssetOther] = useState<number>(0);
 
-  const [liabCreditCard, setLiabCreditCard] = useState<number>(25000);
-  const [liabBankLoans, setLiabBankLoans] = useState<number>(120000);
-  const [liabPersonalDebts, setLiabPersonalDebts] = useState<number>(30000);
-  const [liabOther, setLiabOther] = useState<number>(5000);
+  const [liabCreditCard, setLiabCreditCard] = useState<number>(() => {
+    try {
+      return (installmentDebts || []).reduce((s, i) => {
+        const single = (i.totalAmount || 0) / (i.installmentCount || 1);
+        return s + (Math.max(0, (i.installmentCount || 1) - (i.paidInstallmentCount || 0)) * single);
+      }, 0);
+    } catch {
+      return 0;
+    }
+  });
+
+  const [liabBankLoans, setLiabBankLoans] = useState<number>(() => {
+    try {
+      return (debts || []).filter(d => (d.amount - (d.paid || 0)) > 0).reduce((s, d) => s + Math.max(0, d.amount - (d.paid || 0)), 0);
+    } catch {
+      return 0;
+    }
+  });
+
+  const [liabPersonalDebts, setLiabPersonalDebts] = useState<number>(() => {
+    try {
+      const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`);
+      if (savedT) {
+        const txs = JSON.parse(savedT);
+        return txs.filter((t: any) => t.type === "payable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+      }
+    } catch {}
+    return 0;
+  });
+
+  const [liabOther, setLiabOther] = useState<number>(0);
   const [netWorthSyncToast, setNetWorthSyncToast] = useState<string>("");
 
   // Local savings goals persistence
