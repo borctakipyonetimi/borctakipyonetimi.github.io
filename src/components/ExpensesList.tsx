@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Expense, ExpenseCategory } from "../types";
+import { EXPENSE_PAYMENT_METHODS } from "../data/paymentMethods";
 import { DoughnutChart, BarChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import ReceiptScanner from "./ReceiptScanner";
@@ -1119,6 +1120,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const [expenseAlarm, setExpenseAlarm] = useState(false);
   const [isCategoryManuallySelected, setIsCategoryManuallySelected] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
 
   // Auto-categorization based on description input
   useEffect(() => {
@@ -1199,6 +1201,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setIsCatDropdownOpen(false);
     setIsCategoryManuallySelected(false);
     setIsRecurring(false);
+    setPaymentMethod("cash");
     
     // Choose dynamic smart default date for past/future monthly addition support
     const today = new Date();
@@ -1224,6 +1227,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
     setIsCatDropdownOpen(false);
     setIsCategoryManuallySelected(true);
     setIsRecurring(e.isRecurring === true);
+    setPaymentMethod(e.paymentMethod || "cash");
     setIsExpModalOpen(true);
   };
 
@@ -1245,6 +1249,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
       description: description.trim(),
       date: date || new Date().toISOString(),
       isRecurring,
+      paymentMethod,
     });
     setIsExpModalOpen(false);
   };
@@ -2470,6 +2475,38 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white font-medium"
                 />
+              </div>
+
+              {/* Ödeme Yöntemi Seçimi */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">
+                  ÖDEME YÖNTEMİ
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {EXPENSE_PAYMENT_METHODS.map((method) => {
+                    const isSelected = paymentMethod === method.id;
+                    return (
+                      <button
+                        key={method.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(method.id)}
+                        className={`p-2 rounded-xl text-left border transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? "bg-rose-50 dark:bg-rose-950/30 border-rose-500/60 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/30"
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm shrink-0">{method.icon}</span>
+                          <span className="text-[11px] font-bold truncate">{method.name}</span>
+                        </div>
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Her Ay Düzenli Gider Checkbox */}

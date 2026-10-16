@@ -1682,29 +1682,35 @@ function parseVoiceCommandOffline(rawText: string): any {
   let categoryId = 1; // Default: Diğer
   let desc = "Gider Kaydı";
   
-  if (cleanNorm.includes("market") || cleanNorm.includes("gıda") || cleanNorm.includes("gida") || cleanNorm.includes("manav") || cleanNorm.includes("süpermarket") || cleanNorm.includes("supermarket")) {
+  if (cleanNorm.includes("market") || cleanNorm.includes("gıda") || cleanNorm.includes("gida") || cleanNorm.includes("manav") || cleanNorm.includes("süpermarket") || cleanNorm.includes("supermarket") || cleanNorm.includes("bakkal")) {
     categoryId = 2; // Market
-    desc = "Market Gideri";
-  } else if (cleanNorm.includes("ulaşım") || cleanNorm.includes("ulasim") || cleanNorm.includes("yol") || cleanNorm.includes("taksi") || cleanNorm.includes("yakıt") || cleanNorm.includes("benzin") || cleanNorm.includes("otobüs") || cleanNorm.includes("bilet")) {
+    desc = "Market Alışverişi";
+  } else if (cleanNorm.includes("ulaşım") || cleanNorm.includes("ulasim") || cleanNorm.includes("yol") || cleanNorm.includes("taksi") || cleanNorm.includes("yakıt") || cleanNorm.includes("yakit") || cleanNorm.includes("benzin") || cleanNorm.includes("mazot") || cleanNorm.includes("otobüs") || cleanNorm.includes("bilet")) {
     categoryId = 3; // Ulaşım
-    desc = "Ulaşım Gideri";
-  } else if (cleanNorm.includes("yemek") || cleanNorm.includes("kafe") || cleanNorm.includes("cafe") || cleanNorm.includes("lokanta") || cleanNorm.includes("restoran") || cleanNorm.includes("döner") || cleanNorm.includes("pizz")) {
+    desc = "Ulaşım / Yakıt";
+  } else if (cleanNorm.includes("yemek") || cleanNorm.includes("kafe") || cleanNorm.includes("cafe") || cleanNorm.includes("lokanta") || cleanNorm.includes("restoran") || cleanNorm.includes("döner") || cleanNorm.includes("pizza") || cleanNorm.includes("kahve")) {
     categoryId = 4; // Yeme İçme
-    desc = "Yemek Gideri";
+    desc = "Yeme & İçme";
   } else if (cleanNorm.includes("fatura") || cleanNorm.includes("elektrik") || cleanNorm.includes("su") || cleanNorm.includes("gaz") || cleanNorm.includes("telefon") || cleanNorm.includes("internet") || cleanNorm.includes("aidat")) {
     categoryId = 5; // Faturalar
-    desc = "Fatura Ödemesi";
-  }
-
-  const cleanedDesc = text.replace(/\d+/g, "").replace(/(gider|harcama|tl|türk lirası|lira|₺|ekle|kaydet|için|icin|satın|aldım|aldim|fatura|ödedim|odedim|ödeme|odeme)/gi, "").trim();
-  if (cleanedDesc.length > 2) {
-    desc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
+    if (cleanNorm.includes("elektrik")) desc = "Elektrik Faturası";
+    else if (cleanNorm.includes("su")) desc = "Su Faturası";
+    else if (cleanNorm.includes("gaz")) desc = "Doğalgaz Faturası";
+    else if (cleanNorm.includes("internet")) desc = "İnternet Faturası";
+    else if (cleanNorm.includes("telefon")) desc = "Telefon Faturası";
+    else if (cleanNorm.includes("aidat")) desc = "Site/Bina Aidatı";
+    else desc = "Fatura Ödemesi";
+  } else {
+    const cleanedDesc = text.replace(/\d+/g, "").replace(/(gider|harcama|tl|türk lirası|lira|₺|ekle|kaydet|yaz|işle|isle|ödedim|odedim|ödeme|odeme|için|icin|satın|aldım|aldim|fatura|bugün|bugun|dün|dun|yarın|yarin)/gi, "").trim();
+    if (cleanedDesc.length > 2) {
+      desc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
+    }
   }
 
   return {
     action: "addExpense",
     expenseData: { amount, description: desc, categoryId },
-    explanation: `🔊 Çevrimdışı Mod: "${desc}" bütçenize ₺${amount} tutarında harcama olarak eklenmiştir.`
+    explanation: `🔊 Çevrimdışı Mod: "${desc}" için ₺${amount} tutarında harcama kaydı hazırlandı.`
   };
 }
 
@@ -1728,22 +1734,22 @@ app.post("/api/voice-command", async (req, res) => {
     const promptText = 
       "Sen 'Bütçem Pro' finans asistanısın. Kullanıcının türkçe sesli bütçe kaydı / komutunu analiz edip bunu yapılandırılmış JSON verisine dönüştüreceksin.\n\n" +
       "Kullanıcı şunları yapabilir:\n" +
-      "1. Borç ekleme (addDebt): Belirli bir şahsı belirtmeyen genel borçlar. Örn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', vb. (Eğer sesli komutta belirli ve özel bir kişi ismi geçiyorsa, bu eylem yerine mutlaka addContactDebt eylemini kullan!)\n" +
-      "2. Kişi alacak verecek ekleme (addContactDebt): Sesli komutta belirli bir şahıs/kişi ismi geçiyorsa (örn: 'Ahmet'e 5000 lira borç verdim', 'Mehmet'ten 3000 lira borç aldım', 'Zeynep'ten 1000 TL alacağım var', 'Ayşe'ye 200 TL borcum var'). Bu durumda contactName (Örn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ayşe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlarını doldur.\n" +
+      "1. Borç ekleme (addDebt): Belirli bir şahsı belirtmeyen genel borçlar. Örn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', 'Kredi kartı 5000 TL' vb.\n" +
+      "2. Kişi alacak/verecek ekleme (addContactDebt): Sesli komutta belirli bir şahıs/kişi ismi geçiyorsa (örn: 'Ahmet'e 5000 TL borç ekle', 'Ahmet'e 5000 lira borç verdim', 'Mehmet'ten 3000 lira borç aldım', 'Zeynep'ten 1000 TL alacağım var', 'Ayşe'ye 200 TL borcum var'). Bu durumda contactName (Örn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ayşe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlarını doldur.\n" +
       "   - 'receivable' (Alacak): Biz ona borç verdiysek ya da ondan bir alacağımız varsa. (Örn: 'borç verdim', 'alacağım var', 'bana borçlu')\n" +
-      "   - 'payable' (Verecek): Ondan borç aldıysak ya da ona bir borcumuz varsa. (Örn: 'borç aldım', 'borcum var', 'ona vereceğim var')\n" +
+      "   - 'payable' (Verecek): Ondan borç aldıysak, ona borç eklediysek ya da ona bir borcumuz varsa. (Örn: 'borç aldım', 'borcum var', 'Ahmet'e 5000 TL borç ekle')\n" +
       "3. Taksit/Taksitli borç ekleme (addInstallment): 'Koltuk takımı 12000 lira 6 taksit', 'Telefon için 24000 TL 12 taksit', vb.\n" +
-      "4. Harcama/Gider ekleme (addExpense): 'Market harcaması 250 lira', 'Benzin aldım 800 TL', 'Yemek 350 lira', vb.\n" +
+      "4. Harcama/Gider ekleme (addExpense): Örn: 'Bugün elektrik faturasına 1200 TL gider yaz', 'Market harcaması 250 lira', 'Benzin aldım 800 TL', 'Yemek 350 lira', vb. description kısmını temiz yaz (örn: 'Elektrik Faturası', 'Market Alışverişi', 'Benzin') ve uygun categoryId ver (1: Diğer, 2: Market, 3: Ulaşım, 4: Yeme İçme, 5: Faturalar).\n" +
       "5. Gelir ekleme (addIncome): 'Maaş yattı 35000 lira', 'Kira geliri aldım 15000 TL', vb.\n" +
       "6. Borç güncelleme / Ödenen kısmı güncelleme (updateDebtPaid): 'Ahmet borcunun ödenen kısmını 500 TL yap', 'Banka kredisi borcunun ödenenini 1000 lira yap', 'Mehmet borcuna 200 TL ödedim' vb.\n" +
       "7. Harcama/Gider silme (deleteExpense): 'Market harcamasını sil', 'Yemek giderini kaldır' vb.\n" +
       "8. Gelir silme (deleteIncome): 'Maaş gelirini kaldır', 'Kira gelirini sil' vb.\n" +
       "9. Borç silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kaldır' vb.\n\n" +
       "Senin görevin, söylenen ifadeyi bu eylemlerden birine sığdırmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri çıkarmaktır. Gerekirse tarihleri bugünün tarihi varsay.\n" +
-      "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Anlaşıldı! Harcama kaydınızı silme işlemini başlatıyorum.'";
+      "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Elektrik faturası için 1.200 TL gider kaydı hazırlandı. Onaylıyor musunuz?'";
 
     const response = await aiClient.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents: [
         { text: promptText },
         { text: `Kullanıcının Sözü: "${text}"` }

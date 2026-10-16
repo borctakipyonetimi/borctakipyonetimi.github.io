@@ -74,9 +74,19 @@ function ExpenseCardItemComponent({
             {e.description || "Harcama açıklaması girmediniz"}
           </span>
         </div>
-        <p className="text-[10px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-semibold bg-white/70 dark:bg-black/30 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
-          <Calendar className={`w-3 h-3 ${theme.amountColor}`} /> {formattedDate}
-        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-[10px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-semibold bg-white/70 dark:bg-black/30 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 w-fit">
+            <Calendar className={`w-3 h-3 ${theme.amountColor}`} /> {formattedDate}
+          </p>
+          {e.paymentMethod && (
+            <span className="text-[10px] text-slate-700 dark:text-slate-300 font-bold bg-white/80 dark:bg-black/40 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-white/10 flex items-center gap-1">
+              {e.paymentMethod === "digital_wallet" ? "👛 Dijital Cüzdan" :
+               e.paymentMethod === "bank_transfer" ? "🏦 Havale / FAST" :
+               e.paymentMethod === "credit_card" ? "💳 Kredi Kartı" :
+               e.paymentMethod === "cash" ? "💵 Nakit" : e.paymentMethod}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 relative z-10 shrink-0">

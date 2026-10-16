@@ -1,309 +1,38 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Mic, 
-  MicOff, 
-  X, 
-  Volume2, 
-  VolumeX, 
-  Check, 
-  AlertCircle, 
-  Sparkles, 
-  Info, 
-  Loader2, 
+import {
+  Mic,
+  MicOff,
+  X,
+  Volume2,
+  VolumeX,
+  Check,
+  AlertCircle,
+  Sparkles,
+  Info,
+  Loader2,
   Send,
   HelpCircle,
   TrendingDown,
   TrendingUp,
   CreditCard,
-  UserCheck
+  UserCheck,
+  Calendar,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  Crown,
+  FileCheck2,
+  RotateCcw
 } from "lucide-react";
 
 import { Debt, Income, Expense, InstallmentDebt } from "../types";
 import { getApiUrl } from "../utils/api";
-
-function convertTurkishWordsToNumbers(text: string): string {
-  let result = text;
-
-  // Replacements for explicit phrases first (order matters: larger compounds first)
-  const explicitPhrases: [RegExp, string][] = [
-    [/(\b)bir milyon(\b)/gi, "1000000"],
-    [/(\b)yüz elli bin(\b)/gi, "150000"],
-    [/(\b)yüz bin(\b)/gi, "100000"],
-    [/(\b)elli bin(\b)/gi, "50000"],
-    [/(\b)kırk bin(\b)/gi, "40000"],
-    [/(\b)otuz bin(\b)/gi, "30000"],
-    [/(\b)yirmi bin(\b)/gi, "20000"],
-    [/(\b)on bin(\b)/gi, "10000"],
-    [/(\b)dokuz bin(\b)/gi, "9000"],
-    [/(\b)sekiz bin(\b)/gi, "8000"],
-    [/(\b)yedi bin(\b)/gi, "7000"],
-    [/(\b)altı bin(\b)/gi, "6000"],
-    [/(\b)beş bin(\b)/gi, "5000"],
-    [/(\b)dört bin(\b)/gi, "4000"],
-    [/(\b)üç bin(\b)/gi, "3000"],
-    [/(\b)iki bin(\b)/gi, "2000"],
-    [/(\b)bin(\b)/gi, "1000"],
-    [/(\b)beş yüz(\b)/gi, "500"],
-    [/(\b)yedi yüz elli(\b)/gi, "750"],
-    [/(\b)yedi yüz(\b)/gi, "700"],
-    [/(\b)sekiz yüz(\b)/gi, "800"],
-    [/(\b)dokuz yüz(\b)/gi, "900"],
-    [/(\b)dört yüz(\b)/gi, "400"],
-    [/(\b)üç yüz(\b)/gi, "300"],
-    [/(\b)iki yüz(\b)/gi, "200"],
-    [/(\b)yüz(\b)/gi, "100"],
-    [/(\b)on iki(\b)/gi, "12"],
-    [/(\b)on altı(\b)/gi, "16"],
-    [/(\b)on sekiz(\b)/gi, "18"],
-    [/(\b)yirmi dört(\b)/gi, "24"],
-    [/(\b)otuz altı(\b)/gi, "36"]
-  ];
-
-  explicitPhrases.forEach(([regex, replacement]) => {
-    result = result.replace(regex, replacement);
-  });
-
-  return result;
-}
-
-function cleanTurkishPersonName(rawName: string): string {
-  let name = rawName.trim();
-  // Strip any apostrophe suffix first e.g. Ahmet'e -> Ahmet
-  if (name.includes("'") || name.includes("’")) {
-    name = name.split(/['"’]/)[0].trim();
-  }
-
-  // Also strip suffix attached without apostrophe (common in browser speech recognition output)
-  // e.g., Ahmete, Ahmetten, Ahmetye, Mehmetten, Mehmetye, Ayseden, Ayseye, Zeynepe
-  name = name.replace(/(den|dan|ten|tan|nin|nın|nun|nün|ye|ya|de|da|te|ta|e|a)$/gi, (match, suffix, offset, fullStr) => {
-    if (fullStr.length - match.length >= 3) {
-      return "";
-    }
-    return match;
-  });
-
-  if (name.length > 0) {
-    name = name.charAt(0).toUpperCase() + name.slice(1);
-  }
-  return name;
-}
-
-function parseVoiceCommandOfflineClient(rawText: string): any {
-  // Convert spoken number words (e.g., "beş bin") to digits ("5000") first
-  const text = convertTurkishWordsToNumbers(rawText);
-  const norm = text.toLowerCase().trim();
-  
-  // Clean text of punctuation and replace some typical Turkish speech transcription artifacts
-  const cleanNorm = norm
-    .replace(/['"’\.]/g, "")
-    .replace(/lira/gi, "tl")
-    .replace(/türk lirası/gi, "tl");
-
-  // Check for deletion first (since it might not contain a number, e.g. "Maaş gelirini sil" or "Ahmet borcunu sil")
-  if (cleanNorm.includes("sil") || cleanNorm.includes("çıkar") || cleanNorm.includes("cikar") || cleanNorm.includes("kaldır") || cleanNorm.includes("kaldir")) {
-    if (cleanNorm.includes("gelir")) {
-      const name = text.replace(/(gelir|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
-      return {
-        action: "deleteIncome",
-        deleteIncomeData: { name },
-        explanation: `🔊 Çevrimdışı Analiz: "${name || 'Gelir'}" unvanlı gelir kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
-      };
-    } else if (cleanNorm.includes("borç") || cleanNorm.includes("borc")) {
-      const name = text.replace(/(borç|borc|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
-      return {
-        action: "deleteDebt",
-        deleteDebtData: { name },
-        explanation: `🔊 Çevrimdışı Analiz: "${name || 'Borç'}" unvanlı borç kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
-      };
-    } else {
-      // Default assume expense
-      const desc = text.replace(/(harcama|gider|sil|çıkar|cikar|kaldır|kaldir|ekle|kaydet|tl|türk lirası|lira|₺)/gi, "").trim();
-      return {
-        action: "deleteExpense",
-        deleteExpenseData: { description: desc },
-        explanation: `🔊 Çevrimdışı Analiz: "${desc || 'Harcama'}" unvanlı harcama kaydınızın silinmesini talep ettiniz. İşlem gerçekleştiriliyor.`
-      };
-    }
-  }
-
-  // Extract all numbers
-  const numMatches = [...cleanNorm.matchAll(/(\d+[\d\s,.]*)/g)];
-  if (numMatches.length === 0) {
-    return {
-      action: "unknown",
-      explanation: `🤔 Söylediğiniz ifadede herhangi bir tutar/sayı algılayamadım: "${rawText}". Lütfen: "Ahmet 5000 lira borç verdim", "Market 150 TL" gibi bir tutar belirterek söyleyin.`
-    };
-  }
-
-  // Parse the first number found (amount)
-  let amount = 0;
-  const rawNum1 = numMatches[0][1].replace(/\s/g, "");
-  if (rawNum1.includes(",") && rawNum1.includes(".")) {
-    amount = parseFloat(rawNum1.replace(/\./g, "").replace(/,/g, "."));
-  } else if (rawNum1.includes(",")) {
-    const parts = rawNum1.split(",");
-    if (parts[1].length <= 2) {
-      amount = parseFloat(rawNum1.replace(/,/g, "."));
-    } else {
-      amount = parseFloat(rawNum1.replace(/,/g, ""));
-    }
-  } else {
-    amount = parseFloat(rawNum1);
-  }
-
-  amount = isNaN(amount) ? 0 : amount;
-
-  if (amount <= 0) {
-    return {
-      action: "unknown",
-      explanation: `🤔 Söylediğiniz ifadedeki tutar geçersiz: "${rawText}". Lütfen geçerli bir miktar belirtin.`
-    };
-  }
-
-  // 1. Taksit (taksit, ay taksit, taksitle)
-  if (cleanNorm.includes("taksit")) {
-    let installmentCount = 12; // default
-    if (numMatches.length >= 2) {
-      const parsedCount = parseInt(numMatches[1][1].replace(/\s/g, ""));
-      if (!isNaN(parsedCount) && parsedCount > 0) {
-        installmentCount = parsedCount;
-      }
-    }
-    
-    let name = "Taksit Planı";
-    const cleanedName = text.replace(/\d+/g, "").replace(/(taksit|taksitli|tl|türk lirası|lira|₺|ekle|kaydet|borç|borc|için|icin)/gi, "").trim();
-    if (cleanedName.length > 2) {
-      name = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
-    }
-
-    return {
-      action: "addInstallment",
-      installmentData: {
-        name,
-        totalAmount: amount,
-        installmentCount,
-        paidInstallmentCount: 0,
-        firstDueDate: new Date().toISOString().slice(0, 10)
-      },
-      explanation: `🔊 Çevrimdışı Analiz: ${installmentCount} Ay taksitli "${name}" (Toplam: ₺${amount}) planınız başarıyla tanımlandı.`
-    };
-  }
-
-  // 2. Income/Gelir (gelir, maaş, alacak, aldım, kazandım, yattı, yatti, yatta)
-  if (cleanNorm.includes("gelir") || cleanNorm.includes("maaş") || cleanNorm.includes("maas") || cleanNorm.includes("kazandım") || cleanNorm.includes("kazandim") || cleanNorm.includes("yattı") || cleanNorm.includes("yatti") || cleanNorm.includes("yatta")) {
-    let name = "Sesli Gelir";
-    const cleanedName = text.replace(/\d+/g, "").replace(/(gelir|maaş|maas|tl|türk lirası|lira|₺|ekle|kaydet|aldım|aldim|kazandım|kazandim|yattı|yatti|yatta|için|icin|alacak)/gi, "").trim();
-    if (cleanedName.length > 2) {
-      name = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
-    }
-
-    return {
-      action: "addIncome",
-      incomeData: { name, amount, date: new Date().toISOString().slice(0, 10) },
-      explanation: `🔊 Çevrimdışı Analiz: "${name}" bütçenize ₺${amount} tutarında gelir olarak eklenmiştir.`
-    };
-  }
-
-  // 3. Debt update (e.g., 'Ahmet borcunun ödenen kısmını 500 TL yap' or 'Mehmet borcuna 200 TL ödedim')
-  if ((cleanNorm.includes("borç") || cleanNorm.includes("borc")) && (cleanNorm.includes("ödenen") || cleanNorm.includes("yap") || cleanNorm.includes("güncelle") || cleanNorm.includes("guncelle") || cleanNorm.includes("öde") || cleanNorm.includes("ode") || cleanNorm.includes("tutar") || cleanNorm.includes("miktar"))) {
-    const isAbsolute = cleanNorm.includes("yap") || cleanNorm.includes("olsun") || cleanNorm.includes("eşitle") || cleanNorm.includes("esitle");
-    
-    let debtName = "";
-    const matchName = text.match(/^(.*?)(?:borç|borc|ödenen|ode|yap|güncelle|tutar|miktar)/i);
-    if (matchName && matchName[1].trim().length > 1) {
-      debtName = cleanTurkishPersonName(matchName[1]);
-    }
-
-    if (debtName) {
-      return {
-        action: "updateDebtPaid",
-        updateDebtData: {
-          name: debtName,
-          paidAmount: amount,
-          isAbsolute
-        },
-        explanation: `🔊 Çevrimdışı Analiz: "${debtName}" borcunun ödenen kısmı ₺${amount} olarak ${isAbsolute ? 'güncellenecektir.' : 'artırılacaktır.'}`
-      };
-    }
-  }
-
-  // 4. Debt/Borç (borç, borc, verecek, borçlandım, aldım, borclandim, borçlandık, borclandik, alacak)
-  if (cleanNorm.includes("borç") || cleanNorm.includes("borc") || cleanNorm.includes("borçlandım") || cleanNorm.includes("borclandim") || cleanNorm.includes("borçlandık") || cleanNorm.includes("borclandik") || cleanNorm.includes("verecek") || cleanNorm.includes("alacak") || cleanNorm.includes("borcum")) {
-    let name = "Sesli Borç";
-    const cleanedName = text.replace(/\d+/g, "").replace(/(borç|borc|tl|türk lirası|lira|₺|ekle|kaydet|borçlandım|borclandim|borçlandık|borclandik|için|icin|verecek|alacak|verdim|aldım|borcum)/gi, "").trim();
-    if (cleanedName.length > 2) {
-      name = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
-    }
-
-    const rawBaseName = name.split(/['"’\s-]/)[0].replace(/[0-9]/g, "");
-    const baseName = cleanTurkishPersonName(rawBaseName);
-    const isPerson = cleanNorm.includes("verdim") || cleanNorm.includes("aldım") || cleanNorm.includes("alacağım") || cleanNorm.includes("alacagim") || cleanNorm.includes("borcum") || cleanNorm.includes("vereceğim") || cleanNorm.includes("verecegim") || (cleanedName.length < 25 && !cleanNorm.includes("banka") && !cleanNorm.includes("kart") && !cleanNorm.includes("kredi"));
-
-    if (isPerson && baseName.length > 1) {
-      const isReceivable = cleanNorm.includes("verdim") || cleanNorm.includes("alacak") || cleanNorm.includes("alacağım") || cleanNorm.includes("alacagim") || cleanNorm.includes("bana borç") || cleanNorm.includes("bana borc");
-      const pType = isReceivable ? "receivable" : "payable";
-
-      return {
-        action: "addContactDebt",
-        contactDebtData: {
-          contactName: baseName,
-          amount,
-          type: pType,
-          description: "Sesli kayıt ile otomatik oluşturuldu"
-        },
-        explanation: `🔊 Çevrimdışı Analiz: Kişi rehberinizdeki "${baseName}" isimli kişiye ₺${amount} tutarında ${pType === "receivable" ? "alacak" : "verecek/borç"} kaydı başarıyla eklenmiştir.`
-      };
-    }
-
-    let debtCategory = "Şahıs";
-    if (cleanNorm.includes("banka") || cleanNorm.includes("kredi")) debtCategory = "Banka";
-    else if (cleanNorm.includes("kart")) debtCategory = "Kredi Kartı";
-    else if (cleanNorm.includes("fatura")) debtCategory = "Fatura";
-    else if (cleanNorm.includes("aidat")) debtCategory = "Aidat";
-
-    return {
-      action: "addDebt",
-      debtData: {
-        name,
-        amount,
-        paid: 0,
-        category: debtCategory,
-        dueDate: new Date().toISOString().slice(0, 10)
-      },
-      explanation: `🔊 Çevrimdışı Analiz: "${name}" olarak ₺${amount} değerinde yeni bir borç eklenmiştir.`
-    };
-  }
-
-  // 5. Default Fallback -> It is an Expense! (market, gıda, yemek, fatura, benzin, vb. or simply general phrase with numbers)
-  let categoryId = 1; // Default: Diğer
-  let desc = "Gider Kaydı";
-  
-  if (cleanNorm.includes("market") || cleanNorm.includes("gıda") || cleanNorm.includes("gida") || cleanNorm.includes("manav") || cleanNorm.includes("süpermarket") || cleanNorm.includes("supermarket")) {
-    categoryId = 2; // Market
-    desc = "Market Gideri";
-  } else if (cleanNorm.includes("ulaşım") || cleanNorm.includes("ulasim") || cleanNorm.includes("yol") || cleanNorm.includes("taksi") || cleanNorm.includes("yakıt") || cleanNorm.includes("benzin") || cleanNorm.includes("otobüs") || cleanNorm.includes("bilet")) {
-    categoryId = 3; // Ulaşım
-    desc = "Ulaşım Gideri";
-  } else if (cleanNorm.includes("yemek") || cleanNorm.includes("kafe") || cleanNorm.includes("cafe") || cleanNorm.includes("lokanta") || cleanNorm.includes("restoran") || cleanNorm.includes("döner") || cleanNorm.includes("pizz")) {
-    categoryId = 4; // Yeme İçme
-    desc = "Yemek Gideri";
-  } else if (cleanNorm.includes("fatura") || cleanNorm.includes("elektrik") || cleanNorm.includes("su") || cleanNorm.includes("gaz") || cleanNorm.includes("telefon") || cleanNorm.includes("internet") || cleanNorm.includes("aidat")) {
-    categoryId = 5; // Faturalar
-    desc = "Fatura Ödemesi";
-  }
-
-  const cleanedDesc = text.replace(/\d+/g, "").replace(/(gider|harcama|tl|türk lirası|lira|₺|ekle|kaydet|için|icin|satın|aldım|aldim|fatura|ödedim|odedim|ödeme|odeme)/gi, "").trim();
-  if (cleanedDesc.length > 2) {
-    desc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
-  }
-
-  return {
-    action: "addExpense",
-    expenseData: { amount, description: desc, categoryId },
-    explanation: `🔊 Çevrimdışı Analiz: "${desc}" bütçenize ₺${amount} tutarında harcama olarak eklenmiştir.`
-  };
-}
+import speechService from "../services/speechService";
+import {
+  parseFinancialVoiceCommand,
+  ParsedVoiceCommand
+} from "../utils/financialVoiceParser";
 
 interface VoiceAssistantProps {
   debts?: Debt[];
@@ -314,7 +43,12 @@ interface VoiceAssistantProps {
   onSaveIncome: (incData: any) => void;
   onSaveExpense: (expData: any) => void;
   onSaveInstallment: (instData: any) => void;
-  onSaveContactTx?: (contactName: string, amount: number, type: "receivable" | "payable", description?: string) => void;
+  onSaveContactTx?: (
+    contactName: string,
+    amount: number,
+    type: "receivable" | "payable",
+    description?: string
+  ) => void;
   onDeleteDebt?: (id: number) => void;
   onDeleteIncome?: (id: number) => void;
   onDeleteExpense?: (id: number) => void;
@@ -348,243 +82,134 @@ export default function VoiceAssistant({
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [manualInput, setManualInput] = useState("");
-  const [status, setStatus] = useState<"idle" | "listening" | "processing" | "success" | "error">("idle");
-  const [aiResponse, setAiResponse] = useState<any>(null);
+  const [status, setStatus] = useState<
+    "idle" | "listening" | "processing" | "confirming" | "success" | "error"
+  >("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [isSupported, setIsSupported] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [micVolume, setMicVolume] = useState<number>(0);
 
-  const recognitionRef = useRef<any>(null);
-  const isActiveRef = useRef(false);
-  const accumulatedTranscriptRef = useRef<string>("");
+  // Doğrudan Onay Bekleyen Kayıt Formu Durumu
+  const [pendingCommand, setPendingCommand] = useState<ParsedVoiceCommand | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editDate, setEditDate] = useState("");
+  const [editCategory, setEditCategory] = useState<number | string>(1);
+  const [editContactType, setEditContactType] = useState<"receivable" | "payable">("payable");
+  const [editInstallmentCount, setEditInstallmentCount] = useState<number>(12);
+
+  // Son başarılı işlem açıklaması
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const isSupported = speechService.isSupported();
 
   useEffect(() => {
-    // Check initial support for speech recognition cross-browser / webview
-    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      setIsSupported(false);
-    }
-
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.onstart = null;
-          recognitionRef.current.onresult = null;
-          recognitionRef.current.onerror = null;
-          recognitionRef.current.onend = null;
-          recognitionRef.current.abort();
-        } catch (_) {}
-        recognitionRef.current = null;
-      }
+      speechService.stopListening();
+      speechService.stopSpeaking();
     };
   }, []);
 
-  const speakText = (text: string) => {
-    if (!("speechSynthesis" in window)) return;
-    try {
-      // Cancel previous speakings
-      window.speechSynthesis.cancel();
-
-      // Clean emojis and replace currency signs so they are read beautifully in Turkish
-      let cleanedText = text.replace(/₺/g, " TL");
-      // Remove standard emojis and generic pictographs/decorations
-      cleanedText = cleanedText.replace(/[\u{1F300}-\u{1F9FF}\u{1F400}-\u{1F6FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}]/gu, '');
-      // Remove explicit symbolic characters
-      cleanedText = cleanedText.replace(/[⏺️✔️❌🔊🤔👍👎📢🔔✨🌸⭐🌟⏰💼👥📈📉💹🛒🛠️📅🗓️🗺️❓❔❕❗]/gu, '');
-      cleanedText = cleanedText.replace(/\s+/g, " ").trim();
-
-      const utterance = new SpeechSynthesisUtterance(cleanedText);
-      utterance.lang = "tr-TR";
-      // Find a natural Turkish voice if possible
-      const voices = window.speechSynthesis.getVoices();
-      const trVoice = voices.find(v => v.lang.startsWith("tr"));
-      if (trVoice) {
-        utterance.voice = trVoice;
-      }
-      utterance.rate = 1.05;
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn("TTS Readback failure:", e);
-    }
+  const speak = (text: string) => {
+    if (!audioEnabled) return;
+    speechService.speak(text);
   };
 
-  const startListening = async (e?: React.MouseEvent) => {
+  /**
+   * Ses dinleme başlatma
+   */
+  const handleStartListening = async (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
     }
-    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      setIsSupported(false);
-      triggerToast("Cihazınızda/tarayıcınızda ses tanıma servisi bulunamadı, komutunuzu yazarak iletebilirsiniz.");
-      setErrorMsg("Cihazınızda ses tanıma özelliği desteklenmiyor. Lütfen aşağıdaki alandan yazılı komut girin.");
+
+    if (!isPremium) {
+      onUpgradeClick?.();
+      return;
+    }
+
+    if (!isSupported) {
+      triggerToast("Tarayıcınızda veya cihazınızda ses tanıma servisi bulunamadı. Komutunuzu yazarak iletebilirsiniz.");
+      setErrorMsg("Cihazınızda Web Speech ses tanıma özelliği desteklenmiyor. Aşağıdaki alandan yazılı komut girebilirsiniz.");
       setStatus("error");
       return;
     }
-    
-    // Stop any ongoing speech synthesis
-    if ("speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch (_) {}
+
+    // Mikrofon iznini güvenli kontrol et
+    const perm = await speechService.requestMicrophonePermission();
+    if (!perm.granted) {
+      setStatus("error");
+      setErrorMsg(perm.error || "Mikrofon izni alınamadı.");
+      triggerToast(perm.error || "Mikrofon izni alınamadı.");
+      return;
     }
 
+    speechService.stopSpeaking();
     setTranscript("");
     setErrorMsg("");
-    setAiResponse(null);
+    setPendingCommand(null);
 
-    // Explicitly request microphone stream in Android WebView / Browser if supported
-    // This triggers the Android OS microphone permission dialog if not already granted.
-    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (micErr: any) {
-        console.warn("Microphone permission check warning:", micErr);
-        if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
-          setIsListening(false);
-          isActiveRef.current = false;
-          setMicVolume(0);
-          setStatus("error");
-          setErrorMsg("Mikrofon izni verilmedi. Lütfen cihaz/uygulama izinlerinden mikrofona izin verin.");
-          triggerToast("Mikrofon izni verilmedi. Lütfen uygulama izinlerinden mikrofonu açın.");
-          return;
-        }
-      }
-    }
-
-    // If already active, safely abort before restarting
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.abort();
-      } catch (_) {}
-      recognitionRef.current = null;
-    }
-
-    try {
-      const rec = new SpeechRecognitionClass();
-      rec.continuous = false;
-      rec.lang = "tr-TR";
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-
-      rec.onstart = () => {
-        isActiveRef.current = true;
+    const started = await speechService.startListening({
+      onStart: () => {
         setIsListening(true);
         setStatus("listening");
         setErrorMsg("");
-        accumulatedTranscriptRef.current = "";
-        setMicVolume(30);
-      };
-
-      rec.onresult = (event: any) => {
-        try {
-          let fullTranscript = "";
-          for (let i = 0; i < event.results.length; ++i) {
-            fullTranscript += event.results[i][0].transcript;
-          }
-
-          if (fullTranscript.trim()) {
-            setTranscript(fullTranscript);
-            setManualInput(fullTranscript);
-            accumulatedTranscriptRef.current = fullTranscript;
-            setMicVolume(Math.floor(Math.random() * 40) + 40);
-          }
-        } catch (err) {
-          console.warn("Speech onresult parsing error:", err);
-        }
-      };
-
-      rec.onerror = (event: any) => {
-        console.warn("Speech recognition error:", event.error);
-        isActiveRef.current = false;
+      },
+      onVolumeChange: (vol) => {
+        setMicVolume(vol);
+      },
+      onResult: (text, isFinal) => {
+        setTranscript(text);
+        setManualInput(text);
+      },
+      onError: (errMsg, isFatal) => {
         setIsListening(false);
         setMicVolume(0);
-        
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          setErrorMsg("Mikrofon izni verilmedi. Lütfen tarayıcı/cihaz ayarlarından mikrofon iznini etkinleştirin.");
-        } else if (event.error === "network") {
-          setErrorMsg("Ortamda internet bağlantısı bulunamadı. Ses analizi için aktif internet bağlantısı gereklidir.");
-        } else if (event.error === "no-speech") {
-          setErrorMsg("Herhangi bir ses algılanamadı. Mikrofona biraz daha yakın durarak konuşmayı deneyin.");
-        } else if (event.error === "aborted") {
-          setStatus("idle");
-          return;
-        } else {
-          setErrorMsg(`Ses servisi uyarısı (${event.error || "bilinmiyor"}). Lütfen tekrar deneyin veya komutunuzu yazın.`);
-        }
         setStatus("error");
-      };
-
-      rec.onend = () => {
-        isActiveRef.current = false;
+        setErrorMsg(errMsg);
+      },
+      onEnd: (finalText) => {
         setIsListening(false);
         setMicVolume(0);
-        
-        const finalTxt = accumulatedTranscriptRef.current.trim();
-        if (finalTxt) {
-          handleProcessText(finalTxt);
-          accumulatedTranscriptRef.current = "";
+        if (finalText.trim()) {
+          processVoiceText(finalText.trim());
         } else {
           setStatus((prev) => (prev === "listening" ? "idle" : prev));
         }
-      };
+      }
+    });
 
-      recognitionRef.current = rec;
-      rec.start();
-      setIsListening(true);
-      setStatus("listening");
-      isActiveRef.current = true;
-    } catch (e: any) {
-      console.error("Speech Recognition startup error:", e);
+    if (!started) {
       setIsListening(false);
-      isActiveRef.current = false;
-      setMicVolume(0);
       setStatus("error");
-      setErrorMsg("Mikrofon başlatılamadı. Lütfen cihaz mikrofon izinlerini kontrol edin veya yazılı komut girin.");
     }
   };
 
-  const stopListening = (e?: React.MouseEvent) => {
+  const handleStopListening = (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
     }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (e) {
-        console.warn("Speech stop warning:", e);
-      }
-    }
-    isActiveRef.current = false;
+    speechService.stopListening();
     setIsListening(false);
     setMicVolume(0);
   };
 
-  const handleProcessText = async (textToProcess: string) => {
+  /**
+   * Kullanıcının sesli/yazılı metnini akıllı finansal analiz motoruyla eşler.
+   */
+  const processVoiceText = async (textToProcess: string) => {
     if (!textToProcess.trim()) return;
 
     setStatus("processing");
     setErrorMsg("");
 
-    const lowerText = textToProcess.toLowerCase().trim();
-    const isStatusReport = lowerText.includes("durum") || 
-                           lowerText.includes("rapor") || 
-                           lowerText.includes("özet") || 
-                           lowerText.includes("ozet") || 
-                           lowerText.includes("hesabım") || 
-                           lowerText.includes("hesabim") ||
-                           lowerText.includes("analiz") || 
-                           lowerText.includes("ne durumda");
+    // 1. Önce yerel akıllı kural motoruyla hızlı analiz yap
+    const localParsed = parseFinancialVoiceCommand(textToProcess);
 
-    if (isStatusReport) {
-      // Calculate dynamic accurate metrics for the voice report
+    // Durum raporu ise hemen yanıtla
+    if (localParsed.action === "statusReport") {
       const totalIncomeVal = incomes.reduce((sum, inc) => sum + inc.amount, 0);
       const totalExpenseVal = expenses.reduce((sum, exp) => sum + exp.amount, 0);
       const remainingSimpleDebt = debts.reduce((sum, d) => sum + (d.amount - d.paid), 0);
@@ -596,266 +221,372 @@ export default function VoiceAssistant({
       const netBalance = totalIncomeVal - totalExpenseVal;
       const totalDebt = remainingSimpleDebt + remainingInstallmentDebt;
 
-      const reportExplanation = `🔊 Bütçem Pro sesli durum raporu: Aylık toplam geliriniz ₺${totalIncomeVal.toLocaleString("tr-TR")}, aylık harcamalarınız ise ₺${totalExpenseVal.toLocaleString("tr-TR")}. Kullanılabilir güncel net bütçe bakiyeniz ₺${netBalance.toLocaleString("tr-TR")}. Toplam ödenmemiş aktif borç yükünüz ise ₺${totalDebt.toLocaleString("tr-TR")}. Finansal sağlığınızı yüksek tutmak için Bütçe Sağlığı ve Borç Kapama Rehberi sekmesindeki önerileri takip edebilirsiniz!`;
+      const reportExplanation = `🔊 Bütçem Pro sesli durum raporu: Aylık toplam geliriniz ₺${totalIncomeVal.toLocaleString(
+        "tr-TR"
+      )}, aylık harcamalarınız ise ₺${totalExpenseVal.toLocaleString(
+        "tr-TR"
+      )}. Güncel net bakiyeniz ₺${netBalance.toLocaleString(
+        "tr-TR"
+      )}. Toplam aktif borcunuz ₺${totalDebt.toLocaleString("tr-TR")}.`;
 
-      const mockResponse = {
-        action: "statusReport",
-        explanation: reportExplanation
-      };
-
-      setAiResponse(mockResponse);
+      setSuccessMessage(reportExplanation);
       setStatus("success");
-      if (audioEnabled) {
-        speakText(reportExplanation);
-      }
+      speak(reportExplanation);
       return;
     }
+
+    // 2. Sunucu Gemini AI destekli analizi dene, hata alırsan anında yerel analiz sonucunu kullan
+    let finalCommand: ParsedVoiceCommand = localParsed;
 
     try {
       const res = await fetch(getApiUrl("/api/voice-command"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: textToProcess, userApiKey }),
+        body: JSON.stringify({ text: textToProcess, userApiKey })
       });
 
-      if (!res.ok) {
-        throw new Error("Sunucu bağlantısı kurulamadı (Ses Analizi).");
+      if (res.ok) {
+        const aiData = await res.json();
+        if (aiData.action && aiData.action !== "unknown") {
+          // Gemini'den gelen veriyi standart ParsedVoiceCommand yapısına dönüştür
+          finalCommand = mapServerResponseToParsedCommand(aiData, textToProcess, localParsed);
+        }
       }
+    } catch (apiErr) {
+      console.warn("[VoiceAssistant] Sunucu analizine ulaşılamadı, yerel motor kullanılıyor:", apiErr);
+    }
 
-      const data = await res.json();
-      setAiResponse(data);
+    // Eğer bilinmeyen veya geçersiz eylem ise kullanıcıya hata bildir
+    if (finalCommand.action === "unknown") {
+      setStatus("error");
+      setErrorMsg(finalCommand.explanation);
+      speak(finalCommand.explanation);
+      return;
+    }
 
-      if (data.action && data.action !== "unknown") {
-        applyAction(data);
+    // Silme eylemleri doğrudan onay gerektirebilir veya hemen uygulanabilir
+    if (
+      finalCommand.action === "deleteDebt" ||
+      finalCommand.action === "deleteIncome" ||
+      finalCommand.action === "deleteExpense"
+    ) {
+      applyDeleteAction(finalCommand);
+      return;
+    }
+
+    // Veri Ekleme / Güncelleme Modülleri (Borç, Gider, Gelir, Kişi Borcu, Taksit):
+    // Kullanıcı talebine göre doğrudan form alanlarını doldur ve ONAY KARTINI aç!
+    setupConfirmationForm(finalCommand);
+  };
+
+  /**
+   * Sunucu yanıtını standart ParsedVoiceCommand yapısına dönüştürür.
+   */
+  const mapServerResponseToParsedCommand = (
+    aiData: any,
+    rawText: string,
+    fallback: ParsedVoiceCommand
+  ): ParsedVoiceCommand => {
+    const action = aiData.action;
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (action === "addContactDebt" && aiData.contactDebtData) {
+      return {
+        action: "addContactDebt",
+        moduleTitle: "Kişi Borçları",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.contactDebtData.contactName || fallback.data.title,
+          amount: Number(aiData.contactDebtData.amount) || fallback.data.amount,
+          date: today,
+          contactType: aiData.contactDebtData.type === "receivable" ? "receivable" : "payable",
+          category: "Kişi Borcu"
+        },
+        rawText
+      };
+    }
+
+    if (action === "addExpense" && aiData.expenseData) {
+      return {
+        action: "addExpense",
+        moduleTitle: "Gider / Harcama Ekleme",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.expenseData.description || fallback.data.title,
+          amount: Number(aiData.expenseData.amount) || fallback.data.amount,
+          categoryId: Number(aiData.expenseData.categoryId) || fallback.data.categoryId || 1,
+          date: today
+        },
+        rawText
+      };
+    }
+
+    if (action === "addIncome" && aiData.incomeData) {
+      return {
+        action: "addIncome",
+        moduleTitle: "Gelir Ekleme",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.incomeData.name || fallback.data.title,
+          amount: Number(aiData.incomeData.amount) || fallback.data.amount,
+          date: aiData.incomeData.date || today
+        },
+        rawText
+      };
+    }
+
+    if (action === "addDebt" && aiData.debtData) {
+      return {
+        action: "addDebt",
+        moduleTitle: "Borç Ekleme",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.debtData.name || fallback.data.title,
+          amount: Number(aiData.debtData.amount) || fallback.data.amount,
+          category: aiData.debtData.category || "Şahıs",
+          date: aiData.debtData.dueDate || today
+        },
+        rawText
+      };
+    }
+
+    if (action === "addInstallment" && aiData.installmentData) {
+      return {
+        action: "addInstallment",
+        moduleTitle: "Taksit Planı Ekleme",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.installmentData.name || fallback.data.title,
+          amount: Number(aiData.installmentData.totalAmount) || fallback.data.amount,
+          installmentCount: Number(aiData.installmentData.installmentCount) || 12,
+          date: aiData.installmentData.firstDueDate || today
+        },
+        rawText
+      };
+    }
+
+    if (action === "updateDebtPaid" && aiData.updateDebtData) {
+      return {
+        action: "updateDebtPaid",
+        moduleTitle: "Borç Ödemesi",
+        explanation: aiData.explanation || fallback.explanation,
+        data: {
+          title: aiData.updateDebtData.name || fallback.data.title,
+          amount: Number(aiData.updateDebtData.paidAmount) || fallback.data.amount,
+          isAbsolute: aiData.updateDebtData.isAbsolute ?? false,
+          date: today
+        },
+        rawText
+      };
+    }
+
+    return fallback;
+  };
+
+  /**
+   * Önceden doldurulmuş alanları Onay Formuna bağlar.
+   */
+  const setupConfirmationForm = (cmd: ParsedVoiceCommand) => {
+    setPendingCommand(cmd);
+    setEditTitle(cmd.data.title);
+    setEditAmount(cmd.data.amount);
+    setEditDate(cmd.data.date || new Date().toISOString().slice(0, 10));
+    setEditCategory(cmd.data.categoryId || cmd.data.category || 1);
+    setEditContactType(cmd.data.contactType || "payable");
+    setEditInstallmentCount(cmd.data.installmentCount || 12);
+
+    setStatus("confirming");
+
+    // Kullanıcıya sesli geri bildirim ver: Onay istiyor
+    speak(cmd.explanation);
+  };
+
+  /**
+   * Silme işlemlerini uygular
+   */
+  const applyDeleteAction = (cmd: ParsedVoiceCommand) => {
+    const { action, data } = cmd;
+    const query = data.title.toLowerCase().trim();
+
+    if (action === "deleteExpense" && onDeleteExpense) {
+      const match = expenses.find((e) => e.description.toLowerCase().includes(query));
+      if (match) {
+        onDeleteExpense(match.id);
+        const msg = `"${match.description}" harcaması başarıyla silindi.`;
+        triggerToast(msg);
+        setSuccessMessage(msg);
         setStatus("success");
-        if (audioEnabled) {
-          speakText(data.explanation);
-        }
+        speak(msg);
       } else {
+        const fail = `"${data.title}" açıklamalı bir harcama bulunamadı.`;
+        triggerToast(fail);
+        setErrorMsg(fail);
         setStatus("error");
-        setErrorMsg(data.explanation || "Söylediğiniz ifade bütçe şablonlarıyla eşleşmedi.");
-        if (audioEnabled) {
-          speakText(data.explanation || "Söylediğiniz ifade bütçe şablonlarıyla eşleşmedi. Lütfen farklı şekilde söylemeyi deneyin.");
-        }
+        speak(fail);
       }
-    } catch (err: any) {
-      console.warn("Sunucu bağlantısı kurulamadı, yerel/çevrimdışı ses analizine geçiliyor:", err);
-      try {
-        const offlineResult = parseVoiceCommandOfflineClient(textToProcess);
-        setAiResponse(offlineResult);
-
-        if (offlineResult.action && offlineResult.action !== "unknown") {
-          applyAction(offlineResult);
-          setStatus("success");
-          if (audioEnabled) {
-            speakText(offlineResult.explanation);
-          }
-        } else {
-          setStatus("error");
-          setErrorMsg(offlineResult.explanation || "Söylediğiniz ifadeyi bütçe şablonlarıyla eşleştiremedim.");
-          if (audioEnabled) {
-            speakText(offlineResult.explanation || "Söylediğiniz ifadeyi bütçe şablonlarıyla eşleştiremedim.");
-          }
-        }
-      } catch (fallbackErr) {
-        console.error("Yerel ses analizi de başarısız:", fallbackErr);
-        setErrorMsg("Bütçe kaydı ayrıştırılırken bir servis hatası oluştu.");
+    } else if (action === "deleteIncome" && onDeleteIncome) {
+      const match = incomes.find((i) => i.name.toLowerCase().includes(query));
+      if (match) {
+        onDeleteIncome(match.id);
+        const msg = `"${match.name}" geliri başarıyla silindi.`;
+        triggerToast(msg);
+        setSuccessMessage(msg);
+        setStatus("success");
+        speak(msg);
+      } else {
+        const fail = `"${data.title}" isimli bir gelir kaydı bulunamadı.`;
+        triggerToast(fail);
+        setErrorMsg(fail);
         setStatus("error");
+        speak(fail);
+      }
+    } else if (action === "deleteDebt" && onDeleteDebt) {
+      const match = debts.find((d) => d.name.toLowerCase().includes(query));
+      if (match) {
+        onDeleteDebt(match.id);
+        const msg = `"${match.name}" borcu başarıyla silindi.`;
+        triggerToast(msg);
+        setSuccessMessage(msg);
+        setStatus("success");
+        speak(msg);
+      } else {
+        const fail = `"${data.title}" isimli bir borç kaydı bulunamadı.`;
+        triggerToast(fail);
+        setErrorMsg(fail);
+        setStatus("error");
+        speak(fail);
       }
     }
   };
 
-  const applyAction = (data: any) => {
-    const { 
-      action, 
-      debtData, 
-      installmentData, 
-      expenseData, 
-      incomeData, 
-      updateDebtData, 
-      contactDebtData,
-      deleteExpenseData,
-      deleteIncomeData,
-      deleteDebtData
-    } = data;
+  /**
+   * Kullanıcı Onay Butonuna bastığında veya sesli onay verdiğinde kaydı tamamlar!
+   */
+  const handleConfirmAndSave = () => {
+    if (!pendingCommand) return;
+
+    const action = pendingCommand.action;
+    const title = editTitle.trim() || pendingCommand.data.title;
+    const amount = Number(editAmount) || 0;
+    const date = editDate || new Date().toISOString().slice(0, 10);
+
+    if (amount <= 0) {
+      triggerToast("Lütfen geçerli bir tutar girin.");
+      return;
+    }
 
     try {
       switch (action) {
-        case "deleteExpense":
-          if (onDeleteExpense && deleteExpenseData) {
-            const queryDesc = (deleteExpenseData.description || "").toLowerCase().trim();
-            if (queryDesc) {
-              const match = expenses.find(e => e.description.toLowerCase().trim().includes(queryDesc));
-              if (match) {
-                onDeleteExpense(match.id);
-                triggerToast(`"${match.description}" harcaması silindi.`);
-                if (audioEnabled) {
-                  speakText(`"${match.description}" harcaması başarıyla silinmiştir.`);
-                }
-              } else {
-                const failMsg = `"${deleteExpenseData.description}" açıklamalı bir harcama bulunamadı.`;
-                triggerToast(failMsg);
-                if (audioEnabled) speakText(failMsg);
-              }
-            } else {
-              triggerToast("Silinecek harcama adı anlaşılamadı.");
-            }
-          }
-          break;
-
-        case "deleteIncome":
-          if (onDeleteIncome && deleteIncomeData) {
-            const queryName = (deleteIncomeData.name || "").toLowerCase().trim();
-            if (queryName) {
-              const match = incomes.find(i => i.name.toLowerCase().trim().includes(queryName));
-              if (match) {
-                onDeleteIncome(match.id);
-                triggerToast(`"${match.name}" geliri silindi.`);
-                if (audioEnabled) {
-                  speakText(`"${match.name}" geliri başarıyla silinmiştir.`);
-                }
-              } else {
-                const failMsg = `"${deleteIncomeData.name}" açıklamalı bir gelir bulunamadı.`;
-                triggerToast(failMsg);
-                if (audioEnabled) speakText(failMsg);
-              }
-            } else {
-              triggerToast("Silinecek gelir adı anlaşılamadı.");
-            }
-          }
-          break;
-
-        case "deleteDebt":
-          if (onDeleteDebt && deleteDebtData) {
-            const queryName = (deleteDebtData.name || "").toLowerCase().trim();
-            if (queryName) {
-              const match = debts.find(d => d.name.toLowerCase().trim().includes(queryName));
-              if (match) {
-                onDeleteDebt(match.id);
-                triggerToast(`"${match.name}" borcu silindi.`);
-                if (audioEnabled) {
-                  speakText(`"${match.name}" borcu başarıyla silinmiştir.`);
-                }
-              } else {
-                const failMsg = `"${deleteDebtData.name}" isimli bir borç bulunamadı.`;
-                triggerToast(failMsg);
-                if (audioEnabled) speakText(failMsg);
-              }
-            } else {
-              triggerToast("Silinecek borç adı anlaşılamadı.");
-            }
-          }
-          break;
-
         case "addContactDebt":
-          if (onSaveContactTx && contactDebtData) {
-            const { contactName, amount, type, description } = contactDebtData;
+          if (onSaveContactTx) {
             onSaveContactTx(
-              contactName || "Bilinmeyen Kişi",
-              Number(amount) || 0,
-              type === "payable" ? "payable" : "receivable",
-              description || "Sesli asistan kaydı"
+              title,
+              amount,
+              editContactType,
+              `Sesli Asistan: ${title}`
             );
-          }
-          break;
-        case "updateDebtPaid":
-          if (updateDebtData) {
-            const { name, paidAmount, isAbsolute } = updateDebtData;
-            const queryName = (name || "").toLowerCase().trim();
-            if (!queryName) {
-              triggerToast("Bulunacak borç adı belirtilmedi.");
-              break;
-            }
-
-            // Find matching debt case-insensitively using exact, substring, or reverse matching
-            let matchingDebt = debts.find(d => d.name.toLowerCase().trim() === queryName);
-            if (!matchingDebt) {
-              matchingDebt = debts.find(d => d.name.toLowerCase().includes(queryName));
-            }
-            if (!matchingDebt) {
-              matchingDebt = debts.find(d => queryName.includes(d.name.toLowerCase()));
-            }
-
-            if (matchingDebt) {
-              const previousPaid = matchingDebt.paid || 0;
-              let newPaidVal = 0;
-              if (isAbsolute) {
-                newPaidVal = Number(paidAmount);
-              } else {
-                newPaidVal = previousPaid + Number(paidAmount);
-              }
-
-              onSaveDebt({
-                ...matchingDebt,
-                paid: newPaidVal
-              });
-
-              const feedbackMsg = `"${matchingDebt.name}" borcunun ödenmiş miktarı ₺${newPaidVal} olarak güncellendi.`;
-              triggerToast(feedbackMsg);
-              if (audioEnabled) {
-                speakText(feedbackMsg);
-              }
-            } else {
-              const failMsg = `"${name}" unvanlı aktif bir borç kaydı bulunamadı. Lütfen adı kontrol edin.`;
-              triggerToast(failMsg);
-              if (audioEnabled) {
-                speakText(failMsg);
-              }
-              setStatus("error");
-              setErrorMsg(failMsg);
-            }
-          }
-          break;
-
-        case "addDebt":
-          if (debtData) {
-            onSaveDebt({
-              name: debtData.name || "Sesli Borç",
-              amount: Number(debtData.amount) || 0,
-              paid: Number(debtData.paid) || 0,
-              category: debtData.category || "Şahıs",
-              dueDate: debtData.dueDate || new Date().toISOString().slice(0, 10)
-            }, true); // Auto create alarm
-          }
-          break;
-
-        case "addInstallment":
-          if (installmentData) {
-            onSaveInstallment({
-              name: installmentData.name || "Sesli Taksit",
-              totalAmount: Number(installmentData.totalAmount) || 0,
-              installmentCount: Number(installmentData.installmentCount) || 12,
-              paidInstallmentCount: Number(installmentData.paidInstallmentCount) || 0,
-              firstDueDate: installmentData.firstDueDate || new Date().toISOString().slice(0, 10)
-            });
+            const msg = `"${title}" kişisine ₺${amount.toLocaleString("tr-TR")} tutarında ${
+              editContactType === "receivable" ? "Alacak" : "Verecek/Borç"
+            } kaydı başarıyla eklendi.`;
+            triggerToast(msg);
+            setSuccessMessage(msg);
+            speak(msg);
           }
           break;
 
         case "addExpense":
-          if (expenseData) {
-            onSaveExpense({
-              amount: Number(expenseData.amount) || 0,
-              description: expenseData.description || "Sesli Harcama",
-              categoryId: Number(expenseData.categoryId) || 1
-            });
-          }
+          onSaveExpense({
+            description: title,
+            amount,
+            categoryId: typeof editCategory === "number" ? editCategory : 1
+          });
+          const expMsg = `"${title}" için ₺${amount.toLocaleString("tr-TR")} tutarında harcama bütçenize kaydedildi.`;
+          triggerToast(expMsg);
+          setSuccessMessage(expMsg);
+          speak(expMsg);
           break;
 
         case "addIncome":
-          if (incomeData) {
-            onSaveIncome({
-              name: incomeData.name || "Sesli Gelir",
-              amount: Number(incomeData.amount) || 0,
-              date: incomeData.date || new Date().toISOString().slice(0, 10)
-            });
-          }
+          onSaveIncome({
+            name: title,
+            amount,
+            date
+          });
+          const incMsg = `"${title}" unvanıyla ₺${amount.toLocaleString("tr-TR")} tutarında gelir başarıyla eklendi.`;
+          triggerToast(incMsg);
+          setSuccessMessage(incMsg);
+          speak(incMsg);
           break;
 
-        default:
-          console.warn("Bilinmeyen asistan işlemi:", action);
+        case "addDebt":
+          onSaveDebt(
+            {
+              name: title,
+              amount,
+              paid: 0,
+              category: typeof editCategory === "string" ? editCategory : "Şahıs",
+              dueDate: date
+            },
+            true
+          );
+          const debtMsg = `"${title}" olarak ₺${amount.toLocaleString("tr-TR")} tutarında borç kaydedildi.`;
+          triggerToast(debtMsg);
+          setSuccessMessage(debtMsg);
+          speak(debtMsg);
+          break;
+
+        case "addInstallment":
+          onSaveInstallment({
+            name: title,
+            totalAmount: amount,
+            installmentCount: editInstallmentCount,
+            paidInstallmentCount: 0,
+            firstDueDate: date
+          });
+          const instMsg = `${editInstallmentCount} Ay taksitli "${title}" planınız (₺${amount.toLocaleString(
+            "tr-TR"
+          )}) başarıyla oluşturuldu.`;
+          triggerToast(instMsg);
+          setSuccessMessage(instMsg);
+          speak(instMsg);
+          break;
+
+        case "updateDebtPaid":
+          const query = title.toLowerCase().trim();
+          const match =
+            debts.find((d) => d.name.toLowerCase().trim() === query) ||
+            debts.find((d) => d.name.toLowerCase().includes(query)) ||
+            debts.find((d) => query.includes(d.name.toLowerCase()));
+
+          if (match) {
+            const isAbs = pendingCommand.data.isAbsolute ?? false;
+            const newPaid = isAbs ? amount : (match.paid || 0) + amount;
+            onSaveDebt({
+              ...match,
+              paid: newPaid
+            });
+            const updateMsg = `"${match.name}" borcunun ödenmiş miktarı ₺${newPaid.toLocaleString("tr-TR")} olarak güncellendi.`;
+            triggerToast(updateMsg);
+            setSuccessMessage(updateMsg);
+            speak(updateMsg);
+          } else {
+            const fail = `"${title}" unvanlı bir borç kaydı bulunamadı.`;
+            triggerToast(fail);
+            setErrorMsg(fail);
+            setStatus("error");
+            speak(fail);
+            return;
+          }
+          break;
       }
-    } catch (e) {
-      console.error("Sesli asistan eylem kaydı hatası:", e);
+
+      setStatus("success");
+      setPendingCommand(null);
+    } catch (err: any) {
+      console.error("[VoiceAssistant] Kayıt hatası:", err);
+      triggerToast("Kayıt sırasında bir hata oluştu.");
+      setErrorMsg("Kayıt veritabanına eklenirken bir sorun oluştu.");
+      setStatus("error");
     }
   };
 
@@ -863,41 +594,45 @@ export default function VoiceAssistant({
     e.preventDefault();
     if (!manualInput.trim()) return;
     setTranscript(manualInput);
-    handleProcessText(manualInput);
+    processVoiceText(manualInput);
   };
 
   const handleQuickCommand = (sampleCmd: string) => {
     setManualInput(sampleCmd);
     setTranscript(sampleCmd);
-    handleProcessText(sampleCmd);
+    processVoiceText(sampleCmd);
   };
-
-
 
   const toggleOpen = () => {
     if (!isPremium) {
       onUpgradeClick?.();
       return;
     }
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsOpen(!isOpen);
-    // Reset state on toggle
-    if (!isOpen) {
+    speechService.stopSpeaking();
+
+    const next = !isOpen;
+    setIsOpen(next);
+
+    if (!next) {
+      speechService.stopListening();
+      setIsListening(false);
       setStatus("idle");
       setTranscript("");
       setManualInput("");
-      setAiResponse(null);
+      setPendingCommand(null);
       setErrorMsg("");
     } else {
-      stopListening();
+      setStatus("idle");
+      setTranscript("");
+      setManualInput("");
+      setPendingCommand(null);
+      setErrorMsg("");
     }
   };
 
   return (
     <>
-      {/* Floating Microphone Trigger Pin Button */}
+      {/* Kayan Mikrofon Tetikleme Butonu */}
       <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 z-40">
         <motion.button
           onClick={toggleOpen}
@@ -910,83 +645,84 @@ export default function VoiceAssistant({
             <X className="w-6 h-6" />
           ) : (
             <div className="relative">
-              <Mic className="w-6 h-6 animate-none" />
-              {/* Pulsing indicator circle when audio/assistance is active */}
+              <Mic className="w-6 h-6" />
               {isPremium ? (
                 <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-pink-500"></span>
                 </span>
               ) : (
-                <span className="absolute -top-2.5 -right-2.5 bg-amber-500 text-[6.5px] scale-90 font-black px-1 py-0.5 rounded-sm select-none border border-amber-300 shadow-sm animate-pulse text-white font-mono">
-                  PRO
+                <span className="absolute -top-2.5 -right-2.5 bg-amber-500 text-[6.5px] scale-90 font-black px-1 py-0.5 rounded-sm select-none border border-amber-300 shadow-sm animate-pulse text-white font-mono flex items-center gap-0.5">
+                  <Crown className="w-2 h-2" /> PRO
                 </span>
               )}
             </div>
           )}
-          
-          {/* Label tooltip hovering slightly on desktop search */}
+
           <span className="absolute right-16 bg-slate-900 border border-slate-700 text-slate-100 text-[10px] font-black uppercase py-1 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none tracking-wider shadow-md whitespace-nowrap">
-            {isPremium ? "Sesli Asistan 🔊" : "Sesli Asistan (PRO) 👑"}
+            {isPremium ? "Sesli Asistan 🎙️" : "Sesli Asistan (PRO) 👑"}
           </span>
         </motion.button>
       </div>
 
-      {/* Slide-over Full Custom Dialog Panel */}
+      {/* Sesli Asistan Ana Modal Penceresi */}
       <AnimatePresence>
         {isOpen && (
           <div className="fixed inset-0 z-50 overflow-hidden flex items-end sm:items-center justify-center p-4">
-            {/* Backdrop Blur overlay */}
+            {/* Arka Plan Bulanıklığı */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={toggleOpen}
-              className="absolute inset-0 bg-slate-950/70 backdrop-blur-md cursor-pointer"
+              className="absolute inset-0 bg-slate-950/75 backdrop-blur-md cursor-pointer"
             />
 
-            {/* Modal Dialog container */}
+            {/* Modal Kartı */}
             <motion.div
               initial={{ opacity: 0, y: 100, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 100, scale: 0.95 }}
-              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              transition={{ type: "spring", damping: 26, stiffness: 340 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col max-h-[90vh] sm:max-h-[80vh] z-10"
+              className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col max-h-[92vh] sm:max-h-[85vh] z-10"
             >
-              {/* Aesthetic Card Header */}
-              <div className="p-5 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400 animate-pulse">
-                    <Sparkles className="w-5 h-5" />
+              {/* Başlık Çubuğu */}
+              <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60 flex justify-between items-center">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-xl border border-indigo-500/30 text-indigo-400">
+                    <Sparkles className="w-5 h-5 animate-pulse" />
                   </div>
                   <div>
                     <h3 className="font-black text-sm text-white flex items-center gap-1.5 leading-none">
-                      Bütçem Sesli Asistanı
+                      Bütçem Akıllı Sesli Asistan
                     </h3>
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wide uppercase">
-                      Yapay Zekâ ile Akıllı Bütçe Girişi
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wide uppercase flex items-center gap-1 mt-0.5">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400 inline" /> Pro Ses ve Yapay Zekâ Analiz Modülü
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {/* Speech synthesis audio feedback toggle */}
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (audioEnabled) {
+                        speechService.stopSpeaking();
+                      }
                       setAudioEnabled(!audioEnabled);
                     }}
                     className={`p-2 rounded-xl transition ${
-                      audioEnabled 
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20" 
+                      audioEnabled
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
                         : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700"
                     }`}
-                    title={audioEnabled ? "Sesli Onay Açık" : "Sesli Onay Kapalı"}
+                    title={audioEnabled ? "Sesli Yanıt Açık" : "Sesli Yanıt Kapalı"}
                   >
                     {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                   </button>
+
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1000,58 +736,59 @@ export default function VoiceAssistant({
                 </div>
               </div>
 
-              {/* Scrollable Dynamic Body Content */}
-              <div className="p-6 flex-1 overflow-y-auto space-y-6">
-                
-                {/* Visual Audio Waveform panel */}
-                <div className="flex flex-col items-center justify-center py-6 bg-slate-950/40 rounded-2xl border border-slate-800 relative overflow-hidden min-h-[160px]">
-                  
-                  {/* Backdrop glowing sphere decoration */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+              {/* İçerik Gövdesi */}
+              <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-5">
+                {/* 1. Ses Dalgaları / Görsel Geri Bildirim Paneli */}
+                <div className="flex flex-col items-center justify-center py-5 px-4 bg-slate-950/50 rounded-2xl border border-slate-800 relative overflow-hidden min-h-[170px]">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
+                  {/* Dinleniyor Modu: Canlı Ses Şiddetine Göre Dalgalanan Animasyon */}
                   {isListening ? (
-                    <div className="space-y-4 flex flex-col items-center justify-center">
-                      {/* Animated Soundwave lines */}
-                      <div className="flex items-center gap-1.5 h-12">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((bar) => {
-                          const delays = [0.1, 0.3, 0.5, 0.2, 0.4, 0.6, 0.15, 0.35, 0.45, 0.25];
+                    <div className="space-y-4 flex flex-col items-center justify-center w-full">
+                      {/* Gerçek zamanlı dalgalar */}
+                      <div className="flex items-center justify-center gap-1.5 h-16 w-full">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((bar) => {
+                          const baseHeight = 12;
+                          // micVolume (0-100) arttıkça barlar canlı şekilde yükselir
+                          const dynamicHeight = Math.max(
+                            baseHeight,
+                            Math.min(58, baseHeight + (micVolume / 100) * 46 * (0.4 + (bar % 3) * 0.3))
+                          );
                           return (
                             <motion.span
                               key={bar}
-                              animate={{ 
-                                height: ["12px", "42px", "16px", "48px", "14px"],
-                                backgroundColor: ["#6366f1", "#a855f7", "#ec4899", "#6366f1"]
+                              animate={{
+                                height: [`${dynamicHeight * 0.7}px`, `${dynamicHeight}px`, `${dynamicHeight * 0.8}px`]
                               }}
-                              transition={{ 
-                                repeat: Infinity, 
-                                duration: 1.1, 
-                                delay: delays[bar - 1],
+                              transition={{
+                                repeat: Infinity,
+                                duration: 0.35 + (bar % 4) * 0.1,
                                 ease: "easeInOut"
                               }}
-                              className="w-1.5 rounded-full"
+                              className="w-1.5 sm:w-2 rounded-full bg-gradient-to-t from-indigo-500 via-purple-500 to-pink-500"
                             />
                           );
                         })}
                       </div>
-                      
-                      <div className="flex flex-col items-center gap-2">
-                        <p className="text-xs text-indigo-300 font-extrabold animate-pulse tracking-wide uppercase">
-                          Sizi dinliyorum, konuşun...
+
+                      <div className="flex flex-col items-center gap-1.5">
+                        <p className="text-xs text-indigo-300 font-extrabold tracking-wide uppercase animate-pulse">
+                          Sizi dinliyorum, lütfen konuşun...
                         </p>
-                        <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5 animate-pulse">
+                        <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
-                          SES DİNLENİYOR (CANLI)
+                          CANLI MİKROFON AKTİF
                         </span>
 
                         <motion.button
                           type="button"
-                          onClick={(e) => stopListening(e)}
+                          onClick={(e) => handleStopListening(e)}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="mt-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer"
                         >
                           <span className="w-2.5 h-2.5 rounded-sm bg-white animate-pulse" />
-                          <span>Kaydı Tamamla / Durdur ⏹️</span>
+                          <span>Kaydı Tamamla / Dinlemeyi Bitir ⏹️</span>
                         </motion.button>
                       </div>
                     </div>
@@ -1059,28 +796,186 @@ export default function VoiceAssistant({
                     <div className="space-y-3 flex flex-col items-center">
                       <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
                       <p className="text-xs text-indigo-200 font-extrabold tracking-wide uppercase animate-pulse">
-                        Söylediklerinizi analiz ediyorum...
+                        Söylediklerinizi finansal olarak analiz ediyorum...
                       </p>
                     </div>
-                  ) : status === "success" && aiResponse ? (
+                  ) : status === "confirming" && pendingCommand ? (
+                    /* 2. Akıllı Ön-Doldurulmuş Form & Onay Kartı */
+                    <div className="w-full space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                            {pendingCommand.action === "addContactDebt" && <UserCheck className="w-4 h-4" />}
+                            {pendingCommand.action === "addExpense" && <TrendingDown className="w-4 h-4" />}
+                            {pendingCommand.action === "addIncome" && <TrendingUp className="w-4 h-4" />}
+                            {pendingCommand.action === "addDebt" && <CreditCard className="w-4 h-4" />}
+                            {pendingCommand.action === "addInstallment" && <Layers className="w-4 h-4" />}
+                            {pendingCommand.action === "updateDebtPaid" && <FileCheck2 className="w-4 h-4" />}
+                          </span>
+                          <span className="text-xs font-black text-indigo-300 uppercase tracking-wider">
+                            {pendingCommand.moduleTitle}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Onayınız Bekleniyor
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-300 font-medium leading-relaxed italic bg-indigo-950/30 p-2.5 rounded-xl border border-indigo-500/20">
+                        "{pendingCommand.explanation}"
+                      </p>
+
+                      {/* İnteraktif Ön-Doldurulmuş Form Alanları */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            {pendingCommand.action === "addContactDebt"
+                              ? "Kişi Adı"
+                              : pendingCommand.action === "addExpense"
+                              ? "Harcama Açıklaması"
+                              : pendingCommand.action === "addIncome"
+                              ? "Gelir Unvanı"
+                              : "Borç / Plan Adı"}
+                          </label>
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-indigo-500 focus:outline-hidden"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Tutar (₺)
+                          </label>
+                          <input
+                            type="number"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(Number(e.target.value))}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-indigo-500 focus:outline-hidden"
+                          />
+                        </div>
+
+                        {/* Kişi Borcu için Yön Seçici */}
+                        {pendingCommand.action === "addContactDebt" && (
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                              Borç / Alacak Türü
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEditContactType("receivable")}
+                                className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                                  editContactType === "receivable"
+                                    ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
+                                    : "bg-slate-900 text-slate-400 border-slate-700 hover:text-white"
+                                }`}
+                              >
+                                Alacak (Ondan Alacağım Var)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditContactType("payable")}
+                                className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                                  editContactType === "payable"
+                                    ? "bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30"
+                                    : "bg-slate-900 text-slate-400 border-slate-700 hover:text-white"
+                                }`}
+                              >
+                                Verecek (Ona Borcum Var)
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Harcama için Kategori Seçici */}
+                        {pendingCommand.action === "addExpense" && (
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                              Gider Kategorisi
+                            </label>
+                            <select
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(Number(e.target.value))}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-indigo-500 focus:outline-hidden"
+                            >
+                              <option value={1}>Diğer / Genel</option>
+                              <option value={2}>Market Alışverişi</option>
+                              <option value={3}>Ulaşım / Yakıt</option>
+                              <option value={4}>Yeme & İçme</option>
+                              <option value={5}>Faturalar (Elektrik, Su, vb.)</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Taksit için Taksit Sayısı */}
+                        {pendingCommand.action === "addInstallment" && (
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                              Taksit Sayısı (Ay)
+                            </label>
+                            <input
+                              type="number"
+                              value={editInstallmentCount}
+                              onChange={(e) => setEditInstallmentCount(Number(e.target.value))}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-indigo-500 focus:outline-hidden"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Tarih / Vade
+                          </label>
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-indigo-500 focus:outline-hidden"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Onaylama Butonları */}
+                      <div className="flex items-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleConfirmAndSave}
+                          className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer active:scale-95 transition"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>Onayla ve Kaydet</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingCommand(null);
+                            setStatus("idle");
+                          }}
+                          className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 cursor-pointer active:scale-95 transition"
+                        >
+                          Vazgeç
+                        </button>
+                      </div>
+                    </div>
+                  ) : status === "success" ? (
                     <div className="space-y-3 flex flex-col items-center text-center px-4">
                       <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 animate-bounce">
                         <Check className="w-6 h-6" />
                       </div>
                       <span className="text-[10px] font-black text-emerald-400 tracking-wider uppercase bg-emerald-500/5 px-2.5 py-1 rounded-full border border-emerald-500/15">
-                        {aiResponse.action === "addDebt" && "KAYIT: NAKİT BORÇ"}
-                        {aiResponse.action === "addInstallment" && "KAYIT: TAKSİT PLANI"}
-                        {aiResponse.action === "addExpense" && "KAYIT: HARCAMA"}
-                        {aiResponse.action === "addIncome" && "KAYIT: GELİR KAYDI"}
-                        {aiResponse.action === "updateDebtPaid" && "GÜNCELLEME: BORÇ ÖDEMESİ"}
+                        İŞLEM BAŞARIYLA KAYDEDİLDİ
                       </span>
                       <p className="text-xs font-bold text-slate-200 leading-relaxed max-w-sm">
-                        {aiResponse.explanation}
+                        {successMessage || "Bütçe kaydınız ilgili modüle hatasız olarak aktarılmıştır."}
                       </p>
                       <div className="flex gap-2.5 mt-2">
                         <button
                           type="button"
-                          onClick={(e) => startListening(e)}
+                          onClick={(e) => handleStartListening(e)}
                           className="flex items-center gap-1.5 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl transition active:scale-95 cursor-pointer shadow-md hover:shadow-indigo-500/20 border border-indigo-400/20"
                         >
                           <Mic className="w-3.5 h-3.5" /> Yeni Komut Söyle
@@ -1091,7 +986,7 @@ export default function VoiceAssistant({
                             setStatus("idle");
                             setTranscript("");
                             setManualInput("");
-                            setAiResponse(null);
+                            setSuccessMessage("");
                           }}
                           className="py-2 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white rounded-xl transition active:scale-95 cursor-pointer"
                         >
@@ -1105,66 +1000,68 @@ export default function VoiceAssistant({
                         <AlertCircle className="w-6 h-6" />
                       </div>
                       <p className="text-xs font-semibold text-rose-300 max-w-sm">
-                        {errorMsg}
+                        {errorMsg || "Bir sorun oluştu. Lütfen tekrar deneyin."}
                       </p>
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={(e) => startListening(e)}
-                          className="py-1 px-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white rounded-lg transition active:scale-95 cursor-pointer mt-1"
+                          onClick={(e) => handleStartListening(e)}
+                          className="py-1 px-3.5 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition active:scale-95 cursor-pointer mt-1"
                         >
-                          Tekrar Dene
+                          Tekrar Dinle
                         </button>
                       </div>
                     </div>
                   ) : (
+                    /* Boşta (Idle) Durumu: Mikrofona Dokunma Çağrısı */
                     <div className="flex flex-col items-center space-y-3">
                       <motion.button
                         type="button"
-                        onClick={(e) => startListening(e)}
+                        onClick={(e) => handleStartListening(e)}
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.94 }}
-                        className="w-16 h-16 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 hover:text-white hover:bg-indigo-600 flex items-center justify-center cursor-pointer shadow-lg transition-all"
+                        className="w-16 h-16 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 hover:text-white hover:bg-indigo-600 flex items-center justify-center cursor-pointer shadow-lg shadow-indigo-600/20 transition-all group"
                       >
-                        <Mic className="w-7 h-7" />
+                        <Mic className="w-7 h-7 group-hover:scale-110 transition-transform" />
                       </motion.button>
-                      <p className="text-xs text-slate-400 font-bold max-w-xs text-center leading-relaxed">
-                        Kaydı başlatmak için mikrofona dokunun ve komutunuzu sesli söyleyin.
+                      <p className="text-xs text-slate-300 font-extrabold max-w-xs text-center leading-relaxed">
+                        Konuşmak için mikrofona dokunun
                       </p>
+                      <span className="text-[10px] text-slate-400">
+                        Örn: "Ahmet'e 5000 TL borç ekle" veya "Elektrik faturasına 1200 TL gider yaz"
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* Real-time transcribed display fallback */}
+                {/* Algılanan Canlı Metin Göstergesi */}
                 {transcript && (
-                  <div className="p-3.5 bg-slate-950/20 rounded-xl border border-slate-800 text-xs space-y-1">
+                  <div className="p-3 bg-slate-950/40 rounded-xl border border-slate-800 text-xs space-y-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
-                      Algılanan Ses Kaydı
+                      Algılanan Ses Dökümü
                     </span>
-                    <p className="text-slate-200 font-medium italic">
-                      "{transcript}"
-                    </p>
+                    <p className="text-slate-200 font-medium italic">"{transcript}"</p>
                   </div>
                 )}
 
-                {/* Form Input for Manual Type Fallback (If not supported or in very noisy environments) */}
-                <form onSubmit={handleManualSubmit} className="space-y-2">
+                {/* Yazılı / Düzenlenebilir Komut Girişi */}
+                <form onSubmit={handleManualSubmit} className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                    Yazılı / Düzenlenebilir Bütçe Komutu
+                    Yazılı Komut Gönder (Alternatif)
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={manualInput}
                       onChange={(e) => setManualInput(e.target.value)}
-                      placeholder="Örn: Market için 150 lira gider kaydet"
+                      placeholder="Örn: Ahmet'e 5000 TL borç ekle veya Market 250 TL"
                       disabled={isListening || status === "processing"}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-3 pl-4 pr-12 text-xs font-bold text-slate-200 placeholder-slate-600 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 transition"
                     />
                     <button
                       type="submit"
                       disabled={!manualInput.trim() || isListening || status === "processing"}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 disabled:bg-slate-800 text-white disabled:text-slate-500 rounded-xl transition active:scale-95 cursor-pointer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 disabled:bg-slate-800 text-white disabled:text-slate-500 rounded-xl transition active:scale-95 cursor-pointer"
                     >
                       {status === "processing" ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1175,8 +1072,8 @@ export default function VoiceAssistant({
                   </div>
                 </form>
 
-                {/* Practical examples & command guides panel */}
-                <div className="space-y-2.5">
+                {/* Pratik Örnek Sesli Komut Kartları */}
+                <div className="space-y-2">
                   <div className="flex items-center gap-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
                     <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
                     <span>Örnek Türkçe Sesli Komutlar:</span>
@@ -1185,73 +1082,84 @@ export default function VoiceAssistant({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                     <button
                       type="button"
-                      onClick={() => handleQuickCommand("Ahmet borcunun ödenen kısmını 500 TL yap")}
-                      className="p-2.5 bg-slate-950/20 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/30 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white sm:col-span-2"
+                      onClick={() => handleQuickCommand("Ahmet'e 5000 TL borç ekle")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-indigo-950/30 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
                     >
-                      <UserCheck className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                      <UserCheck className="w-4 h-4 text-indigo-400 shrink-0" />
                       <div>
-                        <span className="font-bold block text-pink-200">Mevcut Borcu Güncelle</span>
-                        <span className="text-slate-500">"Ahmet borcunun ödenen kısmını 500 TL yap" / "Ahmet borcuna 200 TL ödedim"</span>
+                        <span className="font-bold block text-indigo-200">Kişi Borcu Ekle</span>
+                        <span className="text-[10px] text-slate-400">"Ahmet'e 5000 TL borç ekle"</span>
                       </div>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => handleQuickCommand("Ahmet'e borç 4000 lira")}
-                      className="p-2.5 bg-slate-950/20 hover:bg-slate-950/40 border border-slate-800 hover:border-indigo-500/30 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
+                      onClick={() => handleQuickCommand("Bugün elektrik faturasına 1200 TL gider yaz")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-indigo-950/30 border border-slate-800 hover:border-rose-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
                     >
-                      <UserCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <TrendingDown className="w-4 h-4 text-rose-400 shrink-0" />
                       <div>
-                        <span className="font-bold block text-indigo-200">Kişisel Borç Kaydı</span>
-                        <span className="text-slate-500">"Ahmet'e borç 4000 lira"</span>
+                        <span className="font-bold block text-rose-200">Fatura / Gider Yaz</span>
+                        <span className="text-[10px] text-slate-400">"Elektrik faturasına 1200 TL gider yaz"</span>
                       </div>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => handleQuickCommand("Telefon taksiti 12000 lira 12 taksit")}
-                      className="p-2.5 bg-slate-950/20 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/30 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
+                      onClick={() => handleQuickCommand("Market alışverişi 350 lira gider")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-indigo-950/30 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
                     >
-                      <CreditCard className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <TrendingDown className="w-4 h-4 text-amber-400 shrink-0" />
                       <div>
-                        <span className="font-bold block text-amber-200">Taksit Planı</span>
-                        <span className="text-slate-500">"Telefon taksiti 12000 TL 11 taksit"</span>
+                        <span className="font-bold block text-amber-200">Market Harcaması</span>
+                        <span className="text-[10px] text-slate-400">"Market alışverişi 350 lira gider"</span>
                       </div>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => handleQuickCommand("Market mutfak harcaması 250 lira")}
-                      className="p-2.5 bg-slate-950/20 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/30 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
+                      onClick={() => handleQuickCommand("Maaş yattı 45000 TL gelir ekle")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-emerald-950/30 border border-slate-800 hover:border-emerald-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
                     >
-                      <TrendingDown className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
                       <div>
-                        <span className="font-bold block text-rose-200">Anlık Harcama/Gider</span>
-                        <span className="text-slate-500">"Market harcaması 250 TL"</span>
+                        <span className="font-bold block text-emerald-200">Maaş / Gelir Ekle</span>
+                        <span className="text-[10px] text-slate-400">"Maaş yattı 45000 TL gelir ekle"</span>
                       </div>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => handleQuickCommand("Maaş yattı 35000 lira")}
-                      className="p-2.5 bg-slate-950/20 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/30 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
+                      onClick={() => handleQuickCommand("Telefon taksiti 24000 TL 12 taksit")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-indigo-950/30 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
                     >
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <CreditCard className="w-4 h-4 text-purple-400 shrink-0" />
                       <div>
-                        <span className="font-bold block text-emerald-200">Gelir Kaydı</span>
-                        <span className="text-slate-500">"Maaş yattı 35000 lira"</span>
+                        <span className="font-bold block text-purple-200">Taksit Planı</span>
+                        <span className="text-[10px] text-slate-400">"Telefon 24000 TL 12 taksit"</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickCommand("Bütçe durum raporu ver")}
+                      className="p-2.5 bg-slate-950/40 hover:bg-indigo-950/30 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition flex items-center gap-2 text-left text-slate-300 hover:text-white"
+                    >
+                      <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
+                      <div>
+                        <span className="font-bold block text-sky-200">Sesli Bütçe Raporu</span>
+                        <span className="text-[10px] text-slate-400">"Bütçe durum raporu ver"</span>
                       </div>
                     </button>
                   </div>
                 </div>
-
               </div>
 
-              {/* Tips bottom bar Footer */}
-              <div className="p-4 bg-slate-950 px-6 border-t border-slate-800 flex items-center gap-2 text-[10px] text-slate-500">
-                <Info className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+              {/* Alt Bilgi Çubuğu */}
+              <div className="p-3.5 bg-slate-950 px-6 border-t border-slate-800 flex items-center gap-2 text-[10px] text-slate-400">
+                <Info className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
                 <span>
-                  Sesi algılama süresi bittiğinde veya konuşmayı kestiğinizde asistan bütçe girişini kendiliğinden saniyeler içinde tamamlar.
+                  Asistan cümlenizi otomatik olarak doğru modüle eşler, form alanlarını doldurur ve kaydetmeden önce onayınızı alır.
                 </span>
               </div>
             </motion.div>
