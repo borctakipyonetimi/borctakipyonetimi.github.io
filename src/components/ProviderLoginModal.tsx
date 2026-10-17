@@ -656,6 +656,19 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           </div>
 
           <div className="p-5 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+            {/* Uygulama Tanıtım ve Karşılama Bilgisi */}
+            {!isForgotMode && (
+              <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-cyan-500/10 border border-indigo-500/20 rounded-2xl text-left space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-black text-indigo-600 dark:text-indigo-400">
+                  <SparklesIcon className="w-3.5 h-3.5" />
+                  <span>Bütçem Pro ile Finansal Özgürlük</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+                  Borçlarınızı çığ ve kartopu stratejileriyle eritin, aylık otomatik PDF raporları alın ve tüm varlıklarınızı güvenli bulut altyapısıyla tek ekranda yönetin.
+                </p>
+              </div>
+            )}
+
             {/* Şifre Sıfırlama Güvenlik Bilgilendirmesi */}
             {isForgotMode && (
               <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-start gap-2.5">
