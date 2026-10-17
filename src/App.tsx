@@ -176,7 +176,13 @@ import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
 import { BiometricAuth, BiyometrikDogrulamaYap } from "./utils/biometricAuth";
-import { scheduleNotification, cancelDebtNotifications } from "./utils/notificationScheduler";
+import {
+  scheduleNotification,
+  cancelDebtNotifications,
+  scheduleInstallmentNotification,
+  cancelInstallmentNotifications,
+  rescheduleAllNotifications
+} from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
 if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
@@ -1289,22 +1295,29 @@ export default function App() {
     setPushFrequency(val);
     localStorage.setItem("pushNotificationFrequency", val);
 
+    // Yeni sıklık seçildiğinde eski periyot kilitlerini sıfırla, böylece yeni periyot hemen devreye girer
+    localStorage.removeItem("sonGenelBildirimZamani");
+    if (val !== "2") {
+      localStorage.removeItem("sonGundeIkiBildirimZamani");
+    }
+
     if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
         type: "SYNC_PUSH_SETTINGS",
         enabled: pushNotificationsEnabled,
-        frequency: val
+        frequency: val,
+        sonGenelBildirimZamani: 0,
+        sonGundeIkiBildirimZamani: 0
       });
     }
 
-    // Kullanıcının seçtiği yeni bildirim sıklığı ve saatine göre tüm aktif borçların hatırlatıcılarını dinamik güncelle
-    const activeDebts = debtsRef.current || debts || [];
-    activeDebts.forEach((d) => {
-      const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
-      if (!isPaid && d.dueDate) {
-        scheduleNotification(d, { frequency: val }).catch(() => {});
-      }
-    });
+    // Kullanıcının seçtiği yeni bildirim sıklığına göre tüm aktif borç ve taksitlerin hatırlatıcılarını baştan kur
+    const currentDebts = debtsRef.current || debts || [];
+    const currentInsts = installmentDebtsRef.current || installmentDebts || [];
+    rescheduleAllNotifications(currentDebts, currentInsts, { frequency: val }).catch(() => {});
+
+    // Web Push sunucusu ile yeni sıklığı senkronize et
+    syncAlarmsWithPushServer(undefined, val).catch(() => {});
 
     const labels: Record<string, string> = {
       "1": "Günde 1 Kez (Sabah 09:00)",
@@ -2039,7 +2052,8 @@ export default function App() {
           alarms: targetAlarms,
           debts: debtsRef.current,
           installmentDebts: installmentDebtsRef.current,
-          user: currentUser || "anonymous"
+          user: currentUser || "anonymous",
+          frequency: pushFrequency
         })
       });
       console.log("[Push Client] Handshake with background push database successful.");
@@ -2056,7 +2070,7 @@ export default function App() {
     }
   };
 
-  const syncAlarmsWithPushServer = async (overrideAlarms?: Alarm[]) => {
+  const syncAlarmsWithPushServer = async (overrideAlarms?: Alarm[], overrideFrequency?: string) => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -2080,7 +2094,8 @@ export default function App() {
             alarms: targetAlarms,
             debts: debtsRef.current,
             installmentDebts: installmentDebtsRef.current,
-            user: currentUser || "anonymous"
+            user: currentUser || "anonymous",
+            frequency: overrideFrequency || pushFrequency
           })
         });
       }
@@ -3534,19 +3549,16 @@ export default function App() {
     }
   };
 
+  // Referans: Bildirim kontrolünü her yerden (ör. sıklık değiştirildiğinde) anında tetikleyebilmek için
+  const checkAndTriggerPushRemindersRef = useRef<(() => Promise<void>) | null>(null);
+
   // Belirlenen günlük push sıklığına (günde kaç kez veya 2 saatte bir) göre otomatik ödeme hatırlatıcı kontrolü
   useEffect(() => {
     if (!pushNotificationsEnabled) return;
 
-    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
     const checkAndTriggerPushReminders = async () => {
       try {
         if (!pushNotificationsEnabled) return;
-        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-          return;
-        }
 
         const currentDebts = debtsRef.current || [];
         const currentInsts = installmentDebtsRef.current || [];
@@ -3561,7 +3573,7 @@ export default function App() {
 
         // --- 12 SAAT KİLİDİ: 'Günde 2 kez' Bildirim Ayarı İçin Kesin Zaman Damgası Engeli ---
         const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 milisaniye
-        const isTwiceDaily = !pushFrequency || pushFrequency === "2";
+        const isTwiceDaily = pushFrequency === "2";
         const lastTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
 
         if (isTwiceDaily && lastTwiceDailyTime > 0 && (nowMs - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
@@ -3570,9 +3582,12 @@ export default function App() {
           return;
         }
 
-        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle ---
+        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle (ör. 2 saatte bir = 2 saat) ---
         const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
-        const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+        let lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+        if (lastGeneralTime > nowMs) {
+          lastGeneralTime = 0;
+        }
 
         if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
           const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
@@ -3751,15 +3766,30 @@ export default function App() {
       }
     };
 
+    checkAndTriggerPushRemindersRef.current = checkAndTriggerPushReminders;
     checkAndTriggerPushReminders().catch(() => {});
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      checkAndTriggerPushReminders().catch(() => {});
-    }, 5 * 60 * 1000); // 5 dakikada bir kontrol (arka plan bellek ve donma koruması)
 
-    return () => clearInterval(interval);
+    // 1 dakikada bir kontrol (zamanında tam vaktinde bildirim teslimi)
+    const interval = setInterval(() => {
+      checkAndTriggerPushReminders().catch(() => {});
+    }, 60 * 1000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        checkAndTriggerPushReminders().catch(() => {});
+      }
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
   }, [pushNotificationsEnabled, pushFrequency]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)
@@ -5327,6 +5357,10 @@ export default function App() {
       }
     }
 
+    if (targetInst) {
+      scheduleInstallmentNotification(targetInst, { frequency: pushFrequency }).catch(() => {});
+    }
+
     setInstallmentDebts(updated);
     setPayments(updatedPayments);
     setAlarms(updatedAlarms);
@@ -5352,6 +5386,7 @@ export default function App() {
         cancelCapacitorAlarm(800000 + id).catch(() => {});
         cancelCapacitorAlarm(id).catch(() => {});
         cancelAndroidDebtAlarm(id);
+        cancelInstallmentNotifications(id);
 
         const updated = installmentDebts.filter((i) => i.id !== id);
         const updatedPayments = payments.filter((p) => !(p.debtId === id && p.type === "installment"));
@@ -5423,11 +5458,13 @@ export default function App() {
         cancelCapacitorAlarm(800000 + id).catch(() => {});
         cancelCapacitorAlarm(id).catch(() => {});
         cancelAndroidDebtAlarm(id);
+        cancelInstallmentNotifications(id);
         updatedAlarms = updatedAlarms.filter(
           (a) => a.debtId !== id && a.id !== id && a.id !== (800000 + id) && !a.title.toLowerCase().includes(targetInst.name.toLowerCase())
         );
       } else if (targetInst.firstDueDate) {
         // Dinamik Takvim: Sıradaki taksit ayının tarihini hesapla ve alarmını güncelle
+        scheduleInstallmentNotification(targetInst, { frequency: pushFrequency }).catch(() => {});
         const nextIdx = Number(targetInst.paidInstallmentCount || 0);
         const [y, m, d] = targetInst.firstDueDate.split("-").map(Number);
         if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
