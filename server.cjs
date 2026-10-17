@@ -2659,7 +2659,7 @@ function analyzeUserDebts(debts = [], installmentDebts = []) {
   };
 }
 app.post("/api/push-register", (req, res) => {
-  const { subscription, alarms, debts, installmentDebts, user } = req.body;
+  const { subscription, alarms, debts, installmentDebts, user, frequency } = req.body;
   if (!subscription || !subscription.endpoint) {
     return res.status(400).json({ error: "Ge\xE7ersiz abonelik bilgisi" });
   }
@@ -2670,6 +2670,7 @@ app.post("/api/push-register", (req, res) => {
     debts: [],
     installmentDebts: [],
     user: user || "anonymous",
+    frequency: frequency || "2",
     lastOverduePushTime: 0,
     lastDueTodayPushDate: ""
   };
@@ -2683,6 +2684,7 @@ app.post("/api/push-register", (req, res) => {
     debts: cleanDebts,
     installmentDebts: cleanInstallmentDebts,
     user: user || existing.user || "anonymous",
+    frequency: frequency || existing.frequency || "2",
     updatedAt: Date.now()
   };
   saveSubscriptionsToFile();
@@ -3937,29 +3939,42 @@ setInterval(async () => {
           }
         }
       }
-      const SIX_HOURS_MS = 6 * 60 * 60 * 1e3;
+      const freq = details.frequency || "2";
+      let periodMs = 12 * 60 * 60 * 1e3;
+      if (freq === "hourly") periodMs = 2 * 60 * 60 * 1e3;
+      else if (freq === "1") periodMs = 24 * 60 * 60 * 1e3;
+      else if (freq === "2") periodMs = 12 * 60 * 60 * 1e3;
+      else if (freq === "3") periodMs = 8 * 60 * 60 * 1e3;
+      else if (freq === "4") periodMs = 6 * 60 * 60 * 1e3;
       const lastOverdueTime = details.lastOverduePushTime || 0;
       const hasDebts = details.debts && details.debts.length > 0 || details.installmentDebts && details.installmentDebts.length > 0;
-      if (hasDebts && nowTime - lastOverdueTime > SIX_HOURS_MS) {
-        const { overdueDebts, dueTodayDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
-        if (overdueDebts.length > 0 || dueTodayDebts.length > 0) {
-          let title = "B\xFCt\xE7em Pro: Bor\xE7 Hat\u0131rlatmas\u0131 \u23F0";
+      const currentHour = (/* @__PURE__ */ new Date()).getHours();
+      const inQuietHours = currentHour < 8 || currentHour >= 23;
+      if (!inQuietHours && hasDebts && nowTime - lastOverdueTime >= periodMs) {
+        const { overdueDebts, dueTodayDebts, upcomingDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
+        const closeUpcoming = (upcomingDebts || []).filter((d) => d.daysLeft <= 3);
+        if (overdueDebts.length > 0 || dueTodayDebts.length > 0 || closeUpcoming.length > 0) {
+          let title = "B\xFCt\xE7em Pro: \xD6deme Hat\u0131rlat\u0131c\u0131 \u23F0";
           let body = "";
           if (overdueDebts.length > 0) {
-            const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+            const totalOverdue = overdueDebts.reduce((sum, d) => sum + (Number(d.remaining) || 0), 0);
             const topDebt = overdueDebts[0];
             title = `\u26A0\uFE0F Gecikmi\u015F Bor\xE7 Uyar\u0131s\u0131 (${overdueDebts.length} Adet)`;
-            body = `\xD6demesi ge\xE7en borcunuz var: "${topDebt.name}" (\u20BA${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} g\xFCn gecikti). Toplam: \u20BA${totalOverdue.toLocaleString("tr-TR")}.`;
+            body = `\xD6demesi ge\xE7en borcunuz var: "${topDebt.name}" (\u20BA${Math.round(topDebt.remaining).toLocaleString("tr-TR")}, ${topDebt.daysLate} g\xFCn gecikti). Toplam Geciken: \u20BA${Math.round(totalOverdue).toLocaleString("tr-TR")}.`;
           } else if (dueTodayDebts.length > 0) {
-            const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
+            const totalDue = dueTodayDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
             const topDebt = dueTodayDebts[0];
             title = `\u{1F6A8} Bug\xFCn Vadesi Gelen \xD6demeniz Var!`;
-            body = `"${topDebt.name}" i\xE7in \u20BA${topDebt.amount.toLocaleString("tr-TR")} tutar\u0131ndaki \xF6demenizin vadesi bug\xFCn!`;
+            body = `"${topDebt.name}" i\xE7in \u20BA${Math.round(topDebt.amount).toLocaleString("tr-TR")} tutar\u0131ndaki \xF6demenizin vadesi bug\xFCn! Toplam: \u20BA${Math.round(totalDue).toLocaleString("tr-TR")}.`;
+          } else if (closeUpcoming.length > 0) {
+            const topUpcoming = closeUpcoming[0];
+            title = `\u23F0 Yakla\u015Fan \xD6deme: "${topUpcoming.name}"`;
+            body = `"${topUpcoming.name}" \xF6demenize ${topUpcoming.daysLeft} g\xFCn kald\u0131 (\u20BA${Math.round(topUpcoming.remaining).toLocaleString("tr-TR")}).`;
           }
           const payload = JSON.stringify({
             title,
             body,
-            tag: "overdue-periodic-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+            tag: "debt-periodic-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 13),
             action: "trigger-sync",
             syncTag: "server-cron-sync",
             icon: "/notification-icon.png",
@@ -3968,7 +3983,7 @@ setInterval(async () => {
             url: "/?tab=debts"
           });
           try {
-            console.log(`[Push Server] Sending periodic background overdue reminder to user: "${details.user}"`);
+            console.log(`[Push Server] Sending periodic background reminder (s\u0131kl\u0131k: ${freq}) to user: "${details.user}"`);
             await import_web_push.default.sendNotification(details.subscription, payload, {
               headers: { "Urgency": "high" },
               TTL: 86400
@@ -3976,7 +3991,7 @@ setInterval(async () => {
             details.lastOverduePushTime = nowTime;
             hasChanges = true;
           } catch (pushErr) {
-            console.error(`[Push Server] Error sending overdue push:`, pushErr.statusCode || pushErr.message);
+            console.error(`[Push Server] Error sending periodic reminder push:`, pushErr.statusCode || pushErr.message);
             if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
               delete subscriptionsMap[endpointHash];
               hasChanges = true;
