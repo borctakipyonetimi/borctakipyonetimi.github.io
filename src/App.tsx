@@ -327,7 +327,14 @@ export default function App() {
     const pageParam = params.get("page");
     if (pageParam === "landing") return "landing";
     if (pageParam === "blog" || pageParam === "blog-post") return "blog";
-    return null; // Directly open the app, bypassing the landing page
+
+    // Fresh install / No user logged in: Always show landing page first!
+    const savedUser = localStorage.getItem("currentUser");
+    if (!savedUser) {
+      return "landing";
+    }
+
+    return null; 
   });
   const [selectedPublicPostId, setSelectedPublicPostId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -7246,14 +7253,30 @@ export default function App() {
       <div className={`min-h-screen font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
         <PublicLanding
           onStartApp={() => {
-            localStorage.setItem("skip_landing", "true");
-            setActiveTab("overview");
-            setShowPublicView(null);
+            const savedUser = localStorage.getItem("currentUser") || currentUser;
+            if (!savedUser) {
+              setProviderLoginInitialTab("premium");
+              setProviderLoginInitialSubMode("login");
+              setSelectedProvider("email");
+              setProviderLoginOpen(true);
+            } else {
+              localStorage.setItem("skip_landing", "true");
+              setActiveTab("overview");
+              setShowPublicView(null);
+            }
           }}
           onNavigateToTab={(tabId) => {
-            localStorage.setItem("skip_landing", "true");
-            setActiveTab(tabId);
-            setShowPublicView(null);
+            const savedUser = localStorage.getItem("currentUser") || currentUser;
+            if (!savedUser) {
+              setProviderLoginInitialTab("premium");
+              setProviderLoginInitialSubMode("login");
+              setSelectedProvider("email");
+              setProviderLoginOpen(true);
+            } else {
+              localStorage.setItem("skip_landing", "true");
+              setActiveTab(tabId);
+              setShowPublicView(null);
+            }
           }}
           onNavigateToPrivacy={() => {
             localStorage.setItem("skip_landing", "true");
@@ -7261,10 +7284,18 @@ export default function App() {
             setShowPublicView(null);
           }}
           onUpgradeToPro={() => {
-            localStorage.setItem("skip_landing", "true");
-            setActiveTab("overview");
-            setShowPublicView(null);
-            setIsUpgradeModalOpen(true);
+            const savedUser = localStorage.getItem("currentUser") || currentUser;
+            if (!savedUser) {
+              setProviderLoginInitialTab("premium");
+              setProviderLoginInitialSubMode("login");
+              setSelectedProvider("email");
+              setProviderLoginOpen(true);
+            } else {
+              localStorage.setItem("skip_landing", "true");
+              setActiveTab("overview");
+              setShowPublicView(null);
+              setIsUpgradeModalOpen(true);
+            }
           }}
           onNavigateToBlog={() => setShowPublicView("blog")}
           onNavigateToPost={(id) => {
@@ -7408,9 +7439,12 @@ export default function App() {
         initialSubMode={providerLoginInitialSubMode}
         onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
         onClose={() => {
-          localStorage.setItem("skip_initial_login", "true");
           setProviderLoginOpen(false);
           setSelectedProvider(null);
+          const savedUser = localStorage.getItem("currentUser") || currentUser;
+          if (!savedUser) {
+            setShowPublicView("landing");
+          }
           // Kullanıcı ekranı kapatsa bile Premium durumunu yansıt
           const fbUser = auth.currentUser;
           const currentEmail = (fbUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
