@@ -145,9 +145,8 @@ import { PublicBlog } from "./components/PublicBlog";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
-import { analyzeDebtsComprehensive } from "./utils/debtAnalyzer";
 import { getApiUrl, safeFetchJson } from "./utils/api";
-import { BANK_ACCOUNTS, DIGITAL_WALLETS, DEFAULT_PAYMENT_METHODS, BankAccount, DigitalWallet } from "./data/paymentMethods";
+import { DEFAULT_PAYMENT_METHODS, PaymentMethodOption } from "./data/paymentMethods";
 import {
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
@@ -1213,32 +1212,12 @@ export default function App() {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
 
   // Form states for adding payment options
-  const [paymentFormType, setPaymentFormType] = useState<"none" | "card" | "mobile" | "wallet" | "bank_transfer">("none");
+  const [paymentFormType, setPaymentFormType] = useState<"none" | "card" | "mobile">("none");
   const [newCardNameValue, setNewCardNameValue] = useState("");
   const [newCardNumberValue, setNewCardNumberValue] = useState("");
   const [newCardExpiryValue, setNewCardExpiryValue] = useState("");
   const [newCardCVVValue, setNewCardCVVValue] = useState("");
   const [newMobileNoValue, setNewMobileNoValue] = useState("");
-
-  // Dijital Cüzdan Form Durumları
-  const [selectedWalletId, setSelectedWalletId] = useState<string>("papara");
-  const [walletAccountInput, setWalletAccountInput] = useState("");
-
-  // Banka Havalesi / FAST Form Durumları
-  const [selectedBankId, setSelectedBankId] = useState<string>("ziraat");
-  const [senderNameInput, setSenderNameInput] = useState("");
-  const [bankRefCode, setBankRefCode] = useState<string>(() => "BP-" + Math.floor(10000 + Math.random() * 90000));
-  const [copiedPaymentText, setCopiedPaymentText] = useState<string | null>(null);
-
-  const handleCopyPaymentText = (text: string, label: string) => {
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
-    }
-    setCopiedPaymentText(label);
-    setToastMessage(`📋 ${label} panoya kopyalandı!`);
-    setShowToast(true);
-    setTimeout(() => setCopiedPaymentText(null), 2500);
-  };
 
   // Misafir ödeme öncesi gerçek e-posta ve şifre kayıt zorunluluğu state'leri
   const [isGuestCheckoutAuthOpen, setIsGuestCheckoutAuthOpen] = useState(false);
@@ -11526,112 +11505,7 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* ÖDEME YÖNTEMİ SEÇİMİ (Kredi Kartı, Dijital Cüzdanlar, Banka Havalesi / FAST, Mobil Ödeme) */}
-                        <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                              <span>💳</span> ÖDEME YÖNTEMİ SEÇİN
-                            </span>
-                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full uppercase">
-                              {selectedPaymentMethod.name}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {[
-                              { id: "credit_card", name: "Kredi / Banka Kartı", icon: "💳", badge: "Google Play" },
-                              { id: "digital_wallet", name: "Dijital Cüzdanlar", icon: "👛", badge: "0 Komisyon" },
-                              { id: "bank_transfer", name: "Banka Havalesi / FAST", icon: "🏦", badge: "7/24 FAST" },
-                              { id: "mobil_odeme", name: "Mobil Ödeme", icon: "📱", badge: "Operatör" }
-                            ].map((m) => {
-                              const isSelected = selectedPaymentMethod.id === m.id;
-                              return (
-                                <button
-                                  key={m.id}
-                                  type="button"
-                                  onClick={() => {
-                                    if (m.id === "digital_wallet") {
-                                      setSelectedPaymentMethod({
-                                        id: "digital_wallet",
-                                        name: "Dijital Cüzdanlar",
-                                        type: "Papara / Paycell / Tosla / Ininal",
-                                        icon: "👛"
-                                      });
-                                      setPaymentFormType("wallet");
-                                    } else if (m.id === "bank_transfer") {
-                                      setSelectedPaymentMethod({
-                                        id: "bank_transfer",
-                                        name: "Banka Havalesi / FAST",
-                                        type: "Anlaşmalı 6 Banka • 7/24 FAST",
-                                        icon: "🏦"
-                                      });
-                                      setPaymentFormType("bank_transfer");
-                                    } else if (m.id === "mobil_odeme") {
-                                      setSelectedPaymentMethod({
-                                        id: "mobil_odeme",
-                                        name: "Mobil Ödeme",
-                                        type: "Faturaya Yansıt",
-                                        icon: "📱"
-                                      });
-                                      setPaymentFormType("mobile");
-                                    } else {
-                                      setSelectedPaymentMethod({
-                                        id: "credit_card",
-                                        name: "Kredi / Banka Kartı",
-                                        type: "Mastercard •••• 4242",
-                                        icon: "💳"
-                                      });
-                                      setPaymentFormType("none");
-                                    }
-                                  }}
-                                  className={`p-2 rounded-xl text-left border transition-all flex items-center justify-between cursor-pointer ${
-                                    isSelected
-                                      ? "bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-500/50 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30"
-                                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="text-base shrink-0">{m.icon}</span>
-                                    <div className="truncate">
-                                      <p className="text-[10.5px] font-black truncate">{m.name}</p>
-                                      <p className="text-[8px] opacity-75 font-semibold truncate">{m.badge}</p>
-                                    </div>
-                                  </div>
-                                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* Quick preview info if Digital Wallet or Bank Transfer is selected */}
-                          {selectedPaymentMethod.id === "digital_wallet" && (
-                            <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">👛</span>
-                                <div>
-                                  <p className="text-[10px] font-black text-purple-700 dark:text-purple-300 uppercase">Papara, Paycell, Tosla, Ininal, FastPay</p>
-                                  <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">0 Komisyon ile anında lisans aktivasyonu</p>
-                                </div>
-                              </div>
-                              <span className="text-[8px] bg-purple-600 text-white px-2 py-0.5 rounded-full font-black uppercase">0 Komisyon</span>
-                            </div>
-                          )}
-
-                          {selectedPaymentMethod.id === "bank_transfer" && (
-                            <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">🏦</span>
-                                <div>
-                                  <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 uppercase">Ziraat, Garanti, İş Bankası, Yapı Kredi, Akbank, Enpara</p>
-                                  <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">7/24 Anında FAST transferi ile otomatik onay</p>
-                                </div>
-                              </div>
-                              <span className="text-[8px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-black uppercase">7/24 FAST</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* ANA SATIN ALMA BUTONU - SADECE Misafir ve Ücretsiz Kullanıcılara Görünür */}
+                        {/* ANA SATIN ALMA BUTONU - GOOGLE PLAY İLE SATIN AL */}
                         <button
                           type="button"
                           onClick={() => {
@@ -11639,28 +11513,24 @@ export default function App() {
                           }}
                           className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs sm:text-[13px] uppercase tracking-wider rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-97 hover:scale-[1.01]"
                         >
-                          <span className="flex items-center gap-1.5">
-                            {selectedPaymentMethod.id === "digital_wallet" ? (
-                              <>👛 DİJİTAL CÜZDAN İLE ETKİNLEŞTİR ({selectedPlan === "monthly" ? "Aylık" : selectedPlan === "yearly" ? "Yıllık" : "Ömür Boyu"}) ⚡</>
-                            ) : selectedPaymentMethod.id === "bank_transfer" ? (
-                              <>🏦 BANKA HAVALESİ / FAST İLE ETKİNLEŞTİR ({selectedPlan === "monthly" ? "Aylık" : selectedPlan === "yearly" ? "Yıllık" : "Ömür Boyu"}) ⚡</>
-                            ) : selectedPaymentMethod.id === "mobil_odeme" ? (
-                              <>📱 MOBİL ÖDEME İLE ETKİNLEŞTİR ({selectedPlan === "monthly" ? "Aylık" : selectedPlan === "yearly" ? "Yıllık" : "Ömür Boyu"}) ⚡</>
-                            ) : (
-                              <>
-                                {selectedPlan === "monthly" && (
-                                  <>AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_monthly || PLAY_PRODUCTS.butcempro_monthly)?.priceString || "₺49,99 / Ay"}) ⚡</>
-                                )}
-                                {selectedPlan === "yearly" && (
-                                  <>YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_yearly || PLAY_PRODUCTS.butcempro_yearly)?.priceString || "₺399,99 / Yıl"}) ⚡</>
-                                )}
-                                {selectedPlan === "lifetime" && (
-                                  <>SINIRSIZ (ÖMÜR BOYU) ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_lifetime || PLAY_PRODUCTS.butcempro_lifetime)?.priceString || "₺999,99"}) ⚡</>
-                                )}
-                              </>
+                          <span className="flex items-center gap-2">
+                            <span className="text-base">▶️</span>
+                            {selectedPlan === "monthly" && (
+                              <>GOOGLE PLAY İLE AYLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_monthly || PLAY_PRODUCTS.butcempro_monthly)?.priceString || "₺49,99 / Ay"}) ⚡</>
+                            )}
+                            {selectedPlan === "yearly" && (
+                              <>GOOGLE PLAY İLE YILLIK PLANI ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_yearly || PLAY_PRODUCTS.butcempro_yearly)?.priceString || "₺399,99 / Yıl"}) ⚡</>
+                            )}
+                            {selectedPlan === "lifetime" && (
+                              <>GOOGLE PLAY İLE ÖMÜR BOYU ETKİNLEŞTİR ({((dynamicProducts as any)?.butcempro_lifetime || PLAY_PRODUCTS.butcempro_lifetime)?.priceString || "₺999,99"}) ⚡</>
                             )}
                           </span>
                         </button>
+
+                        <div className="flex items-center justify-center gap-1.5 py-1 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Google Play Güvenli Faturalandırma & 256-Bit SSL Koruması
+                        </div>
 
                         {/* ALREADY HAVE ACCOUNT / LOGIN BUTTON */}
                         <button
@@ -11888,22 +11758,6 @@ export default function App() {
                                       icon: method.icon
                                     });
                                     setPaymentFormType("mobile");
-                                  } else if (method.id === "digital_wallet") {
-                                    setSelectedPaymentMethod({
-                                      id: method.id,
-                                      name: method.name,
-                                      type: method.type,
-                                      icon: method.icon
-                                    });
-                                    setPaymentFormType("wallet");
-                                  } else if (method.id === "bank_transfer") {
-                                    setSelectedPaymentMethod({
-                                      id: method.id,
-                                      name: method.name,
-                                      type: method.type,
-                                      icon: method.icon
-                                    });
-                                    setPaymentFormType("bank_transfer");
                                   } else {
                                     setSelectedPaymentMethod({
                                       id: method.id,
@@ -11937,7 +11791,7 @@ export default function App() {
                         </div>
 
                         {/* Interactive addition buttons */}
-                        <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -11950,35 +11804,7 @@ export default function App() {
                                 : "bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50"
                             }`}
                           >
-                            ➕ Yeni Kart
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPaymentFormType(paymentFormType === "wallet" ? "none" : "wallet");
-                            }}
-                            className={`py-1.5 px-2 font-black text-[9px] uppercase tracking-wider rounded-lg border transition text-center select-none ${
-                              paymentFormType === "wallet"
-                                ? "bg-purple-600 text-white border-purple-700"
-                                : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border-purple-200/50"
-                            }`}
-                          >
-                            👛 Dijital Cüzdan
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPaymentFormType(paymentFormType === "bank_transfer" ? "none" : "bank_transfer");
-                            }}
-                            className={`py-1.5 px-2 font-black text-[9px] uppercase tracking-wider rounded-lg border transition text-center select-none ${
-                              paymentFormType === "bank_transfer"
-                                ? "bg-emerald-600 text-white border-emerald-700"
-                                : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50"
-                            }`}
-                          >
-                            🏦 Havale / FAST
+                            ➕ Yeni Kart Ekle
                           </button>
                           <button
                             type="button"
@@ -11992,7 +11818,7 @@ export default function App() {
                                 : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/50"
                             }`}
                           >
-                            📱 Mobil No
+                            📱 Mobil Ödeme No
                           </button>
                         </div>
 
@@ -12168,255 +11994,6 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* Sub Form: Digital Wallet Selection */}
-                        {paymentFormType === "wallet" && (
-                          <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-purple-500/30 space-y-3 mt-1 text-left" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-base">👛</span>
-                                <p className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-wider">Dijital Cüzdan Seçimi</p>
-                              </div>
-                              <span className="text-[8px] bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">0 Komisyon</span>
-                            </div>
-                            
-                            <div className="space-y-1.5">
-                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Cüzdan Servisi Seçin</label>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                {DIGITAL_WALLETS.map((wallet) => {
-                                  const isCurrent = selectedWalletId === wallet.id;
-                                  return (
-                                    <button
-                                      key={wallet.id}
-                                      type="button"
-                                      onClick={() => setSelectedWalletId(wallet.id)}
-                                      className={`p-2 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                                        isCurrent
-                                          ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500/60 ring-1 ring-purple-500/30"
-                                          : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <span className="text-base shrink-0">{wallet.logo}</span>
-                                        <div className="truncate">
-                                          <p className="text-[10px] font-black text-slate-800 dark:text-slate-100 truncate">{wallet.name}</p>
-                                          <p className="text-[8px] text-slate-400 font-semibold truncate">{wallet.badge}</p>
-                                        </div>
-                                      </div>
-                                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Selected Wallet Details */}
-                            {(() => {
-                              const activeWallet = DIGITAL_WALLETS.find((w) => w.id === selectedWalletId) || DIGITAL_WALLETS[0];
-                              return (
-                                <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-xl border border-purple-200/50 dark:border-purple-900/40 space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-purple-700 dark:text-purple-300 uppercase tracking-wider">{activeWallet.name} Transfer Bilgisi</span>
-                                    <span className="text-[8px] text-slate-500 dark:text-slate-400 font-semibold">{activeWallet.desc}</span>
-                                  </div>
-
-                                  <div className="p-2 bg-white dark:bg-slate-950 rounded-lg border border-purple-200/40 dark:border-purple-800/40 flex items-center justify-between">
-                                    <div>
-                                      <p className="text-[8px] font-bold text-slate-400 uppercase">Cüzdan / Hesap No</p>
-                                      <p className="text-xs font-mono font-black text-slate-900 dark:text-white">{activeWallet.walletNumber}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopyPaymentText(activeWallet.walletNumber, `${activeWallet.name} No`)}
-                                      className="px-2 py-1 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-black text-[9px] rounded-md uppercase transition cursor-pointer"
-                                    >
-                                      {copiedPaymentText === `${activeWallet.name} No` ? "✓ Kopyalandı" : "📋 Kopyala"}
-                                    </button>
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Sizin Cüzdan Numaranız veya Telefonunuz (Onay İçin)</label>
-                                    <input
-                                      type="text"
-                                      value={walletAccountInput}
-                                      onChange={(e) => setWalletAccountInput(e.target.value)}
-                                      placeholder="Örn: 1092837465 veya 0532..."
-                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-mono font-bold text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                                    />
-                                  </div>
-
-                                  <div className="flex gap-2 pt-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setPaymentFormType("none")}
-                                      className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase tracking-wider rounded-lg transition cursor-pointer"
-                                    >
-                                      Vazgeç
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const activeW = DIGITAL_WALLETS.find((w) => w.id === selectedWalletId) || DIGITAL_WALLETS[0];
-                                        const updatedItem = {
-                                          id: "digital_wallet",
-                                          name: `${activeW.name} Dijital Cüzdan`,
-                                          type: `${activeW.name} No: ${activeW.walletNumber} • 0 Komisyon`,
-                                          icon: activeW.logo
-                                        };
-                                        setSelectedPaymentMethod(updatedItem);
-                                        setPaymentFormType("none");
-                                        setIsChangingPaymentMethod(false);
-                                        triggerToast(`👛 ${activeW.name} Dijital Cüzdan seçildi!`);
-                                      }}
-                                      className="flex-1 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg transition shadow-sm cursor-pointer"
-                                    >
-                                      💾 BU CÜZDANI SEÇ
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-
-                        {/* Sub Form: Bank Transfer / FAST */}
-                        {paymentFormType === "bank_transfer" && (
-                          <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-500/30 space-y-3 mt-1 text-left" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-base">🏦</span>
-                                <p className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Banka Havalesi / 7/24 FAST</p>
-                              </div>
-                              <span className="text-[8px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">7/24 Anında FAST</span>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Banka Seçiniz (6 Anlaşmalı Banka)</label>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                {BANK_ACCOUNTS.map((bank) => {
-                                  const isCurrent = selectedBankId === bank.id;
-                                  return (
-                                    <button
-                                      key={bank.id}
-                                      type="button"
-                                      onClick={() => setSelectedBankId(bank.id)}
-                                      className={`p-2 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                                        isCurrent
-                                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/30"
-                                          : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <span className="text-base shrink-0">{bank.icon}</span>
-                                        <div className="truncate">
-                                          <p className="text-[10px] font-black text-slate-800 dark:text-slate-100 truncate">{bank.bankName}</p>
-                                          <p className="text-[8px] text-slate-400 font-semibold truncate">{bank.branch}</p>
-                                        </div>
-                                      </div>
-                                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Selected Bank Details */}
-                            {(() => {
-                              const activeBank = BANK_ACCOUNTS.find((b) => b.id === selectedBankId) || BANK_ACCOUNTS[0];
-                              return (
-                                <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/40 space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">{activeBank.bankName} - {activeBank.branch}</span>
-                                    <span className="text-[8px] text-emerald-600 dark:text-emerald-400 font-black">FAST UYUMLU ⚡</span>
-                                  </div>
-
-                                  <div className="p-2 bg-white dark:bg-slate-950 rounded-lg border border-emerald-200/40 dark:border-emerald-800/40 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <div>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Alıcı / Hesap Sahibi</p>
-                                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">{activeBank.accountHolder}</p>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCopyPaymentText(activeBank.accountHolder, "Alıcı Adı")}
-                                        className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-black text-[8px] rounded uppercase cursor-pointer"
-                                      >
-                                        {copiedPaymentText === "Alıcı Adı" ? "✓ Kopyalandı" : "📋 Kopyala"}
-                                      </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                                      <div>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase">IBAN NUMARASI</p>
-                                        <p className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400">{activeBank.iban}</p>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCopyPaymentText(activeBank.iban.replace(/\s+/g, ""), "IBAN")}
-                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] rounded uppercase shadow-xs transition cursor-pointer"
-                                      >
-                                        {copiedPaymentText === "IBAN" ? "✓ Kopyalandı" : "📋 IBAN Kopyala"}
-                                      </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                                      <div>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Havale Açıklama (Referans Kodu)</p>
-                                        <p className="text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">{bankRefCode}</p>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCopyPaymentText(bankRefCode, "Açıklama Kodu")}
-                                        className="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-black text-[8px] rounded uppercase cursor-pointer"
-                                      >
-                                        {copiedPaymentText === "Açıklama Kodu" ? "✓ Kopyalandı" : "📋 Kodu Kopyala"}
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Gönderen Adı Soyadı</label>
-                                    <input
-                                      type="text"
-                                      value={senderNameInput}
-                                      onChange={(e) => setSenderNameInput(e.target.value)}
-                                      placeholder="Havale / EFT yapacak kişinin adı soyadı"
-                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-bold text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                    />
-                                  </div>
-
-                                  <div className="flex gap-2 pt-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setPaymentFormType("none")}
-                                      className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase tracking-wider rounded-lg transition cursor-pointer"
-                                    >
-                                      Vazgeç
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const activeB = BANK_ACCOUNTS.find((b) => b.id === selectedBankId) || BANK_ACCOUNTS[0];
-                                        const updatedItem = {
-                                          id: "bank_transfer",
-                                          name: `${activeB.bankName} Havale/FAST`,
-                                          type: `IBAN: ${activeB.iban.slice(0, 15)}... • Ref: ${bankRefCode}`,
-                                          icon: "🏦"
-                                        };
-                                        setSelectedPaymentMethod(updatedItem);
-                                        setPaymentFormType("none");
-                                        setIsChangingPaymentMethod(false);
-                                        triggerToast(`🏦 ${activeB.bankName} Havalesi seçildi! (Ref: ${bankRefCode})`);
-                                      }}
-                                      className="flex-1 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg transition shadow-sm cursor-pointer"
-                                    >
-                                      💾 BU BANKAYI SEÇ
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -12424,7 +12001,7 @@ export default function App() {
 
                 {/* Term of Service */}
                 <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">
-                  Ödemeniz Google Play, anlaşmalı Türk Bankaları veya BDDK lisanslı dijital cüzdanlar üzerinden %100 SSL korumasıyla güvenle işlenir. İstediğiniz zaman abonelik ayarlarınızdan iptal edebilirsiniz.
+                  Ödemeniz Google Play Store güvencesiyle %100 SSL koruması altında gerçekleştirilir. İstediğiniz zaman Google Play Aboneliklerim sayfasından kolayca iptal edebilirsiniz.
                 </p>
 
                 {/* Simulated Loading loops for purchase execution */}
@@ -12464,67 +12041,7 @@ export default function App() {
                       clearPurchaseTimeouts();
                       setIsPurchasing(true);
 
-                      // 1. Banka Havalesi / FAST Ödeme Doğrulaması
-                      if (selectedPaymentMethod.id === "bank_transfer") {
-                        setPurchaseStatus(`7/24 FAST transfer ağında referans kodu (${bankRefCode}) taranıyor...`);
-                        const t1 = setTimeout(() => {
-                          setPurchaseStatus("Merkez Bankası FAST / EFT ödeme onayı alındı...");
-                        }, 1200);
-                        const t2 = setTimeout(() => {
-                          setPurchaseStatus("Bütçem Pro Premium üyeliği başarıyla sisteme işleniyor...");
-                        }, 2500);
-                        const t3 = setTimeout(async () => {
-                          try {
-                            await savePremiumStatusAndSync(true, selectedPlan);
-                            localStorage.setItem("premium_payment_method", "Banka Havalesi / FAST");
-                            const names = { monthly: "Aylık", yearly: "Yıllık", lifetime: "Sınırsız (Ömür Boyu)" };
-                            triggerToast(`🏦 Banka Havalesi / FAST ile ${names[selectedPlan]} Premium Başarıyla Aktifleştirildi! (Ref: ${bankRefCode})`);
-                            setIsGPlayBillingActive(false);
-                            setIsUpgradeModalOpen(false);
-                            setIsChangingPaymentMethod(false);
-                            setPaymentFormType("none");
-                          } catch (err: any) {
-                            triggerToast("Havale Aktivasyon Hatası: " + (err.message || "Bilinmeyen Hata"));
-                          } finally {
-                            setIsPurchasing(false);
-                            setPurchaseStatus("");
-                          }
-                        }, 4000);
-                        purchaseTimeoutsRef.current = [t1, t2, t3];
-                        return;
-                      }
-
-                      // 2. Dijital Cüzdanlar Ödeme Doğrulaması (Papara, Paycell vb.)
-                      if (selectedPaymentMethod.id === "digital_wallet") {
-                        setPurchaseStatus(`${selectedPaymentMethod.name} güvenli cüzdan API'sine bağlanılıyor...`);
-                        const t1 = setTimeout(() => {
-                          setPurchaseStatus("0 komisyonlu cüzdan transferi ve provizyonu onaylandı...");
-                        }, 1200);
-                        const t2 = setTimeout(() => {
-                          setPurchaseStatus("Bütçem Pro Premium lisansı anında aktif ediliyor...");
-                        }, 2500);
-                        const t3 = setTimeout(async () => {
-                          try {
-                            await savePremiumStatusAndSync(true, selectedPlan);
-                            localStorage.setItem("premium_payment_method", selectedPaymentMethod.name);
-                            const names = { monthly: "Aylık", yearly: "Yıllık", lifetime: "Sınırsız (Ömür Boyu)" };
-                            triggerToast(`👛 ${selectedPaymentMethod.name} ile ${names[selectedPlan]} Premium Başarıyla Aktif Edildi!`);
-                            setIsGPlayBillingActive(false);
-                            setIsUpgradeModalOpen(false);
-                            setIsChangingPaymentMethod(false);
-                            setPaymentFormType("none");
-                          } catch (err: any) {
-                            triggerToast("Cüzdan Aktivasyon Hatası: " + (err.message || "Bilinmeyen Hata"));
-                          } finally {
-                            setIsPurchasing(false);
-                            setPurchaseStatus("");
-                          }
-                        }, 4000);
-                        purchaseTimeoutsRef.current = [t1, t2, t3];
-                        return;
-                      }
-
-                      // 3. Standart Google Play / Kredi Kartı / Mobil Ödeme
+                      // Standart Google Play / Kredi Kartı / Mobil Ödeme
                       setPurchaseStatus("Google Play doğrulama istekleri gönderiliyor...");
                       
                       const t1 = setTimeout(() => {
