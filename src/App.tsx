@@ -2702,11 +2702,6 @@ export default function App() {
       }
 
       if (user) {
-        setShowOnboarding(false);
-        try {
-          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
-          localStorage.setItem("butcem_onboarding_completed_v7", "true");
-        } catch {}
         // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
         sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
           setSessionTerminatedReason(reason);
