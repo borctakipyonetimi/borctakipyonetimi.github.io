@@ -2624,7 +2624,6 @@ interface PushSubscriptionRecord {
   debts?: any[];
   installmentDebts?: any[];
   user: string;
-  frequency?: string;
   lastOverduePushTime?: number;
   lastDueTodayPushDate?: string;
   updatedAt?: number;
@@ -2961,7 +2960,7 @@ function analyzeUserDebts(debts: any[] = [], installmentDebts: any[] = []) {
 
 // REST route to subscribe/register device with current alarms AND debts
 app.post("/api/push-register", (req, res) => {
-  const { subscription, alarms, debts, installmentDebts, user, frequency } = req.body;
+  const { subscription, alarms, debts, installmentDebts, user } = req.body;
   if (!subscription || !subscription.endpoint) {
     return res.status(400).json({ error: "Geçersiz abonelik bilgisi" });
   }
@@ -2974,7 +2973,6 @@ app.post("/api/push-register", (req, res) => {
     debts: [],
     installmentDebts: [],
     user: user || "anonymous",
-    frequency: frequency || "2",
     lastOverduePushTime: 0,
     lastDueTodayPushDate: ""
   };
@@ -2990,7 +2988,6 @@ app.post("/api/push-register", (req, res) => {
     debts: cleanDebts,
     installmentDebts: cleanInstallmentDebts,
     user: user || existing.user || "anonymous",
-    frequency: frequency || existing.frequency || "2",
     updatedAt: Date.now()
   };
 
@@ -4501,50 +4498,34 @@ setInterval(async () => {
       }
 
       // --- 2. CHECK OVERDUE DEBTS & DUE TODAY (BACKGROUND PUSH WHEN APP IS CLOSED) ---
-      // Dynamically respect user-selected reminder frequency (e.g. 2 hours for 'hourly')
-      const freq = details.frequency || "2";
-      let periodMs = 12 * 60 * 60 * 1000;
-      if (freq === "hourly") periodMs = 2 * 60 * 60 * 1000; // 2 Saatte Bir
-      else if (freq === "1") periodMs = 24 * 60 * 60 * 1000;
-      else if (freq === "2") periodMs = 12 * 60 * 60 * 1000;
-      else if (freq === "3") periodMs = 8 * 60 * 60 * 1000;
-      else if (freq === "4") periodMs = 6 * 60 * 60 * 1000;
-
+      // We send overdue / due reminders at reasonable intervals (at least 6 hours apart per device)
+      const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
       const lastOverdueTime = details.lastOverduePushTime || 0;
       const hasDebts = (details.debts && details.debts.length > 0) || (details.installmentDebts && details.installmentDebts.length > 0);
 
-      // Rahatsız etmeme penceresi: 23:00 - 08:30 arası sessiz kal
-      const currentHour = new Date().getHours();
-      const inQuietHours = currentHour < 8 || currentHour >= 23;
+      if (hasDebts && (nowTime - lastOverdueTime > SIX_HOURS_MS)) {
+        const { overdueDebts, dueTodayDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
 
-      if (!inQuietHours && hasDebts && (nowTime - lastOverdueTime >= periodMs)) {
-        const { overdueDebts, dueTodayDebts, upcomingDebts } = analyzeUserDebts(details.debts || [], details.installmentDebts || []);
-        const closeUpcoming = (upcomingDebts || []).filter(d => d.daysLeft <= 3);
-
-        if (overdueDebts.length > 0 || dueTodayDebts.length > 0 || closeUpcoming.length > 0) {
-          let title = "Bütçem Pro: Ödeme Hatırlatıcı ⏰";
+        if (overdueDebts.length > 0 || dueTodayDebts.length > 0) {
+          let title = "Bütçem Pro: Borç Hatırlatması ⏰";
           let body = "";
 
           if (overdueDebts.length > 0) {
-            const totalOverdue = overdueDebts.reduce((sum, d) => sum + (Number(d.remaining) || 0), 0);
+            const totalOverdue = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
             const topDebt = overdueDebts[0];
             title = `⚠️ Gecikmiş Borç Uyarısı (${overdueDebts.length} Adet)`;
-            body = `Ödemesi geçen borcunuz var: "${topDebt.name}" (₺${Math.round(topDebt.remaining).toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikti). Toplam Geciken: ₺${Math.round(totalOverdue).toLocaleString("tr-TR")}.`;
+            body = `Ödemesi geçen borcunuz var: "${topDebt.name}" (₺${topDebt.remaining.toLocaleString("tr-TR")}, ${topDebt.daysLate} gün gecikti). Toplam: ₺${totalOverdue.toLocaleString("tr-TR")}.`;
           } else if (dueTodayDebts.length > 0) {
-            const totalDue = dueTodayDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+            const totalDue = dueTodayDebts.reduce((sum, d) => sum + d.amount, 0);
             const topDebt = dueTodayDebts[0];
             title = `🚨 Bugün Vadesi Gelen Ödemeniz Var!`;
-            body = `"${topDebt.name}" için ₺${Math.round(topDebt.amount).toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün! Toplam: ₺${Math.round(totalDue).toLocaleString("tr-TR")}.`;
-          } else if (closeUpcoming.length > 0) {
-            const topUpcoming = closeUpcoming[0];
-            title = `⏰ Yaklaşan Ödeme: "${topUpcoming.name}"`;
-            body = `"${topUpcoming.name}" ödemenize ${topUpcoming.daysLeft} gün kaldı (₺${Math.round(topUpcoming.remaining).toLocaleString("tr-TR")}).`;
+            body = `"${topDebt.name}" için ₺${topDebt.amount.toLocaleString("tr-TR")} tutarındaki ödemenizin vadesi bugün!`;
           }
 
           const payload = JSON.stringify({
             title,
             body,
-            tag: "debt-periodic-" + new Date().toISOString().slice(0, 13),
+            tag: "overdue-periodic-" + new Date().toISOString().slice(0, 10),
             action: "trigger-sync",
             syncTag: "server-cron-sync",
             icon: "/notification-icon.png",
@@ -4554,7 +4535,7 @@ setInterval(async () => {
           });
 
           try {
-            console.log(`[Push Server] Sending periodic background reminder (sıklık: ${freq}) to user: "${details.user}"`);
+            console.log(`[Push Server] Sending periodic background overdue reminder to user: "${details.user}"`);
             await webpush.sendNotification(details.subscription, payload, {
               headers: { "Urgency": "high" },
               TTL: 86400
@@ -4562,7 +4543,7 @@ setInterval(async () => {
             details.lastOverduePushTime = nowTime;
             hasChanges = true;
           } catch (pushErr: any) {
-            console.error(`[Push Server] Error sending periodic reminder push:`, pushErr.statusCode || pushErr.message);
+            console.error(`[Push Server] Error sending overdue push:`, pushErr.statusCode || pushErr.message);
             if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
               delete subscriptionsMap[endpointHash];
               hasChanges = true;
