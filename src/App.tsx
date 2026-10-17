@@ -2494,18 +2494,8 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  // Application Clean Start state
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    try {
-      const savedUser = localStorage.getItem("currentUser");
-      if (!savedUser) {
-        return true;
-      }
-      return !localStorage.getItem("butcem_onboarding_welcome_v7") && !localStorage.getItem("butcem_onboarding_completed_v7");
-    } catch {
-      return true;
-    }
-  });
+  // Application Clean Start state - Her soğuk başlangıçta (cold start) Karşılama/Giriş ekranı gösterilsin
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
   const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
