@@ -2481,19 +2481,9 @@ export default function App() {
   // Application Clean Start state
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     try {
-      const completed = localStorage.getItem("butcem_onboarding_completed_v7") === "true";
-      const welcome = localStorage.getItem("butcem_onboarding_welcome_v7") === "true";
-      const user = Boolean(localStorage.getItem("currentUser"));
-      const isGuest = localStorage.getItem("is_guest") === "true";
-      const skipInit = localStorage.getItem("skip_initial_login") === "true";
-      const authUser = Boolean(auth.currentUser);
-
-      if (completed || welcome || user || isGuest || skipInit || authUser) {
-        return false;
-      }
-      return true;
+      return !localStorage.getItem("butcem_onboarding_welcome_v7") && !localStorage.getItem("butcem_onboarding_completed_v7");
     } catch {
-      return false;
+      return true;
     }
   });
 
