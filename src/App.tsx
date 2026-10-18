@@ -134,6 +134,7 @@ import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid, c
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
 import { WelcomeScreen } from "./views/WelcomeScreen";
+import { LoginScreen } from "./views/LoginScreen";
 import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
@@ -353,9 +354,15 @@ export default function App() {
     });
   };
 
-  // User Profile authorizations state
+  // User Profile authorizations state (Sadece e-posta ve şifreyle oturum açılmışsa yüklenir)
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    return localStorage.getItem("currentUser") || null;
+    try {
+      const isLogged = localStorage.getItem("userLoggedIn") === "true";
+      if (!isLogged) return null;
+      return localStorage.getItem("currentUser") || null;
+    } catch {
+      return null;
+    }
   });
 
   // User Profile Name state (stored strictly under kullanicilar/UID/profil/isim in Realtime Database)
@@ -2478,35 +2485,46 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  // Application Clean Start state & Oturum Kalıcılığı (Auto-Login Kontrolü)
+  // Auth & Onboarding Router State (İlk Kurulum, Otomatik Giriş ve Çıkış Yönlendirmesi)
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("hasCompletedOnboarding") === "true" ||
+             localStorage.getItem("butcem_onboarding_completed_v7") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const [userLoggedIn, setUserLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("userLoggedIn") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("is_guest") === "true";
+    } catch {
+      return false;
+    }
+  });
+
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     try {
-      const isUserLoggedIn = localStorage.getItem("userLoggedIn") === "true";
-      const hasCompleted = localStorage.getItem("hasCompletedOnboarding") === "true";
-      const hasCurrentUser = !!localStorage.getItem("currentUser");
-      const legacyWelcome = !!localStorage.getItem("butcem_onboarding_welcome_v7");
-      const legacyCompleted = !!localStorage.getItem("butcem_onboarding_completed_v7");
-
-      // Auto-Login: Kullanıcı daha önce giriş yapmışsa veya kurulumu tamamlamışsa
-      // Hoş Geldiniz ekranı TEKRAR GÖSTERİLMESİN, doğrudan Dashboard'a yönlendirilsin.
-      if (isUserLoggedIn || hasCompleted || hasCurrentUser || legacyWelcome || legacyCompleted) {
-        return false;
-      }
-      // İlk kurulum, APK ilk yükleme veya uygulama verileri silindiğinde WelcomeScreen açılır
-      return true;
+      const isLogged = localStorage.getItem("userLoggedIn") === "true";
+      const hasCompleted = localStorage.getItem("hasCompletedOnboarding") === "true" || localStorage.getItem("butcem_onboarding_completed_v7") === "true";
+      const isGuest = localStorage.getItem("is_guest") === "true";
+      // Sadece ilk kurulum veya veri silindiğinde true döner
+      return !hasCompleted && !isLogged && !isGuest;
     } catch {
       return true;
     }
   });
 
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
-  const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
-    const onboardingWelcomeDone = localStorage.getItem("butcem_onboarding_welcome_v7") || localStorage.getItem("hasCompletedOnboarding");
-    if (!onboardingWelcomeDone) {
-      return false;
-    }
-    return !localStorage.getItem("currentUser") && !localStorage.getItem("skip_initial_login");
-  });
+  const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(false);
   const [providerLoginInitialTab, setProviderLoginInitialTab] = useState<"premium" | "guest_trial">("premium");
   const [providerLoginInitialSubMode, setProviderLoginInitialSubMode] = useState<"login" | "register">("login");
   const [selectedProvider, setSelectedProvider] = useState<"google" | "email" | null>(null);
@@ -2522,6 +2540,10 @@ export default function App() {
     } catch (e) {
       console.warn("Could not write onboarding status to localStorage:", e);
     }
+    setHasCompletedOnboarding(true);
+    setUserLoggedIn(false);
+    setIsGuestMode(true);
+    setCurrentUser(null);
     setProviderLoginOpen(false);
     setShowOnboarding(false);
     setActiveTab("overview");
@@ -2589,6 +2611,9 @@ export default function App() {
     setSelectedProvider(null);
     setSessionTerminatedReason(null);
     setShowOnboarding(false);
+    setUserLoggedIn(true);
+    setHasCompletedOnboarding(true);
+    setIsGuestMode(false);
     try {
       localStorage.setItem("userLoggedIn", "true");
       localStorage.setItem("hasCompletedOnboarding", "true");
@@ -2709,18 +2734,28 @@ export default function App() {
         sessionWatcherUnsub = null;
       }
 
-      if (user) {
+      const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
+      const isLocalGuest = localStorage.getItem("is_guest") === "true";
+
+      // KURAL 2: Otomatik Giriş Engeli ve Doğrulama Zorunluluğu
+      // Kullanıcı e-posta ve şifresini girmeden KESİNLİKLE doğrudan uygulamaya yönlendirilmez.
+      // Önbellekteki eski oturum token'ları e-posta/şifre doğrulaması bypass edilerek uygulamaya giremez.
+      if (!isLocallyLoggedIn && !isLocalGuest) {
+        setCurrentUser(null);
+        setUserLoggedIn(false);
+        return;
+      }
+
+      if (user && isLocallyLoggedIn) {
         setShowOnboarding(false);
-        try {
-          localStorage.setItem("userLoggedIn", "true");
-          localStorage.setItem("hasCompletedOnboarding", "true");
-          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
-          localStorage.setItem("butcem_onboarding_completed_v7", "true");
-        } catch {}
+        setUserLoggedIn(true);
+        setHasCompletedOnboarding(true);
+        setIsGuestMode(false);
         // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
         sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
           setSessionTerminatedReason(reason);
           setCurrentUser(null);
+          setUserLoggedIn(false);
           setProviderLoginOpen(true);
         });
 
@@ -2869,13 +2904,16 @@ export default function App() {
             console.warn("Kullanıcı ayarları sorgulama uyarısı:", aErr);
           });
       } else {
+        const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
         const savedUser = localStorage.getItem("currentUser");
-        if (savedUser) {
+        if (savedUser && isLocallyLoggedIn) {
           // Keep the local/hybrid session active if Firebase is loading or in a fallback state
           setCurrentUser(savedUser);
+          setUserLoggedIn(true);
           checkUserTrialExpiration(null, null);
         } else {
           setCurrentUser(null);
+          setUserLoggedIn(false);
         }
         const savedProfileName = localStorage.getItem("user_profile_name");
         if (savedProfileName) {
@@ -4509,17 +4547,17 @@ export default function App() {
         } catch (err) {
           console.error("SignOut error:", err);
         }
-        // 1. KURAL: LocalStorage üzerindeki tüm kullanıcı ve oturum verilerini tamamen temizle
+        // 1. KURAL: LocalStorage üzerindeki oturum verilerini temizle
+        // ÖNEMLİ: hasCompletedOnboarding = "true" OLARAK KORUNUR!
+        // Böylece kullanıcı tekrar Karşılama ekranına (WelcomeScreen) değil, DOĞRUDAN 'E-posta ve Şifre ile Giriş Yap' (LoginScreen) ekranına yönlendirilir!
         localStorage.removeItem("currentUser");
         localStorage.setItem("userLoggedIn", "false");
-        localStorage.removeItem("hasCompletedOnboarding");
-        localStorage.removeItem("butcem_onboarding_welcome_v7");
-        localStorage.removeItem("butcem_onboarding_completed_v7");
+        localStorage.setItem("hasCompletedOnboarding", "true");
+        localStorage.removeItem("is_guest");
         localStorage.removeItem("skip_initial_login");
         localStorage.removeItem("user_profile_name");
         localStorage.removeItem("user_profile_avatar");
         localStorage.removeItem("is_premium");
-        localStorage.removeItem("is_guest");
         localStorage.removeItem("premium_plan");
         localStorage.removeItem("premium_source");
         localStorage.removeItem("premium_type");
@@ -4530,12 +4568,15 @@ export default function App() {
         localStorage.removeItem("user_gemini_api_key");
         localStorage.removeItem("butcem_device_id");
         localStorage.setItem("is_premium", "false");
-        localStorage.setItem("is_guest", "false");
 
         // State ve context sıfırlaması
         setUserProfileName("");
         setUserAvatar("");
         setCurrentUser(null);
+        setUserLoggedIn(false);
+        setIsGuestMode(false);
+        setHasCompletedOnboarding(true);
+        setShowOnboarding(false);
         setIsPremium(false);
         setIsTrialExpiredLocked(false);
         setIsUpgradeModalOpen(false);
@@ -4548,11 +4589,10 @@ export default function App() {
         setPayments([]);
         setExpenses([]);
         
-        // Standart Giriş / Karşılama ekranına yönlendir
+        // Doğrudan LoginScreen'e yönlendir
         setProviderLoginOpen(false);
-        setShowOnboarding(true);
         setActiveTab("overview");
-        triggerToast("Oturumunuz kapatıldı. Giriş ekranına yönlendirildiniz 🔒");
+        triggerToast("Oturumunuz kapatıldı. Lütfen tekrar giriş yapın 🔒");
       }
     );
   };
@@ -7283,30 +7323,35 @@ export default function App() {
     );
   }
 
+  // 1. İLK KURULUM VE VERİ SİLİNME DURUMU:
+  // Cihaza ilk kez kurulduğunda veya uygulama verileri silindiğinde tek sayfalık Karşılama/Onboarding Ekranı (WelcomeScreen)
+  if (!hasCompletedOnboarding && !userLoggedIn && !isGuestMode) {
+    return (
+      <WelcomeScreen
+        key="welcome-screen-root"
+        onLoginSuccess={handleProviderLoginSuccess}
+        onGuestContinue={handleCompleteOnboarding}
+        onOpenUpgradeModal={(name) => openUpgradeModal(name)}
+      />
+    );
+  }
+
+  // 2. OTURUMU KAPATMA (LOGOUT) DAVRANIŞI:
+  // Onboarding daha önce tamamlanmış fakat oturum kapalıysa:
+  // Karşılama ekranına değil, DOĞRUDAN sadece 'E-posta ve Şifre ile Giriş Yap' ekranına (LoginScreen) yönlendirilir.
+  if (hasCompletedOnboarding && !userLoggedIn && !isGuestMode) {
+    return (
+      <LoginScreen
+        key="login-screen-root"
+        onLoginSuccess={handleProviderLoginSuccess}
+        onGuestContinue={handleCompleteOnboarding}
+        onOpenUpgradeModal={(name) => openUpgradeModal(name)}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
-      <AnimatePresence mode="wait">
-        {showOnboarding && (
-          <WelcomeScreen
-            key="welcome-screen-root"
-            onLoginSuccess={handleProviderLoginSuccess}
-            onGuestContinue={handleCompleteOnboarding}
-            onOpenUpgradeModal={(name) => openUpgradeModal(name)}
-            onLoginClick={() => {
-              setProviderLoginInitialTab("premium");
-              setProviderLoginInitialSubMode("login");
-              setSelectedProvider("email");
-              setProviderLoginOpen(true);
-            }}
-            onRegisterClick={() => {
-              setProviderLoginInitialTab("premium");
-              setProviderLoginInitialSubMode("register");
-              setSelectedProvider("email");
-              setProviderLoginOpen(true);
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
       {confirmModal.isOpen && (
