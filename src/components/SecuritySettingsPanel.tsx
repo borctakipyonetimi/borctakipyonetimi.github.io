@@ -34,7 +34,8 @@ import {
   Settings as SettingsIcon,
   Check,
   Folder,
-  Trash2
+  Trash2,
+  LogOut
 } from "lucide-react";
 import { isPassActive } from "../utils/rewardedAdService";
 
@@ -69,6 +70,7 @@ interface SecuritySettingsPanelProps {
   isOfflineMode?: boolean;
   initialTab?: "cloud" | "security" | "settings";
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
 export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
@@ -86,6 +88,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   onOpenOnboarding,
   currentUser = null,
   onOpenGoogleLogin,
+  onLogout,
   onManualSyncAll,
   debts = [],
   installmentDebts = [],
@@ -725,14 +728,28 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                   </button>
                 )}
 
-                {currentUser && onOpenGoogleLogin && (
-                  <button
-                    type="button"
-                    onClick={onOpenGoogleLogin}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer self-start sm:self-auto active:scale-95"
-                  >
-                    <span>🔄 Farklı E-posta ile Giriş Yap</span>
-                  </button>
+                {currentUser && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onLogout && (
+                      <button
+                        type="button"
+                        onClick={onLogout}
+                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 dark:text-rose-300 rounded-2xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-95 border border-rose-200 dark:border-rose-900/50"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Çıkış Yap</span>
+                      </button>
+                    )}
+                    {onOpenGoogleLogin && (
+                      <button
+                        type="button"
+                        onClick={onOpenGoogleLogin}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer self-start sm:self-auto active:scale-95"
+                      >
+                        <span>🔄 Farklı E-posta ile Giriş Yap</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

@@ -1,5 +1,11 @@
-import React from "react";
-import { motion } from "motion/react";
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * Bütçem Pro - Tek Sayfalık Giriş ve Karşılama Ekranı (Welcome / Auth Screen)
+ */
+
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   ShieldCheck,
   CreditCard,
@@ -13,21 +19,291 @@ import {
   CheckCircle2,
   Zap,
   UserCheck,
-  UserPlus
+  UserPlus,
+  Mail,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  HelpCircle,
+  Loader2,
+  Check
 } from "lucide-react";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
+import { auth, firestore, doc, getDoc, withTimeout } from "../utils/firebase";
+import {
+  getDeviceUuid,
+  saveUserSessionToFirestore,
+  checkIsPremiumEmailInFirestore,
+  checkUserTrialUsedInFirestore
+} from "../utils/deviceSessionService";
+import { sendWelcomeEmail } from "../utils/newsletterService";
 import appLogo from "../assets/logo.png";
 
+export interface LoginSuccessMeta {
+  isPremium?: boolean;
+  isGuest?: boolean;
+  isPendingPayment?: boolean;
+  isTrialActive?: boolean;
+  isTrialExpired?: boolean;
+  trialMessage?: string;
+  createdAt?: string;
+  hasUsedTrial?: boolean;
+}
+
 export interface WelcomeScreenProps {
-  onLoginClick: () => void;
-  onRegisterClick: () => void;
+  onLoginSuccess?: (email: string, meta?: LoginSuccessMeta) => void;
   onGuestContinue: () => void;
+  onOpenUpgradeModal?: (featureName?: string) => void;
+  onLoginClick?: () => void;
+  onRegisterClick?: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+  onLoginSuccess,
+  onGuestContinue,
+  onOpenUpgradeModal,
   onLoginClick,
-  onRegisterClick,
-  onGuestContinue
+  onRegisterClick
 }) => {
+  // Auth Form State (Giriş Yap / Kayıt Ol / Şifremi Unuttum)
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Status & Feedback States
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [successMessage, setSuccessMessage] = useState<string>("");
+
+  const formatAuthError = (errCode: string, defaultMsg: string): string => {
+    switch (errCode) {
+      case "auth/invalid-email":
+        return "Geçersiz e-posta adresi formatı. Lütfen kontrol edin.";
+      case "auth/user-not-found":
+        return "Bu e-posta adresi ile kayıtlı bir hesap bulunamadı. Lütfen 'Kayıt Ol' sekmesinden yeni hesap oluşturun.";
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+        return "E-posta veya şifre hatalı. Lütfen şifrenizi kontrol edin veya 'Şifremi Unuttum' bağlantısını kullanın.";
+      case "auth/email-already-in-use":
+        return "Bu e-posta adresiyle zaten kayıtlı bir hesap var. Lütfen 'Giriş Yap' sekmesinden şifrenizle giriş yapın.";
+      case "auth/weak-password":
+        return "Şifreniz çok zayıf. Güvenliğiniz için en az 6 karakterli bir şifre belirleyin.";
+      case "auth/too-many-requests":
+        return "Çok fazla başarısız deneme yapıldı. Güvenliğiniz nedeniyle lütfen birkaç dakika bekleyip tekrar deneyin.";
+      case "auth/network-request-failed":
+        return "İnternet bağlantısı kurulamadı. Lütfen ağ bağlantınızı kontrol edin.";
+      default:
+        return defaultMsg || "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.";
+    }
+  };
+
+  // Tek Sayfa Giriş / Kayıt İşlemi
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const targetEmail = email.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setErrorMessage("Lütfen geçerli bir e-posta adresi girin (örn: isim@gmail.com).");
+      return;
+    }
+
+    // Şifremi Unuttum Akışı
+    if (authMode === "forgot") {
+      setIsLoading(true);
+      setStatusMessage("Şifre sıfırlama bağlantısı gönderiliyor...");
+      try {
+        await sendPasswordResetEmail(auth, targetEmail);
+        setSuccessMessage(`Şifre sıfırlama bağlantısı ${targetEmail} adresine gönderildi. Lütfen gelen kutunuzu ve spam klasörünü kontrol edin.`);
+        setStatusMessage("");
+      } catch (err: any) {
+        setErrorMessage(formatAuthError(err?.code, err?.message));
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Şifre kontrolü
+    if (!password || password.length < 6) {
+      setErrorMessage("Şifreniz en az 6 karakter uzunluğunda olmalıdır.");
+      return;
+    }
+
+    // Kayıt Modunda Eşleşme Kontrolü
+    if (authMode === "register" && password !== confirmPassword) {
+      setErrorMessage("Girdiğiniz şifreler eşleşmiyor. Lütfen her iki alana da aynı şifreyi yazın.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (authMode === "login") {
+        // -------------------------------------------------------------
+        // GİRİŞ YAP AKIŞI
+        // -------------------------------------------------------------
+        setStatusMessage("Kimlik bilgileri doğrulanıyor...");
+        const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
+        const user = credential.user;
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const isSuperTestEmail = cleanUserEmail === "info.borcodemetakip@gmail.com";
+
+        let isUserPremium = isSuperTestEmail;
+        let determinedCreatedAt: string | null = null;
+        let isGuestUser = false;
+
+        setStatusMessage("Lisans ve oturum durumu sorgulanıyor...");
+
+        if (!isSuperTestEmail) {
+          try {
+            const uSnap = await withTimeout(
+              getDoc(doc(firestore, "users", user.uid)),
+              3500,
+              "Firestore kullanıcı sorgusu zaman aşımı"
+            ).catch(() => null);
+
+            if (uSnap && uSnap.exists()) {
+              const uData = uSnap.data();
+              if (uData?.createdAt) determinedCreatedAt = uData.createdAt;
+              if (uData?.isGuest === true || uData?.hasUsedTrial === true) isGuestUser = true;
+
+              if (uData?.isGuest !== true && (uData?.isPremium === true || uData?.activeSubscription === true)) {
+                if (uData?.subscriptionExpiry) {
+                  const expMs = new Date(uData.subscriptionExpiry).getTime();
+                  isUserPremium = expMs > Date.now();
+                } else {
+                  isUserPremium = true;
+                }
+              }
+            } else {
+              const checkRes = await checkIsPremiumEmailInFirestore(cleanUserEmail);
+              if (checkRes.isPremium) isUserPremium = true;
+            }
+          } catch (err) {
+            console.warn("Lisans sorgulama uyarısı:", err);
+          }
+        }
+
+        const deviceUuid = await Promise.race([
+          getDeviceUuid(),
+          new Promise<string>((res) => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+        ]);
+
+        if (!determinedCreatedAt && user.metadata?.creationTime) {
+          determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
+        }
+
+        // Cihaz hafızasına kalıcı oturum durumunu kaydet (Auto-Login anahtarları)
+        try {
+          localStorage.setItem("userLoggedIn", "true");
+          localStorage.setItem("hasCompletedOnboarding", "true");
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+          localStorage.setItem("butcem_onboarding_completed_v7", "true");
+          if (deviceUuid) localStorage.setItem("active_device_id", deviceUuid);
+          if (determinedCreatedAt) localStorage.setItem("user_created_at", determinedCreatedAt);
+        } catch (_) {}
+
+        setStatusMessage("Giriş başarılı! Ana panoya yönlendiriliyorsunuz...");
+
+        if (onLoginSuccess) {
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: isUserPremium,
+            isGuest: isGuestUser,
+            isPendingPayment: !isUserPremium && !isGuestUser,
+            createdAt: determinedCreatedAt || undefined
+          });
+        }
+      } else {
+        // -------------------------------------------------------------
+        // KAYIT OL AKIŞI
+        // -------------------------------------------------------------
+        setStatusMessage("Yeni hesap oluşturuluyor...");
+        const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
+        const user = credential.user;
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const nowIso = new Date().toISOString();
+
+        const deviceUuid = await Promise.race([
+          getDeviceUuid(),
+          new Promise<string>((res) => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+        ]);
+
+        try {
+          await Promise.race([
+            saveUserSessionToFirestore({
+              userId: user.uid,
+              email: cleanUserEmail,
+              isPremium: false,
+              isGuest: true,
+              deviceId: deviceUuid,
+              createdAt: nowIso
+            }),
+            new Promise((res) => setTimeout(res, 1200))
+          ]);
+        } catch (sessErr) {
+          console.warn("Firestore oturum kaydı uyarısı:", sessErr);
+        }
+
+        // Cihaz hafızasına kalıcı oturum durumunu kaydet (Auto-Login anahtarları)
+        try {
+          localStorage.setItem("userLoggedIn", "true");
+          localStorage.setItem("hasCompletedOnboarding", "true");
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", "false");
+          localStorage.setItem("is_guest", "true");
+          localStorage.setItem("user_created_at", nowIso);
+          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+          localStorage.setItem("butcem_onboarding_completed_v7", "true");
+          if (deviceUuid) localStorage.setItem("active_device_id", deviceUuid);
+        } catch (_) {}
+
+        // Yeni üye Hoş Geldiniz e-postası
+        try {
+          sendWelcomeEmail(cleanUserEmail).catch(() => {});
+        } catch (_) {}
+
+        setStatusMessage("Hesabınız oluşturuldu! Başarıyla giriş yapılıyor...");
+
+        if (onLoginSuccess) {
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: true,
+            createdAt: nowIso
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      setErrorMessage(formatAuthError(err?.code, err?.message));
+    } finally {
+      setIsLoading(false);
+      setStatusMessage("");
+    }
+  };
+
+  // Misafir Devam Et Butonuna Basıldığında
+  const handleGuestClick = () => {
+    try {
+      localStorage.setItem("hasCompletedOnboarding", "true");
+      localStorage.setItem("userLoggedIn", "false");
+      localStorage.setItem("is_guest", "true");
+      localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+      localStorage.setItem("butcem_onboarding_completed_v7", "true");
+      localStorage.setItem("skip_initial_login", "true");
+    } catch (_) {}
+    onGuestContinue();
+  };
+
   return (
     <div
       id="welcome-screen-root"
@@ -38,11 +314,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <div className="absolute -top-32 -left-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px]" />
         <div className="absolute top-1/3 -right-24 w-96 h-96 bg-cyan-500/15 rounded-full blur-[130px]" />
         <div className="absolute -bottom-20 left-1/4 w-[32rem] h-[32rem] bg-emerald-600/15 rounded-full blur-[140px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,8,20,0.8)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,8,20,0.85)_100%)]" />
       </div>
 
       {/* Main Scrollable Content Container */}
-      <div className="relative z-10 flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 pt-5 pb-32">
+      <div className="relative z-10 flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 pt-5 pb-24">
         {/* ======================================================== */}
         {/* ÜST KISIM: LOGO, BAŞLIK & SLOGAN                         */}
         {/* ======================================================== */}
@@ -51,10 +327,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-indigo-500/30 text-indigo-300 text-[11px] font-black uppercase tracking-wider shadow-lg shadow-indigo-950/40 backdrop-blur-md">
             <span className="flex items-center gap-1.5">
               <svg viewBox="0 0 1200 800" className="w-4 h-2.5 rounded-xs overflow-hidden inline-block shadow-xs">
-                <rect width="1200" height="800" fill="#e30a17"/>
-                <circle cx="400" cy="400" r="200" fill="#ffffff"/>
-                <circle cx="450" cy="400" r="160" fill="#e30a17"/>
-                <polygon points="585,400 643.78,419.1 607.45,369.1 607.45,430.9 643.78,380.9" fill="#ffffff" transform="rotate(-30 585 400)"/>
+                <rect width="1200" height="800" fill="#e30a17" />
+                <circle cx="400" cy="400" r="200" fill="#ffffff" />
+                <circle cx="450" cy="400" r="160" fill="#e30a17" />
+                <polygon points="585,400 643.78,419.1 607.45,369.1 607.45,430.9 643.78,380.9" fill="#ffffff" transform="rotate(-30 585 400)" />
               </svg>
               <span>TÜRKİYE FİNANS SİSTEMİ</span>
             </span>
@@ -112,9 +388,238 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </header>
 
         {/* ======================================================== */}
+        {/* ENTEGRE GİRİŞ & KAYIT ALANI (TEK SAYFADA KULLANICI GİRİŞİ) */}
+        {/* ======================================================== */}
+        <section className="mt-6 w-full max-w-lg mx-auto">
+          <div className="relative p-[1.5px] rounded-3xl bg-gradient-to-r from-indigo-500/50 via-purple-500/50 to-cyan-500/50 shadow-2xl shadow-indigo-950/60">
+            <div className="bg-slate-950/95 backdrop-blur-2xl rounded-[23px] p-5 sm:p-7 border border-white/10 space-y-4">
+              
+              {/* Giriş / Kayıt Sekme Başlığı */}
+              <div className="flex p-1 rounded-2xl bg-slate-900/90 border border-white/10">
+                <button
+                  type="button"
+                  id="tab-welcome-login"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setErrorMessage("");
+                    setSuccessMessage("");
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    authMode === "login"
+                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-900/40"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Giriş Yap</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="tab-welcome-register"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setErrorMessage("");
+                    setSuccessMessage("");
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    authMode === "register"
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-900/40"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Kayıt Ol</span>
+                </button>
+              </div>
+
+              {/* Açıklama */}
+              <p className="text-center text-xs text-slate-300">
+                {authMode === "login" && "Kayıtlı e-posta ve şifrenizle giriş yapın, verilerinize anında ulaşın."}
+                {authMode === "register" && "Saniyeler içinde hesabınızı oluşturun, bütçenizi tüm cihazlarınızda yönetin."}
+                {authMode === "forgot" && "Şifre sıfırlama bağlantısı almak için e-posta adresinizi girin."}
+              </p>
+
+              {/* Hata ve Başarı Bildirimleri */}
+              {errorMessage && (
+                <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                  <span className="leading-snug font-medium">{errorMessage}</span>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                  <span className="leading-snug font-medium">{successMessage}</span>
+                </div>
+              )}
+
+              {/* Form Alanları */}
+              <form onSubmit={handleAuthSubmit} className="space-y-3.5">
+                {/* E-posta Alanı */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>E-posta Adresi</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="ornek@gmail.com"
+                      className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all font-sans"
+                    />
+                  </div>
+                </div>
+
+                {/* Şifre Alanı (Şifremi unuttum modunda gizlenir) */}
+                {authMode !== "forgot" && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Şifre</span>
+                      </label>
+                      {authMode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode("forgot");
+                            setErrorMessage("");
+                            setSuccessMessage("");
+                          }}
+                          className="text-[10px] text-indigo-300 hover:text-indigo-200 underline font-medium cursor-pointer"
+                        >
+                          Şifremi Unuttum
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl px-4 py-3 pr-11 text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all font-sans"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer transition"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Şifre Tekrarı (Sadece Kayıt Modunda) */}
+                {authMode === "register" && (
+                  <div className="space-y-1 animate-fadeIn">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Şifre Tekrarı</span>
+                    </label>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Şifrenizi tekrar yazın"
+                      className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 transition-all font-sans"
+                    />
+                  </div>
+                )}
+
+                {/* Ana Gönderim Butonu */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  id="btn-welcome-submit"
+                  className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm tracking-wide shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60 active:scale-[0.98] ${
+                    authMode === "register"
+                      ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 hover:from-emerald-400 hover:to-cyan-400 shadow-emerald-500/20"
+                      : "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white hover:from-indigo-500 hover:to-purple-600 shadow-indigo-600/30"
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{statusMessage || "Lütfen bekleyin..."}</span>
+                    </>
+                  ) : authMode === "login" ? (
+                    <>
+                      <UserCheck className="w-4 h-4" />
+                      <span>Giriş Yap ve Devam Et</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </>
+                  ) : authMode === "register" ? (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>Kayıt Ol ve Başla</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      <span>Sıfırlama Bağlantısı Gönder</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Şifremi Unuttum modundan geri dön */}
+                {authMode === "forgot" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setErrorMessage("");
+                      setSuccessMessage("");
+                    }}
+                    className="w-full py-2 text-center text-xs text-slate-400 hover:text-white transition cursor-pointer font-bold"
+                  >
+                    ← Giriş Ekranına Dön
+                  </button>
+                )}
+              </form>
+
+              {/* Ayırıcı */}
+              <div className="relative flex items-center justify-center my-3">
+                <div className="border-t border-white/10 w-full" />
+                <span className="bg-slate-950 px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  VEYA
+                </span>
+              </div>
+
+              {/* 'Misafir Olarak Devam Et' Seçeneği */}
+              <button
+                type="button"
+                id="btn-welcome-guest"
+                onClick={handleGuestClick}
+                className="w-full py-3 px-4 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-slate-700/80 hover:border-slate-500 text-slate-200 hover:text-white font-bold text-xs sm:text-sm tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-[0.98]"
+              >
+                <span>Misafir Olarak Devam Et (Hesap Açmadan)</span>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+              </button>
+
+              <p className="text-[10px] text-center text-slate-400 leading-snug">
+                * Hesap açmadan da tüm borç, taksit ve bütçe araçlarını bu cihazda %100 çevrimdışı ve ücretsiz kullanabilirsiniz.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ======================================================== */}
         {/* ORTA KISIM: 3D NEON MOCKUP KARTI                         */}
         {/* ======================================================== */}
-        <section className="mt-5 w-full">
+        <section className="mt-7 w-full">
           <div className="relative p-[1.5px] rounded-3xl bg-gradient-to-r from-indigo-500/40 via-cyan-500/40 to-emerald-500/40 shadow-2xl">
             <div className="bg-slate-950/90 backdrop-blur-xl rounded-[23px] p-4 sm:p-5 border border-white/5 space-y-3">
               {/* Mockup Header */}
@@ -169,7 +674,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         {/* ======================================================== */}
         {/* ORTA KISIM: 4'LÜ ÖZELLİK VİTRİNİ (3D / NEON KARTLAR)      */}
         {/* ======================================================== */}
-        <section className="mt-5 space-y-2.5">
+        <section className="mt-6 space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
               <Zap className="w-4 h-4 text-amber-400" />
@@ -270,60 +775,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </section>
 
         {/* Security Trust Footnote */}
-        <div className="mt-4 p-3 rounded-2xl bg-slate-900/60 border border-white/5 flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center">
+        <div className="mt-6 p-3.5 rounded-2xl bg-slate-900/60 border border-white/5 flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>Verileriniz telefonunuzda ve bulutta 256-Bit SSL ile korunur; 3. şahıslarla asla paylaşılmaz.</span>
         </div>
       </div>
-
-      {/* ======================================================== */}
-      {/* ALT KISIM: SABİTLENMİŞ CANLI EYLEM & GİRİŞ BUTONLARI     */}
-      {/* ======================================================== */}
-      <footer className="fixed bottom-0 inset-x-0 z-20 bg-slate-950/90 backdrop-blur-xl border-t border-white/10 px-4 sm:px-6 py-3.5 shadow-2xl">
-        <div className="max-w-xl mx-auto space-y-2 text-center">
-          {/* 2 Ana Buton (Neon Mor / Yeşil Gradyanlı) */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            {/* Giriş Yap Butonu */}
-            <button
-              type="button"
-              id="btn-welcome-login"
-              onClick={onLoginClick}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-600 active:scale-[0.98] text-white font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-indigo-600/30 border border-indigo-400/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <UserCheck className="w-4 h-4 text-indigo-200" />
-              <span>Giriş Yap</span>
-            </button>
-
-            {/* Kayıt Ol Butonu */}
-            <button
-              type="button"
-              id="btn-welcome-register"
-              onClick={onRegisterClick}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4 text-slate-950" />
-              <span>Kayıt Ol</span>
-            </button>
-          </div>
-
-          {/* İkincil Link: Misafir Olarak Devam Et */}
-          <div className="pt-0.5">
-            <button
-              type="button"
-              id="btn-welcome-guest"
-              onClick={onGuestContinue}
-              className="group inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white font-bold transition-colors cursor-pointer py-1"
-            >
-              <span>Misafir Olarak Devam Et</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
-            </button>
-          </div>
-
-          <p className="text-[10px] text-slate-500 leading-tight">
-            * Hesap açmadan da tüm borç, taksit ve bütçe araçlarını bu cihazda %100 çevrimdışı eksiksiz kullanabilirsiniz.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 };

@@ -2478,10 +2478,22 @@ export default function App() {
     setProviderLoginOpen(true);
   };
 
-  // Application Clean Start state
+  // Application Clean Start state & Oturum Kalıcılığı (Auto-Login Kontrolü)
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     try {
-      return !localStorage.getItem("butcem_onboarding_welcome_v7") && !localStorage.getItem("butcem_onboarding_completed_v7");
+      const isUserLoggedIn = localStorage.getItem("userLoggedIn") === "true";
+      const hasCompleted = localStorage.getItem("hasCompletedOnboarding") === "true";
+      const hasCurrentUser = !!localStorage.getItem("currentUser");
+      const legacyWelcome = !!localStorage.getItem("butcem_onboarding_welcome_v7");
+      const legacyCompleted = !!localStorage.getItem("butcem_onboarding_completed_v7");
+
+      // Auto-Login: Kullanıcı daha önce giriş yapmışsa veya kurulumu tamamlamışsa
+      // Hoş Geldiniz ekranı TEKRAR GÖSTERİLMESİN, doğrudan Dashboard'a yönlendirilsin.
+      if (isUserLoggedIn || hasCompleted || hasCurrentUser || legacyWelcome || legacyCompleted) {
+        return false;
+      }
+      // İlk kurulum, APK ilk yükleme veya uygulama verileri silindiğinde WelcomeScreen açılır
+      return true;
     } catch {
       return true;
     }
@@ -2489,7 +2501,7 @@ export default function App() {
 
   const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<string | null>(null);
   const [providerLoginOpen, setProviderLoginOpen] = useState<boolean>(() => {
-    const onboardingWelcomeDone = localStorage.getItem("butcem_onboarding_welcome_v7");
+    const onboardingWelcomeDone = localStorage.getItem("butcem_onboarding_welcome_v7") || localStorage.getItem("hasCompletedOnboarding");
     if (!onboardingWelcomeDone) {
       return false;
     }
@@ -2501,6 +2513,9 @@ export default function App() {
 
   const handleCompleteOnboarding = () => {
     try {
+      localStorage.setItem("hasCompletedOnboarding", "true");
+      localStorage.setItem("userLoggedIn", "false");
+      localStorage.setItem("is_guest", "true");
       localStorage.setItem("butcem_onboarding_welcome_v7", "true");
       localStorage.setItem("butcem_onboarding_completed_v7", "true");
       localStorage.setItem("skip_initial_login", "true");
@@ -2509,6 +2524,7 @@ export default function App() {
     }
     setProviderLoginOpen(false);
     setShowOnboarding(false);
+    setActiveTab("overview");
   };
 
   const handleOnboardingDirectLogin = () => {
@@ -2574,6 +2590,8 @@ export default function App() {
     setSessionTerminatedReason(null);
     setShowOnboarding(false);
     try {
+      localStorage.setItem("userLoggedIn", "true");
+      localStorage.setItem("hasCompletedOnboarding", "true");
       localStorage.setItem("butcem_onboarding_welcome_v7", "true");
       localStorage.setItem("butcem_onboarding_completed_v7", "true");
     } catch (_) {}
@@ -2694,6 +2712,8 @@ export default function App() {
       if (user) {
         setShowOnboarding(false);
         try {
+          localStorage.setItem("userLoggedIn", "true");
+          localStorage.setItem("hasCompletedOnboarding", "true");
           localStorage.setItem("butcem_onboarding_welcome_v7", "true");
           localStorage.setItem("butcem_onboarding_completed_v7", "true");
         } catch {}
@@ -4481,16 +4501,21 @@ export default function App() {
 
   const handleLogout = () => {
     triggerConfirm(
-      "Oturumu Kapat",
-      "Oturumu kapatmak istediğinize emin misiniz?",
+      "Çıkış Yap",
+      "Oturumunuz kapatılacaktır. Devam etmek istediğinize emin misiniz?",
       async () => {
         try {
           await signOut(auth);
         } catch (err) {
           console.error("SignOut error:", err);
         }
-        // 1. KURAL: LocalStorage üzerindeki tüm kullanıcı ve Premium verilerini tamamen temizle
+        // 1. KURAL: LocalStorage üzerindeki tüm kullanıcı ve oturum verilerini tamamen temizle
         localStorage.removeItem("currentUser");
+        localStorage.setItem("userLoggedIn", "false");
+        localStorage.removeItem("hasCompletedOnboarding");
+        localStorage.removeItem("butcem_onboarding_welcome_v7");
+        localStorage.removeItem("butcem_onboarding_completed_v7");
+        localStorage.removeItem("skip_initial_login");
         localStorage.removeItem("user_profile_name");
         localStorage.removeItem("user_profile_avatar");
         localStorage.removeItem("is_premium");
@@ -4523,9 +4548,11 @@ export default function App() {
         setPayments([]);
         setExpenses([]);
         
-        // Giriş modalını zorunlu olarak aç
-        setProviderLoginOpen(true);
-        triggerToast("Oturum Kapatıldı. Tüm Premium yetkiler kilitlendi 🔒");
+        // Standart Giriş / Karşılama ekranına yönlendir
+        setProviderLoginOpen(false);
+        setShowOnboarding(true);
+        setActiveTab("overview");
+        triggerToast("Oturumunuz kapatıldı. Giriş ekranına yönlendirildiniz 🔒");
       }
     );
   };
@@ -7262,6 +7289,9 @@ export default function App() {
         {showOnboarding && (
           <WelcomeScreen
             key="welcome-screen-root"
+            onLoginSuccess={handleProviderLoginSuccess}
+            onGuestContinue={handleCompleteOnboarding}
+            onOpenUpgradeModal={(name) => openUpgradeModal(name)}
             onLoginClick={() => {
               setProviderLoginInitialTab("premium");
               setProviderLoginInitialSubMode("login");
@@ -7274,7 +7304,6 @@ export default function App() {
               setSelectedProvider("email");
               setProviderLoginOpen(true);
             }}
-            onGuestContinue={handleCompleteOnboarding}
           />
         )}
       </AnimatePresence>
@@ -8560,7 +8589,7 @@ export default function App() {
                     onClick={handleLogout}
                     className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 text-[10px] font-extrabold rounded-xl flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" /> Oturumu Kapat
+                    <LogOut className="w-3.5 h-3.5" /> Çıkış Yap
                   </button>
                 </div>
               </div>
@@ -9693,6 +9722,7 @@ export default function App() {
             onSuccessToast={(msg) => triggerToast(msg)}
             currentUser={currentUser}
             onOpenGoogleLogin={() => handleQuickLogin("google")}
+            onLogout={handleLogout}
             onManualSyncAll={async () => {
               await saveAllToUser(
                 debts,

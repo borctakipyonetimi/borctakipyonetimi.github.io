@@ -39,7 +39,7 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("[Server Process Guard] Unhandled Rejection caught at:", promise, "reason:", reason);
 });
 var app = (0, import_express.default)();
-var PORT = 3e3;
+var PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
 var SMTP_CONFIG_FILE = import_path.default.join(process.cwd(), "custom_smtp_config.json");
 var currentCustomSmtp = {};
 if (import_fs.default.existsSync(SMTP_CONFIG_FILE)) {
@@ -79,6 +79,12 @@ app.get("/api/health", (req, res) => {
     time: (/* @__PURE__ */ new Date()).toISOString(),
     smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass)
   });
+});
+app.get("/logo.png", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.sendFile(import_path.default.join(process.cwd(), "public", "logo.png"));
 });
 var tempWebviewBackups = /* @__PURE__ */ new Map();
 setInterval(() => {
@@ -1561,27 +1567,34 @@ function parseVoiceCommandOffline(rawText) {
   }
   let categoryId = 1;
   let desc = "Gider Kayd\u0131";
-  if (cleanNorm.includes("market") || cleanNorm.includes("g\u0131da") || cleanNorm.includes("gida") || cleanNorm.includes("manav") || cleanNorm.includes("s\xFCpermarket") || cleanNorm.includes("supermarket")) {
+  if (cleanNorm.includes("market") || cleanNorm.includes("g\u0131da") || cleanNorm.includes("gida") || cleanNorm.includes("manav") || cleanNorm.includes("s\xFCpermarket") || cleanNorm.includes("supermarket") || cleanNorm.includes("bakkal")) {
     categoryId = 2;
-    desc = "Market Gideri";
-  } else if (cleanNorm.includes("ula\u015F\u0131m") || cleanNorm.includes("ulasim") || cleanNorm.includes("yol") || cleanNorm.includes("taksi") || cleanNorm.includes("yak\u0131t") || cleanNorm.includes("benzin") || cleanNorm.includes("otob\xFCs") || cleanNorm.includes("bilet")) {
+    desc = "Market Al\u0131\u015Fveri\u015Fi";
+  } else if (cleanNorm.includes("ula\u015F\u0131m") || cleanNorm.includes("ulasim") || cleanNorm.includes("yol") || cleanNorm.includes("taksi") || cleanNorm.includes("yak\u0131t") || cleanNorm.includes("yakit") || cleanNorm.includes("benzin") || cleanNorm.includes("mazot") || cleanNorm.includes("otob\xFCs") || cleanNorm.includes("bilet")) {
     categoryId = 3;
-    desc = "Ula\u015F\u0131m Gideri";
-  } else if (cleanNorm.includes("yemek") || cleanNorm.includes("kafe") || cleanNorm.includes("cafe") || cleanNorm.includes("lokanta") || cleanNorm.includes("restoran") || cleanNorm.includes("d\xF6ner") || cleanNorm.includes("pizz")) {
+    desc = "Ula\u015F\u0131m / Yak\u0131t";
+  } else if (cleanNorm.includes("yemek") || cleanNorm.includes("kafe") || cleanNorm.includes("cafe") || cleanNorm.includes("lokanta") || cleanNorm.includes("restoran") || cleanNorm.includes("d\xF6ner") || cleanNorm.includes("pizza") || cleanNorm.includes("kahve")) {
     categoryId = 4;
-    desc = "Yemek Gideri";
+    desc = "Yeme & \u0130\xE7me";
   } else if (cleanNorm.includes("fatura") || cleanNorm.includes("elektrik") || cleanNorm.includes("su") || cleanNorm.includes("gaz") || cleanNorm.includes("telefon") || cleanNorm.includes("internet") || cleanNorm.includes("aidat")) {
     categoryId = 5;
-    desc = "Fatura \xD6demesi";
-  }
-  const cleanedDesc = text.replace(/\d+/g, "").replace(/(gider|harcama|tl|türk lirası|lira|₺|ekle|kaydet|için|icin|satın|aldım|aldim|fatura|ödedim|odedim|ödeme|odeme)/gi, "").trim();
-  if (cleanedDesc.length > 2) {
-    desc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
+    if (cleanNorm.includes("elektrik")) desc = "Elektrik Faturas\u0131";
+    else if (cleanNorm.includes("su")) desc = "Su Faturas\u0131";
+    else if (cleanNorm.includes("gaz")) desc = "Do\u011Falgaz Faturas\u0131";
+    else if (cleanNorm.includes("internet")) desc = "\u0130nternet Faturas\u0131";
+    else if (cleanNorm.includes("telefon")) desc = "Telefon Faturas\u0131";
+    else if (cleanNorm.includes("aidat")) desc = "Site/Bina Aidat\u0131";
+    else desc = "Fatura \xD6demesi";
+  } else {
+    const cleanedDesc = text.replace(/\d+/g, "").replace(/(gider|harcama|tl|türk lirası|lira|₺|ekle|kaydet|yaz|işle|isle|ödedim|odedim|ödeme|odeme|için|icin|satın|aldım|aldim|fatura|bugün|bugun|dün|dun|yarın|yarin)/gi, "").trim();
+    if (cleanedDesc.length > 2) {
+      desc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
+    }
   }
   return {
     action: "addExpense",
     expenseData: { amount, description: desc, categoryId },
-    explanation: `\u{1F50A} \xC7evrimd\u0131\u015F\u0131 Mod: "${desc}" b\xFCt\xE7enize \u20BA${amount} tutar\u0131nda harcama olarak eklenmi\u015Ftir.`
+    explanation: `\u{1F50A} \xC7evrimd\u0131\u015F\u0131 Mod: "${desc}" i\xE7in \u20BA${amount} tutar\u0131nda harcama kayd\u0131 haz\u0131rland\u0131.`
   };
 }
 app.post("/api/voice-command", async (req, res) => {
@@ -1596,9 +1609,9 @@ app.post("/api/voice-command", async (req, res) => {
     return res.json(offlineResult);
   }
   try {
-    const promptText = "Sen 'B\xFCt\xE7em Pro' finans asistan\u0131s\u0131n. Kullan\u0131c\u0131n\u0131n t\xFCrk\xE7e sesli b\xFCt\xE7e kayd\u0131 / komutunu analiz edip bunu yap\u0131land\u0131r\u0131lm\u0131\u015F JSON verisine d\xF6n\xFC\u015Ft\xFCreceksin.\n\nKullan\u0131c\u0131 \u015Funlar\u0131 yapabilir:\n1. Bor\xE7 ekleme (addDebt): Belirli bir \u015Fahs\u0131 belirtmeyen genel bor\xE7lar. \xD6rn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', vb. (E\u011Fer sesli komutta belirli ve \xF6zel bir ki\u015Fi ismi ge\xE7iyorsa, bu eylem yerine mutlaka addContactDebt eylemini kullan!)\n2. Ki\u015Fi alacak verecek ekleme (addContactDebt): Sesli komutta belirli bir \u015Fah\u0131s/ki\u015Fi ismi ge\xE7iyorsa (\xF6rn: 'Ahmet'e 5000 lira bor\xE7 verdim', 'Mehmet'ten 3000 lira bor\xE7 ald\u0131m', 'Zeynep'ten 1000 TL alaca\u011F\u0131m var', 'Ay\u015Fe'ye 200 TL borcum var'). Bu durumda contactName (\xD6rn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ay\u015Fe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlar\u0131n\u0131 doldur.\n   - 'receivable' (Alacak): Biz ona bor\xE7 verdiysek ya da ondan bir alaca\u011F\u0131m\u0131z varsa. (\xD6rn: 'bor\xE7 verdim', 'alaca\u011F\u0131m var', 'bana bor\xE7lu')\n   - 'payable' (Verecek): Ondan bor\xE7 ald\u0131ysak ya da ona bir borcumuz varsa. (\xD6rn: 'bor\xE7 ald\u0131m', 'borcum var', 'ona verece\u011Fim var')\n3. Taksit/Taksitli bor\xE7 ekleme (addInstallment): 'Koltuk tak\u0131m\u0131 12000 lira 6 taksit', 'Telefon i\xE7in 24000 TL 12 taksit', vb.\n4. Harcama/Gider ekleme (addExpense): 'Market harcamas\u0131 250 lira', 'Benzin ald\u0131m 800 TL', 'Yemek 350 lira', vb.\n5. Gelir ekleme (addIncome): 'Maa\u015F yatt\u0131 35000 lira', 'Kira geliri ald\u0131m 15000 TL', vb.\n6. Bor\xE7 g\xFCncelleme / \xD6denen k\u0131sm\u0131 g\xFCncelleme (updateDebtPaid): 'Ahmet borcunun \xF6denen k\u0131sm\u0131n\u0131 500 TL yap', 'Banka kredisi borcunun \xF6denenini 1000 lira yap', 'Mehmet borcuna 200 TL \xF6dedim' vb.\n7. Harcama/Gider silme (deleteExpense): 'Market harcamas\u0131n\u0131 sil', 'Yemek giderini kald\u0131r' vb.\n8. Gelir silme (deleteIncome): 'Maa\u015F gelirini kald\u0131r', 'Kira gelirini sil' vb.\n9. Bor\xE7 silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kald\u0131r' vb.\n\nSenin g\xF6revin, s\xF6ylenen ifadeyi bu eylemlerden birine s\u0131\u011Fd\u0131rmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri \xE7\u0131karmakt\u0131r. Gerekirse tarihleri bug\xFCn\xFCn tarihi varsay.\nAyr\u0131ca, kullan\u0131c\u0131n\u0131n eylemi duydu\u011Funu onaylayan sevimli, samimi bir yapay zeka T\xFCrk\xE7e sesli asistan onay mesaj\u0131 yaz (explanation). \xD6rn: 'Anla\u015F\u0131ld\u0131! Harcama kayd\u0131n\u0131z\u0131 silme i\u015Flemini ba\u015Flat\u0131yorum.'";
+    const promptText = "Sen 'B\xFCt\xE7em Pro' finans asistan\u0131s\u0131n. Kullan\u0131c\u0131n\u0131n t\xFCrk\xE7e sesli b\xFCt\xE7e kayd\u0131 / komutunu analiz edip bunu yap\u0131land\u0131r\u0131lm\u0131\u015F JSON verisine d\xF6n\xFC\u015Ft\xFCreceksin.\n\nKullan\u0131c\u0131 \u015Funlar\u0131 yapabilir:\n1. Bor\xE7 ekleme (addDebt): Belirli bir \u015Fahs\u0131 belirtmeyen genel bor\xE7lar. \xD6rn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', 'Kredi kart\u0131 5000 TL' vb.\n2. Ki\u015Fi alacak/verecek ekleme (addContactDebt): Sesli komutta belirli bir \u015Fah\u0131s/ki\u015Fi ismi ge\xE7iyorsa (\xF6rn: 'Ahmet'e 5000 TL bor\xE7 ekle', 'Ahmet'e 5000 lira bor\xE7 verdim', 'Mehmet'ten 3000 lira bor\xE7 ald\u0131m', 'Zeynep'ten 1000 TL alaca\u011F\u0131m var', 'Ay\u015Fe'ye 200 TL borcum var'). Bu durumda contactName (\xD6rn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ay\u015Fe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlar\u0131n\u0131 doldur.\n   - 'receivable' (Alacak): Biz ona bor\xE7 verdiysek ya da ondan bir alaca\u011F\u0131m\u0131z varsa. (\xD6rn: 'bor\xE7 verdim', 'alaca\u011F\u0131m var', 'bana bor\xE7lu')\n   - 'payable' (Verecek): Ondan bor\xE7 ald\u0131ysak, ona bor\xE7 eklediysek ya da ona bir borcumuz varsa. (\xD6rn: 'bor\xE7 ald\u0131m', 'borcum var', 'Ahmet'e 5000 TL bor\xE7 ekle')\n3. Taksit/Taksitli bor\xE7 ekleme (addInstallment): 'Koltuk tak\u0131m\u0131 12000 lira 6 taksit', 'Telefon i\xE7in 24000 TL 12 taksit', vb.\n4. Harcama/Gider ekleme (addExpense): \xD6rn: 'Bug\xFCn elektrik faturas\u0131na 1200 TL gider yaz', 'Market harcamas\u0131 250 lira', 'Benzin ald\u0131m 800 TL', 'Yemek 350 lira', vb. description k\u0131sm\u0131n\u0131 temiz yaz (\xF6rn: 'Elektrik Faturas\u0131', 'Market Al\u0131\u015Fveri\u015Fi', 'Benzin') ve uygun categoryId ver (1: Di\u011Fer, 2: Market, 3: Ula\u015F\u0131m, 4: Yeme \u0130\xE7me, 5: Faturalar).\n5. Gelir ekleme (addIncome): 'Maa\u015F yatt\u0131 35000 lira', 'Kira geliri ald\u0131m 15000 TL', vb.\n6. Bor\xE7 g\xFCncelleme / \xD6denen k\u0131sm\u0131 g\xFCncelleme (updateDebtPaid): 'Ahmet borcunun \xF6denen k\u0131sm\u0131n\u0131 500 TL yap', 'Banka kredisi borcunun \xF6denenini 1000 lira yap', 'Mehmet borcuna 200 TL \xF6dedim' vb.\n7. Harcama/Gider silme (deleteExpense): 'Market harcamas\u0131n\u0131 sil', 'Yemek giderini kald\u0131r' vb.\n8. Gelir silme (deleteIncome): 'Maa\u015F gelirini kald\u0131r', 'Kira gelirini sil' vb.\n9. Bor\xE7 silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kald\u0131r' vb.\n\nSenin g\xF6revin, s\xF6ylenen ifadeyi bu eylemlerden birine s\u0131\u011Fd\u0131rmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri \xE7\u0131karmakt\u0131r. Gerekirse tarihleri bug\xFCn\xFCn tarihi varsay.\nAyr\u0131ca, kullan\u0131c\u0131n\u0131n eylemi duydu\u011Funu onaylayan sevimli, samimi bir yapay zeka T\xFCrk\xE7e sesli asistan onay mesaj\u0131 yaz (explanation). \xD6rn: 'Elektrik faturas\u0131 i\xE7in 1.200 TL gider kayd\u0131 haz\u0131rland\u0131. Onayl\u0131yor musunuz?'";
     const response = await aiClient.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents: [
         { text: promptText },
         { text: `Kullan\u0131c\u0131n\u0131n S\xF6z\xFC: "${text}"` }
@@ -4051,8 +4064,15 @@ async function startServer() {
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+  });
+  server.on("error", (err) => {
+    if (err && err.code === "EADDRINUSE") {
+      console.error(`[Server Port Conflict] Port ${PORT} is already in use.`);
+    } else {
+      console.error("[Server Error]", err);
+    }
   });
 }
 startServer();

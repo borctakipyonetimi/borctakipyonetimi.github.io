@@ -40,31 +40,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Android 2x2 Home Screen AppWidget Receiver (BudgetWidgetProvider) -->
-        <receiver
-            android:name=".BudgetWidgetProvider"
-            android:label="@string/widget_name"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/budget_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".QuickSummaryWidgetProvider"
-            android:label="@string/widget_name"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/quick_summary_widget_info" />
-        </receiver>
-
     </application>
 
 </manifest>
+
