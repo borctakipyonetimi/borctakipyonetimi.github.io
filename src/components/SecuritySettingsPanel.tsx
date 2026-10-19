@@ -1456,8 +1456,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 leading-normal">
               {language === "tr"
-                ? "Akıllı sesli asistan servisi, para birimi tercihleri ve tanıtım rehberi"
-                : "Smart voice assistant service, currency preferences and onboarding tour"}
+                ? "Akıllı sesli asistan servisi ve para birimi tercihleri"
+                : "Smart voice assistant service and currency preferences"}
             </p>
           </div>
         </div>
@@ -1506,33 +1506,6 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 {!isPremium ? "KİLİTLİ 🔒 (PRO)" : currentVoiceAssistant ? "AÇIK 🎙️" : "KAPALI 🔕"}
               </button>
             </div>
-
-            {/* Tanıtım Turu Replay */}
-            {onOpenOnboarding && (
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      Tanıtım Sayfası
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                      Tüm özellikleri ve modülleri adım adım tanıtan görsel rehberi yeniden başlatın.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onOpenOnboarding}
-                  className="px-5 py-2.5 rounded-2xl text-xs font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 cursor-pointer transition active:scale-95 shrink-0"
-                >
-                  Turu Başlat 🚀
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}

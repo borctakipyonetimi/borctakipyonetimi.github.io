@@ -366,8 +366,21 @@ export default function App() {
   });
 
   // User Profile Name state (stored strictly under kullanicilar/UID/profil/isim in Realtime Database)
+  // Giriş yapılmadan kesinlikle önbellekten isim veya e-posta yüklenmez!
   const [userProfileName, setUserProfileName] = useState<string>(() => {
-    return localStorage.getItem("user_profile_name") || "";
+    try {
+      const isLogged = localStorage.getItem("userLoggedIn") === "true";
+      const isGuest = localStorage.getItem("is_guest") === "true";
+      const savedUser = localStorage.getItem("currentUser");
+      if (!isLogged || isGuest || !savedUser) {
+        // Giriş yapılmamışsa önbellekte kalmış olabilecek eski isimleri (örneğin sercinyo) derhal temizle
+        localStorage.removeItem("user_profile_name");
+        return "";
+      }
+      return localStorage.getItem("user_profile_name") || "";
+    } catch {
+      return "";
+    }
   });
 
   // Profil Düzenleme Modal Durumu (Tarayıcı / iFrame / Mobil uyumlu)
@@ -2906,22 +2919,29 @@ export default function App() {
       } else {
         const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
         const savedUser = localStorage.getItem("currentUser");
-        if (savedUser && isLocallyLoggedIn) {
+        const isGuest = localStorage.getItem("is_guest") === "true";
+        if (savedUser && isLocallyLoggedIn && !isGuest) {
           // Keep the local/hybrid session active if Firebase is loading or in a fallback state
           setCurrentUser(savedUser);
           setUserLoggedIn(true);
           checkUserTrialExpiration(null, null);
+          const savedProfileName = localStorage.getItem("user_profile_name");
+          if (savedProfileName) {
+            setUserProfileName(savedProfileName);
+          }
         } else {
           setCurrentUser(null);
           setUserLoggedIn(false);
-        }
-        const savedProfileName = localStorage.getItem("user_profile_name");
-        if (savedProfileName) {
-          setUserProfileName(savedProfileName);
+          setUserProfileName("");
+          try {
+            localStorage.removeItem("user_profile_name");
+          } catch (_) {}
         }
         const savedAvatar = localStorage.getItem("user_profile_avatar");
-        if (savedAvatar) {
+        if (savedAvatar && isLocallyLoggedIn && !isGuest) {
           setUserAvatar(savedAvatar);
+        } else {
+          setUserAvatar("");
         }
       }
     });
@@ -7576,13 +7596,26 @@ export default function App() {
             </div>
           </div>
 
-          {/* Top Right: Only Welcome / Visitor Button */}
+          {/* Top Right: Welcome / User Profile Button */}
           <div className="flex items-center shrink-0 relative z-10 select-none">
             {/* User welcome message */}
             {(() => {
-              const rawUser = currentUser || "";
-              const cleanDisplayName = userProfileName?.trim() || (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser);
-              const displayGreeting = cleanDisplayName.trim() || (currentUser ? "İsim Girin" : "Ziyaretçi");
+              // Oturum durumu kontrolü:
+              // Giriş yapılmadan premium, misafir, isim veya eposta kesinlikle yazılmamalıdır!
+              const isUserAuthenticated = Boolean(
+                userLoggedIn &&
+                !isGuestMode &&
+                (currentUser || auth.currentUser?.email)
+              );
+
+              // Kullanıcı giriş yaptıktan sonra:
+              // Kayıtlı isim varsa isim yazılsın, yoksa e-posta adresi yazılsın
+              const registeredName = (isUserAuthenticated && userProfileName) ? userProfileName.trim() : "";
+              const userEmail = (currentUser || auth.currentUser?.email || "").trim();
+
+              const displayGreeting = isUserAuthenticated
+                ? (registeredName || userEmail || "Hesabım")
+                : "Giriş Yap";
 
               const getWelcomeThemeStyles = () => {
                 switch (colorTheme) {
@@ -7600,29 +7633,41 @@ export default function App() {
               return (
                 <button 
                   onClick={() => {
-                    if (!currentUser) {
-                      setProviderLoginInitialTab("guest_trial");
+                    if (!isUserAuthenticated) {
+                      setProviderLoginInitialTab("premium");
                       setProviderLoginInitialSubMode("login");
                       setProviderLoginOpen(true);
                     } else {
                       handlePromptEditName();
                     }
                   }}
-                  title={!currentUser ? "Giriş Yap" : "İsmi Değiştir"}
+                  title={
+                    isUserAuthenticated
+                      ? (registeredName ? `${registeredName} (${userEmail})` : userEmail)
+                      : "Giriş Yap"
+                  }
                   className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
                 >
                   <div className={`p-1 ${themeStyles.iconContainerBg} rounded-lg flex items-center justify-center shrink-0`}>
-                    <User className="w-2.5 h-2.5" />
+                    {isUserAuthenticated ? (
+                      <User className="w-2.5 h-2.5" />
+                    ) : (
+                      <LogIn className="w-2.5 h-2.5" />
+                    )}
                   </div>
                   <div className="flex flex-col text-left leading-tight min-w-0 pr-0.5 select-none">
                     <span className="text-[6px] font-black uppercase tracking-widest text-slate-400">
                       HOŞGELDİNİZ
                     </span>
                     <div className="flex items-center gap-0.5">
-                      <span className={`text-[9px] font-bold leading-tight ${themeStyles.textGradient} truncate max-w-[65px] xs:max-w-[85px]`}>
+                      <span className={`text-[9px] font-bold leading-tight ${themeStyles.textGradient} truncate max-w-[85px] xs:max-w-[120px] sm:max-w-[160px]`}>
                         {displayGreeting}
                       </span>
-                      <Pencil className={`w-2 h-2 ${themeStyles.pencilColor} shrink-0 opacity-80`} />
+                      {isUserAuthenticated ? (
+                        <Pencil className={`w-2 h-2 ${themeStyles.pencilColor} shrink-0 opacity-80`} />
+                      ) : (
+                        <LogIn className={`w-2 h-2 ${themeStyles.pencilColor} shrink-0 opacity-80`} />
+                      )}
                     </div>
                   </div>
                 </button>
@@ -8618,16 +8663,31 @@ export default function App() {
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 text-left">
-                        <p className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100 truncate">
-                          {userProfileName?.trim() || currentUser || (auth.currentUser?.email ?? "Kullanıcı")}
-                        </p>
-                        {userProfileName?.trim() && currentUser && (
-                          <p className="text-[8.5px] font-mono text-slate-400 dark:text-slate-500 truncate">
-                            {currentUser}
-                          </p>
+                        {userLoggedIn && !isGuestMode ? (
+                          <>
+                            <p className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                              {userProfileName?.trim() || currentUser || auth.currentUser?.email || "Hesabım"}
+                            </p>
+                            {userProfileName?.trim() && (currentUser || auth.currentUser?.email) && (
+                              <p className="text-[8.5px] font-mono text-slate-400 dark:text-slate-500 truncate">
+                                {currentUser || auth.currentUser?.email}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                              Giriş Yapılmadı
+                            </p>
+                            <p className="text-[8.5px] text-slate-400 dark:text-slate-500 truncate">
+                              Oturum açın
+                            </p>
+                          </>
                         )}
                       </div>
-                      <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 shrink-0 transition" />
+                      {userLoggedIn && !isGuestMode && (
+                        <Pencil className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 shrink-0 transition" />
+                      )}
                     </div>
                   </div>
                   <button
