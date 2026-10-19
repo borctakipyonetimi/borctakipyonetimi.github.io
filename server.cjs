@@ -167,8 +167,7 @@ app.get("/api/trial/status", (req, res) => {
   const deviceId = req.query.deviceId || "";
   const email = (req.query.email || "").trim().toLowerCase();
   const trials = readTrials();
-  const key = email || userId && userId.trim() || deviceId && deviceId.trim() || ip;
-  const startDateStr = email && trials[email] || userId && trials[userId] || deviceId && trials[deviceId] || trials[ip] || trials[key];
+  const startDateStr = email && trials[email] || userId && trials[userId] || deviceId && trials[deviceId];
   if (!startDateStr) {
     return res.json({
       hasTrial: false,
@@ -204,8 +203,7 @@ app.post("/api/trial/activate", (req, res) => {
   const cleanEmail = email && typeof email === "string" ? email.trim().toLowerCase() : "";
   const cleanUserId = userId && typeof userId === "string" ? userId.trim() : "";
   const cleanDeviceId = deviceId && typeof deviceId === "string" ? deviceId.trim() : "";
-  const key = cleanEmail || cleanUserId || cleanDeviceId || ip;
-  const existingStartDate = cleanEmail && trials[cleanEmail] || cleanUserId && trials[cleanUserId] || cleanDeviceId && trials[cleanDeviceId] || trials[ip] || trials[key];
+  const existingStartDate = cleanEmail && trials[cleanEmail] || cleanUserId && trials[cleanUserId] || cleanDeviceId && trials[cleanDeviceId];
   if (existingStartDate) {
     const startDate = new Date(existingStartDate);
     const now = /* @__PURE__ */ new Date();
@@ -227,11 +225,9 @@ app.post("/api/trial/activate", (req, res) => {
     });
   }
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-  trials[key] = nowIso;
   if (cleanEmail) trials[cleanEmail] = nowIso;
   if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
   if (cleanUserId) trials[cleanUserId] = nowIso;
-  trials[ip] = nowIso;
   writeTrials(trials);
   const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
