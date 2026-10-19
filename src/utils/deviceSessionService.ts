@@ -580,4 +580,78 @@ export async function markTrialUsedInFirestore(
   }
 }
 
+/**
+ * Yeni kullanıcı kaydında ve 'Misafir Olarak Devam Et' seçildiğinde
+ * Firebase Realtime DB (users/{uid}) ve Firestore (users/{uid}) üzerine
+ * 7 günlük ücretsiz deneme süresini (Kayıt Tarihi + 7 Gün) eksiksiz olarak tanımlar.
+ */
+export async function provisionUserTrialInDatabases(
+  userId: string,
+  email: string,
+  isGuest: boolean = false
+): Promise<{ trialStartDate: string; trialEndDate: string; daysRemaining: number }> {
+  const now = new Date();
+  const nowMs = now.getTime();
+  const trialStartDate = now.toISOString();
+  // Kayıt tarihi + tam 7 gün (7 * 24 * 60 * 60 * 1000 ms)
+  const trialEndDate = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const cleanEmail = (email || "").trim().toLowerCase();
+
+  const trialPayload: Record<string, any> = {
+    uid: userId,
+    email: cleanEmail,
+    isGuest,
+    isPremium: false,
+    trialStartDate,
+    trialEndDate,
+    hasUsedTrial: true,
+    isTrialActive: true,
+    trialDaysRemaining: 7,
+    createdAt: trialStartDate,
+    updatedAt: trialStartDate
+  };
+
+  try {
+    localStorage.setItem("trial_start_date", trialStartDate);
+    localStorage.setItem("trial_end_date", trialEndDate);
+    localStorage.setItem("user_created_at", trialStartDate);
+    localStorage.setItem("has_used_trial", "true");
+    localStorage.setItem("is_premium", "false");
+    localStorage.setItem("is_guest", isGuest ? "true" : "false");
+    localStorage.setItem("premium_source", "trial");
+  } catch (_) {}
+
+  // 1. Firebase Realtime Database: users/{userId}
+  try {
+    if (userId) {
+      await update(ref(db, `users/${userId}`), trialPayload);
+      await update(ref(db, `kullanicilar/${userId}/veriler`), {
+        trialStartDate,
+        trialEndDate,
+        hasUsedTrial: true,
+        isTrialActive: true,
+        isGuest
+      }).catch(() => {});
+    }
+  } catch (rtdbErr) {
+    console.warn("[DeviceSession] RTDB users/ trial write uyarısı:", rtdbErr);
+  }
+
+  // 2. Cloud Firestore: users/{userId}
+  try {
+    if (userId) {
+      await setDoc(doc(firestore, "users", userId), trialPayload, { merge: true });
+    }
+    if (cleanEmail && cleanEmail.includes("@")) {
+      const emailDocId = "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+      await setDoc(doc(firestore, "users", emailDocId), trialPayload, { merge: true }).catch(() => {});
+    }
+  } catch (fsErr) {
+    console.warn("[DeviceSession] Firestore users/ trial write uyarısı:", fsErr);
+  }
+
+  return { trialStartDate, trialEndDate, daysRemaining: 7 };
+}
+
+
 

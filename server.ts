@@ -192,12 +192,9 @@ app.get("/api/trial/status", (req, res) => {
   const email = ((req.query.email as string) || "").trim().toLowerCase();
   const trials = readTrials();
 
-  const key = email || (userId && userId.trim()) || (deviceId && deviceId.trim()) || ip;
   const startDateStr = (email && trials[email]) || 
                        (userId && trials[userId]) || 
-                       (deviceId && trials[deviceId]) || 
-                       trials[ip] || 
-                       trials[key];
+                       (deviceId && trials[deviceId]);
 
   if (!startDateStr) {
     return res.json({
@@ -238,14 +235,10 @@ app.post("/api/trial/activate", (req, res) => {
   const cleanEmail = (email && typeof email === "string") ? email.trim().toLowerCase() : "";
   const cleanUserId = (userId && typeof userId === "string") ? userId.trim() : "";
   const cleanDeviceId = (deviceId && typeof deviceId === "string") ? deviceId.trim() : "";
-  const key = cleanEmail || cleanUserId || cleanDeviceId || ip;
-
   // 1. Önce bu e-posta, kullanıcı veya cihaz daha önce deneme kullandı mı kesin kontrol et
   const existingStartDate = (cleanEmail && trials[cleanEmail]) ||
                             (cleanUserId && trials[cleanUserId]) ||
-                            (cleanDeviceId && trials[cleanDeviceId]) ||
-                            trials[ip] ||
-                            trials[key];
+                            (cleanDeviceId && trials[cleanDeviceId]);
 
   if (existingStartDate) {
     // ⚠️ 1 E-posta / Cihaz = 1 Deneme Hakkı! Tekrar deneme başlatılmasına kesinlikle izin verilmez!
@@ -272,11 +265,9 @@ app.post("/api/trial/activate", (req, res) => {
 
   // İlk kez deneme başlatılıyor
   const nowIso = new Date().toISOString();
-  trials[key] = nowIso;
   if (cleanEmail) trials[cleanEmail] = nowIso;
   if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
   if (cleanUserId) trials[cleanUserId] = nowIso;
-  trials[ip] = nowIso;
   writeTrials(trials);
 
   const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
