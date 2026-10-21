@@ -1048,43 +1048,54 @@ Mevcut ayl\u0131k geliriniz (\u20BA${Math.round(tIncome).toLocaleString("tr-TR")
 `;
     }
   } else if (q.includes("alt\u0131n") || q.includes("altin") || q.includes("dolar") || q.includes("usd") || q.includes("euro") || q.includes("eur") || q.includes("sterlin") || q.includes("gbp") || q.includes("kur") || q.includes("d\xF6viz") || q.includes("doviz") || q.includes("piyasa") || q.includes("ons") || q.includes("\xE7eyrek") || q.includes("ceyrek") || q.includes("gram") || q.includes("btc") || q.includes("bitcoin")) {
-    const usd = context?.rates?.USD || 45.85;
-    const eur = context?.rates?.EUR || 49.85;
-    const gbp = context?.rates?.GBP || 58.2;
-    const goldOns = context?.rates?.GOLD_ONS || 4474.2;
-    const goldGram = context?.rates?.GOLD_GRAM || goldOns * usd / 31.10348;
-    const goldCeyrek = context?.rates?.GOLD_CEYREK || goldGram * 1.635;
-    const btcUsd = context?.rates?.BTC_USD || 81588;
-    advice += `\u{1F4B1} **ANLIK CANLI P\u0130YASA & D\xD6V\u0130Z / ALTIN KURLARI RAPORU**
+    const rates = context?.rates || {};
+    const details = context?.rateDetails || {};
+    const lastUpdated = context?.lastUpdated || (/* @__PURE__ */ new Date()).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const usdSelling = rates.USD || 49.6;
+    const usdBuying = details.USD?.buying || usdSelling - 0.02;
+    const eurSelling = rates.EUR || 55.78;
+    const eurBuying = details.EUR?.buying || eurSelling - 0.02;
+    const gbpSelling = rates.GBP || 66.52;
+    const gbpBuying = details.GBP?.buying || gbpSelling - 0.02;
+    const goldGramSelling = rates.GOLD_GRAM || 6595.94;
+    const goldGramBuying = details.GOLD_GRAM?.buying || goldGramSelling - 0.73;
+    const goldCeyrekSelling = rates.GOLD_CEYREK || 10761.15;
+    const goldCeyrekBuying = details.GOLD_CEYREK?.buying || 10520.69;
+    const goldOns = rates.GOLD_ONS || 4136.9;
+    const btcUsd = rates.BTC_USD || 84648;
+    advice += `\u{1F4B1} **CANLI P\u0130YASA & D\xD6V\u0130Z / ALTIN KURLARI RAPORU**
 
 `;
-    advice += `En entegre serbest piyasa ve uluslararas\u0131 finans borsalar\u0131 verilerine g\xF6re g\xFCncel kurlar:
+    advice += `Standart Serbest Piyasa veri kayna\u011F\u0131ndan al\u0131nan g\xFCncel kurlar (Son G\xFCncelleme: **${lastUpdated}**):
 
 `;
-    advice += `| Varl\u0131k T\xFCr\xFC | Sembol | Anl\u0131k Fiyat (TL / USD) | De\u011Fi\u015Fim / Birim |
+    advice += `| Varl\u0131k T\xFCr\xFC | Sembol | Sat\u0131\u015F (Esas Al\u0131nan) | Al\u0131\u015F Fiyat\u0131 | Birim |
 `;
-    advice += `| :--- | :---: | :---: | :---: |
+    advice += `| :--- | :---: | :---: | :---: | :---: |
 `;
-    advice += `| **Amerikan Dolar\u0131** | \u{1F1FA}\u{1F1F8} USD | **\u20BA${usd.toFixed(2)}** | 1 Dolar |
+    advice += `| **Amerikan Dolar\u0131** | \u{1F1FA}\u{1F1F8} USD | **\u20BA${usdSelling.toFixed(2)}** | \u20BA${usdBuying.toFixed(2)} | 1 Dolar |
 `;
-    advice += `| **Euro** | \u{1F1EA}\u{1F1FA} EUR | **\u20BA${eur.toFixed(2)}** | 1 Euro |
+    advice += `| **Euro** | \u{1F1EA}\u{1F1FA} EUR | **\u20BA${eurSelling.toFixed(2)}** | \u20BA${eurBuying.toFixed(2)} | 1 Euro |
 `;
-    advice += `| **\u0130ngiliz Sterlini** | \u{1F1EC}\u{1F1E7} GBP | **\u20BA${gbp.toFixed(2)}** | 1 Sterlin |
+    advice += `| **\u0130ngiliz Sterlini** | \u{1F1EC}\u{1F1E7} GBP | **\u20BA${gbpSelling.toFixed(2)}** | \u20BA${gbpBuying.toFixed(2)} | 1 Sterlin |
 `;
-    advice += `| **Gram Alt\u0131n (24K)** | \u{1F947} Gram | **\u20BA${Math.round(goldGram).toLocaleString("tr-TR")} TL** | 1 Gram |
+    advice += `| **Gram Alt\u0131n (24K)** | \u{1F947} Gram | **\u20BA${Math.round(goldGramSelling).toLocaleString("tr-TR")} TL** | \u20BA${Math.round(goldGramBuying).toLocaleString("tr-TR")} TL | 1 Gram |
 `;
-    advice += `| **\xC7eyrek Alt\u0131n** | \u{1FA99} \xC7eyrek | **\u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} TL** | 1 Adet |
+    advice += `| **\xC7eyrek Alt\u0131n** | \u{1FA99} \xC7eyrek | **\u20BA${Math.round(goldCeyrekSelling).toLocaleString("tr-TR")} TL** | \u20BA${Math.round(goldCeyrekBuying).toLocaleString("tr-TR")} TL | 1 Adet |
 `;
-    advice += `| **Ons Alt\u0131n ($)** | \u{1FA99} Ons | **$${Math.round(goldOns).toLocaleString("en-US")} USD** | 1 Ons (31.1g) |
+    advice += `| **Ons Alt\u0131n ($)** | \u{1FA99} Ons | **$${Math.round(goldOns).toLocaleString("en-US")} USD** | $${Math.round(goldOns).toLocaleString("en-US")} USD | 1 Ons (31.1g) |
 `;
-    advice += `| **Bitcoin (BTC)** | \u20BF BTC | **$${Math.round(btcUsd).toLocaleString("en-US")} USD** | 1 BTC |
+    advice += `| **Bitcoin (BTC)** | \u20BF BTC | **$${Math.round(btcUsd).toLocaleString("en-US")} USD** | $${Math.round(btcUsd).toLocaleString("en-US")} USD | 1 BTC |
+
+`;
+    advice += `\u{1F4CC} *Not: B\xFCt\xE7em Pro hesaplamalar\u0131nda parite tutarl\u0131l\u0131\u011F\u0131 i\xE7in **Serbest Piyasa Sat\u0131\u015F Fiyat\u0131** standart parite olarak kabul edilmektedir.*
 
 `;
     advice += `\u{1F4A1} **Finans Ko\xE7u Analizi & \xD6nerisi**:
 `;
-    advice += `\u2022 **B\xFCt\xE7e Korumas\u0131**: Enflasyonist ortamlarda nakitte kalan TL birikimleri de\u011Fer kaybeder. Gelirinizden ay\u0131rd\u0131\u011F\u0131n\u0131z tasarruf bakiyesini (**\u20BA${stats.netIncome.toLocaleString("tr-TR")}**) par\xE7al\u0131 olarak Gram Alt\u0131n veya d\xF6viz varl\u0131klar\u0131na y\xF6nlendirerek reel sat\u0131n alma g\xFCc\xFCn\xFCz\xFC koruyabilirsiniz.
+    advice += `\u2022 **B\xFCt\xE7e Korumas\u0131**: Enflasyonist ortamlarda nakitte kalan TL birikimleri reel de\u011Fer kaybeder. Ayl\u0131k serbest nakit ak\u0131\u015F\u0131n\u0131zdan ay\u0131rd\u0131\u011F\u0131n\u0131z tasarruf bakiyesini (**\u20BA${stats.netIncome.toLocaleString("tr-TR")}**) par\xE7al\u0131 olarak Gram Alt\u0131n veya d\xF6viz varl\u0131klar\u0131na y\xF6nlendirerek sat\u0131n alma g\xFCc\xFCn\xFCz\xFC koruyabilirsiniz.
 `;
-    advice += `\u2022 **D\xF6vizli Bor\xE7 Riski**: E\u011Fer d\xF6viz veya alt\u0131na endeksli borcunuz varsa, kurlardaki y\xFCkseli\u015F riskine kar\u015F\u0131 borcunuzu TL cinsinden sabitlemeyi veya erken kapatmay\u0131 \xF6nceliklendirin.
+    advice += `\u2022 **D\xF6vizli Bor\xE7 Riski**: E\u011Fer d\xF6viz veya alt\u0131na endeksli borcunuz varsa, kurlardaki dalgalanma riskine kar\u015F\u0131 borcunuzu TL cinsinden sabitlemeyi veya erken kapatmay\u0131 \xF6nceliklendirin.
 `;
     return advice;
   } else if (q.includes("merhaba") || q.includes("selam") || q.includes("hey") || q.includes("nas\u0131ls\u0131n") || q.includes("kimsin") || q.includes("yard\u0131m") || q.includes("help")) {
@@ -1174,13 +1185,20 @@ app.post("/api/chat", async (req, res) => {
     ];
     const periodLabel = context?.selectedMonth !== void 0 && context?.selectedYear !== void 0 ? `${TURKISH_MONTHS[context.selectedMonth] || ""} ${context.selectedYear}` : "Mevcut Ay";
     const cRates = context?.rates || {};
-    const usd = cRates.USD || 45.85;
-    const eur = cRates.EUR || 49.85;
-    const gbp = cRates.GBP || 58.2;
-    const goldOns = cRates.GOLD_ONS || 4474.2;
-    const goldGram = cRates.GOLD_GRAM || goldOns * usd / 31.10348;
-    const goldCeyrek = cRates.GOLD_CEYREK || goldGram * 1.635;
-    const btcUsd = cRates.BTC_USD || 81588;
+    const cDetails = context?.rateDetails || {};
+    const lastUpdatedLabel = context?.lastUpdated || (/* @__PURE__ */ new Date()).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const usd = cRates.USD || 49.6;
+    const usdBuying = cDetails.USD?.buying || usd - 0.02;
+    const eur = cRates.EUR || 55.78;
+    const eurBuying = cDetails.EUR?.buying || eur - 0.02;
+    const gbp = cRates.GBP || 66.52;
+    const gbpBuying = cDetails.GBP?.buying || gbp - 0.02;
+    const goldGram = cRates.GOLD_GRAM || 6595.94;
+    const goldGramBuying = cDetails.GOLD_GRAM?.buying || goldGram - 0.73;
+    const goldCeyrek = cRates.GOLD_CEYREK || 10761.15;
+    const goldCeyrekBuying = cDetails.GOLD_CEYREK?.buying || 10520.69;
+    const goldOns = cRates.GOLD_ONS || 4136.9;
+    const btcUsd = cRates.BTC_USD || 84648;
     const debtsArr = Array.isArray(context?.debts) ? context.debts : [];
     const activeDebtsMap = /* @__PURE__ */ new Map();
     let totalPaidDebtsCount = 0;
@@ -1254,14 +1272,25 @@ SANA SA\u011ELANAN G\xDCNCEL KULLANICI B\xDCT\xC7E VER\u0130LER\u0130 (${periodL
 - TAMAMEN KAPANMI\u015E BOR\xC7LAR: ${totalPaidDebtsCount} adet (Toplam Kapat\u0131lan: \u20BA${Math.round(totalPaidDebtsSum)})
 - TAKS\u0130TL\u0130 BOR\xC7LAR (Ayl\u0131k Taksit, Kalan Taksit, Kalan Tutar): ${JSON.stringify(sanitizedActiveInsts)}
 - REHBER K\u0130\u015E\u0130 \u0130\u015ELEMLER\u0130 (Bor\xE7/Alacak): ${JSON.stringify(context?.contactTransactions || [])}
-- G\xDCNCEL CANLI P\u0130YASA KURLARI: USD: \u20BA${usd.toFixed(2)} | EUR: \u20BA${eur.toFixed(2)} | GBP: \u20BA${gbp.toFixed(2)} | Gram Alt\u0131n: \u20BA${Math.round(goldGram).toLocaleString("tr-TR")} | \xC7eyrek: \u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} | BTC: $${Math.round(btcUsd).toLocaleString("en-US")}
+- G\xDCNCEL CANLI P\u0130YASA KURLARI (Tek Standart Kaynak: Serbest Piyasa Sat\u0131\u015F Fiyat\u0131 Esas Al\u0131nm\u0131\u015Ft\u0131r, Son G\xFCncelleme: ${lastUpdatedLabel}):
+  * Dolar: Sat\u0131\u015F \u20BA${usd.toFixed(2)} (Al\u0131\u015F \u20BA${usdBuying.toFixed(2)})
+  * Euro: Sat\u0131\u015F \u20BA${eur.toFixed(2)} (Al\u0131\u015F \u20BA${eurBuying.toFixed(2)})
+  * Sterlin: Sat\u0131\u015F \u20BA${gbp.toFixed(2)} (Al\u0131\u015F \u20BA${gbpBuying.toFixed(2)})
+  * Gram Alt\u0131n (24K): Sat\u0131\u015F \u20BA${Math.round(goldGram).toLocaleString("tr-TR")} (Al\u0131\u015F \u20BA${Math.round(goldGramBuying).toLocaleString("tr-TR")})
+  * \xC7eyrek Alt\u0131n: Sat\u0131\u015F \u20BA${Math.round(goldCeyrek).toLocaleString("tr-TR")} (Al\u0131\u015F \u20BA${Math.round(goldCeyrekBuying).toLocaleString("tr-TR")})
+  * Ons Alt\u0131n: $${Math.round(goldOns).toLocaleString("en-US")}
+  * Bitcoin: $${Math.round(btcUsd).toLocaleString("en-US")}
 
 \u{1F6A8} \xC7OK KR\u0130T\u0130K YANIT KURALLARI (D\u0130NAM\u0130K SORU-CEVAP D\u0130S\u0130PL\u0130N\u0130):
 
 1. DO\u011ERUDAN SORUYA ODAKLANMA (ASLA SAB\u0130T \u015EABLON BASMA):
-- Kullan\u0131c\u0131 spesifik bir soru sordu\u011Funda (\xD6rn: "Borcum ka\xE7 senede biter?", "Hangi borcu \xF6nce \xF6demeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?", "Alt\u0131n fiyat\u0131 ne kadar?") **ASLA her yan\u0131ta sabit 4'l\xFC \xF6zet \u015Fablonunu bas\u0131p ge\xE7me!**
+- Kullan\u0131c\u0131 spesifik bir soru sordu\u011Funda (\xD6rn: "Borcum ka\xE7 senede biter?", "Hangi borcu \xF6nce \xF6demeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nas\u0131l k\u0131sar\u0131m?", "Alt\u0131n fiyat\u0131 ne kadar?", "Dolar ka\xE7 TL?") **ASLA her yan\u0131ta sabit 4'l\xFC \xF6zet \u015Fablonunu bas\u0131p ge\xE7me!**
 - **\u0130LK C\xDCMLEDEN \u0130T\u0130BAREN do\u011Frudan sorulan sorunun yan\u0131t\u0131n\u0131, matematiksel hesab\u0131n\u0131 ve \xE7\xF6z\xFCm\xFCn\xFC ver.**
 - Sabit \xF6zet kart\u0131n\u0131 SADECE kullan\u0131c\u0131 genel analiz istedi\u011Finde ("B\xFCt\xE7e durumum genel olarak nas\u0131l?", "Ayl\u0131k analiz raporu ver") kullan.
+
+2. P\u0130YASA KURLARI VE PAR\u0130TE KURALLARI ("D\xF6viz/Alt\u0131n/Kur sorular\u0131nda"):
+- Al\u0131\u015F ve Sat\u0131\u015F fiyatlar\u0131n\u0131 kar\u0131\u015Ft\u0131rma; sistemde hesaplamalara esas al\u0131nan fiyat **Serbest Piyasa Sat\u0131\u015F Fiyat\u0131**'d\u0131r. Yan\u0131t\u0131nda sat\u0131\u015F fiyat\u0131n\u0131 ve referans olarak al\u0131\u015F fiyat\u0131n\u0131 belirt, son g\xFCncelleme saatini (${lastUpdatedLabel}) ekle.
+- B\xFCt\xE7em Pro'da d\xF6viz d\xF6n\xFC\u015F\xFCmlerinde her zaman sat\u0131\u015F fiyat\u0131n\u0131n esas al\u0131nd\u0131\u011F\u0131n\u0131 a\xE7\u0131k\xE7a hat\u0131rlat.
 
 2. BOR\xC7 B\u0130T\u0130\u015E S\xDCRES\u0130 VE PROJEKS\u0130YON HESABI ("Borcum ne zaman/ka\xE7 senede/ka\xE7 ayda biter?"):
 - Bu soru geldi\u011Finde \u015Fu form\xFCl\xFC \xE7al\u0131\u015Ft\u0131r:
@@ -1852,6 +1881,7 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     });
   }
 });
+var RATES_CACHE_TTL_MS = 5 * 60 * 1e3;
 var cachedRatesPayload = null;
 var cachedRatesTimestamp = 0;
 app.get("/api/rates", async (req, res) => {
@@ -1859,32 +1889,35 @@ app.get("/api/rates", async (req, res) => {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
   const now = Date.now();
-  if (cachedRatesPayload && now - cachedRatesTimestamp < 15e3 && req.query.force !== "true") {
+  const isForce = req.query.force === "true";
+  if (cachedRatesPayload && now - cachedRatesTimestamp < RATES_CACHE_TTL_MS && !isForce) {
     return res.json({ ...cachedRatesPayload, cached: true });
   }
-  let usdRate = 48.42;
-  let eurRate = 56.25;
-  let gbpRate = 65.45;
-  let chfRate = 59.72;
-  let goldOns = 4431.1;
-  let goldGram = 6898.85;
-  let goldCeyrek = 11165.67;
-  let goldYarim = 22331.33;
-  let goldTam = 44526.08;
-  let goldCumhuriyet = 45961;
-  let btcUsd = 79614;
+  let usdRate = 49.6;
+  let eurRate = 55.78;
+  let gbpRate = 66.52;
+  let chfRate = 60.19;
+  let goldOns = 4136.9;
+  let goldGram = 6595.94;
+  let goldCeyrek = 10761.15;
+  let goldYarim = 21522.3;
+  let goldTam = 42912.97;
+  let goldCumhuriyet = 44274;
+  let silverGram = 91.92;
+  let btcUsd = 84648;
   const details = {
-    USD: { buying: 48.38, selling: 48.49, change: 0.22 },
-    EUR: { buying: 56.12, selling: 56.36, change: -0.25 },
-    GBP: { buying: 65.43, selling: 65.48, change: -0.22 },
-    CHF: { buying: 59.72, selling: 59.76, change: 0.18 },
-    GOLD_GRAM: { buying: 6898.04, selling: 6898.85, change: -0.74 },
-    GOLD_CEYREK: { buying: 10908.86, selling: 11165.67, change: -1.14 },
-    GOLD_YARIM: { buying: 21749.55, selling: 22331.33, change: -1.14 },
-    GOLD_TAM: { buying: 43635.46, selling: 44526.08, change: -1.14 },
-    GOLD_CUMHURIYET: { buying: 45276, selling: 45961, change: -1.43 },
-    GOLD_ONS: { buying: 4431.1, selling: 4431.1, change: 0.15 },
-    BTC: { buying: 79614, selling: 79614, change: 0.85 }
+    USD: { buying: 49.58, selling: 49.6, change: 0.06 },
+    EUR: { buying: 55.76, selling: 55.78, change: 0.06 },
+    GBP: { buying: 66.5, selling: 66.52, change: 0.24 },
+    CHF: { buying: 60.15, selling: 60.19, change: 0.12 },
+    GOLD_GRAM: { buying: 6595.21, selling: 6595.94, change: 0.34 },
+    GOLD_CEYREK: { buying: 10520.69, selling: 10761.15, change: 0.13 },
+    GOLD_YARIM: { buying: 20975.62, selling: 21522.3, change: 0.13 },
+    GOLD_TAM: { buying: 42082.75, selling: 42912.97, change: 0.13 },
+    GOLD_CUMHURIYET: { buying: 43613, selling: 44274, change: 0.11 },
+    GOLD_ONS: { buying: 4136.9, selling: 4136.9, change: 0.25 },
+    SILVER_GRAM: { buying: 91.84, selling: 91.92, change: -0.59 },
+    BTC: { buying: 84648, selling: 84648, change: 1.2 }
   };
   let loadedSource = "";
   try {
@@ -1982,10 +2015,26 @@ app.get("/api/rates", async (req, res) => {
             change: Number(tData.CUMHURIYETALTINI.Change) || 0
           };
         }
+        if (tData.GUMUS && tData.GUMUS.Selling) {
+          silverGram = Number(tData.GUMUS.Selling) || silverGram;
+          details.SILVER_GRAM = {
+            buying: Number(tData.GUMUS.Buying) || silverGram,
+            selling: silverGram,
+            change: Number(tData.GUMUS.Change) || 0
+          };
+        }
         loadedSource = "Truncgil Financial Markets API (TR)";
       }
     }
   } catch (_e) {
+  }
+  if (!loadedSource && cachedRatesPayload) {
+    return res.json({
+      ...cachedRatesPayload,
+      cached: true,
+      fallback: true,
+      notice: `Son ba\u015Far\u0131l\u0131 piyasa verileri g\xF6steriliyor (\xD6nbellek: ${cachedRatesPayload.lastUpdated})`
+    });
   }
   try {
     const goldCtrl = new AbortController();
@@ -2010,7 +2059,7 @@ app.get("/api/rates", async (req, res) => {
     console.warn("[Rates] Gold-api fetch error:", e.message);
   }
   let cryptos = {
-    BTC: { usd: 79614, change: 0.85 },
+    BTC: { usd: 84648, change: 1.2 },
     ETH: { usd: 2680, change: 1.42 },
     SOL: { usd: 185.5, change: 2.8 },
     BNB: { usd: 645, change: 0.95 },
@@ -2110,6 +2159,7 @@ app.get("/api/rates", async (req, res) => {
       GOLD_YARIM: Number(goldYarim.toFixed(2)),
       GOLD_TAM: Number(goldTam.toFixed(2)),
       GOLD_CUMHURIYET: Number(goldCumhuriyet.toFixed(2)),
+      SILVER_GRAM: Number(silverGram.toFixed(2)),
       BTC_USD: Number(cryptos.BTC.usd.toFixed(2)),
       BTC_TRY: Number((cryptos.BTC.usd * usdRate).toFixed(2)),
       ETH_USD: Number(cryptos.ETH.usd.toFixed(2)),
