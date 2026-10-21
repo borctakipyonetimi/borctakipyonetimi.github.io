@@ -1103,29 +1103,38 @@ function getSmartFallbackResponse(query: string, context: any, reason: string): 
     q.includes("piyasa") || q.includes("ons") || q.includes("çeyrek") || q.includes("ceyrek") ||
     q.includes("gram") || q.includes("btc") || q.includes("bitcoin")
   ) {
-    const usd = context?.rates?.USD || 45.85;
-    const eur = context?.rates?.EUR || 49.85;
-    const gbp = context?.rates?.GBP || 58.20;
-    const goldOns = context?.rates?.GOLD_ONS || 4474.20;
-    const goldGram = context?.rates?.GOLD_GRAM || ((goldOns * usd) / 31.10348);
-    const goldCeyrek = context?.rates?.GOLD_CEYREK || (goldGram * 1.635);
-    const btcUsd = context?.rates?.BTC_USD || 81588;
+    const rates = context?.rates || {};
+    const details = context?.rateDetails || {};
+    const lastUpdated = context?.lastUpdated || new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const usdSelling = rates.USD || 49.60;
+    const usdBuying = details.USD?.buying || (usdSelling - 0.02);
+    const eurSelling = rates.EUR || 55.78;
+    const eurBuying = details.EUR?.buying || (eurSelling - 0.02);
+    const gbpSelling = rates.GBP || 66.52;
+    const gbpBuying = details.GBP?.buying || (gbpSelling - 0.02);
+    const goldGramSelling = rates.GOLD_GRAM || 6595.94;
+    const goldGramBuying = details.GOLD_GRAM?.buying || (goldGramSelling - 0.73);
+    const goldCeyrekSelling = rates.GOLD_CEYREK || 10761.15;
+    const goldCeyrekBuying = details.GOLD_CEYREK?.buying || 10520.69;
+    const goldOns = rates.GOLD_ONS || 4136.90;
+    const btcUsd = rates.BTC_USD || 84648;
 
-    advice += `💱 **ANLIK CANLI PİYASA & DÖVİZ / ALTIN KURLARI RAPORU**\n\n`;
-    advice += `En entegre serbest piyasa ve uluslararası finans borsaları verilerine göre güncel kurlar:\n\n`;
-    advice += `| Varlık Türü | Sembol | Anlık Fiyat (TL / USD) | Değişim / Birim |\n`;
-    advice += `| :--- | :---: | :---: | :---: |\n`;
-    advice += `| **Amerikan Doları** | 🇺🇸 USD | **₺${usd.toFixed(2)}** | 1 Dolar |\n`;
-    advice += `| **Euro** | 🇪🇺 EUR | **₺${eur.toFixed(2)}** | 1 Euro |\n`;
-    advice += `| **İngiliz Sterlini** | 🇬🇧 GBP | **₺${gbp.toFixed(2)}** | 1 Sterlin |\n`;
-    advice += `| **Gram Altın (24K)** | 🥇 Gram | **₺${Math.round(goldGram).toLocaleString("tr-TR")} TL** | 1 Gram |\n`;
-    advice += `| **Çeyrek Altın** | 🪙 Çeyrek | **₺${Math.round(goldCeyrek).toLocaleString("tr-TR")} TL** | 1 Adet |\n`;
-    advice += `| **Ons Altın ($)** | 🪙 Ons | **$${Math.round(goldOns).toLocaleString("en-US")} USD** | 1 Ons (31.1g) |\n`;
-    advice += `| **Bitcoin (BTC)** | ₿ BTC | **$${Math.round(btcUsd).toLocaleString("en-US")} USD** | 1 BTC |\n\n`;
+    advice += `💱 **CANLI PİYASA & DÖVİZ / ALTIN KURLARI RAPORU**\n\n`;
+    advice += `Standart Serbest Piyasa veri kaynağından alınan güncel kurlar (Son Güncelleme: **${lastUpdated}**):\n\n`;
+    advice += `| Varlık Türü | Sembol | Satış (Esas Alınan) | Alış Fiyatı | Birim |\n`;
+    advice += `| :--- | :---: | :---: | :---: | :---: |\n`;
+    advice += `| **Amerikan Doları** | 🇺🇸 USD | **₺${usdSelling.toFixed(2)}** | ₺${usdBuying.toFixed(2)} | 1 Dolar |\n`;
+    advice += `| **Euro** | 🇪🇺 EUR | **₺${eurSelling.toFixed(2)}** | ₺${eurBuying.toFixed(2)} | 1 Euro |\n`;
+    advice += `| **İngiliz Sterlini** | 🇬🇧 GBP | **₺${gbpSelling.toFixed(2)}** | ₺${gbpBuying.toFixed(2)} | 1 Sterlin |\n`;
+    advice += `| **Gram Altın (24K)** | 🥇 Gram | **₺${Math.round(goldGramSelling).toLocaleString("tr-TR")} TL** | ₺${Math.round(goldGramBuying).toLocaleString("tr-TR")} TL | 1 Gram |\n`;
+    advice += `| **Çeyrek Altın** | 🪙 Çeyrek | **₺${Math.round(goldCeyrekSelling).toLocaleString("tr-TR")} TL** | ₺${Math.round(goldCeyrekBuying).toLocaleString("tr-TR")} TL | 1 Adet |\n`;
+    advice += `| **Ons Altın ($)** | 🪙 Ons | **$${Math.round(goldOns).toLocaleString("en-US")} USD** | $${Math.round(goldOns).toLocaleString("en-US")} USD | 1 Ons (31.1g) |\n`;
+    advice += `| **Bitcoin (BTC)** | ₿ BTC | **$${Math.round(btcUsd).toLocaleString("en-US")} USD** | $${Math.round(btcUsd).toLocaleString("en-US")} USD | 1 BTC |\n\n`;
 
+    advice += `📌 *Not: Bütçem Pro hesaplamalarında parite tutarlılığı için **Serbest Piyasa Satış Fiyatı** standart parite olarak kabul edilmektedir.*\n\n`;
     advice += `💡 **Finans Koçu Analizi & Önerisi**:\n`;
-    advice += `• **Bütçe Koruması**: Enflasyonist ortamlarda nakitte kalan TL birikimleri değer kaybeder. Gelirinizden ayırdığınız tasarruf bakiyesini (**₺${stats.netIncome.toLocaleString("tr-TR")}**) parçalı olarak Gram Altın veya döviz varlıklarına yönlendirerek reel satın alma gücünüzü koruyabilirsiniz.\n`;
-    advice += `• **Dövizli Borç Riski**: Eğer döviz veya altına endeksli borcunuz varsa, kurlardaki yükseliş riskine karşı borcunuzu TL cinsinden sabitlemeyi veya erken kapatmayı önceliklendirin.\n`;
+    advice += `• **Bütçe Koruması**: Enflasyonist ortamlarda nakitte kalan TL birikimleri reel değer kaybeder. Aylık serbest nakit akışınızdan ayırdığınız tasarruf bakiyesini (**₺${stats.netIncome.toLocaleString("tr-TR")}**) parçalı olarak Gram Altın veya döviz varlıklarına yönlendirerek satın alma gücünüzü koruyabilirsiniz.\n`;
+    advice += `• **Dövizli Borç Riski**: Eğer döviz veya altına endeksli borcunuz varsa, kurlardaki dalgalanma riskine karşı borcunuzu TL cinsinden sabitlemeyi veya erken kapatmayı önceliklendirin.\n`;
 
     return advice;
 
@@ -1200,13 +1209,20 @@ app.post("/api/chat", async (req, res) => {
       : "Mevcut Ay";
 
     const cRates = context?.rates || {};
-    const usd = cRates.USD || 45.85;
-    const eur = cRates.EUR || 49.85;
-    const gbp = cRates.GBP || 58.20;
-    const goldOns = cRates.GOLD_ONS || 4474.20;
-    const goldGram = cRates.GOLD_GRAM || ((goldOns * usd) / 31.10348);
-    const goldCeyrek = cRates.GOLD_CEYREK || (goldGram * 1.635);
-    const btcUsd = cRates.BTC_USD || 81588;
+    const cDetails = context?.rateDetails || {};
+    const lastUpdatedLabel = context?.lastUpdated || new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const usd = cRates.USD || 49.60;
+    const usdBuying = cDetails.USD?.buying || (usd - 0.02);
+    const eur = cRates.EUR || 55.78;
+    const eurBuying = cDetails.EUR?.buying || (eur - 0.02);
+    const gbp = cRates.GBP || 66.52;
+    const gbpBuying = cDetails.GBP?.buying || (gbp - 0.02);
+    const goldGram = cRates.GOLD_GRAM || 6595.94;
+    const goldGramBuying = cDetails.GOLD_GRAM?.buying || (goldGram - 0.73);
+    const goldCeyrek = cRates.GOLD_CEYREK || 10761.15;
+    const goldCeyrekBuying = cDetails.GOLD_CEYREK?.buying || 10520.69;
+    const goldOns = cRates.GOLD_ONS || 4136.90;
+    const btcUsd = cRates.BTC_USD || 84648;
 
     // Deduplicate active debts for Gemini prompt to eliminate repeated listings
     const debtsArr = Array.isArray(context?.debts) ? context.debts : [];
@@ -1285,14 +1301,25 @@ SANA SAĞLANAN GÜNCEL KULLANICI BÜTÇE VERİLERİ (${periodLabel} Dönemi):
 - TAMAMEN KAPANMIŞ BORÇLAR: ${totalPaidDebtsCount} adet (Toplam Kapatılan: ₺${Math.round(totalPaidDebtsSum)})
 - TAKSİTLİ BORÇLAR (Aylık Taksit, Kalan Taksit, Kalan Tutar): ${JSON.stringify(sanitizedActiveInsts)}
 - REHBER KİŞİ İŞLEMLERİ (Borç/Alacak): ${JSON.stringify(context?.contactTransactions || [])}
-- GÜNCEL CANLI PİYASA KURLARI: USD: ₺${usd.toFixed(2)} | EUR: ₺${eur.toFixed(2)} | GBP: ₺${gbp.toFixed(2)} | Gram Altın: ₺${Math.round(goldGram).toLocaleString("tr-TR")} | Çeyrek: ₺${Math.round(goldCeyrek).toLocaleString("tr-TR")} | BTC: $${Math.round(btcUsd).toLocaleString("en-US")}
+- GÜNCEL CANLI PİYASA KURLARI (Tek Standart Kaynak: Serbest Piyasa Satış Fiyatı Esas Alınmıştır, Son Güncelleme: ${lastUpdatedLabel}):
+  * Dolar: Satış ₺${usd.toFixed(2)} (Alış ₺${usdBuying.toFixed(2)})
+  * Euro: Satış ₺${eur.toFixed(2)} (Alış ₺${eurBuying.toFixed(2)})
+  * Sterlin: Satış ₺${gbp.toFixed(2)} (Alış ₺${gbpBuying.toFixed(2)})
+  * Gram Altın (24K): Satış ₺${Math.round(goldGram).toLocaleString("tr-TR")} (Alış ₺${Math.round(goldGramBuying).toLocaleString("tr-TR")})
+  * Çeyrek Altın: Satış ₺${Math.round(goldCeyrek).toLocaleString("tr-TR")} (Alış ₺${Math.round(goldCeyrekBuying).toLocaleString("tr-TR")})
+  * Ons Altın: $${Math.round(goldOns).toLocaleString("en-US")}
+  * Bitcoin: $${Math.round(btcUsd).toLocaleString("en-US")}
 
 🚨 ÇOK KRİTİK YANIT KURALLARI (DİNAMİK SORU-CEVAP DİSİPLİNİ):
 
 1. DOĞRUDAN SORUYA ODAKLANMA (ASLA SABİT ŞABLON BASMA):
-- Kullanıcı spesifik bir soru sorduğunda (Örn: "Borcum kaç senede biter?", "Hangi borcu önce ödemeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nasıl kısarım?", "Altın fiyatı ne kadar?") **ASLA her yanıta sabit 4'lü özet şablonunu basıp geçme!**
+- Kullanıcı spesifik bir soru sorduğunda (Örn: "Borcum kaç senede biter?", "Hangi borcu önce ödemeliyim?", "Bu ay ne kadar tasarruf edebilirim?", "Giderlerimi nasıl kısarım?", "Altın fiyatı ne kadar?", "Dolar kaç TL?") **ASLA her yanıta sabit 4'lü özet şablonunu basıp geçme!**
 - **İLK CÜMLEDEN İTİBAREN doğrudan sorulan sorunun yanıtını, matematiksel hesabını ve çözümünü ver.**
 - Sabit özet kartını SADECE kullanıcı genel analiz istediğinde ("Bütçe durumum genel olarak nasıl?", "Aylık analiz raporu ver") kullan.
+
+2. PİYASA KURLARI VE PARİTE KURALLARI ("Döviz/Altın/Kur sorularında"):
+- Alış ve Satış fiyatlarını karıştırma; sistemde hesaplamalara esas alınan fiyat **Serbest Piyasa Satış Fiyatı**'dır. Yanıtında satış fiyatını ve referans olarak alış fiyatını belirt, son güncelleme saatini (${lastUpdatedLabel}) ekle.
+- Bütçem Pro'da döviz dönüşümlerinde her zaman satış fiyatının esas alındığını açıkça hatırlat.
 
 2. BORÇ BİTİŞ SÜRESİ VE PROJEKSİYON HESABI ("Borcum ne zaman/kaç senede/kaç ayda biter?"):
 - Bu soru geldiğinde şu formülü çalıştır:
@@ -2004,6 +2031,7 @@ app.post("/api/scan-receipt", async (req, res) => {
 });
 
 // In-memory cache for rates to keep response sub-millisecond while avoiding upstream rate limits
+const RATES_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL
 let cachedRatesPayload: any = null;
 let cachedRatesTimestamp = 0;
 
@@ -2014,36 +2042,40 @@ app.get("/api/rates", async (req, res) => {
   res.setHeader("Expires", "0");
 
   const now = Date.now();
-  // Return cached payload if less than 15 seconds old unless explicitly forced via ?force=true
-  if (cachedRatesPayload && (now - cachedRatesTimestamp < 15000) && req.query.force !== "true") {
+  const isForce = req.query.force === "true";
+
+  // Return cached payload if less than 5 minutes old unless explicitly forced via ?force=true
+  if (cachedRatesPayload && (now - cachedRatesTimestamp < RATES_CACHE_TTL_MS) && !isForce) {
     return res.json({ ...cachedRatesPayload, cached: true });
   }
 
-  // Realistic fallback levels
-  let usdRate = 48.42;
-  let eurRate = 56.25;
-  let gbpRate = 65.45;
-  let chfRate = 59.72;
-  let goldOns = 4431.10;
-  let goldGram = 6898.85;
-  let goldCeyrek = 11165.67;
-  let goldYarim = 22331.33;
-  let goldTam = 44526.08;
-  let goldCumhuriyet = 45961.00;
-  let btcUsd = 79614.00;
+  // Realistic fallback levels (Standard Serbest Piyasa Satış Fiyatı)
+  let usdRate = 49.60;
+  let eurRate = 55.78;
+  let gbpRate = 66.52;
+  let chfRate = 60.19;
+  let goldOns = 4136.90;
+  let goldGram = 6595.94;
+  let goldCeyrek = 10761.15;
+  let goldYarim = 21522.30;
+  let goldTam = 42912.97;
+  let goldCumhuriyet = 44274.00;
+  let silverGram = 91.92;
+  let btcUsd = 84648.00;
 
   const details: Record<string, { buying: number; selling: number; change: number }> = {
-    USD: { buying: 48.38, selling: 48.49, change: 0.22 },
-    EUR: { buying: 56.12, selling: 56.36, change: -0.25 },
-    GBP: { buying: 65.43, selling: 65.48, change: -0.22 },
-    CHF: { buying: 59.72, selling: 59.76, change: 0.18 },
-    GOLD_GRAM: { buying: 6898.04, selling: 6898.85, change: -0.74 },
-    GOLD_CEYREK: { buying: 10908.86, selling: 11165.67, change: -1.14 },
-    GOLD_YARIM: { buying: 21749.55, selling: 22331.33, change: -1.14 },
-    GOLD_TAM: { buying: 43635.46, selling: 44526.08, change: -1.14 },
-    GOLD_CUMHURIYET: { buying: 45276.00, selling: 45961.00, change: -1.43 },
-    GOLD_ONS: { buying: 4431.10, selling: 4431.10, change: 0.15 },
-    BTC: { buying: 79614, selling: 79614, change: 0.85 }
+    USD: { buying: 49.58, selling: 49.60, change: 0.06 },
+    EUR: { buying: 55.76, selling: 55.78, change: 0.06 },
+    GBP: { buying: 66.50, selling: 66.52, change: 0.24 },
+    CHF: { buying: 60.15, selling: 60.19, change: 0.12 },
+    GOLD_GRAM: { buying: 6595.21, selling: 6595.94, change: 0.34 },
+    GOLD_CEYREK: { buying: 10520.69, selling: 10761.15, change: 0.13 },
+    GOLD_YARIM: { buying: 20975.62, selling: 21522.30, change: 0.13 },
+    GOLD_TAM: { buying: 42082.75, selling: 42912.97, change: 0.13 },
+    GOLD_CUMHURIYET: { buying: 43613.00, selling: 44274.00, change: 0.11 },
+    GOLD_ONS: { buying: 4136.90, selling: 4136.90, change: 0.25 },
+    SILVER_GRAM: { buying: 91.84, selling: 91.92, change: -0.59 },
+    BTC: { buying: 84648, selling: 84648, change: 1.20 }
   };
 
   let loadedSource = "";
@@ -2148,11 +2180,29 @@ app.get("/api/rates", async (req, res) => {
             change: Number(tData.CUMHURIYETALTINI.Change) || 0
           };
         }
+        if (tData.GUMUS && tData.GUMUS.Selling) {
+          silverGram = Number(tData.GUMUS.Selling) || silverGram;
+          details.SILVER_GRAM = {
+            buying: Number(tData.GUMUS.Buying) || silverGram,
+            selling: silverGram,
+            change: Number(tData.GUMUS.Change) || 0
+          };
+        }
         loadedSource = "Truncgil Financial Markets API (TR)";
       }
     }
   } catch (_e) {
     // Primary market provider temporarily unavailable; seamlessly fallback to secondary global forex providers
+  }
+
+  // If primary provider failed and we have existing cachedRatesPayload, return it with timestamp
+  if (!loadedSource && cachedRatesPayload) {
+    return res.json({
+      ...cachedRatesPayload,
+      cached: true,
+      fallback: true,
+      notice: `Son başarılı piyasa verileri gösteriliyor (Önbellek: ${cachedRatesPayload.lastUpdated})`
+    });
   }
 
   // 2. Fetch live Ons Altın ($ XAU)
@@ -2182,7 +2232,7 @@ app.get("/api/rates", async (req, res) => {
 
   // Realistic crypto baseline levels
   let cryptos: Record<string, { usd: number; change: number }> = {
-    BTC: { usd: 79614.00, change: 0.85 },
+    BTC: { usd: 84648.00, change: 1.20 },
     ETH: { usd: 2680.00, change: 1.42 },
     SOL: { usd: 185.50, change: 2.80 },
     BNB: { usd: 645.00, change: 0.95 },
@@ -2286,6 +2336,7 @@ app.get("/api/rates", async (req, res) => {
       GOLD_YARIM: Number(goldYarim.toFixed(2)),
       GOLD_TAM: Number(goldTam.toFixed(2)),
       GOLD_CUMHURIYET: Number(goldCumhuriyet.toFixed(2)),
+      SILVER_GRAM: Number(silverGram.toFixed(2)),
       BTC_USD: Number(cryptos.BTC.usd.toFixed(2)),
       BTC_TRY: Number((cryptos.BTC.usd * usdRate).toFixed(2)),
       ETH_USD: Number(cryptos.ETH.usd.toFixed(2)),

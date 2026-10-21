@@ -28,61 +28,61 @@ interface CurrencyContextProps {
 
 const CurrencyContext = createContext<CurrencyContextProps | undefined>(undefined);
 
-// Real modern baseline levels (September 2026 actual levels)
+// Real modern baseline levels (Serbest Piyasa Satış Fiyatı Benchmark)
 const DEFAULT_RATES: Record<string, number> = {
   TRY: 1,
-  USD: 48.42,
-  EUR: 56.25,
-  GBP: 65.45,
-  CHF: 59.72,
-  CAD: 35.80,
-  AUD: 31.90,
+  USD: 49.60,
+  EUR: 55.78,
+  GBP: 66.52,
+  CHF: 60.19,
+  CAD: 35.31,
+  AUD: 34.89,
   JPY: 0.32,
-  GOLD_ONS: 4431.10,
-  GOLD_GRAM: 6898.85,
-  GOLD_CEYREK: 11165.67,
-  GOLD_YARIM: 22331.33,
-  GOLD_TAM: 44526.08,
-  GOLD_CUMHURIYET: 45961.00,
-  SILVER_GRAM: 84.50,
-  BTC_USD: 79614.00,
-  BTC_TRY: 3855000.00,
+  GOLD_ONS: 4136.90,
+  GOLD_GRAM: 6595.94,
+  GOLD_CEYREK: 10761.15,
+  GOLD_YARIM: 21522.30,
+  GOLD_TAM: 42912.97,
+  GOLD_CUMHURIYET: 44274.00,
+  SILVER_GRAM: 91.92,
+  BTC_USD: 84648.00,
+  BTC_TRY: 4198540.00,
   ETH_USD: 2680.00,
-  ETH_TRY: 129765.00,
+  ETH_TRY: 132928.00,
   SOL_USD: 185.50,
-  SOL_TRY: 8981.00,
+  SOL_TRY: 9200.00,
   BNB_USD: 645.00,
-  BNB_TRY: 31230.00,
+  BNB_TRY: 31992.00,
   XRP_USD: 2.15,
-  XRP_TRY: 104.10,
+  XRP_TRY: 106.64,
   AVAX_USD: 28.50,
-  AVAX_TRY: 1380.00,
+  AVAX_TRY: 1413.60,
   DOGE_USD: 0.22,
-  DOGE_TRY: 10.65,
+  DOGE_TRY: 10.91,
   ADA_USD: 0.78,
-  ADA_TRY: 37.76,
+  ADA_TRY: 38.69,
   TON_USD: 5.40,
-  TON_TRY: 261.47,
+  TON_TRY: 267.84,
   USDT_USD: 1.00,
-  USDT_TRY: 48.45
+  USDT_TRY: 49.60
 };
 
 const DEFAULT_DETAILS: Record<string, RateDetail> = {
-  USD: { buying: 48.38, selling: 48.49, change: 0.22 },
-  EUR: { buying: 56.12, selling: 56.36, change: -0.25 },
-  GBP: { buying: 65.43, selling: 65.48, change: -0.22 },
-  CHF: { buying: 59.72, selling: 59.76, change: 0.18 },
-  CAD: { buying: 35.75, selling: 35.85, change: 0.12 },
-  AUD: { buying: 31.85, selling: 31.95, change: -0.08 },
+  USD: { buying: 49.58, selling: 49.60, change: 0.06 },
+  EUR: { buying: 55.76, selling: 55.78, change: 0.06 },
+  GBP: { buying: 66.50, selling: 66.52, change: 0.24 },
+  CHF: { buying: 60.15, selling: 60.19, change: 0.12 },
+  CAD: { buying: 35.29, selling: 35.31, change: 0.14 },
+  AUD: { buying: 34.87, selling: 34.89, change: 0.48 },
   JPY: { buying: 0.318, selling: 0.322, change: 0.05 },
-  GOLD_GRAM: { buying: 6898.04, selling: 6898.85, change: -0.74 },
-  GOLD_CEYREK: { buying: 10908.86, selling: 11165.67, change: -1.14 },
-  GOLD_YARIM: { buying: 21749.55, selling: 22331.33, change: -1.14 },
-  GOLD_TAM: { buying: 43635.46, selling: 44526.08, change: -1.14 },
-  GOLD_CUMHURIYET: { buying: 45276.00, selling: 45961.00, change: -1.43 },
-  GOLD_ONS: { buying: 4431.10, selling: 4431.10, change: 0.15 },
-  SILVER_GRAM: { buying: 83.80, selling: 84.50, change: 0.45 },
-  BTC: { buying: 79614, selling: 79614, change: 0.85 },
+  GOLD_GRAM: { buying: 6595.21, selling: 6595.94, change: 0.34 },
+  GOLD_CEYREK: { buying: 10520.69, selling: 10761.15, change: 0.13 },
+  GOLD_YARIM: { buying: 20975.62, selling: 21522.30, change: 0.13 },
+  GOLD_TAM: { buying: 42082.75, selling: 42912.97, change: 0.13 },
+  GOLD_CUMHURIYET: { buying: 43613.00, selling: 44274.00, change: 0.11 },
+  GOLD_ONS: { buying: 4136.90, selling: 4136.90, change: 0.25 },
+  SILVER_GRAM: { buying: 91.84, selling: 91.92, change: -0.59 },
+  BTC: { buying: 84648, selling: 84648, change: 1.20 },
   ETH: { buying: 2680, selling: 2680, change: 1.42 },
   SOL: { buying: 185.50, selling: 185.50, change: 2.80 },
   BNB: { buying: 645, selling: 645, change: 0.95 },
@@ -105,9 +105,9 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (savedRates) {
       try {
         const parsed = JSON.parse(savedRates);
-        // Only accept saved cache if it's realistic (USD > 46, GOLD_GRAM > 6000) and not older than 1 hour
-        const isFresh = savedTimestamp ? (Date.now() - Number(savedTimestamp) < 3600000) : false;
-        if (parsed && parsed.USD && parsed.USD >= 46 && parsed.GOLD_GRAM && parsed.GOLD_GRAM >= 6000 && isFresh) {
+        // Strict 5-minute TTL (300000 ms) and realistic validation check
+        const isFresh = savedTimestamp ? (Date.now() - Number(savedTimestamp) < 300000) : false;
+        if (parsed && parsed.USD && parsed.USD >= 45 && parsed.GOLD_GRAM && parsed.GOLD_GRAM >= 6000 && isFresh) {
           return { ...DEFAULT_RATES, ...parsed };
         }
       } catch (e) {
@@ -119,7 +119,9 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [rateDetails, setRateDetails] = useState<Record<string, RateDetail>>(() => {
     const saved = localStorage.getItem("exchangeRateDetails");
-    if (saved) {
+    const savedTimestamp = localStorage.getItem("exchangeRatesTimestamp");
+    const isFresh = savedTimestamp ? (Date.now() - Number(savedTimestamp) < 300000) : false;
+    if (saved && isFresh) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.USD) return { ...DEFAULT_DETAILS, ...parsed };
@@ -399,9 +401,13 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return success;
   }, []);
 
-  // 1. Initial immediate fetch upon mount
+  // 1. Initial immediate fetch upon mount (respecting 5-minute TTL cache)
   useEffect(() => {
-    updateRatesFromAPI(true).catch(() => {});
+    const savedTimestamp = localStorage.getItem("exchangeRatesTimestamp");
+    const isFresh = savedTimestamp ? (Date.now() - Number(savedTimestamp) < 300000) : false;
+    if (!isFresh) {
+      updateRatesFromAPI(false).catch(() => {});
+    }
   }, [updateRatesFromAPI]);
 
   // 2. Automatic periodic refresh ticker (60 seconds, pauses when tab is hidden to prevent memory leaks and crashes)
