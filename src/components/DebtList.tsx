@@ -16,6 +16,7 @@ import { DoughnutChart, BarChart } from "./BudgetCharts";
 import { AdMobBanner } from "./AdMobBanner";
 import ReceiptScanner from "./ReceiptScanner";
 import { DebtTimelineChart } from "./DebtTimelineChart";
+import { AnimatedDebtStatusPanel } from "./AnimatedDebtStatusPanel";
 import { jsPDF } from "jspdf";
 import { t } from "../utils/translations";
 
@@ -1981,68 +1982,14 @@ export const DebtList: React.FC<DebtListProps> = ({
         )}
       </div>
 
-      {/* Taksitli Borç Planları - Hızlı Erişim Paneli */}
-      <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/50 dark:border-slate-700/60 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase">
-              📊 Aktif Taksitli Borç Planlarınız (Hızlı Erişim)
-            </h3>
-          </div>
-          <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold rounded-full">
-            {installmentDebts.length} Aktif Plan
-          </span>
-        </div>
-
-        {installmentDebts.length === 0 ? (
-          <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold italic text-center py-2">
-            Eklenmiş taksitli borç planı bulunmamaktadır. "Taksitli Borçlar" sekmesinden veya yukarıdaki borç ekleme penceresindeki taksit seçeneğinden yeni planlar oluşturabilirsiniz.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-500 dark:text-slate-400 border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700/50 pb-2 text-[10px] uppercase font-black tracking-wider text-slate-400">
-                  <th className="py-2">Borç Planı</th>
-                  <th className="py-2">Toplam Borç</th>
-                  <th className="py-2">Ödenen Vade</th>
-                  <th className="py-2">Aylık Taksit</th>
-                  <th className="py-2">Kalan Ödeme</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
-                {installmentDebts.map((inst) => {
-                  const monthly = inst.totalAmount / inst.installmentCount;
-                  const paidValue = inst.paidInstallmentCount * monthly;
-                  const remainingValue = inst.totalAmount - paidValue;
-                  const isCompleted = inst.paidInstallmentCount >= inst.installmentCount;
-
-                  return (
-                    <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition duration-150">
-                      <td className="py-2.5 font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 font-sans">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                        {inst.name}
-                        {isCompleted && (
-                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[8px] font-black rounded-lg">ÖDENDİ</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-mono">{format(inst.totalAmount)}</td>
-                      <td className="py-2.5 font-bold text-slate-600 dark:text-slate-400 font-sans">
-                        {inst.paidInstallmentCount} / {inst.installmentCount} Ay
-                      </td>
-                      <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-mono">{format(monthly)}</td>
-                      <td className="py-2.5 font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
-                        {isCompleted ? "₺0" : format(remainingValue)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Animasyonlu Borç Durum Paneli - Yerleşim: [Borç Kartları] -> [Animasyonlu Borç Durum Paneli] -> [Borç Kapatma Rehberi] */}
+      <AnimatedDebtStatusPanel
+        debts={debts}
+        installmentDebts={installmentDebts}
+        language={language}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+      />
 
       {/* Borç Kapama Stratejisi Öneri Kutusu */}
       <div id="debt_strategy_advisor" className="p-5 bg-gradient-to-br from-indigo-50/70 to-slate-50/80 dark:from-slate-800/80 dark:to-slate-800/60 rounded-3xl border border-indigo-100/40 dark:border-indigo-900/40 space-y-4 shadow-sm">
@@ -2180,6 +2127,69 @@ export const DebtList: React.FC<DebtListProps> = ({
           strategy={currentStrategyView}
           totalIncome={totalIncome}
         />
+      </div>
+
+      {/* Taksitli Borç Planları - Hızlı Erişim Paneli */}
+      <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/50 dark:border-slate-700/60 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-indigo-500" />
+            <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase">
+              📊 Aktif Taksitli Borç Planlarınız (Hızlı Erişim)
+            </h3>
+          </div>
+          <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold rounded-full">
+            {installmentDebts.length} Aktif Plan
+          </span>
+        </div>
+
+        {installmentDebts.length === 0 ? (
+          <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold italic text-center py-2">
+            Eklenmiş taksitli borç planı bulunmamaktadır. "Taksitli Borçlar" sekmesinden veya yukarıdaki borç ekleme penceresindeki taksit seçeneğinden yeni planlar oluşturabilirsiniz.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-500 dark:text-slate-400 border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-700/50 pb-2 text-[10px] uppercase font-black tracking-wider text-slate-400">
+                  <th className="py-2">Borç Planı</th>
+                  <th className="py-2">Toplam Borç</th>
+                  <th className="py-2">Ödenen Vade</th>
+                  <th className="py-2">Aylık Taksit</th>
+                  <th className="py-2">Kalan Ödeme</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
+                {installmentDebts.map((inst) => {
+                  const monthly = inst.totalAmount / inst.installmentCount;
+                  const paidValue = inst.paidInstallmentCount * monthly;
+                  const remainingValue = inst.totalAmount - paidValue;
+                  const isCompleted = inst.paidInstallmentCount >= inst.installmentCount;
+
+                  return (
+                    <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition duration-150">
+                      <td className="py-2.5 font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 font-sans">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                        {inst.name}
+                        {isCompleted && (
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[8px] font-black rounded-lg">ÖDENDİ</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-mono">{format(inst.totalAmount)}</td>
+                      <td className="py-2.5 font-bold text-slate-600 dark:text-slate-400 font-sans">
+                        {inst.paidInstallmentCount} / {inst.installmentCount} Ay
+                      </td>
+                      <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-mono">{format(monthly)}</td>
+                      <td className="py-2.5 font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
+                        {isCompleted ? "₺0" : format(remainingValue)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Debt Add/Edit Dialog Modal */}
