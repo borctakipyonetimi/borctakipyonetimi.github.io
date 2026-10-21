@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
 import { Debt, InstallmentDebt } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
@@ -15,7 +15,7 @@ interface DebtTimelineChartProps {
   totalIncome: number;
 }
 
-export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
+const DebtTimelineChartComponent: React.FC<DebtTimelineChartProps> = ({
   debts,
   installmentDebts,
   strategy,
@@ -31,104 +31,108 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
     y: number;
   } | null>(null);
 
-  // 1. Run Strategy Simulation
-  const unpaidDirect = debts
-    .filter((d) => d.amount > d.paid)
-    .map((d) => ({
-      id: d.id,
-      name: d.name,
-      remaining: d.amount - d.paid,
-      monthlyMin: Math.max(150, (d.amount - d.paid) * 0.05), // Minimum monthly repayment (5% or 150 TL)
-    }));
+  // 1. Run Strategy Simulation (Memoized for 60fps performance)
+  const { simulationData, monthlyPaymentCapacity } = useMemo(() => {
+    const unpaidDirect = debts
+      .filter((d) => d.amount > d.paid)
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        remaining: d.amount - d.paid,
+        monthlyMin: Math.max(150, (d.amount - d.paid) * 0.05), // Minimum monthly repayment (5% or 150 TL)
+      }));
 
-  const unpaidInstallment = installmentDebts
-    .filter((inst) => inst.installmentCount > inst.paidInstallmentCount)
-    .map((inst) => {
-      const monthly = inst.totalAmount / inst.installmentCount;
-      const remaining = inst.totalAmount - inst.paidInstallmentCount * monthly;
-      return {
-        id: inst.id,
-        name: inst.name,
-        remaining: remaining,
-        monthlyMin: monthly,
-      };
-    });
-
-  const allActiveDebts = [...unpaidDirect, ...unpaidInstallment];
-  const initialTotalRemaining = allActiveDebts.reduce((sum, d) => sum + d.remaining, 0);
-
-  // Calculate monthly repayment capacity (based on income and minimum payments)
-  const sumMinMonthly = allActiveDebts.reduce((sum, d) => sum + d.monthlyMin, 0);
-  const incomeVal = totalIncome || 0;
-  // Allocation budget: sum of minimums + 20% of income OR a buffer, with a fallback minimum of 1500 TL
-  const monthlyPaymentCapacity = Math.max(
-    sumMinMonthly + 250,
-    incomeVal * 0.25,
-    1500
-  );
-
-  const simulationData: Array<{ month: number; remaining: number }> = [];
-  
-  // Month 0
-  simulationData.push({ month: 0, remaining: initialTotalRemaining });
-
-  if (initialTotalRemaining > 0) {
-    let currentDebts = allActiveDebts.map((d) => ({ ...d }));
-    
-    for (let m = 1; m <= 36; m++) {
-      const totalLeft = currentDebts.reduce((sum, d) => sum + d.remaining, 0);
-      if (totalLeft <= 0) break;
-
-      let availablePool = monthlyPaymentCapacity;
-
-      // Pay the minimum weights of each active debt first
-      currentDebts.forEach((d) => {
-        if (d.remaining <= 0) return;
-        const payment = Math.min(d.remaining, d.monthlyMin, availablePool);
-        d.remaining -= payment;
-        availablePool -= payment;
+    const unpaidInstallment = installmentDebts
+      .filter((inst) => inst.installmentCount > inst.paidInstallmentCount)
+      .map((inst) => {
+        const monthly = inst.totalAmount / inst.installmentCount;
+        const remaining = inst.totalAmount - inst.paidInstallmentCount * monthly;
+        return {
+          id: inst.id,
+          name: inst.name,
+          remaining: remaining,
+          monthlyMin: monthly,
+        };
       });
 
-      // Extra strategy-based payoff allocation
-      if (availablePool > 0) {
-        if (strategy === "snowball") {
-          // Snowball strategy: sort ascending by overall remaining debt balance
-          currentDebts.sort((a, b) => {
-            if (a.remaining <= 0) return 1;
-            if (b.remaining <= 0) return -1;
-            return a.remaining - b.remaining;
-          });
-        } else {
-          // Avalanche strategy: sort descending by overall remaining debt balance
-          currentDebts.sort((a, b) => {
-            if (a.remaining <= 0) return 1;
-            if (b.remaining <= 0) return -1;
-            return b.remaining - a.remaining;
-          });
+    const allActiveDebts = [...unpaidDirect, ...unpaidInstallment];
+    const initialTotalRemaining = allActiveDebts.reduce((sum, d) => sum + d.remaining, 0);
+
+    // Calculate monthly repayment capacity (based on income and minimum payments)
+    const sumMinMonthly = allActiveDebts.reduce((sum, d) => sum + d.monthlyMin, 0);
+    const incomeVal = totalIncome || 0;
+    // Allocation budget: sum of minimums + 20% of income OR a buffer, with a fallback minimum of 1500 TL
+    const capacity = Math.max(
+      sumMinMonthly + 250,
+      incomeVal * 0.25,
+      1500
+    );
+
+    const data: Array<{ month: number; remaining: number }> = [];
+    
+    // Month 0
+    data.push({ month: 0, remaining: initialTotalRemaining });
+
+    if (initialTotalRemaining > 0) {
+      let currentDebts = allActiveDebts.map((d) => ({ ...d }));
+      
+      for (let m = 1; m <= 36; m++) {
+        const totalLeft = currentDebts.reduce((sum, d) => sum + d.remaining, 0);
+        if (totalLeft <= 0) break;
+
+        let availablePool = capacity;
+
+        // Pay the minimum weights of each active debt first
+        currentDebts.forEach((d) => {
+          if (d.remaining <= 0) return;
+          const payment = Math.min(d.remaining, d.monthlyMin, availablePool);
+          d.remaining -= payment;
+          availablePool -= payment;
+        });
+
+        // Extra strategy-based payoff allocation
+        if (availablePool > 0) {
+          if (strategy === "snowball") {
+            // Snowball strategy: sort ascending by overall remaining debt balance
+            currentDebts.sort((a, b) => {
+              if (a.remaining <= 0) return 1;
+              if (b.remaining <= 0) return -1;
+              return a.remaining - b.remaining;
+            });
+          } else {
+            // Avalanche strategy: sort descending by overall remaining debt balance
+            currentDebts.sort((a, b) => {
+              if (a.remaining <= 0) return 1;
+              if (b.remaining <= 0) return -1;
+              return b.remaining - a.remaining;
+            });
+          }
+
+          for (const d of currentDebts) {
+            if (d.remaining <= 0) continue;
+            if (availablePool <= 0) break;
+            const extraPayment = Math.min(d.remaining, availablePool);
+            d.remaining -= extraPayment;
+            availablePool -= extraPayment;
+          }
         }
 
-        for (const d of currentDebts) {
-          if (d.remaining <= 0) continue;
-          if (availablePool <= 0) break;
-          const extraPayment = Math.min(d.remaining, availablePool);
-          d.remaining -= extraPayment;
-          availablePool -= extraPayment;
+        const endOfMonthRemaining = currentDebts.reduce((sum, d) => sum + d.remaining, 0);
+        data.push({ month: m, remaining: Math.round(endOfMonthRemaining) });
+
+        if (endOfMonthRemaining <= 0) {
+          break;
         }
-      }
-
-      const endOfMonthRemaining = currentDebts.reduce((sum, d) => sum + d.remaining, 0);
-      simulationData.push({ month: m, remaining: Math.round(endOfMonthRemaining) });
-
-      if (endOfMonthRemaining <= 0) {
-        break;
       }
     }
-  }
 
-  // Ensure we always have at least 2 points to draw
-  if (simulationData.length === 1) {
-    simulationData.push({ month: 1, remaining: 0 });
-  }
+    // Ensure we always have at least 2 points to draw
+    if (data.length === 1) {
+      data.push({ month: 1, remaining: 0 });
+    }
+
+    return { simulationData: data, monthlyPaymentCapacity: capacity };
+  }, [debts, installmentDebts, strategy, totalIncome]);
 
   // 2. Responsive D3 Drawing Hook
   useEffect(() => {
@@ -150,15 +154,17 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
       .style("overflow", "visible");
 
     // X Scale
+    const maxMonth = d3.max(simulationData, (d: { month: number; remaining: number }) => d.month) ?? 12;
     const xScale = d3
       .scaleLinear()
-      .domain([0, d3.max(simulationData, (d) => d.month) || 12])
+      .domain([0, maxMonth])
       .range([margin.left, width - margin.right]);
 
     // Y Scale
+    const maxRemaining = d3.max(simulationData, (d: { month: number; remaining: number }) => d.remaining) ?? 1000;
     const yScale = d3
       .scaleLinear()
-      .domain([0, d3.max(simulationData, (d) => d.remaining) || 1000])
+      .domain([0, maxRemaining])
       .range([height - margin.bottom, margin.top]);
 
     // Add X Grid Lines
@@ -396,7 +402,16 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
   }, [debts, installmentDebts, strategy, totalIncome, simulationData.length]);
 
   return (
-    <div className="space-y-3">
+    <div
+      style={{
+        willChange: "transform, opacity",
+        transform: "translate3d(0, 0, 0)",
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+        contain: "content",
+      }}
+      className="space-y-3"
+    >
       <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
         <span>📉 BORÇ AZALIM ZAMAN ÇİZGİSİ PROJEKSİYONU</span>
         <span className="text-right text-[10px] text-slate-500 font-semibold lowercase">
@@ -432,3 +447,6 @@ export const DebtTimelineChart: React.FC<DebtTimelineChartProps> = ({
     </div>
   );
 };
+
+export const DebtTimelineChart = React.memo(DebtTimelineChartComponent);
+export default DebtTimelineChart;

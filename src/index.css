@@ -37,6 +37,27 @@
   backface-visibility: hidden;
 }
 
+/* Borçlar Sayfası ve Kartları GPU Hızlandırma & Content Visibility */
+.debt-card-gpu {
+  will-change: transform, opacity;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 160px;
+  contain: content;
+}
+
+.debt-panel-gpu {
+  will-change: transform, opacity;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  contain: content;
+}
+
 /* Konfeti Canvas Donanımsal Hızlandırma (GPU Render - 60/120 FPS Kesintisiz Akış) */
 canvas,
 canvas[style*="pointer-events"],

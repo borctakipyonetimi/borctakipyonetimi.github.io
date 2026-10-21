@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import * as d3 from "d3";
-import { Check, AlertTriangle, Sparkles, TrendingUp, CheckCircle2, Clock, Zap, PieChart as PieChartIcon } from "lucide-react";
+import { Check, AlertTriangle, TrendingUp, CheckCircle2, Clock, Zap, PieChart as PieChartIcon } from "lucide-react";
 import { Debt, InstallmentDebt } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 
@@ -20,43 +20,40 @@ interface AnimatedDebtStatusPanelProps {
 }
 
 /**
- * Custom hook for smooth numerical count-up animation from 0 to target
+ * High-performance single-loop count-up hook (0 -> 1)
+ * Runs strictly once when in view to prevent redundant renders and CPU load.
  */
-function useCountUp(target: number, duration: number = 1300): number {
-  const [value, setValue] = useState(0);
+function useProgressCountUp(enabled: boolean, duration: number = 900): number {
+  const [progress, setProgress] = useState(0);
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled || hasRunRef.current) return;
+    hasRunRef.current = true;
+
     let startTime: number | null = null;
     let animationFrameId: number;
-    const startValue = 0;
-    const diff = target - startValue;
-
-    if (target === 0) {
-      setValue(0);
-      return;
-    }
 
     const step = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+      const p = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - p, 3);
+      setProgress(ease);
 
-      // Ease out cubic: 1 - (1 - t)^3
-      const easeOut = 1 - Math.pow(1 - progress, 3);
-      setValue(startValue + diff * easeOut);
-
-      if (progress < 1) {
+      if (p < 1) {
         animationFrameId = requestAnimationFrame(step);
       } else {
-        setValue(target);
+        setProgress(1);
       }
     };
 
     animationFrameId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [target, duration]);
+  }, [enabled, duration]);
 
-  return value;
+  return progress;
 }
 
 interface SliceData {
@@ -68,7 +65,7 @@ interface SliceData {
   glowColor: string;
 }
 
-export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = ({
+const AnimatedDebtStatusPanelComponent: React.FC<AnimatedDebtStatusPanelProps> = ({
   debts,
   installmentDebts = [],
   language = "tr",
@@ -79,7 +76,39 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
   const { format } = useCurrency();
   const [activeHover, setActiveHover] = useState<"paid" | "unpaid" | null>(null);
 
-  // 1. Calculations: Direct Single Debts
+  // Viewport intersection observer to avoid running infinite animations offscreen
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(true);
+  const [hasEverBeenVisible, setHasEverBeenVisible] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsInView(true);
+      setHasEverBeenVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting;
+        setIsInView(visible);
+        if (visible) {
+          setHasEverBeenVisible(true);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "80px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // 1. Calculations: Direct Single Debts (Memoized)
   const singleDebtsPaid = useMemo(() => {
     return debts.reduce((sum, d) => sum + Math.min(d.paid || 0, d.amount || 0), 0);
   }, [debts]);
@@ -96,7 +125,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
     return debts.filter((d) => (d.paid || 0) < (d.amount || 0)).length;
   }, [debts]);
 
-  // 2. Calculations: Installments
+  // 2. Calculations: Installments (Memoized)
   const installmentPaidCount = useMemo(() => {
     return installmentDebts.reduce(
       (sum, inst) => sum + Math.min(inst.paidInstallmentCount || 0, inst.installmentCount || 0),
@@ -126,21 +155,29 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
     }, 0);
   }, [installmentDebts]);
 
-  // 3. Overall Portfolio Totals
-  const totalPaid = singleDebtsPaid + installmentPaidAmount;
-  const totalRemaining = singleDebtsRemaining + installmentRemainingAmount;
-  const grandTotal = totalPaid + totalRemaining;
-  const paymentPercentage = grandTotal > 0 ? Math.min(100, Math.max(0, (totalPaid / grandTotal) * 100)) : 0;
-  const remainingPercentage = Math.max(0, 100 - paymentPercentage);
+  // 3. Overall Portfolio Totals (Memoized)
+  const totalPaid = useMemo(() => singleDebtsPaid + installmentPaidAmount, [singleDebtsPaid, installmentPaidAmount]);
+  const totalRemaining = useMemo(
+    () => singleDebtsRemaining + installmentRemainingAmount,
+    [singleDebtsRemaining, installmentRemainingAmount]
+  );
+  const grandTotal = useMemo(() => totalPaid + totalRemaining, [totalPaid, totalRemaining]);
+  const paymentPercentage = useMemo(
+    () => (grandTotal > 0 ? Math.min(100, Math.max(0, (totalPaid / grandTotal) * 100)) : 0),
+    [grandTotal, totalPaid]
+  );
+  const remainingPercentage = useMemo(() => Math.max(0, 100 - paymentPercentage), [paymentPercentage]);
 
-  // 4. Animated count-up values
-  const animatedPaidAmount = useCountUp(totalPaid, 1400);
-  const animatedRemainingAmount = useCountUp(totalRemaining, 1400);
-  const animatedPercentage = useCountUp(paymentPercentage, 1500);
-  const animatedPaidInstallments = useCountUp(installmentPaidCount, 1200);
-  const animatedRemainingInstallments = useCountUp(installmentRemainingCount, 1200);
+  // 4. Unified single-loop progress animation (Offloaded from multiple state hooks)
+  const progress = useProgressCountUp(hasEverBeenVisible, 900);
+  const animatedPaidAmount = progress >= 1 ? totalPaid : totalPaid * progress;
+  const animatedRemainingAmount = progress >= 1 ? totalRemaining : totalRemaining * progress;
+  const animatedPercentage = progress >= 1 ? paymentPercentage : paymentPercentage * progress;
+  const animatedPaidInstallments = progress >= 1 ? installmentPaidCount : Math.round(installmentPaidCount * progress);
+  const animatedRemainingInstallments =
+    progress >= 1 ? installmentRemainingCount : Math.round(installmentRemainingCount * progress);
 
-  // 5. Pie Chart Slices Configuration
+  // 5. Pie Chart Slices Configuration (Memoized)
   const pieData: SliceData[] = useMemo(() => {
     if (grandTotal === 0) {
       return [
@@ -202,13 +239,30 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
 
   return (
     <div
+      ref={containerRef}
       data-testid="animated-debt-status-panel"
+      style={{
+        willChange: "transform, opacity",
+        transform: "translate3d(0, 0, 0)",
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+        contain: "content",
+      }}
       className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 backdrop-blur-xl transition-all duration-300 shadow-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/70 ${className}`}
     >
-      {/* Decorative ambient background glows */}
-      <div className="absolute -top-16 -left-16 w-60 h-60 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -right-16 w-60 h-60 bg-rose-500/10 dark:bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-36 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Decorative ambient background glows with GPU isolation */}
+      <div
+        style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+        className="absolute -top-16 -left-16 w-60 h-60 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"
+      />
+      <div
+        style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+        className="absolute -bottom-16 -right-16 w-60 h-60 bg-rose-500/10 dark:bg-rose-500/15 rounded-full blur-3xl pointer-events-none"
+      />
+      <div
+        style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-36 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"
+      />
 
       <div className="relative z-10 space-y-5">
         {/* Panel Header */}
@@ -248,8 +302,11 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
           </div>
         </div>
 
-        {/* Genel İlerleme Çubuğu (Shimmer / Pulse Effect Progress Bar) */}
-        <div className="space-y-2 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/80 via-slate-50/80 to-slate-100/80 dark:from-slate-800/40 dark:via-slate-800/60 dark:to-slate-800/40 border border-slate-200/50 dark:border-slate-800 shadow-inner">
+        {/* Genel İlerleme Çubuğu (Shimmer / Pulse Effect Progress Bar) with GPU offloading */}
+        <div
+          style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+          className="space-y-2 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/80 via-slate-50/80 to-slate-100/80 dark:from-slate-800/40 dark:via-slate-800/60 dark:to-slate-800/40 border border-slate-200/50 dark:border-slate-800 shadow-inner"
+        >
           <div className="flex items-center justify-between text-xs font-black">
             <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
               <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -265,25 +322,29 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
             </div>
           </div>
 
-          {/* Progress Bar Container with Glass Effect */}
+          {/* Progress Bar Container with GPU Layer */}
           <div className="relative w-full h-3.5 sm:h-4 bg-slate-200/90 dark:bg-slate-950/80 rounded-full p-0.5 overflow-hidden border border-slate-300/60 dark:border-slate-800 shadow-inner">
             <motion.div
               initial={{ width: "0%" }}
               animate={{ width: `${paymentPercentage}%` }}
-              transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
+              style={{ willChange: "transform, width", transform: "translate3d(0, 0, 0)" }}
               className="relative h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.5)] overflow-hidden"
             >
-              {/* Shimmer Light Wave Effect */}
-              <motion.div
-                animate={{ x: ["-100%", "260%"] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 2.2,
-                  ease: "easeInOut",
-                  repeatDelay: 0.3,
-                }}
-                className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-20deg] pointer-events-none"
-              />
+              {/* Shimmer Light Wave: ONLY active when isInView to save battery and GPU cycles */}
+              {isInView && (
+                <motion.div
+                  animate={{ x: ["-100%", "260%"] }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 2.2,
+                    ease: "easeInOut",
+                    repeatDelay: 0.3,
+                  }}
+                  style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-20deg] pointer-events-none"
+                />
+              )}
               {paymentPercentage > 2 && (
                 <span className="absolute right-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_#ffffff] animate-ping" />
               )}
@@ -296,12 +357,13 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
           {/* SOL BÖLÜM: Hareketli Animasyonlu Pasta Grafiği (Donut/Pie Chart) */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-3">
             <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center select-none">
-              {/* Breathing Ambient Aura behind Pie */}
+              {/* Ambient Aura behind Pie (Glow runs only when visible) */}
               <motion.div
-                animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.55, 0.3] }}
+                animate={isInView ? { scale: [1, 1.06, 1], opacity: [0.3, 0.5, 0.3] } : undefined}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute inset-4 rounded-full blur-3xl pointer-events-none transition-colors duration-500"
                 style={{
+                  willChange: "transform, opacity",
+                  transform: "translate3d(0, 0, 0)",
                   background:
                     activeHover === "unpaid"
                       ? "radial-gradient(circle, rgba(244,63,94,0.4) 0%, transparent 70%)"
@@ -309,17 +371,15 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                       ? "radial-gradient(circle, rgba(16,185,129,0.4) 0%, transparent 70%)"
                       : "radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(244,63,94,0.2) 60%, transparent 70%)",
                 }}
+                className="absolute inset-4 rounded-full blur-3xl pointer-events-none transition-colors duration-500"
               />
 
               {/* SVG Canvas */}
-              <svg
-                viewBox="0 0 220 220"
-                className="w-full h-full relative z-10 overflow-visible"
-              >
+              <svg viewBox="0 0 220 220" className="w-full h-full relative z-10 overflow-visible">
                 <defs>
                   {/* Neon Glow Filters */}
                   <filter id="pie-neon-glow" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="3.5" result="blur" />
+                    <feGaussianBlur stdDeviation="3" result="blur" />
                     <feMerge>
                       <feMergeNode in="blur" />
                       <feMergeNode in="SourceGraphic" />
@@ -341,7 +401,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                   </linearGradient>
                 </defs>
 
-                {/* 1. Futuristic Slow Spinning Dashed Orbit HUD Ring */}
+                {/* 1. Futuristic Slow Spinning Dashed Orbit HUD Ring (Active only when visible) */}
                 <motion.circle
                   cx="110"
                   cy="110"
@@ -351,12 +411,16 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                   strokeWidth="1.2"
                   strokeDasharray="4 8"
                   className="text-slate-300/80 dark:text-slate-700/80"
-                  animate={{ rotate: 360 }}
+                  animate={isInView ? { rotate: 360 } : undefined}
                   transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-                  style={{ transformOrigin: "110px 110px" }}
+                  style={{
+                    transformOrigin: "110px 110px",
+                    willChange: "transform",
+                    transform: "translate3d(0, 0, 0)",
+                  }}
                 />
 
-                {/* 2. Reverse Spinning Minor Orbit Ring */}
+                {/* 2. Reverse Spinning Minor Orbit Ring (Active only when visible) */}
                 <motion.circle
                   cx="110"
                   cy="110"
@@ -366,16 +430,24 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                   strokeWidth="0.8"
                   strokeDasharray="2 12"
                   className="text-indigo-400/40 dark:text-indigo-500/40"
-                  animate={{ rotate: -360 }}
+                  animate={isInView ? { rotate: -360 } : undefined}
                   transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                  style={{ transformOrigin: "110px 110px" }}
+                  style={{
+                    transformOrigin: "110px 110px",
+                    willChange: "transform",
+                    transform: "translate3d(0, 0, 0)",
+                  }}
                 />
 
                 {/* 3. Orbiting Satellite Beacon */}
                 <motion.g
-                  animate={{ rotate: 360 }}
+                  animate={isInView ? { rotate: 360 } : undefined}
                   transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
-                  style={{ transformOrigin: "110px 110px" }}
+                  style={{
+                    transformOrigin: "110px 110px",
+                    willChange: "transform",
+                    transform: "translate3d(0, 0, 0)",
+                  }}
                 >
                   <circle cx="215" cy="110" r="3" fill="#10b981" />
                   <circle cx="215" cy="110" r="6" fill="#10b981" opacity="0.35" className="animate-ping" />
@@ -394,18 +466,19 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                         d={pathD}
                         fill={`url(#grad-${arcData.data.id})`}
                         filter={isHovered ? "url(#pie-neon-glow)" : undefined}
-                        initial={{ scale: 0, opacity: 0, rotate: -40 }}
+                        initial={{ scale: 0, opacity: 0, rotate: -30 }}
                         animate={{
-                          scale: isHovered ? 1.05 : 1,
+                          scale: isHovered ? 1.04 : 1,
                           opacity: isOtherHovered ? 0.6 : 1,
                           rotate: 0,
                         }}
                         transition={{
                           type: "spring",
-                          stiffness: 260,
-                          damping: 20,
-                          delay: idx * 0.15,
+                          stiffness: 280,
+                          damping: 24,
+                          delay: idx * 0.1,
                         }}
+                        style={{ willChange: "transform, opacity", transform: "translate3d(0, 0, 0)" }}
                         onMouseEnter={() => setActiveHover(arcData.data.id)}
                         onMouseLeave={() => setActiveHover(null)}
                         className="cursor-pointer transition-opacity duration-200 outline-none"
@@ -417,7 +490,10 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
 
               {/* 5. Centerpiece Info Display (Glassmorphism Center HUD) */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border border-slate-200/80 dark:border-slate-800 shadow-xl flex flex-col items-center justify-center p-2 text-center transition-all duration-300">
+                <div
+                  style={{ willChange: "transform", transform: "translate3d(0, 0, 0)" }}
+                  className="w-28 h-28 sm:w-32 sm:h-32 rounded-full backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border border-slate-200/80 dark:border-slate-800 shadow-xl flex flex-col items-center justify-center p-2 text-center transition-all duration-300"
+                >
                   <AnimatePresence mode="wait">
                     {activeHover === "paid" ? (
                       <motion.div
@@ -425,6 +501,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
                         className="space-y-0.5"
                       >
                         <div className="flex items-center justify-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
@@ -444,6 +521,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
                         className="space-y-0.5"
                       >
                         <div className="flex items-center justify-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
@@ -463,6 +541,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
                         className="space-y-0.5"
                       >
                         <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
@@ -491,13 +570,17 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
 
           {/* SAĞ BÖLÜM: ETKİLEŞİMLİ VE MODERN BENTO DETAY KARTLARI (Pasta Grafiği ile Senkronize) */}
           <div className="lg:col-span-7 flex flex-col gap-3">
-            {/* 1. ÖDENMİŞ BORÇLAR KARTI (Neon Yeşil Vurgulu) */}
-            <motion.div
-              whileHover={{ y: -2, scale: 1.01 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            {/* 1. ÖDENMİŞ BORÇLAR KARTI (Neon Yeşil Vurgulu - GPU Hızlandırmalı) */}
+            <div
+              style={{
+                willChange: "transform, opacity",
+                transform: "translate3d(0, 0, 0)",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
+              }}
               onMouseEnter={() => setActiveHover("paid")}
               onMouseLeave={() => setActiveHover(null)}
-              className={`relative overflow-hidden rounded-2xl p-4 sm:p-4.5 border-2 transition-all duration-300 cursor-pointer ${
+              className={`relative overflow-hidden rounded-2xl p-4 sm:p-4.5 border-2 transition-all duration-200 cursor-pointer ${
                 activeHover === "paid"
                   ? "border-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/50 shadow-[0_8px_30px_rgb(16,185,129,0.22)] ring-2 ring-emerald-400/40"
                   : "border-emerald-400/40 dark:border-emerald-500/30 bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-emerald-100/30 dark:from-emerald-950/30 dark:via-emerald-900/20 dark:to-teal-950/20 shadow-sm hover:shadow-md"
@@ -547,15 +630,19 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                 <span>{Math.round(animatedPaidInstallments)} Taksit Ödendi</span>
                 <span>{singleDebtsPaidCount} Tekil Borç</span>
               </div>
-            </motion.div>
+            </div>
 
-            {/* 2. ÖDENMEMİŞ BORÇLAR KARTI (Canlı Turuncu/Kırmızı Vurgulu) */}
-            <motion.div
-              whileHover={{ y: -2, scale: 1.01 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            {/* 2. ÖDENMEMİŞ BORÇLAR KARTI (Canlı Turuncu/Kırmızı Vurgulu - GPU Hızlandırmalı) */}
+            <div
+              style={{
+                willChange: "transform, opacity",
+                transform: "translate3d(0, 0, 0)",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
+              }}
               onMouseEnter={() => setActiveHover("unpaid")}
               onMouseLeave={() => setActiveHover(null)}
-              className={`relative overflow-hidden rounded-2xl p-4 sm:p-4.5 border-2 transition-all duration-300 cursor-pointer ${
+              className={`relative overflow-hidden rounded-2xl p-4 sm:p-4.5 border-2 transition-all duration-200 cursor-pointer ${
                 activeHover === "unpaid"
                   ? "border-rose-400 bg-rose-50/90 dark:bg-rose-950/50 shadow-[0_8px_30px_rgb(244,63,94,0.22)] ring-2 ring-rose-400/40"
                   : "border-rose-400/40 dark:border-rose-500/30 bg-gradient-to-br from-rose-50/70 via-orange-50/40 to-amber-100/30 dark:from-rose-950/30 dark:via-orange-950/20 dark:to-rose-950/20 shadow-sm hover:shadow-md"
@@ -605,7 +692,7 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
                 <span>{Math.round(animatedRemainingInstallments)} Kalan Taksit</span>
                 <span>{singleDebtsUnpaidCount} Aktif Borç</span>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
@@ -613,4 +700,5 @@ export const AnimatedDebtStatusPanel: React.FC<AnimatedDebtStatusPanelProps> = (
   );
 };
 
+export const AnimatedDebtStatusPanel = React.memo(AnimatedDebtStatusPanelComponent);
 export default AnimatedDebtStatusPanel;

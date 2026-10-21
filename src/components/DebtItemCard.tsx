@@ -187,8 +187,13 @@ function DebtItemCardComponent({
     <div
       id={`debt-card-${d.id}`}
       style={{
-        willChange: "transform",
-        transform: "translateZ(0)",
+        willChange: "transform, opacity",
+        transform: "translate3d(0, 0, 0)",
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+        contentVisibility: "auto",
+        containIntrinsicSize: "0 160px",
+        contain: "content",
       }}
       className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
     >
@@ -319,7 +324,13 @@ function DebtItemCardComponent({
           </div>
           <div className="w-full bg-slate-200/80 dark:bg-black/30 h-2 rounded-full overflow-hidden shadow-inner border border-slate-300/60 dark:border-white/10">
             <div
-              style={{ width: `${percentage}%` }}
+              style={{
+                width: `${percentage}%`,
+                willChange: "width",
+                transform: "translate3d(0, 0, 0)",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
+              }}
               className={`h-full rounded-full transition-all duration-500 ${
                 isPaid ? "bg-emerald-500 dark:bg-emerald-300 shadow-sm shadow-emerald-400" : `bg-gradient-to-r ${cardTheme.progressGradient}`
               }`}

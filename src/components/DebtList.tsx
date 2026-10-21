@@ -1034,7 +1034,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (d: Debt) => {
+  const handleOpenEdit = useCallback((d: Debt) => {
     setModalTitle("Borç Düzenle");
     setDebtId(d.id);
     setName(d.name);
@@ -1046,7 +1046,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     setCreateAlarm(false);
     setIsInstallment(false);
     setIsModalOpen(true);
-  };
+  }, []);
 
   useEffect(() => {
     if (focusedDebtId) {
@@ -1956,7 +1956,14 @@ export const DebtList: React.FC<DebtListProps> = ({
             {renderPagination("top")}
 
             {/* Paginated Debt Cards List */}
-            <div className="space-y-3">
+            <div
+              className="space-y-3"
+              style={{
+                contain: "content",
+                willChange: "transform",
+                transform: "translate3d(0, 0, 0)",
+              }}
+            >
               {paginatedDebts.map((d, itemIdx) => {
                 const globalIdx = (currentPage - 1) * itemsPerPage + itemIdx;
                 return (
