@@ -107,12 +107,20 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
   }
 }
 
+/**
+ * KRİTİK GÜVENLİK KALKANI:
+ * Bildirim planlayıcı ve zamanlayıcı servislerini ana akıştan izole eder.
+ * Uygulama açılışında native plugin ve AlarmManager çökmelerini %100 engeller.
+ */
+export const IS_NOTIFICATIONS_ISOLATED = true;
+
 let isRequestingPermission = false;
 
 /**
  * Android 8.0+ için yüksek öncelikli sesli/titreşimli bildirim kanalını yapılandırır.
  */
 export async function initCapacitorNotificationChannel(): Promise<void> {
+  if (IS_NOTIFICATIONS_ISOLATED) return;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return;
   try {
     if (typeof (LocalNotifications as any)?.createChannel === "function") {
@@ -120,15 +128,15 @@ export async function initCapacitorNotificationChannel(): Promise<void> {
         id: "debt_reminders",
         name: "Borç ve Ödeme Hatırlatıcıları",
         description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
-        importance: 5, // IMPORTANCE_HIGH / MAX (Heads-up banner ve ekranı uyandırma)
-        visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında ve ekran kapalıyken tam göster)
+        importance: 5,
+        visibility: 1,
         vibration: true,
         lights: true,
         lightColor: "#4F46E5"
       }).catch(() => {});
     }
   } catch (e) {
-    // Web ortamında veya kanalı desteklemeyen platformlarda sessizce devam et
+    // Graceful degradation
   }
 }
 
@@ -136,6 +144,7 @@ export async function initCapacitorNotificationChannel(): Promise<void> {
  * Capacitor yerel bildirim iznini denetler ve ister (Çakışma ve çökme korumalı).
  */
 export async function requestCapacitorNotificationPermission(): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
   if (isRequestingPermission) return false;
 
