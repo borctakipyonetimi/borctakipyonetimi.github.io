@@ -107,43 +107,55 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
   }
 }
 
+let isRequestingPermission = false;
+
 /**
  * Android 8.0+ için yüksek öncelikli sesli/titreşimli bildirim kanalını yapılandırır.
  */
 export async function initCapacitorNotificationChannel(): Promise<void> {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !isCapacitorAvailable()) return;
   try {
-    await LocalNotifications.createChannel({
-      id: "debt_reminders",
-      name: "Borç ve Ödeme Hatırlatıcıları",
-      description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
-      importance: 5, // IMPORTANCE_HIGH / MAX (Heads-up banner ve ekranı uyandırma)
-      visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında ve ekran kapalıyken tam göster)
-      vibration: true,
-      lights: true,
-      lightColor: "#4F46E5"
-    });
+    if (typeof (LocalNotifications as any)?.createChannel === "function") {
+      await LocalNotifications.createChannel({
+        id: "debt_reminders",
+        name: "Borç ve Ödeme Hatırlatıcıları",
+        description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
+        importance: 5, // IMPORTANCE_HIGH / MAX (Heads-up banner ve ekranı uyandırma)
+        visibility: 1, // VISIBILITY_PUBLIC (Kilit ekranında ve ekran kapalıyken tam göster)
+        vibration: true,
+        lights: true,
+        lightColor: "#4F46E5"
+      }).catch(() => {});
+    }
   } catch (e) {
     // Web ortamında veya kanalı desteklemeyen platformlarda sessizce devam et
   }
 }
 
 /**
- * Capacitor yerel bildirim iznini denetler ve ister.
+ * Capacitor yerel bildirim iznini denetler ve ister (Çakışma ve çökme korumalı).
  */
 export async function requestCapacitorNotificationPermission(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
+  if (isRequestingPermission) return false;
+
   try {
-    const check = await LocalNotifications.checkPermissions();
-    if (check.display === "granted") {
-      await initCapacitorNotificationChannel();
+    const check = await LocalNotifications.checkPermissions().catch(() => ({ display: "denied" }));
+    if (check?.display === "granted") {
+      await initCapacitorNotificationChannel().catch(() => {});
       return true;
     }
-    const requested = await LocalNotifications.requestPermissions();
-    await initCapacitorNotificationChannel();
-    return requested.display === "granted";
+
+    isRequestingPermission = true;
+    try {
+      const requested = await LocalNotifications.requestPermissions().catch(() => ({ display: "denied" }));
+      await initCapacitorNotificationChannel().catch(() => {});
+      return requested?.display === "granted";
+    } finally {
+      isRequestingPermission = false;
+    }
   } catch (err) {
-    console.warn("[Capacitor LocalNotifications] İzin sorgulama hatası:", err);
+    console.warn("[Capacitor LocalNotifications] İzin sorgulama uyarısı:", err);
     return false;
   }
 }
@@ -189,6 +201,7 @@ export function parseAlarmDateToMillis(dateStr?: string, timestamp?: number): nu
 
 /**
  * Capacitor LocalNotifications üzerinden arka planda/ekran kapalıyken çalan alarm kurar.
+ * Android 12+ Exact Alarm izin kontrolü ve SecurityException korumalıdır (Exact -> Inexact fallback).
  */
 export async function scheduleCapacitorAlarm(
   id: number,
@@ -207,9 +220,11 @@ export async function scheduleCapacitorAlarm(
   }
 ): Promise<boolean> {
   if (triggerAtMillis <= Date.now()) return false;
+  if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
+
   try {
     // Android bildirim kanalını hazırla
-    await initCapacitorNotificationChannel();
+    await initCapacitorNotificationChannel().catch(() => {});
 
     const safeId = Math.abs(Number(id)) || Math.floor(Math.random() * 100000);
     const safeTitle = title.trim() || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
@@ -232,126 +247,173 @@ export async function scheduleCapacitorAlarm(
 
     const summaryText = "Ödeme detaylarınızı kontrol etmeyi unutmayın.";
 
-    // İzin kontrolü ve otomatik talep
+    // Sessiz izin durumu denetimi (arka planda diyalog patlatarak çökme oluşturmaz)
     try {
-      const perm = await LocalNotifications.checkPermissions();
-      if (perm.display !== "granted") {
-        await LocalNotifications.requestPermissions();
+      const perm = await LocalNotifications.checkPermissions().catch(() => ({ display: "denied" }));
+      if (perm?.display !== "granted") {
+        return false;
       }
     } catch {
-      // İzin sorgusu desteklenmiyorsa devam et
+      // Desteklenmiyorsa devam et
     }
 
     // Aynı id ile önceden kalma bildirim varsa temizle
     try {
-      await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
+      await LocalNotifications.cancel({ notifications: [{ id: safeId }] }).catch(() => {});
     } catch {}
 
-    // Kilit ekranında ve Doze modunda uyandırma için allowWhileIdle: true, exact: true, allowInExactlyDatatype: true ve forceShow: true
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: safeId,
-          title: safeTitle,
-          body: safeMessage,
-          largeBody: safeMessage,
-          summaryText: summaryText,
-          schedule: {
-            at: new Date(triggerAtMillis),
-            allowWhileIdle: true, // Ekran kilitliyken ve Doze modunda uyandırma sağlar
-            exact: true, // Android derin uyku modunu (Doze) baypas eden kesin tetikleme
-            allowInExactlyDatatype: true, // İşletim sistemi seviyesinde kesin uyanma parametresi
-            forceShow: true // Ekran kapalıyken bildirimi zorla uyandır
-          },
-          channelId: "debt_reminders",
-          autoCancel: true,
-          smallIcon: 'ic_stat_notify',
-          largeIcon: 'ic_stat_notify_large',
-          iconColor: '#10B981',
-          android: {
-            summaryText: summaryText,
-            priority: 'max',
-            visibility: 'public'
-          },
-          extra: {
+    // 1. ADIM: Exact Alarm ile planlamayı dene (Android 12 öncesi veya SCHEDULE_EXACT_ALARM izni verilmiş cihazlar için tam saatli)
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
             id: safeId,
             title: safeTitle,
-            triggerAtMillis,
-            body: safeMessage
-          }
-        } as any
-      ]
-    });
-    console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} kuruldu (exact & allowWhileIdle) (${new Date(triggerAtMillis).toLocaleString()})`);
-    return true;
+            body: safeMessage,
+            largeBody: safeMessage,
+            summaryText: summaryText,
+            schedule: {
+              at: new Date(triggerAtMillis),
+              allowWhileIdle: true,
+              exact: true,
+              forceShow: true
+            },
+            channelId: "debt_reminders",
+            autoCancel: true,
+            smallIcon: 'ic_stat_notify',
+            largeIcon: 'ic_stat_notify_large',
+            iconColor: '#10B981',
+            android: {
+              summaryText: summaryText,
+              priority: 'max',
+              visibility: 'public'
+            },
+            extra: {
+              id: safeId,
+              title: safeTitle,
+              triggerAtMillis,
+              body: safeMessage
+            }
+          } as any
+        ]
+      });
+      console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} kuruldu (exact & allowWhileIdle) (${new Date(triggerAtMillis).toLocaleString()})`);
+      return true;
+    } catch (exactErr: any) {
+      // 2. ADIM: Android 12+ SecurityException (Exact Alarm izni yok) durumunda uygulamanın çökmesini engelle; esnek inexact fallback ile kur
+      console.warn(`[Capacitor LocalNotifications] Exact alarm izni verilmemiş, esnek alarm fallback uygulanıyor:`, exactErr?.message || exactErr);
+      try {
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              id: safeId,
+              title: safeTitle,
+              body: safeMessage,
+              largeBody: safeMessage,
+              summaryText: summaryText,
+              schedule: {
+                at: new Date(triggerAtMillis),
+                allowWhileIdle: true,
+                exact: false
+              },
+              channelId: "debt_reminders",
+              autoCancel: true,
+              smallIcon: 'ic_stat_notify',
+              iconColor: '#10B981'
+            } as any
+          ]
+        });
+        console.log(`[Capacitor LocalNotifications] Zengin Alarm #${safeId} esnek modda (inexact fallback) kuruldu.`);
+        return true;
+      } catch (fallbackErr) {
+        console.warn("[Capacitor LocalNotifications] Fallback schedule hatası yakalandı:", fallbackErr);
+        return false;
+      }
+    }
   } catch (err) {
-    console.warn("[Capacitor LocalNotifications] schedule error:", err);
+    console.warn("[Capacitor LocalNotifications] schedule error safely caught:", err);
     return false;
   }
 }
 
 /**
  * Ekran kapalıyken veya uygulama arka plandayken işletim sistemi seviyesinde uyanma garantili anlık bildirim fırlatır.
- * Android Doze Modu baypası için allowWhileIdle: true, exact: true ve allowInExactlyDatatype: true parametrelerini zorunlu uygular.
+ * Android Doze Modu baypası için allowWhileIdle: true ve exact alarm fallback parametrelerini uygular.
  */
 export async function sendInstantCapacitorNotification(
   title: string,
   message: string,
   id?: number
 ): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
   try {
-    const isCapacitorAvailable =
-      Capacitor.isPluginAvailable("LocalNotifications") ||
-      (window as any).Capacitor?.isPluginAvailable?.("LocalNotifications") ||
-      typeof (LocalNotifications as any)?.schedule === "function";
-
-    if (!isCapacitorAvailable) return false;
-
-    await initCapacitorNotificationChannel();
-    // Borç ID'sini kapsayan benzersiz ve sabit id parametresi: Android aynı ID'ye sahip mükerrer alarmları ezer ve kesinlikle tek 1 bildirim gösterir
+    await initCapacitorNotificationChannel().catch(() => {});
     const safeId = id !== undefined && id !== null && !isNaN(Number(id)) ? Math.abs(Number(id)) : (Math.floor(Math.random() * 900000) + 100000);
     const safeTitle = title.trim() || "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
     const safeMessage = message.trim() || "Planlanmış ödeme veya borç hatırlatması.";
 
-    // Aynı ID'ye sahip önceden var olan alarmı veya bildirimi temizle (Android'in çift basmasını kesin olarak engeller)
     try {
-      await LocalNotifications.cancel({ notifications: [{ id: safeId }] });
+      await LocalNotifications.cancel({ notifications: [{ id: safeId }] }).catch(() => {});
     } catch {}
 
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: safeId,
-          title: safeTitle,
-          body: safeMessage,
-          largeBody: safeMessage,
-          summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
-          schedule: {
-            at: new Date(Date.now() + 100),
-            allowWhileIdle: true,
-            exact: true,
-            allowInExactlyDatatype: true,
-            forceShow: true
-          },
-          channelId: "debt_reminders",
-          autoCancel: true,
-          smallIcon: "ic_stat_notify",
-          largeIcon: "ic_stat_notify_large",
-          iconColor: "#10B981",
-          android: {
-            summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
-            priority: "max",
-            visibility: "public"
-          },
-          extra: { id: safeId, title: safeTitle, body: safeMessage }
-        } as any
-      ]
-    });
-    console.log(`[Capacitor LocalNotifications] Anlık Doze-baypas bildirimi #${safeId} fırlatıldı.`);
-    return true;
+    const notifPayload = {
+      id: safeId,
+      title: safeTitle,
+      body: safeMessage,
+      largeBody: safeMessage,
+      summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+      channelId: "debt_reminders",
+      autoCancel: true,
+      smallIcon: "ic_stat_notify",
+      largeIcon: "ic_stat_notify_large",
+      iconColor: "#10B981",
+      android: {
+        summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+        priority: "max",
+        visibility: "public"
+      },
+      extra: { id: safeId, title: safeTitle, body: safeMessage }
+    };
+
+    // 1. Exact Alarm dene
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            ...notifPayload,
+            schedule: {
+              at: new Date(Date.now() + 100),
+              allowWhileIdle: true,
+              exact: true,
+              forceShow: true
+            }
+          } as any
+        ]
+      });
+      return true;
+    } catch (exactErr) {
+      // 2. Inexact fallback
+      try {
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              ...notifPayload,
+              schedule: {
+                at: new Date(Date.now() + 100),
+                allowWhileIdle: true,
+                exact: false
+              }
+            } as any
+          ]
+        });
+        return true;
+      } catch (fallbackErr) {
+        console.warn("[sendInstantCapacitorNotification] fallback error:", fallbackErr);
+        return false;
+      }
+    }
   } catch (err) {
-    console.warn("[sendInstantCapacitorNotification] error:", err);
+    console.warn("[sendInstantCapacitorNotification] error safely caught:", err);
     return false;
   }
 }
@@ -508,130 +570,141 @@ export function syncAllDebtsAndAlarmsToAndroid(
   debts: any[],
   installmentDebts: any[]
 ): boolean {
-  const now = Date.now();
-
-  // 1. Manuel Alarmları senkronize et
-  syncAllAlarmsToAndroid(alarms || []);
-
-  // 2. Vadesi belirlenmiş ve henüz ödenmemiş borçları otomatik olarak zamanla
-  if (Array.isArray(debts)) {
-    debts.forEach((debt) => {
-      if (!debt) return;
-      const isDebtPaid = Boolean(
-        (debt as any).isPaid === true ||
-        (debt as any).durum === "odendi" ||
-        (debt as any).status === "paid" ||
-        Number(debt.paid || 0) >= Number(debt.amount || 0)
-      );
-
-      const debtId = Math.abs(Number(debt.id)) || 1;
-
-      if (isDebtPaid) {
-        // Ödenmiş borç için planlanmış alarmları tamamen yok et ve kesinlikle bildirim üretme
-        cancelCapacitorAlarm(debtId).catch(() => {});
-        cancelAndroidDebtAlarm(debtId);
-        return;
-      }
-
-      if (debt.dueDate && Number(debt.paid || 0) < Number(debt.amount || 0)) {
-        const triggerMillis = parseAlarmDateToMillis(debt.dueDate);
-        if (triggerMillis && triggerMillis > now) {
-          const remaining = (Number(debt.amount || 0) - Number(debt.paid || 0)).toLocaleString("tr-TR");
-          const borcAdi = debt.name || "Borç";
-          const miktar = `${remaining} TL`;
-          const tarih = new Date(debt.dueDate).toLocaleDateString("tr-TR");
-          const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
-
-          scheduleCapacitorAlarm(
-            200000 + debtId,
-            "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
-            triggerMillis,
-            richBody,
-            {
-              borcAdi,
-              miktar,
-              tarih,
-              durum: "Gecikmemesi için lütfen kontrol edin!"
-            }
-          ).catch(() => {});
-        }
-      }
-    });
-  }
-
-  // 3. Taksitli borçların sıradaki taksit gününü otomatik zamanla
-  if (Array.isArray(installmentDebts)) {
-    installmentDebts.forEach((inst) => {
-      if (!inst) return;
-      const isInstPaid = Boolean(
-        (inst as any).isPaid === true ||
-        (inst as any).durum === "odendi" ||
-        (inst as any).status === "paid" ||
-        Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1)
-      );
-
-      const instId = Math.abs(Number(inst.id)) || 1;
-
-      if (isInstPaid) {
-        // Ödenmiş taksit için alarmları tamamen yok et
-        cancelCapacitorAlarm(instId).catch(() => {});
-        cancelCapacitorAlarm(800000 + instId).catch(() => {});
-        cancelAndroidDebtAlarm(instId);
-        return;
-      }
-
-      if (
-        inst.firstDueDate &&
-        Number(inst.paidInstallmentCount || 0) < Number(inst.installmentCount || 1)
-      ) {
-        const nextIndex = Number(inst.paidInstallmentCount || 0);
-        const [year, month, day] = inst.firstDueDate.split("-").map(Number);
-        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-          const nextDate = new Date(year, (month - 1) + nextIndex, day, 9, 0, 0, 0);
-          const triggerMillis = nextDate.getTime();
-          if (triggerMillis > now) {
-            const perMonth = inst.installmentCount ? Math.round(Number(inst.totalAmount || 0) / Number(inst.installmentCount)) : 0;
-            const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
-            const borcAdi = `${inst.name || "Taksit"} (${nextIndex + 1}/${inst.installmentCount}. Taksit)`;
-            const tarih = nextDate.toLocaleDateString("tr-TR");
-            const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
-
-            scheduleCapacitorAlarm(
-              800000 + instId,
-              "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
-              triggerMillis,
-              richBody,
-              {
-                borcAdi,
-                miktar,
-                tarih,
-                durum: "Gecikmemesi için lütfen kontrol edin!"
-              }
-            ).catch(() => {});
-          }
-        }
-      }
-    });
-  }
-
-  const bridge = getActiveBridge();
-  if (!bridge) {
-    return true;
-  }
-
   try {
-    const alarmsJson = JSON.stringify(alarms || []);
-    const debtsJson = JSON.stringify(debts || []);
-    const installmentDebtsJson = JSON.stringify(installmentDebts || []);
+    const now = Date.now();
 
-    if (typeof bridge.syncAllData === "function") {
-      bridge.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
-      console.log("[AndroidAlarmBridge] syncAllData çağrıldı (alarmlar, borçlar, taksitler donanıma yazıldı).");
+    // 1. Manuel Alarmları senkronize et
+    syncAllAlarmsToAndroid(alarms || []);
+
+    // 2. Vadesi belirlenmiş ve henüz ödenmemiş borçları otomatik olarak zamanla
+    if (Array.isArray(debts)) {
+      debts.forEach((debt) => {
+        if (!debt) return;
+        try {
+          const isDebtPaid = Boolean(
+            (debt as any).isPaid === true ||
+            (debt as any).durum === "odendi" ||
+            (debt as any).status === "paid" ||
+            Number(debt.paid || 0) >= Number(debt.amount || 0)
+          );
+
+          const debtId = Math.abs(Number(debt.id)) || 1;
+
+          if (isDebtPaid) {
+            cancelCapacitorAlarm(debtId).catch(() => {});
+            cancelAndroidDebtAlarm(debtId);
+            return;
+          }
+
+          if (debt.dueDate && Number(debt.paid || 0) < Number(debt.amount || 0)) {
+            const triggerMillis = parseAlarmDateToMillis(debt.dueDate);
+            if (triggerMillis && triggerMillis > now) {
+              const remaining = (Number(debt.amount || 0) - Number(debt.paid || 0)).toLocaleString("tr-TR");
+              const borcAdi = debt.name || "Borç";
+              const miktar = `${remaining} TL`;
+              const tarih = new Date(debt.dueDate).toLocaleDateString("tr-TR");
+              const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
+              scheduleCapacitorAlarm(
+                200000 + debtId,
+                "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
+                triggerMillis,
+                richBody,
+                {
+                  borcAdi,
+                  miktar,
+                  tarih,
+                  durum: "Gecikmemesi için lütfen kontrol edin!"
+                }
+              ).catch(() => {});
+            }
+          }
+        } catch (itemErr) {
+          console.warn("[syncAllDebtsAndAlarmsToAndroid] Debt item error:", itemErr);
+        }
+      });
+    }
+
+    // 3. Taksitli borçların sıradaki taksit gününü otomatik zamanla
+    if (Array.isArray(installmentDebts)) {
+      installmentDebts.forEach((inst) => {
+        if (!inst) return;
+        try {
+          const isInstPaid = Boolean(
+            (inst as any).isPaid === true ||
+            (inst as any).durum === "odendi" ||
+            (inst as any).status === "paid" ||
+            Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1)
+          );
+
+          const instId = Math.abs(Number(inst.id)) || 1;
+
+          if (isInstPaid) {
+            cancelCapacitorAlarm(instId).catch(() => {});
+            cancelCapacitorAlarm(800000 + instId).catch(() => {});
+            cancelAndroidDebtAlarm(instId);
+            return;
+          }
+
+          if (
+            inst.firstDueDate &&
+            Number(inst.paidInstallmentCount || 0) < Number(inst.installmentCount || 1)
+          ) {
+            const nextIndex = Number(inst.paidInstallmentCount || 0);
+            const [year, month, day] = inst.firstDueDate.split("-").map(Number);
+            if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+              const nextDate = new Date(year, (month - 1) + nextIndex, day, 9, 0, 0, 0);
+              const triggerMillis = nextDate.getTime();
+              if (triggerMillis > now) {
+                const perMonth = inst.installmentCount ? Math.round(Number(inst.totalAmount || 0) / Number(inst.installmentCount)) : 0;
+                const miktar = `${perMonth.toLocaleString("tr-TR")} TL`;
+                const borcAdi = `${inst.name || "Taksit"} (${nextIndex + 1}/${inst.installmentCount}. Taksit)`;
+                const tarih = nextDate.toLocaleDateString("tr-TR");
+                const richBody = `💰 Borç: ${borcAdi}\n💵 Miktar: ${miktar}\n📅 Son Tarih: ${tarih}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
+
+                scheduleCapacitorAlarm(
+                  800000 + instId,
+                  "🚨 Bütçem Pro: Ödeme Hatırlatıcı!",
+                  triggerMillis,
+                  richBody,
+                  {
+                    borcAdi,
+                    miktar,
+                    tarih,
+                    durum: "Gecikmemesi için lütfen kontrol edin!"
+                  }
+                ).catch(() => {});
+              }
+            }
+          }
+        } catch (instErr) {
+          console.warn("[syncAllDebtsAndAlarmsToAndroid] Inst item error:", instErr);
+        }
+      });
+    }
+
+    const bridge = getActiveBridge();
+    if (!bridge) {
       return true;
     }
-    return true;
-  } catch (err) {
-    console.warn("[AndroidAlarmBridge] syncAllDebtsAndAlarmsToAndroid hatası:", err);
+
+    try {
+      const alarmsJson = JSON.stringify(alarms || []);
+      const debtsJson = JSON.stringify(debts || []);
+      const installmentDebtsJson = JSON.stringify(installmentDebts || []);
+
+      if (typeof bridge.syncAllData === "function") {
+        bridge.syncAllData(alarmsJson, debtsJson, installmentDebtsJson);
+        console.log("[AndroidAlarmBridge] syncAllData çağrıldı (alarmlar, borçlar, taksitler donanıma yazıldı).");
+        return true;
+      }
+      return true;
+    } catch (err) {
+      console.warn("[AndroidAlarmBridge] syncAllDebtsAndAlarmsToAndroid hatası:", err);
+      return false;
+    }
+  } catch (globalSyncErr) {
+    console.warn("[AndroidAlarmBridge] syncAllDebtsAndAlarmsToAndroid global catch:", globalSyncErr);
     return false;
   }
 }

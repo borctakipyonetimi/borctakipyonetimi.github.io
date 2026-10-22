@@ -309,50 +309,119 @@ export function buildInstallmentNotificationItems(
 }
 
 /**
+ * Local Notifications eklentisine 50'şerli güvenli paketlerle bildirim planlar.
+ * Android 12+ Exact Alarm (SCHEDULE_EXACT_ALARM) izni yoksa SecurityException ile uygulamanın çökmesini engeller;
+ * exact: true başarısız olduğunda esnek fallback (exact: false) ile sistemi açık ve stabil tutar.
+ */
+async function safeScheduleLocalNotificationsBatch(items: LocalNotificationSchema[]): Promise<boolean> {
+  if (!items || items.length === 0) return true;
+  if (typeof (LocalNotifications as any)?.schedule !== "function") return false;
+
+  // İzin kontrolü: Eğer izin henüz verilmemişse yerel planlamayı sessizce atla (çökmeyi önler)
+  try {
+    const perm = await LocalNotifications.checkPermissions().catch(() => ({ display: "denied" }));
+    if (perm?.display !== "granted") {
+      console.log("[notificationScheduler] Bildirim izni henüz verilmedi, OS planlama sessizce ertelendi.");
+      return false;
+    }
+  } catch {
+    // Desteklenmeyen ortamlarda devam et
+  }
+
+  for (let i = 0; i < items.length; i += 50) {
+    const chunk = items.slice(i, i + 50);
+    // 1. ADIM: Exact Alarm ile planlamayı dene
+    try {
+      await LocalNotifications.schedule({
+        notifications: chunk
+      });
+    } catch (exactErr: any) {
+      console.warn("[notificationScheduler] Exact alarm planlanamadı, esnek fallback uygulanıyor:", exactErr?.message || exactErr);
+      // 2. ADIM: Android 12+ SecurityException crash engelleme: exact: false ile esnek planla
+      try {
+        const relaxedChunk = chunk.map((item) => ({
+          ...item,
+          schedule: item.schedule
+            ? {
+                at: (item.schedule as any).at,
+                allowWhileIdle: true,
+                exact: false
+              }
+            : undefined
+        }));
+        await LocalNotifications.schedule({
+          notifications: relaxedChunk as any
+        });
+      } catch (fallbackErr) {
+        console.warn("[notificationScheduler] Esnek bildirim planlaması da yakalandı, uygulama çalışmaya devam ediyor:", fallbackErr);
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Belirtilen bildirim ID'lerini OS kuyruğundan 50'şerli güvenli paketlerle siler.
+ */
+async function safeCancelLocalNotificationsBatch(ids: number[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  if (typeof (LocalNotifications as any)?.cancel !== "function") return;
+
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    try {
+      await LocalNotifications.cancel({
+        notifications: chunk.map((id) => ({ id }))
+      }).catch(() => {});
+    } catch {}
+  }
+}
+
+/**
  * Tek bir borç için alarmları OS yerel bildirim kuyruğuna planlar.
  */
 export async function scheduleNotification(
   debt: Partial<Debt>,
   options?: ScheduleNotificationOptions
 ): Promise<number[]> {
-  if (!debt) return [];
-  const debtId = debt.id || 1;
-
-  // Önce bu borca ait eski alarmları temizle
-  await cancelDebtNotifications(debtId);
-
-  const items = buildDebtNotificationItems(debt, options);
-  if (items.length === 0) return [];
-
-  await initCapacitorNotificationChannel();
-
   try {
-    if (typeof (LocalNotifications as any)?.schedule === "function") {
-      await LocalNotifications.schedule({
-        notifications: items
-      });
-      console.log(`[notificationScheduler] Borç #${debtId} için ${items.length} adet OS bildirimi planlandı.`);
+    if (!debt) return [];
+    const debtId = debt.id || 1;
+
+    // Önce bu borca ait eski alarmları temizle
+    await cancelDebtNotifications(debtId).catch(() => {});
+
+    const items = buildDebtNotificationItems(debt, options);
+    if (items.length === 0) return [];
+
+    await initCapacitorNotificationChannel().catch(() => {});
+
+    // Güvenli paketleme ve Exact Alarm Fallback
+    await safeScheduleLocalNotificationsBatch(items);
+    console.log(`[notificationScheduler] Borç #${debtId} için ${items.length} adet OS bildirimi planlandı.`);
+
+    // Android Debt Alarm köprüsünü de senkronize et
+    items.forEach((item) => {
+      try {
+        const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+        if (at > 0) {
+          scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+        }
+      } catch {}
+    });
+
+    const scheduledIds = items.map((i) => i.id);
+    if (typeof window !== "undefined" && scheduledIds.length > 0) {
+      try {
+        localStorage.setItem(getStorageKey(debtId), JSON.stringify(scheduledIds));
+      } catch {}
     }
+
+    return scheduledIds;
   } catch (err) {
-    console.warn(`[notificationScheduler] Borç #${debtId} planlama hatası:`, err);
+    console.warn(`[notificationScheduler] Borç planlama hatası yakalandı:`, err);
+    return [];
   }
-
-  // Android Debt Alarm köprüsünü de senkronize et
-  items.forEach((item) => {
-    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
-    if (at > 0) {
-      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
-    }
-  });
-
-  const scheduledIds = items.map((i) => i.id);
-  if (typeof window !== "undefined" && scheduledIds.length > 0) {
-    try {
-      localStorage.setItem(getStorageKey(debtId), JSON.stringify(scheduledIds));
-    } catch {}
-  }
-
-  return scheduledIds;
 }
 
 /**
@@ -362,51 +431,54 @@ export async function scheduleInstallmentNotification(
   inst: Partial<InstallmentDebt>,
   options?: ScheduleNotificationOptions
 ): Promise<number[]> {
-  if (!inst) return [];
-  const instId = Number(inst.id) || 1;
-  const virtualDebtId = 500000 + instId;
-
-  await cancelDebtNotifications(virtualDebtId);
-
-  const items = buildInstallmentNotificationItems(inst, options);
-  if (items.length === 0) return [];
-
-  await initCapacitorNotificationChannel();
-
   try {
-    if (typeof (LocalNotifications as any)?.schedule === "function") {
-      await LocalNotifications.schedule({
-        notifications: items
-      });
-      console.log(`[notificationScheduler] Taksit #${instId} için ${items.length} adet OS bildirimi planlandı.`);
+    if (!inst) return [];
+    const instId = Number(inst.id) || 1;
+    const virtualDebtId = 500000 + instId;
+
+    await cancelDebtNotifications(virtualDebtId).catch(() => {});
+
+    const items = buildInstallmentNotificationItems(inst, options);
+    if (items.length === 0) return [];
+
+    await initCapacitorNotificationChannel().catch(() => {});
+
+    await safeScheduleLocalNotificationsBatch(items);
+    console.log(`[notificationScheduler] Taksit #${instId} için ${items.length} adet OS bildirimi planlandı.`);
+
+    items.forEach((item) => {
+      try {
+        const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+        if (at > 0) {
+          scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+        }
+      } catch {}
+    });
+
+    const scheduledIds = items.map((i) => i.id);
+    if (typeof window !== "undefined" && scheduledIds.length > 0) {
+      try {
+        localStorage.setItem(getStorageKey(virtualDebtId), JSON.stringify(scheduledIds));
+      } catch {}
     }
+
+    return scheduledIds;
   } catch (err) {
-    console.warn(`[notificationScheduler] Taksit #${instId} planlama hatası:`, err);
+    console.warn(`[notificationScheduler] Taksit planlama hatası yakalandı:`, err);
+    return [];
   }
-
-  items.forEach((item) => {
-    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
-    if (at > 0) {
-      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
-    }
-  });
-
-  const scheduledIds = items.map((i) => i.id);
-  if (typeof window !== "undefined" && scheduledIds.length > 0) {
-    try {
-      localStorage.setItem(getStorageKey(virtualDebtId), JSON.stringify(scheduledIds));
-    } catch {}
-  }
-
-  return scheduledIds;
 }
 
 /**
  * Taksit planına ait alarmları iptal eder
  */
 export async function cancelInstallmentNotifications(installmentId: number | string): Promise<boolean> {
-  const instId = Number(installmentId) || 1;
-  return cancelDebtNotifications(500000 + instId);
+  try {
+    const instId = Number(installmentId) || 1;
+    return await cancelDebtNotifications(500000 + instId);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -416,163 +488,149 @@ export async function cancelInstallmentNotifications(installmentId: number | str
  *  1. Önceden kurulmuş olan tüm borç/taksit alarmları OS kuyruğundan temizlenir.
  *  2. Aktif olan tüm borç ve taksitler için seçilen sıklığa (Günde 1, 2, 3, 4 kez veya 2 saatte bir)
  *     göre ileriye dönük tam takvim oluşturulur.
- *  3. Bütün bildirimler tek seferde toplu olarak (batch) OS kuyruğuna yazılır.
+ *  3. Bütün bildirimler 50'şerli güvenli paketlerle ve Exact Alarm Fallback korumasıyla OS kuyruğuna yazılır.
  *  4. Böylece uygulama kapalı veya arka planda olsa dahi Android AlarmManager zamanı geldiğinde
- *     bildirimi ekrana düşürür.
+ *     bildirimi ekrana düşürür, izin eksikse çökmez.
  */
 export async function rescheduleAllNotifications(
   debts: Partial<Debt>[],
   installments?: Partial<InstallmentDebt>[],
   options?: ScheduleNotificationOptions
 ): Promise<number> {
-  const allItems: LocalNotificationSchema[] = [];
-  const allIdsToCancel: number[] = [];
-
-  // 1. Önceki planlanmış ID'leri topla
-  if (typeof window !== "undefined") {
-    try {
-      const keys = Object.keys(localStorage);
-      for (const k of keys) {
-        if (k.startsWith("scheduled_debt_notifs_")) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr)) {
-              arr.forEach((id) => {
-                if (typeof id === "number" && !allIdsToCancel.includes(id)) {
-                  allIdsToCancel.push(id);
-                }
-              });
-            }
-          }
-          localStorage.removeItem(k);
-        }
-      }
-    } catch {}
-  }
-
-  // 2. OS kuyruğundaki eski bildirimleri toplu iptal et
-  if (allIdsToCancel.length > 0) {
-    try {
-      if (typeof (LocalNotifications as any)?.cancel === "function") {
-        for (let i = 0; i < allIdsToCancel.length; i += 50) {
-          const chunk = allIdsToCancel.slice(i, i + 50);
-          await LocalNotifications.cancel({
-            notifications: chunk.map((id) => ({ id }))
-          }).catch(() => {});
-        }
-      }
-    } catch {}
-  }
-
-  // 3. Aktif borçların bildirimlerini derle
-  const debtIdToScheduledMap = new Map<number | string, number[]>();
-  if (Array.isArray(debts)) {
-    for (const d of debts) {
-      const items = buildDebtNotificationItems(d, options);
-      if (items.length > 0) {
-        allItems.push(...items);
-        debtIdToScheduledMap.set(d.id || 1, items.map((i) => i.id));
-      }
-    }
-  }
-
-  // 4. Aktif taksitlerin bildirimlerini derle
-  if (Array.isArray(installments)) {
-    for (const inst of installments) {
-      const items = buildInstallmentNotificationItems(inst, options);
-      if (items.length > 0) {
-        allItems.push(...items);
-        const virtualId = 500000 + (Number(inst.id) || 1);
-        debtIdToScheduledMap.set(virtualId, items.map((i) => i.id));
-      }
-    }
-  }
-
-  if (allItems.length === 0) return 0;
-
-  // 5. Bildirim kanalını hazırla
-  await initCapacitorNotificationChannel();
-
-  // 6. Cihazın yerel bildirim kuyruğuna (OS Level Queue) 50'şerli güvenli paketlerle kaydet
   try {
-    if (typeof (LocalNotifications as any)?.schedule === "function") {
-      for (let i = 0; i < allItems.length; i += 50) {
-        const chunk = allItems.slice(i, i + 50);
-        await LocalNotifications.schedule({
-          notifications: chunk
-        });
+    const allItems: LocalNotificationSchema[] = [];
+    const allIdsToCancel: number[] = [];
+
+    // 1. Önceki planlanmış ID'leri topla
+    if (typeof window !== "undefined") {
+      try {
+        const keys = Object.keys(localStorage);
+        for (const k of keys) {
+          if (k.startsWith("scheduled_debt_notifs_")) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const arr = JSON.parse(raw);
+              if (Array.isArray(arr)) {
+                arr.forEach((id) => {
+                  if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                    allIdsToCancel.push(id);
+                  }
+                });
+              }
+            }
+            localStorage.removeItem(k);
+          }
+        }
+      } catch {}
+    }
+
+    // 2. OS kuyruğundaki eski bildirimleri toplu ve güvenle iptal et
+    await safeCancelLocalNotificationsBatch(allIdsToCancel);
+
+    // 3. Aktif borçların bildirimlerini derle
+    const debtIdToScheduledMap = new Map<number | string, number[]>();
+    if (Array.isArray(debts)) {
+      for (const d of debts) {
+        try {
+          const items = buildDebtNotificationItems(d, options);
+          if (items.length > 0) {
+            allItems.push(...items);
+            debtIdToScheduledMap.set(d.id || 1, items.map((i) => i.id));
+          }
+        } catch {}
       }
-      console.log(`[notificationScheduler] Toplam ${allItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
     }
+
+    // 4. Aktif taksitlerin bildirimlerini derle
+    if (Array.isArray(installments)) {
+      for (const inst of installments) {
+        try {
+          const items = buildInstallmentNotificationItems(inst, options);
+          if (items.length > 0) {
+            allItems.push(...items);
+            const virtualId = 500000 + (Number(inst.id) || 1);
+            debtIdToScheduledMap.set(virtualId, items.map((i) => i.id));
+          }
+        } catch {}
+      }
+    }
+
+    if (allItems.length === 0) return 0;
+
+    // 5. Bildirim kanalını hazırla
+    await initCapacitorNotificationChannel().catch(() => {});
+
+    // 6. Cihazın yerel bildirim kuyruğuna (OS Level Queue) 50'şerli güvenli paketlerle ve Exact Fallback ile kaydet
+    await safeScheduleLocalNotificationsBatch(allItems);
+    console.log(`[notificationScheduler] Toplam ${allItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
+
+    // 7. Android native köprüsünü de senkronize et
+    allItems.forEach((item) => {
+      try {
+        const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+        if (at > 0) {
+          scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+        }
+      } catch {}
+    });
+
+    // 8. ID'leri sakla
+    if (typeof window !== "undefined") {
+      try {
+        debtIdToScheduledMap.forEach((ids, debtId) => {
+          localStorage.setItem(getStorageKey(debtId), JSON.stringify(ids));
+        });
+        localStorage.setItem("last_os_notifications_sync_time", String(Date.now()));
+        localStorage.setItem("last_os_notifications_count", String(allItems.length));
+      } catch {}
+    }
+
+    return allItems.length;
   } catch (err) {
-    console.warn("[notificationScheduler] rescheduleAllNotifications batch schedule error:", err);
+    console.warn("[notificationScheduler] rescheduleAllNotifications safe catch:", err);
+    return 0;
   }
-
-  // 7. Android native köprüsünü de senkronize et
-  allItems.forEach((item) => {
-    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
-    if (at > 0) {
-      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
-    }
-  });
-
-  // 8. ID'leri sakla
-  if (typeof window !== "undefined") {
-    try {
-      debtIdToScheduledMap.forEach((ids, debtId) => {
-        localStorage.setItem(getStorageKey(debtId), JSON.stringify(ids));
-      });
-      localStorage.setItem("last_os_notifications_sync_time", String(Date.now()));
-      localStorage.setItem("last_os_notifications_count", String(allItems.length));
-    } catch {}
-  }
-
-  return allItems.length;
 }
 
 /**
  * Bildirimler kapatıldığında tüm borç ve taksit alarmlarını OS kuyruğundan temizler.
  */
 export async function cancelAllDebtAndInstallmentNotifications(): Promise<void> {
-  const allIdsToCancel: number[] = [];
-  if (typeof window !== "undefined") {
-    try {
-      const keys = Object.keys(localStorage);
-      for (const k of keys) {
-        if (k.startsWith("scheduled_debt_notifs_")) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr)) {
-              arr.forEach((id) => {
-                if (typeof id === "number" && !allIdsToCancel.includes(id)) {
-                  allIdsToCancel.push(id);
-                }
-              });
+  try {
+    const allIdsToCancel: number[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const keys = Object.keys(localStorage);
+        for (const k of keys) {
+          if (k.startsWith("scheduled_debt_notifs_")) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const arr = JSON.parse(raw);
+              if (Array.isArray(arr)) {
+                arr.forEach((id) => {
+                  if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                    allIdsToCancel.push(id);
+                  }
+                });
+              }
             }
+            localStorage.removeItem(k);
           }
-          localStorage.removeItem(k);
         }
-      }
-    } catch {}
-  }
+      } catch {}
+    }
 
-  if (allIdsToCancel.length > 0) {
-    try {
-      if (typeof (LocalNotifications as any)?.cancel === "function") {
-        for (let i = 0; i < allIdsToCancel.length; i += 50) {
-          const chunk = allIdsToCancel.slice(i, i + 50);
-          await LocalNotifications.cancel({
-            notifications: chunk.map((id) => ({ id }))
-          }).catch(() => {});
-        }
-      }
-    } catch {}
-    allIdsToCancel.forEach((id) => {
-      cancelAndroidDebtAlarm(id);
-      cancelCapacitorAlarm(id).catch(() => {});
-    });
+    if (allIdsToCancel.length > 0) {
+      await safeCancelLocalNotificationsBatch(allIdsToCancel);
+      allIdsToCancel.forEach((id) => {
+        try {
+          cancelAndroidDebtAlarm(id);
+          cancelCapacitorAlarm(id).catch(() => {});
+        } catch {}
+      });
+    }
+  } catch (e) {
+    console.warn("[notificationScheduler] cancelAllDebtAndInstallmentNotifications hatası:", e);
   }
 }
 

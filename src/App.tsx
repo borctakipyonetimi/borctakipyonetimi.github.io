@@ -3875,20 +3875,35 @@ export default function App() {
   // --- OS DÜZEYİNDE YEREL BİLDİRİM VE EXACT ALARM SENKRONİZASYONU ---
   // Uygulama kapalıyken veya telefon kilitliyken dahi bildirimlerin tam saatinde çalışması için
   // tüm borç ve taksit takvimini cihazın yerel bildirim kuyruğuna (OS Level Local Notification Queue) kaydeder.
+  const debtsSchedulerFingerprint = useMemo(() => {
+    try {
+      const dPart = (debts || []).map((d) => `${d.id}_${d.amount}_${d.paid}_${d.dueDate}`).join("|");
+      const iPart = (installmentDebts || []).map((i) => `${i.id}_${i.paidInstallmentCount}_${i.firstDueDate}`).join("|");
+      return `${pushNotificationsEnabled ? "1" : "0"}#${pushFrequency || "2"}#${dPart}#${iPart}`;
+    } catch {
+      return "";
+    }
+  }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);
+
   useEffect(() => {
     if (!pushNotificationsEnabled) {
       cancelAllDebtAndInstallmentNotifications().catch(() => {});
       return;
     }
 
+    let isMounted = true;
     const timer = setTimeout(() => {
-      rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency }).catch((err) => {
-        console.warn("[App.tsx] rescheduleAllNotifications hatası:", err);
+      if (!isMounted) return;
+      rescheduleAllNotifications(debtsRef.current, installmentDebtsRef.current, { frequency: pushFrequency }).catch((err) => {
+        console.warn("[App.tsx] rescheduleAllNotifications hatası güvenle yakalandı:", err);
       });
-    }, 800);
+    }, 1500); // 1.5 sn debounce ile uygulama açılışında 60 FPS akıcılığı korur, donmayı ve çökmeyi önler
 
-    return () => clearTimeout(timer);
-  }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [debtsSchedulerFingerprint]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)
   const saveAllToUser = async (
@@ -5828,7 +5843,6 @@ export default function App() {
     if (alarmDateObj.getTime() > Date.now()) {
       const safeAlarmId = Math.abs(Number(newA.debtId || newA.id));
       try {
-        initCapacitorNotificationChannel().catch(() => {});
         const dateFormatted = alarmDateObj.toLocaleString("tr-TR", {
           year: "numeric",
           month: "2-digit",
@@ -5839,40 +5853,21 @@ export default function App() {
         const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
         const richBody = `💰 Borç: ${titleString || "Ödeme"}\n📅 Son Tarih: ${dateFormatted}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
 
-        LocalNotifications.schedule({
-          notifications: [
-            {
-              id: safeAlarmId,
-              title: richTitle,
-              body: richBody,
-              largeBody: richBody,
-              summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
-              schedule: {
-                at: new Date(alarmDateObj.getTime()),
-                allowWhileIdle: true,
-                exact: true,
-                allowInExactlyDatatype: true
-              },
-              channelId: "debt_reminders",
-              smallIcon: 'ic_stat_notify',
-              largeIcon: 'ic_stat_notify_large',
-              iconColor: '#10B981',
-              autoCancel: true,
-              android: {
-                summaryText: 'Ödeme detaylarınızı kontrol etmeyi unutmayın.',
-                priority: 'max',
-                visibility: 'public'
-              },
-              extra: { id: safeAlarmId, debtId: newA.debtId, title: titleString, body: richBody }
-            } as any
-          ]
-        }).then(() => {
-          console.log(`[Capacitor LocalNotifications] Alarm #${safeAlarmId} zamanlandı.`);
-        }).catch((cErr) => {
-          console.warn("[Capacitor LocalNotifications] schedule error:", cErr);
+        scheduleCapacitorAlarm(
+          safeAlarmId,
+          richTitle,
+          alarmDateObj.getTime(),
+          richBody,
+          {
+            borcAdi: titleString || "Ödeme",
+            tarih: dateFormatted,
+            durum: "Gecikmemesi için lütfen kontrol edin!"
+          }
+        ).catch((err) => {
+          console.warn("[App.tsx] scheduleCapacitorAlarm error safely caught:", err);
         });
       } catch (capErr) {
-        console.warn("[Capacitor LocalNotifications] call error:", capErr);
+        console.warn("[Capacitor LocalNotifications] call error safely caught:", capErr);
       }
 
       // Also schedule alarm into native Android AlarmManager bridge
