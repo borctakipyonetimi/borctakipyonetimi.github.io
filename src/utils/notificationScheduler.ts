@@ -1,30 +1,31 @@
 /**
- * Dinamik Borç Hatırlatıcı ve Zamanlayıcı Servisi (Notification Scheduler)
+ * Dinamik Borç ve Taksit Hatırlatıcı / Zamanlayıcı Servisi (OS Level Notification Scheduler)
  * 
  * Bu modül; şablondan veya manuel olarak eklenen borçlar ve taksitler için
- * kullanıcının "Bildirim Sıklığı ve Zamanı" ayarlarına (ör. 2 Saatte Bir - hourly)
- * göre dinamik hatırlatıcılar kurar.
+ * kullanıcının "Bildirim Sıklığı ve Zamanı" ayarlarına (ör. Günde 2 defa, 2 saatte bir vb.)
+ * %100 uyumlu olarak cihazın yerel bildirim kuyruğuna (OS-Level Exact Alarm Queue) alarmları kaydeder.
  * 
- * Kurulum Zamanlaması:
- *  a) Vadesi geçmiş borçlar için gün içi periyodik hatırlatmalar (2 saatte bir veya günde X kez)
- *  b) Son ödeme gününe 3 gün kala
- *  c) Son ödeme gününe kadar olan süreçte (-2, -1 gün ve vade günü)
- *  d) Vadesi geçtikten sonraki günlerde düzenli aralıklarla
+ * Bildirim Kuralları:
+ *  1. Vadeye 3 gün kala başlayarak VADE GÜNÜNE KADAR her gün (-3, -2, -1, 0 gün)
+ *  2. Vade günü geçtikten sonra da 3 GÜN BOYUNCA her gün (+1, +2, +3 gün) gecikme uyarısı
+ *  3. Vadesi 3 günden fazla geçmiş aktif borçlar için bugünden başlayarak 3 gün boyunca gecikme uyarısı
  * 
- * Temizleme ve Çakışma Önleme:
- *  - Borç veya taksit ödendiği an, o borca ait kurulmuş tüm dinamik hatırlatıcılar otomatik iptal edilir.
- *  - Her bildirim benzersiz borç ID'si ile ilişkilendirilir.
+ * Uygulama Kapalıyken Çalışma Garantisi:
+ *  - Bildirimler sadece uygulama açıkken çalışan React döngülerine değil; doğrudan Capacitor
+ *    LocalNotifications aracılığıyla sistem seviyesinde exact alarm (tam saatli tetikleyici)
+ *    olarak AlarmManager kuyruğuna kaydedilir.
+ *  - allowWhileIdle: true ve exact: true ile Doze modunda veya kilit ekranında bile tam saatinde çalar.
  */
 
 import { Debt, InstallmentDebt } from "../types";
 import { parseDateParts } from "./dateUtils";
 import {
-  scheduleCapacitorAlarm,
-  cancelCapacitorAlarm,
+  initCapacitorNotificationChannel,
   scheduleAndroidDebtAlarm,
-  cancelAndroidDebtAlarm
+  cancelAndroidDebtAlarm,
+  cancelCapacitorAlarm
 } from "./androidAlarmBridge";
-import { LocalNotifications } from "@capacitor/local-notifications";
+import { LocalNotifications, LocalNotificationSchema } from "@capacitor/local-notifications";
 
 /**
  * Kullanıcının ayarlardan seçtiği bildirim saatlerini döndürür.
@@ -55,6 +56,7 @@ export function getNotificationHours(frequency?: string): number[] {
 
 /**
  * Belirli bir borç ID'si, gün ofseti ve saat sırası için benzersiz 32-bit bildirim ID'si üretir.
+ * Android AlarmManager için 32-bit sınırında güvenle çalışır.
  */
 export function getDynamicNotificationId(debtId: number | string, dayOffset: number, hourIndex: number): number {
   const numId = typeof debtId === "number" ? Math.abs(debtId) : (parseInt(String(debtId), 10) || 1);
@@ -79,8 +81,19 @@ function getReminderCopy(debtName: string, remainingFormatted: string, dateForma
   let statusText = "Gecikmemesi için lütfen kontrol edin!";
 
   if (isOverdueDebt) {
-    title = `⚠️ Bütçem Pro: ${debtName} - Gecikmiş Ödeme Uyarısı!`;
-    statusText = "Vadesi geçti! Gecikme faizi ve cezalardan kaçınmak için lütfen kontrol edin.";
+    if (dayOffset === 1) {
+      title = `⚠️ Bütçem Pro: ${debtName} - 1 Gün Gecikti!`;
+      statusText = "Vadesi 1 gün geçti! Ekstra ceza ve gecikme faizi yansımaması için lütfen kontrol edin.";
+    } else if (dayOffset === 2) {
+      title = `⚠️ Bütçem Pro: ${debtName} - 2 Gün Gecikti!`;
+      statusText = "Vadesi 2 gün geçti! Gecikme faizinden kaçınmak için ödemenizi tamamlayın.";
+    } else if (dayOffset >= 3) {
+      title = `🚨 Bütçem Pro: ${debtName} - ${dayOffset} Gün Gecikti!`;
+      statusText = `Vadesi ${dayOffset} gün geçti! Kredi puanınızın etkilenmemesi için lütfen hemen kapatın.`;
+    } else {
+      title = `⚠️ Bütçem Pro: ${debtName} - Gecikmiş Ödeme Uyarısı!`;
+      statusText = "Vadesi geçti! Gecikme faizi ve cezalardan kaçınmak için lütfen kontrol edin.";
+    }
   } else if (dayOffset === -3) {
     title = `🚨 Bütçem Pro: ${debtName} - 3 Gün Kaldı!`;
     statusText = "Son ödeme gününe 3 gün kaldı! Planlamanızı yapmayı unutmayın.";
@@ -116,43 +129,30 @@ export interface ScheduleNotificationOptions {
 }
 
 /**
- * Şablondan veya doğrudan eklenen borç için:
- *   a) Vadesi geçmiş borçlar için periyodik (örneğin 2 saatte bir) hatırlatmalar
- *   b) Son ödeme gününe 3 gün kala (-3)
- *   c) Son ödeme gününe kadar olan süreçte (-2, -1, 0)
- *   d) Vadesi geçtikten sonraki süreçte (+1, +2, +3)
- * seçilen "Bildirim Sıklığı ve Zamanı" ayarına göre otomatik bildirimleri zamanlar.
+ * Tek bir borç kaydı için OS seviyesinde planlanacak bildirim nesnelerini oluşturur.
+ * Kural:
+ * - Vadeye 3 gün kala başlayarak VADE GÜNÜNE KADAR her gün: [-3, -2, -1, 0]
+ * - Vade günü geçtikten sonra da 3 GÜN BOYUNCA her gün: [+1, +2, +3]
+ * - Vadesi 3 günden fazla geçmiş aktif borçlar için bugünden itibaren 3 gün boyunca gecikme uyarısı
  */
-export async function scheduleNotification(
+export function buildDebtNotificationItems(
   debt: Partial<Debt>,
   options?: ScheduleNotificationOptions
-): Promise<number[]> {
+): LocalNotificationSchema[] {
   if (!debt || !debt.dueDate) return [];
 
-  const debtId = debt.id || 1;
   const isPaid = Boolean(
     (debt as any).isPaid === true ||
     (debt as any).durum === "odendi" ||
     (debt as any).status === "paid" ||
     Number(debt.paid || 0) >= Number(debt.amount || 0)
   );
-
-  // Borç ödendiyse kesinlikle alarm kurma, varsa tümünü temizle
-  if (isPaid) {
-    await cancelDebtNotifications(debtId);
-    return [];
-  }
+  if (isPaid) return [];
 
   const dateParts = parseDateParts(debt.dueDate);
   if (!dateParts) return [];
 
-  // Önce bu borca ait eski/çakışan tüm alarmları temizle
-  await cancelDebtNotifications(debtId);
-
-  const hours = options?.customHours || getNotificationHours(options?.frequency);
-  const now = options?.nowMs || Date.now();
-  const scheduledIds: number[] = [];
-
+  const debtId = debt.id || 1;
   const debtName = debt.name?.trim() || "Ödeme";
   const remaining = Math.max(0, Number(debt.amount || 0) - Number(debt.paid || 0));
   if (remaining <= 0) return [];
@@ -160,20 +160,73 @@ export async function scheduleNotification(
   const remainingFormatted = remaining.toLocaleString("tr-TR");
   const dueDateFormatted = new Date(dateParts.year, dateParts.month, dateParts.day).toLocaleDateString("tr-TR");
 
+  const hours = options?.customHours || getNotificationHours(options?.frequency);
+  const now = options?.nowMs || Date.now();
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
+
   const dueDateTime = new Date(dateParts.year, dateParts.month, dateParts.day, 0, 0, 0, 0).getTime();
   const diffDays = Math.round((dueDateTime - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) {
-    // Vadesi geçmiş borç: Kullanıcının seçtiği saatlere göre bugün ve önümüzdeki 2 gün boyunca periyodik alarm kur
+  const items: LocalNotificationSchema[] = [];
+
+  if (diffDays >= -3) {
+    // Vadeye 3 gün kala (-3, -2, -1, 0) ve vadeden sonraki 3 gün (+1, +2, +3)
+    const offsetDays = [-3, -2, -1, 0, 1, 2, 3];
+    for (const offset of offsetDays) {
+      for (let hIdx = 0; hIdx < hours.length; hIdx++) {
+        const hour = hours[hIdx];
+        const targetDate = new Date(dateParts.year, dateParts.month, dateParts.day + offset, hour, 0, 0, 0);
+        const triggerAtMillis = targetDate.getTime();
+        if (triggerAtMillis <= now) continue;
+
+        const notifId = getDynamicNotificationId(debtId, offset, hIdx);
+        const { title, message, statusText } = getReminderCopy(
+          debtName,
+          remainingFormatted,
+          dueDateFormatted,
+          offset,
+          offset > 0
+        );
+
+        items.push({
+          id: notifId,
+          title,
+          body: message,
+          largeBody: message,
+          summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+          schedule: {
+            at: targetDate,
+            allowWhileIdle: true,
+            exact: true,
+            allowInExactlyDatatype: true,
+            forceShow: true
+          } as any,
+          channelId: "debt_reminders",
+          autoCancel: true,
+          smallIcon: "ic_stat_notify",
+          largeIcon: "ic_stat_notify_large",
+          iconColor: "#10B981",
+          sound: "beep.wav",
+          extra: {
+            debtId: Number(debtId),
+            borcAdi: debtName,
+            miktar: `${remainingFormatted} TL`,
+            tarih: dueDateFormatted,
+            durum: statusText,
+            dayOffset: offset
+          }
+        } as any);
+      }
+    }
+  } else {
+    // Vadesi 3 günden fazla geçmiş borçlar için bugünden başlayarak 3 gün boyunca gecikme uyarısı
     const daysLate = Math.abs(diffDays);
     for (let dayOffset = 0; dayOffset <= 2; dayOffset++) {
       for (let hIdx = 0; hIdx < hours.length; hIdx++) {
         const hour = hours[hIdx];
         const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset, hour, 0, 0, 0);
         const triggerAtMillis = targetDate.getTime();
-
         if (triggerAtMillis <= now) continue;
 
         const notifId = getDynamicNotificationId(debtId, dayOffset, hIdx);
@@ -186,74 +239,113 @@ export async function scheduleNotification(
           true
         );
 
-        try {
-          await scheduleCapacitorAlarm(
-            notifId,
-            title,
-            triggerAtMillis,
-            message,
-            {
-              debtId: Number(debtId),
-              borcAdi: debtName,
-              miktar: `${remainingFormatted} TL`,
-              tarih: dueDateFormatted,
-              durum: statusText,
-              dayOffset: totalLate
-            }
-          );
-          scheduleAndroidDebtAlarm(notifId, title, triggerAtMillis, message);
-          scheduledIds.push(notifId);
-        } catch (err) {
-          console.warn(`[notificationScheduler] ID ${notifId} alarmı kurulurken hata:`, err);
-        }
-      }
-    }
-  } else {
-    // Vadesi bugün veya gelecekte olan borç (-3 ile +3 gün arası)
-    const offsetDays = [-3, -2, -1, 0, 1, 2, 3];
-
-    for (const offset of offsetDays) {
-      for (let hIdx = 0; hIdx < hours.length; hIdx++) {
-        const hour = hours[hIdx];
-        const targetDate = new Date(dateParts.year, dateParts.month, dateParts.day + offset, hour, 0, 0, 0);
-        const triggerAtMillis = targetDate.getTime();
-
-        if (triggerAtMillis <= now) continue;
-
-        const notifId = getDynamicNotificationId(debtId, offset, hIdx);
-        const { title, message, statusText } = getReminderCopy(
-          debtName,
-          remainingFormatted,
-          dueDateFormatted,
-          offset,
-          false
-        );
-
-        try {
-          await scheduleCapacitorAlarm(
-            notifId,
-            title,
-            triggerAtMillis,
-            message,
-            {
-              debtId: Number(debtId),
-              borcAdi: debtName,
-              miktar: `${remainingFormatted} TL`,
-              tarih: dueDateFormatted,
-              durum: statusText,
-              dayOffset: offset
-            }
-          );
-          scheduleAndroidDebtAlarm(notifId, title, triggerAtMillis, message);
-          scheduledIds.push(notifId);
-        } catch (err) {
-          console.warn(`[notificationScheduler] ID ${notifId} alarmı kurulurken hata:`, err);
-        }
+        items.push({
+          id: notifId,
+          title,
+          body: message,
+          largeBody: message,
+          summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+          schedule: {
+            at: targetDate,
+            allowWhileIdle: true,
+            exact: true,
+            allowInExactlyDatatype: true,
+            forceShow: true
+          } as any,
+          channelId: "debt_reminders",
+          autoCancel: true,
+          smallIcon: "ic_stat_notify",
+          largeIcon: "ic_stat_notify_large",
+          iconColor: "#10B981",
+          sound: "beep.wav",
+          extra: {
+            debtId: Number(debtId),
+            borcAdi: debtName,
+            miktar: `${remainingFormatted} TL`,
+            tarih: dueDateFormatted,
+            durum: statusText,
+            dayOffset: totalLate
+          }
+        } as any);
       }
     }
   }
 
-  // Kurulan bildirim ID'lerini bu borç ID'si ile ilişkilendirerek hafızaya kaydet
+  return items;
+}
+
+/**
+ * Taksitli borç kaydı için OS seviyesinde planlanacak bildirim nesnelerini oluşturur.
+ */
+export function buildInstallmentNotificationItems(
+  inst: Partial<InstallmentDebt>,
+  options?: ScheduleNotificationOptions
+): LocalNotificationSchema[] {
+  if (!inst || !inst.firstDueDate) return [];
+  const instId = Number(inst.id) || 1;
+  const count = Number(inst.installmentCount) || 1;
+  const paid = Number(inst.paidInstallmentCount) || 0;
+  if (paid >= count) return [];
+
+  const dateParts = parseDateParts(inst.firstDueDate);
+  if (!dateParts) return [];
+
+  const nextDue = new Date(dateParts.year, dateParts.month, dateParts.day);
+  nextDue.setMonth(nextDue.getMonth() + paid);
+  const nextDueDateStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`;
+  const perAmount = (Number(inst.totalAmount) || 0) / count;
+  const instTitle = `${inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+
+  return buildDebtNotificationItems(
+    {
+      id: 500000 + instId,
+      name: instTitle,
+      amount: perAmount,
+      paid: 0,
+      dueDate: nextDueDateStr
+    },
+    options
+  );
+}
+
+/**
+ * Tek bir borç için alarmları OS yerel bildirim kuyruğuna planlar.
+ */
+export async function scheduleNotification(
+  debt: Partial<Debt>,
+  options?: ScheduleNotificationOptions
+): Promise<number[]> {
+  if (!debt) return [];
+  const debtId = debt.id || 1;
+
+  // Önce bu borca ait eski alarmları temizle
+  await cancelDebtNotifications(debtId);
+
+  const items = buildDebtNotificationItems(debt, options);
+  if (items.length === 0) return [];
+
+  await initCapacitorNotificationChannel();
+
+  try {
+    if (typeof (LocalNotifications as any)?.schedule === "function") {
+      await LocalNotifications.schedule({
+        notifications: items
+      });
+      console.log(`[notificationScheduler] Borç #${debtId} için ${items.length} adet OS bildirimi planlandı.`);
+    }
+  } catch (err) {
+    console.warn(`[notificationScheduler] Borç #${debtId} planlama hatası:`, err);
+  }
+
+  // Android Debt Alarm köprüsünü de senkronize et
+  items.forEach((item) => {
+    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+    if (at > 0) {
+      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+    }
+  });
+
+  const scheduledIds = items.map((i) => i.id);
   if (typeof window !== "undefined" && scheduledIds.length > 0) {
     try {
       localStorage.setItem(getStorageKey(debtId), JSON.stringify(scheduledIds));
@@ -270,35 +362,43 @@ export async function scheduleInstallmentNotification(
   inst: Partial<InstallmentDebt>,
   options?: ScheduleNotificationOptions
 ): Promise<number[]> {
-  if (!inst || !inst.firstDueDate) return [];
+  if (!inst) return [];
   const instId = Number(inst.id) || 1;
-  const count = Number(inst.installmentCount) || 1;
-  const paid = Number(inst.paidInstallmentCount) || 0;
+  const virtualDebtId = 500000 + instId;
 
-  if (paid >= count) {
-    await cancelInstallmentNotifications(instId);
-    return [];
+  await cancelDebtNotifications(virtualDebtId);
+
+  const items = buildInstallmentNotificationItems(inst, options);
+  if (items.length === 0) return [];
+
+  await initCapacitorNotificationChannel();
+
+  try {
+    if (typeof (LocalNotifications as any)?.schedule === "function") {
+      await LocalNotifications.schedule({
+        notifications: items
+      });
+      console.log(`[notificationScheduler] Taksit #${instId} için ${items.length} adet OS bildirimi planlandı.`);
+    }
+  } catch (err) {
+    console.warn(`[notificationScheduler] Taksit #${instId} planlama hatası:`, err);
   }
 
-  const dateParts = parseDateParts(inst.firstDueDate);
-  if (!dateParts) return [];
+  items.forEach((item) => {
+    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+    if (at > 0) {
+      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+    }
+  });
 
-  const nextDue = new Date(dateParts.year, dateParts.month, dateParts.day);
-  nextDue.setMonth(nextDue.getMonth() + paid);
-  const nextDueDateStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`;
-  const perAmount = (Number(inst.totalAmount) || 0) / count;
-  const instTitle = `${inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+  const scheduledIds = items.map((i) => i.id);
+  if (typeof window !== "undefined" && scheduledIds.length > 0) {
+    try {
+      localStorage.setItem(getStorageKey(virtualDebtId), JSON.stringify(scheduledIds));
+    } catch {}
+  }
 
-  return scheduleNotification(
-    {
-      id: 500000 + instId,
-      name: instTitle,
-      amount: perAmount,
-      paid: 0,
-      dueDate: nextDueDateStr
-    },
-    options
-  );
+  return scheduledIds;
 }
 
 /**
@@ -310,35 +410,170 @@ export async function cancelInstallmentNotifications(installmentId: number | str
 }
 
 /**
- * Tüm aktif borç ve taksitler için bildirimleri tek seferde baştan kurar
+ * TÜM AKTİF BORÇ VE TAKSİTLERİ CİHAZIN OS YEREL BİLDİRİM KUYRUĞUNA (LOCAL NOTIFICATION QUEUE) KAYDEDER.
+ * 
+ * Bu fonksiyon çağrıldığında:
+ *  1. Önceden kurulmuş olan tüm borç/taksit alarmları OS kuyruğundan temizlenir.
+ *  2. Aktif olan tüm borç ve taksitler için seçilen sıklığa (Günde 1, 2, 3, 4 kez veya 2 saatte bir)
+ *     göre ileriye dönük tam takvim oluşturulur.
+ *  3. Bütün bildirimler tek seferde toplu olarak (batch) OS kuyruğuna yazılır.
+ *  4. Böylece uygulama kapalı veya arka planda olsa dahi Android AlarmManager zamanı geldiğinde
+ *     bildirimi ekrana düşürür.
  */
 export async function rescheduleAllNotifications(
   debts: Partial<Debt>[],
   installments?: Partial<InstallmentDebt>[],
   options?: ScheduleNotificationOptions
 ): Promise<number> {
-  let count = 0;
+  const allItems: LocalNotificationSchema[] = [];
+  const allIdsToCancel: number[] = [];
+
+  // 1. Önceki planlanmış ID'leri topla
+  if (typeof window !== "undefined") {
+    try {
+      const keys = Object.keys(localStorage);
+      for (const k of keys) {
+        if (k.startsWith("scheduled_debt_notifs_")) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach((id) => {
+                if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                  allIdsToCancel.push(id);
+                }
+              });
+            }
+          }
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
+  }
+
+  // 2. OS kuyruğundaki eski bildirimleri toplu iptal et
+  if (allIdsToCancel.length > 0) {
+    try {
+      if (typeof (LocalNotifications as any)?.cancel === "function") {
+        for (let i = 0; i < allIdsToCancel.length; i += 50) {
+          const chunk = allIdsToCancel.slice(i, i + 50);
+          await LocalNotifications.cancel({
+            notifications: chunk.map((id) => ({ id }))
+          }).catch(() => {});
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Aktif borçların bildirimlerini derle
+  const debtIdToScheduledMap = new Map<number | string, number[]>();
   if (Array.isArray(debts)) {
     for (const d of debts) {
-      const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
-      if (!isPaid && d.dueDate) {
-        const ids = await scheduleNotification(d, options);
-        count += ids.length;
+      const items = buildDebtNotificationItems(d, options);
+      if (items.length > 0) {
+        allItems.push(...items);
+        debtIdToScheduledMap.set(d.id || 1, items.map((i) => i.id));
       }
     }
   }
 
+  // 4. Aktif taksitlerin bildirimlerini derle
   if (Array.isArray(installments)) {
     for (const inst of installments) {
-      const isPaid = (inst as any).isPaid === true || (inst as any).durum === "odendi" || (inst as any).status === "paid" || Number(inst.paidInstallmentCount || 0) >= Number(inst.installmentCount || 1);
-      if (!isPaid && inst.firstDueDate) {
-        const ids = await scheduleInstallmentNotification(inst, options);
-        count += ids.length;
+      const items = buildInstallmentNotificationItems(inst, options);
+      if (items.length > 0) {
+        allItems.push(...items);
+        const virtualId = 500000 + (Number(inst.id) || 1);
+        debtIdToScheduledMap.set(virtualId, items.map((i) => i.id));
       }
     }
   }
 
-  return count;
+  if (allItems.length === 0) return 0;
+
+  // 5. Bildirim kanalını hazırla
+  await initCapacitorNotificationChannel();
+
+  // 6. Cihazın yerel bildirim kuyruğuna (OS Level Queue) 50'şerli güvenli paketlerle kaydet
+  try {
+    if (typeof (LocalNotifications as any)?.schedule === "function") {
+      for (let i = 0; i < allItems.length; i += 50) {
+        const chunk = allItems.slice(i, i + 50);
+        await LocalNotifications.schedule({
+          notifications: chunk
+        });
+      }
+      console.log(`[notificationScheduler] Toplam ${allItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
+    }
+  } catch (err) {
+    console.warn("[notificationScheduler] rescheduleAllNotifications batch schedule error:", err);
+  }
+
+  // 7. Android native köprüsünü de senkronize et
+  allItems.forEach((item) => {
+    const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+    if (at > 0) {
+      scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+    }
+  });
+
+  // 8. ID'leri sakla
+  if (typeof window !== "undefined") {
+    try {
+      debtIdToScheduledMap.forEach((ids, debtId) => {
+        localStorage.setItem(getStorageKey(debtId), JSON.stringify(ids));
+      });
+      localStorage.setItem("last_os_notifications_sync_time", String(Date.now()));
+      localStorage.setItem("last_os_notifications_count", String(allItems.length));
+    } catch {}
+  }
+
+  return allItems.length;
+}
+
+/**
+ * Bildirimler kapatıldığında tüm borç ve taksit alarmlarını OS kuyruğundan temizler.
+ */
+export async function cancelAllDebtAndInstallmentNotifications(): Promise<void> {
+  const allIdsToCancel: number[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const keys = Object.keys(localStorage);
+      for (const k of keys) {
+        if (k.startsWith("scheduled_debt_notifs_")) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach((id) => {
+                if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                  allIdsToCancel.push(id);
+                }
+              });
+            }
+          }
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
+  }
+
+  if (allIdsToCancel.length > 0) {
+    try {
+      if (typeof (LocalNotifications as any)?.cancel === "function") {
+        for (let i = 0; i < allIdsToCancel.length; i += 50) {
+          const chunk = allIdsToCancel.slice(i, i + 50);
+          await LocalNotifications.cancel({
+            notifications: chunk.map((id) => ({ id }))
+          }).catch(() => {});
+        }
+      }
+    } catch {}
+    allIdsToCancel.forEach((id) => {
+      cancelAndroidDebtAlarm(id);
+      cancelCapacitorAlarm(id).catch(() => {});
+    });
+  }
 }
 
 /**
@@ -470,17 +705,27 @@ export async function scheduleSubscriptionExpiryNotifications(expiryDateStr?: st
       const message = `Premium aboneliğiniz ${new Date(expiryTime).toLocaleDateString("tr-TR")} tarihinde sona erecektir. Kesintisiz kullanım ve ayrıcalıklarınızdan ödün vermemek için lütfen aboneliğinizi yenileyin!`;
 
       try {
-        await scheduleCapacitorAlarm(
-          notifId,
-          title,
-          triggerAtMillis,
-          message,
-          {
-            isSubscriptionExpiry: true,
-            daysRemaining: dayBefore,
-            expiryDate: new Date(expiryTime).toLocaleDateString("tr-TR")
-          }
-        );
+        if (typeof (LocalNotifications as any)?.schedule === "function") {
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: notifId,
+                title,
+                body: message,
+                schedule: {
+                  at: new Date(triggerAtMillis),
+                  allowWhileIdle: true,
+                  exact: true
+                } as any,
+                channelId: "debt_reminders",
+                autoCancel: true,
+                smallIcon: "ic_stat_notify",
+                iconColor: "#10B981",
+                sound: "beep.wav"
+              }
+            ]
+          }).catch(() => {});
+        }
 
         scheduleAndroidDebtAlarm(
           notifId,

@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"
@@ -39,6 +40,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Capacitor Local Notifications Exact Alarm & Boot Restorer -->
+        <receiver
+            android:name="com.capacitorjs.plugins.localnotifications.TimedNotificationPublisher"
+            android:exported="false" />
+        <receiver
+            android:name="com.capacitorjs.plugins.localnotifications.LocalNotificationRestoreReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Android 2x2 Home Screen AppWidget Receiver (BudgetWidgetProvider) -->
         <receiver

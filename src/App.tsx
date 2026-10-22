@@ -175,8 +175,14 @@ import { Share } from "@capacitor/share";
 import OneSignal from '@onesignal/capacitor-plugin';
 import { downloadFileWithCustomName, saveImageToGalleryWithCustomName } from "./utils/fileDownloadHelper";
 import confetti from "canvas-confetti";
-import { BiometricAuth, BiyometrikDogrulamaYap } from "./utils/biometricAuth";
-import { scheduleNotification, cancelDebtNotifications } from "./utils/notificationScheduler";
+import {
+  scheduleNotification,
+  cancelDebtNotifications,
+  scheduleInstallmentNotification,
+  cancelInstallmentNotifications,
+  rescheduleAllNotifications,
+  cancelAllDebtAndInstallmentNotifications
+} from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
 if (typeof OneSignal !== "undefined" && OneSignal && typeof OneSignal.initialize === "function") {
@@ -1291,8 +1297,12 @@ export default function App() {
 
     if (enabled) {
       await requestNotificationPermission();
+      rescheduleAllNotifications(debtsRef.current || debts || [], installmentDebtsRef.current || installmentDebts || [], {
+        frequency: pushFrequency
+      }).catch(() => {});
       triggerToast("Push Bildirimleri Aktifleştirildi 🔔");
     } else {
+      cancelAllDebtAndInstallmentNotifications().catch(() => {});
       triggerToast("Push Bildirimleri Kapatıldı 🔕");
     }
   };
@@ -1309,14 +1319,12 @@ export default function App() {
       });
     }
 
-    // Kullanıcının seçtiği yeni bildirim sıklığı ve saatine göre tüm aktif borçların hatırlatıcılarını dinamik güncelle
-    const activeDebts = debtsRef.current || debts || [];
-    activeDebts.forEach((d) => {
-      const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || Number(d.paid || 0) >= Number(d.amount || 0);
-      if (!isPaid && d.dueDate) {
-        scheduleNotification(d, { frequency: val }).catch(() => {});
-      }
-    });
+    // Kullanıcının seçtiği yeni bildirim sıklığı ve saatine göre tüm aktif borç ve taksitleri OS bildirim kuyruğunda baştan planla
+    if (pushNotificationsEnabled) {
+      rescheduleAllNotifications(debtsRef.current || debts || [], installmentDebtsRef.current || installmentDebts || [], {
+        frequency: val
+      }).catch(() => {});
+    }
 
     const labels: Record<string, string> = {
       "1": "Günde 1 Kez (Sabah 09:00)",
@@ -1696,6 +1704,9 @@ export default function App() {
       if (capGranted) {
         setHasNotificationPermission("granted");
         triggerToast("Cihaz Bildirim İzni Verildi 🔔");
+        rescheduleAllNotifications(debtsRef.current || debts || [], installmentDebtsRef.current || installmentDebts || [], {
+          frequency: pushFrequency
+        }).catch(() => {});
         try {
           sendSystemNotification(
             "Anlık Bildirimler Aktif!", 
@@ -3861,6 +3872,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, [pushNotificationsEnabled, pushFrequency]);
 
+  // --- OS DÜZEYİNDE YEREL BİLDİRİM VE EXACT ALARM SENKRONİZASYONU ---
+  // Uygulama kapalıyken veya telefon kilitliyken dahi bildirimlerin tam saatinde çalışması için
+  // tüm borç ve taksit takvimini cihazın yerel bildirim kuyruğuna (OS Level Local Notification Queue) kaydeder.
+  useEffect(() => {
+    if (!pushNotificationsEnabled) {
+      cancelAllDebtAndInstallmentNotifications().catch(() => {});
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency }).catch((err) => {
+        console.warn("[App.tsx] rescheduleAllNotifications hatası:", err);
+      });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);
+
   // General persistent workspace saver (local + Firebase Firestore sync)
   const saveAllToUser = async (
     updatedDebts: Debt[],
@@ -5460,6 +5489,7 @@ export default function App() {
         cancelCapacitorAlarm(800000 + id).catch(() => {});
         cancelCapacitorAlarm(id).catch(() => {});
         cancelAndroidDebtAlarm(id);
+        cancelInstallmentNotifications(id).catch(() => {});
 
         const updated = installmentDebts.filter((i) => i.id !== id);
         const updatedPayments = payments.filter((p) => !(p.debtId === id && p.type === "installment"));
