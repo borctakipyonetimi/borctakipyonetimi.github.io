@@ -2354,8 +2354,8 @@ export default function App() {
     // Run initial instant check right away on load/resume
     checkScheduledAlarms();
 
-    // 10 saniyelik kontrollü periyot (2 saniyeden 10 saniyeye optimize edildi, bellek ve pil tüketimini korur)
-    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 10000);
+    // 60 saniyelik kontrollü periyot (10 saniyeden 60 saniyeye optimize edildi, idle bellek sızıntılarını ve WebView çökmesini önler)
+    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 60000);
 
     // Instant check when user unlocks their phone / turns on their screen and returns to the app
     const handleVisibilityChange = () => {

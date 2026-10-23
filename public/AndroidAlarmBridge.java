@@ -49,32 +49,37 @@ public class AndroidAlarmBridge {
     }
 
     private void createNotificationChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-            if (notificationManager == null) return;
+        try {
+            if (context == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+                if (notificationManager == null) return;
 
-            // 1. Standart ve Yüksek Öncelikli Sesli/Titreşimli Alarm Kanalı
-            CharSequence name = "Bütçem Pro Alarmları";
-            String description = "Vadesi gelen borç ve ödeme hatırlatıcı sesli alarmlar";
-            int importance = NotificationManager.IMPORTANCE_HIGH;
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-            channel.setDescription(description);
-            channel.enableVibration(true);
-            channel.enableLights(true);
-            notificationManager.createNotificationChannel(channel);
+                // 1. Standart ve Yüksek Öncelikli Sesli/Titreşimli Alarm Kanalı
+                CharSequence name = "Bütçem Pro Alarmları";
+                String description = "Vadesi gelen borç ve ödeme hatırlatıcı sesli alarmlar";
+                int importance = NotificationManager.IMPORTANCE_HIGH;
+                NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+                channel.setDescription(description);
+                channel.enableVibration(true);
+                channel.enableLights(true);
+                notificationManager.createNotificationChannel(channel);
 
-            // 2. Vadesi Geçmiş Borçlar İçin Sessiz Hatırlatma Kanalı
-            CharSequence silentName = "Bütçem Pro Sessiz Hatırlatıcılar";
-            String silentDescription = "Vadesi geçmiş borçlar için sessiz gün içi bildirimler";
-            NotificationChannel silentChannel = new NotificationChannel(
-                    SILENT_CHANNEL_ID,
-                    silentName,
-                    NotificationManager.IMPORTANCE_DEFAULT
-            );
-            silentChannel.setDescription(silentDescription);
-            silentChannel.enableVibration(false);
-            silentChannel.setSound(null, null);
-            notificationManager.createNotificationChannel(silentChannel);
+                // 2. Vadesi Geçmiş Borçlar İçin Sessiz Hatırlatma Kanalı
+                CharSequence silentName = "Bütçem Pro Sessiz Hatırlatıcılar";
+                String silentDescription = "Vadesi geçmiş borçlar için sessiz gün içi bildirimler";
+                NotificationChannel silentChannel = new NotificationChannel(
+                        SILENT_CHANNEL_ID,
+                        silentName,
+                        NotificationManager.IMPORTANCE_DEFAULT
+                );
+                silentChannel.setDescription(silentDescription);
+                silentChannel.enableVibration(false);
+                silentChannel.setSound(null, null);
+                notificationManager.createNotificationChannel(silentChannel);
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
     }
 
@@ -140,6 +145,7 @@ public class AndroidAlarmBridge {
 
     public void setDebtAlarmInternal(int id, String title, long triggerAtMillis, String message, boolean isSilent) {
         try {
+            if (context == null) return;
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (alarmManager == null) return;
 
@@ -169,32 +175,33 @@ public class AndroidAlarmBridge {
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
             }
-        } catch (SecurityException se) {
-            // canScheduleExactAlarms izni verilmediyse güvenli fallback
+        } catch (Throwable se) {
+            // canScheduleExactAlarms izni verilmediyse veya Throwable durumunda güvenli fallback
             try {
-                AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-                if (alarmManager != null) {
-                    Intent intent = new Intent(context, AlarmReceiver.class);
-                    intent.putExtra("id", id);
-                    intent.putExtra("title", title);
-                    intent.putExtra("message", message);
-                    intent.putExtra("silent", isSilent);
-                    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        flags |= PendingIntent.FLAG_IMMUTABLE;
+                if (context != null) {
+                    AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                    if (alarmManager != null) {
+                        Intent intent = new Intent(context, AlarmReceiver.class);
+                        intent.putExtra("id", id);
+                        intent.putExtra("title", title);
+                        intent.putExtra("message", message);
+                        intent.putExtra("silent", isSilent);
+                        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            flags |= PendingIntent.FLAG_IMMUTABLE;
+                        }
+                        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags);
+                        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
                     }
-                    PendingIntent pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags);
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
                 }
-            } catch (Exception ignored) {}
-        } catch (Exception e) {
-            e.printStackTrace();
+            } catch (Throwable ignored) {}
         }
     }
 
     @JavascriptInterface
     public void cancelDebtAlarm(int id) {
         try {
+            if (context == null) return;
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             Intent intent = new Intent(context, AlarmReceiver.class);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
@@ -205,13 +212,23 @@ public class AndroidAlarmBridge {
             if (alarmManager != null) {
                 alarmManager.cancel(pendingIntent);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }
 
     @JavascriptInterface
     public void showNotification(String title, String message) {
+        showNotificationInternal(title, message, false);
+    }
+
+    @JavascriptInterface
+    public void showNotification(String title, String message, int id) {
+        showNotificationInternal(title, message, false);
+    }
+
+    @JavascriptInterface
+    public void showNotification(String title, String message, String id) {
         showNotificationInternal(title, message, false);
     }
 
@@ -271,6 +288,7 @@ public class AndroidAlarmBridge {
 
     private void showNotificationInternal(String title, String message, boolean isSilent) {
         try {
+            if (context == null) return;
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (notificationManager == null) return;
 
@@ -321,7 +339,7 @@ public class AndroidAlarmBridge {
             }
 
             notificationManager.notify(notifId, builder.build());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }
@@ -379,6 +397,7 @@ public class AndroidAlarmBridge {
     @JavascriptInterface
     public void syncAllData(String alarmsJson, String debtsJson, String installmentDebtsJson) {
         try {
+            if (context == null) return;
             long now = System.currentTimeMillis();
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String frequency = prefs.getString(KEY_FREQUENCY, "2");
@@ -531,7 +550,7 @@ public class AndroidAlarmBridge {
                 }
             }
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }

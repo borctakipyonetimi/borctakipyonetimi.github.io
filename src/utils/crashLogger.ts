@@ -94,9 +94,17 @@ export function initGlobalCrashHandler(): void {
   if (isInitialized || typeof window === "undefined") return;
   isInitialized = true;
 
-  // 1. Yakalanmayan Senkron Hatalar (window.onerror)
+  // 1. Yakalanmayan Senkron Hatalar (window.onerror & error listener)
   window.addEventListener("error", (event: ErrorEvent) => {
     try {
+      // KRİTİK: Tarayıcının ve Android WebView'in çökmesini engelle
+      if (typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+      if (typeof (event as any).stopImmediatePropagation === "function") {
+        (event as any).stopImmediatePropagation();
+      }
+
       // Zararsız / rutin script ve tarayıcı eklenti uyarılarını filtrele
       const msg = event.message || "";
       if (
@@ -119,7 +127,28 @@ export function initGlobalCrashHandler(): void {
     } catch (handlerErr) {
       console.warn("[Crash Logger] ErrorEvent işleme uyarısı:", handlerErr);
     }
-  });
+  }, true);
+
+  // Standart window.onerror kalkanı (Android WebView'de return true hatayı yutar)
+  const prevOnError = window.onerror;
+  window.onerror = function (message, source, lineno, colno, error) {
+    try {
+      recordCrash({
+        type: "UNHANDLED_EXCEPTION",
+        message: String(message || "Bilinmeyen hata"),
+        source: typeof source === "string" ? source : undefined,
+        lineno,
+        colno,
+        stack: error?.stack || String(error || ""),
+      });
+    } catch {}
+    if (typeof prevOnError === "function") {
+      try {
+        prevOnError(message, source, lineno, colno, error);
+      } catch {}
+    }
+    return true; // Hatayı yut ve uygulamanın kapanmasını önle
+  };
 
   // 2. Yakalanmayan Asenkron Hatalar (Unhandled Promise Rejections)
   window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
@@ -149,7 +178,7 @@ export function initGlobalCrashHandler(): void {
         }
       }
 
-      // Ağ kesintisi, timeout veya AbortController iptalleri crash değildir
+      // Ağ kesintisi, exact alarm, timeout veya LocalNotifications hataları crash değildir
       const isBenign =
         !message ||
         message === "undefined" ||
@@ -163,6 +192,9 @@ export function initGlobalCrashHandler(): void {
         message.includes("play() failed") ||
         message.includes("NotAllowedError") ||
         message.includes("LocalNotifications") ||
+        message.includes("SCHEDULE_EXACT_ALARM") ||
+        message.includes("USE_EXACT_ALARM") ||
+        message.includes("SecurityException") ||
         message.includes("StatusBar") ||
         message.includes("Capacitor");
 
