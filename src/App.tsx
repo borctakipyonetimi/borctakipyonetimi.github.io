@@ -165,7 +165,8 @@ import {
   saveAndroidNativeBackupFile,
   saveAndroidNativeImageToGallery,
   shareAndroidNativeBackupFile,
-  openAndroidGoogleDrive
+  openAndroidGoogleDrive,
+  IS_NOTIFICATIONS_ISOLATED
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { StatusBar, Style } from "@capacitor/status-bar";
@@ -210,6 +211,9 @@ if (typeof OneSignal !== "undefined" && OneSignal?.Notifications && typeof OneSi
 }
 
 async function OneSignalGuncelBaslat() {
+  if (IS_NOTIFICATIONS_ISOLATED) {
+    return;
+  }
   // OneSignal Capacitor eklentisi yalnızca yerel mobil platformda (Android / iOS) çalışır
   if (!Capacitor.isNativePlatform()) {
     console.info("[OneSignal] Web ortamı aktif; OneSignal Capacitor mobil motoru yerel Android cihazda devreye girer.");
@@ -242,16 +246,6 @@ async function OneSignalGuncelBaslat() {
       return;
     }
     console.error("OneSignal Hatası:", error);
-  }
-}
-
-// Uygulama yüklenir yüklenmez OneSignal bildirim altyapısını hazırla
-if (typeof window !== "undefined") {
-  window.addEventListener('DOMContentLoaded', () => {
-    OneSignalGuncelBaslat();
-  });
-  if (document.readyState !== "loading") {
-    OneSignalGuncelBaslat();
   }
 }
 
@@ -2200,7 +2194,7 @@ export default function App() {
 
       // Synchronize alarms, debts, and installment debts to native Android AlarmManager and SharedPreferences
       try {
-        if (isAndroidAlarmBridgeAvailable()) {
+        if (!IS_NOTIFICATIONS_ISOLATED && isAndroidAlarmBridgeAvailable()) {
           syncAllDebtsAndAlarmsToAndroid(
             alarmsRef.current,
             debtsRef.current,
@@ -3381,57 +3375,9 @@ export default function App() {
             console.warn("Profil resmi okuma uyarısı:", imgErr);
           }
 
-          // Realtime Database canlı senkronizasyon dinleyicisi (onValue)
-          try {
-            const rtdbUnsub = onValue(primaryVerilerRef, (snapshot) => {
-              if (snapshot.exists() && active) {
-                const val = snapshot.val();
-                applyDataPayload(val.veriler ? val.veriler : val);
-                setFirestoreErrorMessage(null);
-              }
-            }, (error: any) => {
-              const snapCode = error?.code || "HATA";
-              const snapMsg = error?.message || String(error);
-              const fullSnapErr = `[${snapCode}] ${snapMsg}`;
-              console.warn("Realtime Database dinleyici hatası:", fullSnapErr);
-              setFirestoreErrorMessage(`Database Dinleyici Hatası: ${fullSnapErr}`);
-            });
-
-            // Profil ismini canlı dinleyici ile izle
-            const profilUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/isim`), (pSnapshot) => {
-              if (pSnapshot.exists() && active) {
-                const pName = String(pSnapshot.val() || "").trim();
-                if (pName) {
-                  setUserProfileName(pName);
-                  localStorage.setItem("user_profile_name", pName);
-                }
-              }
-            });
-
-            // Profil resmini canlı dinleyici ile izle
-            const profilResimUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`), (imgSnapshot) => {
-              if (imgSnapshot.exists() && active) {
-                const imgData = String(imgSnapshot.val() || "").trim();
-                if (imgData) {
-                  setUserAvatar(imgData);
-                  localStorage.setItem("user_profile_avatar", imgData);
-                  const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
-                  localStorage.setItem(`${spaceKey}_avatar`, imgData);
-                }
-              }
-            });
-
-            unsubscribeSnapshot = () => {
-              rtdbUnsub();
-              profilUnsub();
-              profilResimUnsub();
-            };
-          } catch (snapErr: any) {
-            const snapSetupCode = snapErr?.code || "HATA";
-            const snapSetupMsg = snapErr?.message || String(snapErr);
-            console.warn("Database dinleyici kurulum uyarısı:", `[${snapSetupCode}] ${snapSetupMsg}`);
-          }
-
+          // Realtime Database canlı dinleyicisi yerine kontrollü tek seferlik yükleme kullanılır.
+          // Bu sayede saveAllToUser -> onValue -> applyDataPayload sonsuz döngüsü ve WebView çökmesi %100 engellenir.
+          unsubscribeSnapshot = () => {};
         } catch (err: any) {
           const errCode = err?.code || "HATA";
           const errMsg = err?.message || String(err);

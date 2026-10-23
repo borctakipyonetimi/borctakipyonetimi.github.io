@@ -23,7 +23,8 @@ import {
   initCapacitorNotificationChannel,
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
-  cancelCapacitorAlarm
+  cancelCapacitorAlarm,
+  IS_NOTIFICATIONS_ISOLATED
 } from "./androidAlarmBridge";
 import { LocalNotifications, LocalNotificationSchema } from "@capacitor/local-notifications";
 
@@ -314,6 +315,7 @@ export function buildInstallmentNotificationItems(
  * exact: true başarısız olduğunda esnek fallback (exact: false) ile sistemi açık ve stabil tutar.
  */
 async function safeScheduleLocalNotificationsBatch(items: LocalNotificationSchema[]): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   if (!items || items.length === 0) return true;
   if (typeof (LocalNotifications as any)?.schedule !== "function") return false;
 
@@ -364,6 +366,7 @@ async function safeScheduleLocalNotificationsBatch(items: LocalNotificationSchem
  * Belirtilen bildirim ID'lerini OS kuyruğundan 50'şerli güvenli paketlerle siler.
  */
 async function safeCancelLocalNotificationsBatch(ids: number[]): Promise<void> {
+  if (IS_NOTIFICATIONS_ISOLATED) return;
   if (!ids || ids.length === 0) return;
   if (typeof (LocalNotifications as any)?.cancel !== "function") return;
 
@@ -384,6 +387,7 @@ export async function scheduleNotification(
   debt: Partial<Debt>,
   options?: ScheduleNotificationOptions
 ): Promise<number[]> {
+  if (IS_NOTIFICATIONS_ISOLATED) return [];
   try {
     if (!debt) return [];
     const debtId = debt.id || 1;
@@ -431,6 +435,7 @@ export async function scheduleInstallmentNotification(
   inst: Partial<InstallmentDebt>,
   options?: ScheduleNotificationOptions
 ): Promise<number[]> {
+  if (IS_NOTIFICATIONS_ISOLATED) return [];
   try {
     if (!inst) return [];
     const instId = Number(inst.id) || 1;
@@ -473,6 +478,7 @@ export async function scheduleInstallmentNotification(
  * Taksit planına ait alarmları iptal eder
  */
 export async function cancelInstallmentNotifications(installmentId: number | string): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   try {
     const instId = Number(installmentId) || 1;
     return await cancelDebtNotifications(500000 + instId);
@@ -497,6 +503,7 @@ export async function rescheduleAllNotifications(
   installments?: Partial<InstallmentDebt>[],
   options?: ScheduleNotificationOptions
 ): Promise<number> {
+  if (IS_NOTIFICATIONS_ISOLATED) return 0;
   try {
     const allItems: LocalNotificationSchema[] = [];
     const allIdsToCancel: number[] = [];
@@ -596,6 +603,7 @@ export async function rescheduleAllNotifications(
  * Bildirimler kapatıldığında tüm borç ve taksit alarmlarını OS kuyruğundan temizler.
  */
 export async function cancelAllDebtAndInstallmentNotifications(): Promise<void> {
+  if (IS_NOTIFICATIONS_ISOLATED) return;
   try {
     const allIdsToCancel: number[] = [];
     if (typeof window !== "undefined") {
@@ -639,6 +647,7 @@ export async function cancelAllDebtAndInstallmentNotifications(): Promise<void> 
  * hatırlatıcıları (Capacitor, Cordova, AlarmManager) otomatik olarak siler ve iptal eder.
  */
 export async function cancelDebtNotifications(debtId: number | string): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   if (!debtId) return false;
   const numId = typeof debtId === "number" ? Math.abs(debtId) : (parseInt(String(debtId), 10) || 1);
 

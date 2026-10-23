@@ -228,6 +228,7 @@ export async function scheduleCapacitorAlarm(
     [key: string]: any;
   }
 ): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   if (triggerAtMillis <= Date.now()) return false;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
 
@@ -354,6 +355,7 @@ export async function sendInstantCapacitorNotification(
   message: string,
   id?: number
 ): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return false;
   try {
     await initCapacitorNotificationChannel().catch(() => {});
@@ -431,6 +433,7 @@ export async function sendInstantCapacitorNotification(
  * Capacitor LocalNotifications üzerinden alarmı iptal eder.
  */
 export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   try {
     const safeId = Math.abs(Number(id));
     await LocalNotifications.cancel({
@@ -452,6 +455,7 @@ export async function cancelCapacitorAlarm(id: number): Promise<boolean> {
  * Capacitor bildirim tıklama ve alma dinleyicilerini kurar.
  */
 export function setupCapacitorNotificationListeners(onAction?: (notification: any) => void) {
+  if (IS_NOTIFICATIONS_ISOLATED) return;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return;
   try {
     const p1 = LocalNotifications.addListener("localNotificationReceived", (notification) => {
@@ -484,6 +488,7 @@ export function scheduleAndroidDebtAlarm(
   triggerAtMillis: number,
   message?: string
 ): boolean {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   const safeTitle = title.trim() || "Ödeme Hatırlatması ⏰";
   const safeMessage = message?.trim() || `Vadesi gelen borcunuz: ${safeTitle}`;
   
@@ -539,6 +544,7 @@ export function scheduleAndroidDebtAlarm(
  * Belirli bir alarmı Capacitor, Cordova ve Android AlarmManager'dan siler.
  */
 export function cancelAndroidDebtAlarm(id: number): boolean {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   let isCancelled = false;
 
   // 1. Capacitor LocalNotifications
@@ -579,6 +585,7 @@ export function syncAllDebtsAndAlarmsToAndroid(
   debts: any[],
   installmentDebts: any[]
 ): boolean {
+  if (IS_NOTIFICATIONS_ISOLATED) return true;
   try {
     const now = Date.now();
 
@@ -724,6 +731,9 @@ export function syncAllDebtsAndAlarmsToAndroid(
 export function syncAllAlarmsToAndroid(
   alarms: Array<{ id: number; title: string; date?: string; timestamp?: number }>
 ): number {
+  if (IS_NOTIFICATIONS_ISOLATED) {
+    return 0;
+  }
   if (!Array.isArray(alarms) || alarms.length === 0) {
     return 0;
   }
@@ -768,6 +778,7 @@ export function syncAllAlarmsToAndroid(
  * Ekran kapalıyken veya uygulama arka plandayken bildirim test etmek için 5 sn sonra çalan donanım alarmını kurar.
  */
 export function testAndroidBackgroundAlarm(delaySeconds: number = 5): boolean {
+  if (IS_NOTIFICATIONS_ISOLATED) return false;
   try {
     const bridge = getActiveBridge();
     if (bridge && typeof bridge.testDelayedNotification === "function") {

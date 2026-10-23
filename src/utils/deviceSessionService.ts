@@ -200,9 +200,15 @@ export function startDeviceSessionWatcher(
   if (!userId) return () => {};
 
   let isTerminated = false;
+  const startedAt = Date.now();
 
   const checkDeviceMatch = async (activeDeviceId?: string, isUserPremium?: boolean) => {
     if (isTerminated) return;
+
+    // Uygulama ilk açıldığında 3 saniye esneklik payı ver (başlangıç yarışı önleme)
+    if (Date.now() - startedAt < 3000) {
+      return;
+    }
 
     // info.borcodemetakip@gmail.com test hesabı için serbest geliştirici testi (asla oturum sonlandırmaz)
     const currentEmail = (auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
@@ -211,12 +217,14 @@ export function startDeviceSessionWatcher(
     }
 
     // SADECE isPremium: true olan kullanıcılar için tek cihaz kısıtlaması uygulanır
-    if (isUserPremium !== true || !activeDeviceId) {
+    if (isUserPremium !== true || !activeDeviceId || activeDeviceId.trim().length === 0) {
       return;
     }
 
     try {
       const myDeviceId = await getDeviceUuid();
+      if (!myDeviceId || myDeviceId.trim().length === 0) return;
+
       if (activeDeviceId !== myDeviceId) {
         console.warn("[DeviceSession] Eşzamanlı tek cihaz kısıtlaması tetiklendi!", {
           serverActiveDeviceId: activeDeviceId,
