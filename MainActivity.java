@@ -23,29 +23,35 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        webView = new WebView(this);
-        setContentView(webView);
+        try {
+            webView = new WebView(this);
+            setContentView(webView);
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
+            WebSettings settings = webView.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(true);
+            settings.setDatabaseEnabled(true);
+            settings.setAllowFileAccess(true);
+            settings.setAllowContentAccess(true);
+            settings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Donanım Alarm ve Bildirim Köprüsünü WebView'e Bağla ("AndroidAlarm" ismiyle)
-        AndroidAlarmBridge bridge = new AndroidAlarmBridge(this, webView);
-        webView.addJavascriptInterface(bridge, "AndroidAlarm");
-        webView.addJavascriptInterface(bridge, "Android");
+            // Donanım Alarm ve Bildirim Köprüsünü WebView'e Bağla ("AndroidAlarm" ismiyle)
+            AndroidAlarmBridge bridge = new AndroidAlarmBridge(this, webView);
+            webView.addJavascriptInterface(bridge, "AndroidAlarm");
+            webView.addJavascriptInterface(bridge, "Android");
 
-        webView.setWebViewClient(new WebViewClient());
+            webView.setWebViewClient(new WebViewClient());
 
-        // Web Uygulamasının Canlı Sunucu veya Yerel Adresi
-        webView.loadUrl("https://borctakipyonetimi.github.io");
+            // Web Uygulamasının Canlı Sunucu veya Yerel Adresi
+            webView.loadUrl("https://borctakipyonetimi.github.io");
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
 
         // Android 13+ Bildirim İznini İste
-        requestNotificationPermissions();
+        try {
+            requestNotificationPermissions();
+        } catch (Throwable ignored) {}
     }
 
     private void requestNotificationPermissions() {
