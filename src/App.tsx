@@ -165,8 +165,7 @@ import {
   saveAndroidNativeBackupFile,
   saveAndroidNativeImageToGallery,
   shareAndroidNativeBackupFile,
-  openAndroidGoogleDrive,
-  IS_NOTIFICATIONS_ISOLATED
+  openAndroidGoogleDrive
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { StatusBar, Style } from "@capacitor/status-bar";
@@ -211,9 +210,6 @@ if (typeof OneSignal !== "undefined" && OneSignal?.Notifications && typeof OneSi
 }
 
 async function OneSignalGuncelBaslat() {
-  if (IS_NOTIFICATIONS_ISOLATED) {
-    return;
-  }
   // OneSignal Capacitor eklentisi yalnızca yerel mobil platformda (Android / iOS) çalışır
   if (!Capacitor.isNativePlatform()) {
     console.info("[OneSignal] Web ortamı aktif; OneSignal Capacitor mobil motoru yerel Android cihazda devreye girer.");
@@ -246,6 +242,16 @@ async function OneSignalGuncelBaslat() {
       return;
     }
     console.error("OneSignal Hatası:", error);
+  }
+}
+
+// Uygulama yüklenir yüklenmez OneSignal bildirim altyapısını hazırla
+if (typeof window !== "undefined") {
+  window.addEventListener('DOMContentLoaded', () => {
+    OneSignalGuncelBaslat();
+  });
+  if (document.readyState !== "loading") {
+    OneSignalGuncelBaslat();
   }
 }
 
@@ -1868,14 +1874,12 @@ export default function App() {
       : undefined;
 
     // 3a. Android Doze Modu ve Kilit Ekranı Kesin Uyandırma (Capacitor LocalNotifications)
-    if (!IS_NOTIFICATIONS_ISOLATED) {
-      sendInstantCapacitorNotification(title, officialSmsMessage, fixedNotifId).catch(() => {});
-    }
+    sendInstantCapacitorNotification(title, officialSmsMessage, fixedNotifId).catch(() => {});
 
     // 3b. Native Android WebView Bridge - Direct Drawer & Heads-Up Banner
-    if (!IS_NOTIFICATIONS_ISOLATED && typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
+    if (typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
       try {
-        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage);
+        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage, fixedNotifId);
       } catch (bridgeErr) {
         console.warn("AndroidAlarm.showNotification hatası:", bridgeErr);
       }
@@ -2196,7 +2200,7 @@ export default function App() {
 
       // Synchronize alarms, debts, and installment debts to native Android AlarmManager and SharedPreferences
       try {
-        if (!IS_NOTIFICATIONS_ISOLATED && isAndroidAlarmBridgeAvailable()) {
+        if (isAndroidAlarmBridgeAvailable()) {
           syncAllDebtsAndAlarmsToAndroid(
             alarmsRef.current,
             debtsRef.current,
@@ -3377,9 +3381,57 @@ export default function App() {
             console.warn("Profil resmi okuma uyarısı:", imgErr);
           }
 
-          // Realtime Database canlı dinleyicisi yerine kontrollü tek seferlik yükleme kullanılır.
-          // Bu sayede saveAllToUser -> onValue -> applyDataPayload sonsuz döngüsü ve WebView çökmesi %100 engellenir.
-          unsubscribeSnapshot = () => {};
+          // Realtime Database canlı senkronizasyon dinleyicisi (onValue)
+          try {
+            const rtdbUnsub = onValue(primaryVerilerRef, (snapshot) => {
+              if (snapshot.exists() && active) {
+                const val = snapshot.val();
+                applyDataPayload(val.veriler ? val.veriler : val);
+                setFirestoreErrorMessage(null);
+              }
+            }, (error: any) => {
+              const snapCode = error?.code || "HATA";
+              const snapMsg = error?.message || String(error);
+              const fullSnapErr = `[${snapCode}] ${snapMsg}`;
+              console.warn("Realtime Database dinleyici hatası:", fullSnapErr);
+              setFirestoreErrorMessage(`Database Dinleyici Hatası: ${fullSnapErr}`);
+            });
+
+            // Profil ismini canlı dinleyici ile izle
+            const profilUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/isim`), (pSnapshot) => {
+              if (pSnapshot.exists() && active) {
+                const pName = String(pSnapshot.val() || "").trim();
+                if (pName) {
+                  setUserProfileName(pName);
+                  localStorage.setItem("user_profile_name", pName);
+                }
+              }
+            });
+
+            // Profil resmini canlı dinleyici ile izle
+            const profilResimUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`), (imgSnapshot) => {
+              if (imgSnapshot.exists() && active) {
+                const imgData = String(imgSnapshot.val() || "").trim();
+                if (imgData) {
+                  setUserAvatar(imgData);
+                  localStorage.setItem("user_profile_avatar", imgData);
+                  const spaceKey = currentUser ? `user_${currentUser}` : "user_anonymous";
+                  localStorage.setItem(`${spaceKey}_avatar`, imgData);
+                }
+              }
+            });
+
+            unsubscribeSnapshot = () => {
+              rtdbUnsub();
+              profilUnsub();
+              profilResimUnsub();
+            };
+          } catch (snapErr: any) {
+            const snapSetupCode = snapErr?.code || "HATA";
+            const snapSetupMsg = snapErr?.message || String(snapErr);
+            console.warn("Database dinleyici kurulum uyarısı:", `[${snapSetupCode}] ${snapSetupMsg}`);
+          }
+
         } catch (err: any) {
           const errCode = err?.code || "HATA";
           const errMsg = err?.message || String(err);
@@ -3823,35 +3875,20 @@ export default function App() {
   // --- OS DÜZEYİNDE YEREL BİLDİRİM VE EXACT ALARM SENKRONİZASYONU ---
   // Uygulama kapalıyken veya telefon kilitliyken dahi bildirimlerin tam saatinde çalışması için
   // tüm borç ve taksit takvimini cihazın yerel bildirim kuyruğuna (OS Level Local Notification Queue) kaydeder.
-  const debtsSchedulerFingerprint = useMemo(() => {
-    try {
-      const dPart = (debts || []).map((d) => `${d.id}_${d.amount}_${d.paid}_${d.dueDate}`).join("|");
-      const iPart = (installmentDebts || []).map((i) => `${i.id}_${i.paidInstallmentCount}_${i.firstDueDate}`).join("|");
-      return `${pushNotificationsEnabled ? "1" : "0"}#${pushFrequency || "2"}#${dPart}#${iPart}`;
-    } catch {
-      return "";
-    }
-  }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);
-
   useEffect(() => {
     if (!pushNotificationsEnabled) {
       cancelAllDebtAndInstallmentNotifications().catch(() => {});
       return;
     }
 
-    let isMounted = true;
     const timer = setTimeout(() => {
-      if (!isMounted) return;
-      rescheduleAllNotifications(debtsRef.current, installmentDebtsRef.current, { frequency: pushFrequency }).catch((err) => {
-        console.warn("[App.tsx] rescheduleAllNotifications hatası güvenle yakalandı:", err);
+      rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency }).catch((err) => {
+        console.warn("[App.tsx] rescheduleAllNotifications hatası:", err);
       });
-    }, 1500); // 1.5 sn debounce ile uygulama açılışında 60 FPS akıcılığı korur, donmayı ve çökmeyi önler
+    }, 800);
 
-    return () => {
-      isMounted = false;
-      clearTimeout(timer);
-    };
-  }, [debtsSchedulerFingerprint]);
+    return () => clearTimeout(timer);
+  }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);
 
   // General persistent workspace saver (local + Firebase Firestore sync)
   const saveAllToUser = async (
@@ -5791,6 +5828,7 @@ export default function App() {
     if (alarmDateObj.getTime() > Date.now()) {
       const safeAlarmId = Math.abs(Number(newA.debtId || newA.id));
       try {
+        initCapacitorNotificationChannel().catch(() => {});
         const dateFormatted = alarmDateObj.toLocaleString("tr-TR", {
           year: "numeric",
           month: "2-digit",
@@ -5801,21 +5839,40 @@ export default function App() {
         const richTitle = "🚨 Bütçem Pro: Ödeme Hatırlatıcı!";
         const richBody = `💰 Borç: ${titleString || "Ödeme"}\n📅 Son Tarih: ${dateFormatted}\n⚠️ Durum: Gecikmemesi için lütfen kontrol edin!`;
 
-        scheduleCapacitorAlarm(
-          safeAlarmId,
-          richTitle,
-          alarmDateObj.getTime(),
-          richBody,
-          {
-            borcAdi: titleString || "Ödeme",
-            tarih: dateFormatted,
-            durum: "Gecikmemesi için lütfen kontrol edin!"
-          }
-        ).catch((err) => {
-          console.warn("[App.tsx] scheduleCapacitorAlarm error safely caught:", err);
+        LocalNotifications.schedule({
+          notifications: [
+            {
+              id: safeAlarmId,
+              title: richTitle,
+              body: richBody,
+              largeBody: richBody,
+              summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
+              schedule: {
+                at: new Date(alarmDateObj.getTime()),
+                allowWhileIdle: true,
+                exact: true,
+                allowInExactlyDatatype: true
+              },
+              channelId: "debt_reminders",
+              smallIcon: 'ic_stat_notify',
+              largeIcon: 'ic_stat_notify_large',
+              iconColor: '#10B981',
+              autoCancel: true,
+              android: {
+                summaryText: 'Ödeme detaylarınızı kontrol etmeyi unutmayın.',
+                priority: 'max',
+                visibility: 'public'
+              },
+              extra: { id: safeAlarmId, debtId: newA.debtId, title: titleString, body: richBody }
+            } as any
+          ]
+        }).then(() => {
+          console.log(`[Capacitor LocalNotifications] Alarm #${safeAlarmId} zamanlandı.`);
+        }).catch((cErr) => {
+          console.warn("[Capacitor LocalNotifications] schedule error:", cErr);
         });
       } catch (capErr) {
-        console.warn("[Capacitor LocalNotifications] call error safely caught:", capErr);
+        console.warn("[Capacitor LocalNotifications] call error:", capErr);
       }
 
       // Also schedule alarm into native Android AlarmManager bridge

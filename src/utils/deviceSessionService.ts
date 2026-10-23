@@ -200,15 +200,9 @@ export function startDeviceSessionWatcher(
   if (!userId) return () => {};
 
   let isTerminated = false;
-  const startedAt = Date.now();
 
   const checkDeviceMatch = async (activeDeviceId?: string, isUserPremium?: boolean) => {
     if (isTerminated) return;
-
-    // Uygulama ilk açıldığında 3 saniye esneklik payı ver (başlangıç yarışı önleme)
-    if (Date.now() - startedAt < 3000) {
-      return;
-    }
 
     // info.borcodemetakip@gmail.com test hesabı için serbest geliştirici testi (asla oturum sonlandırmaz)
     const currentEmail = (auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase();
@@ -217,26 +211,35 @@ export function startDeviceSessionWatcher(
     }
 
     // SADECE isPremium: true olan kullanıcılar için tek cihaz kısıtlaması uygulanır
-    if (isUserPremium !== true || !activeDeviceId || activeDeviceId.trim().length === 0) {
+    if (isUserPremium !== true || !activeDeviceId) {
       return;
     }
 
     try {
       const myDeviceId = await getDeviceUuid();
-      if (!myDeviceId || myDeviceId.trim().length === 0) return;
-
-      // Eğer Firestore'daki activeDeviceId bu cihazla eşleşmiyorsa, bu cihazı aktif cihaz olarak kaydet (Oturumu ASLA kapatma)
-      if (activeDeviceId !== myDeviceId && auth.currentUser) {
-        console.log("[DeviceSession] Bu cihaz aktif oturum cihazı olarak güncelleniyor:", {
-          myDeviceId,
-          previousActiveDeviceId: activeDeviceId
+      if (activeDeviceId !== myDeviceId) {
+        console.warn("[DeviceSession] Eşzamanlı tek cihaz kısıtlaması tetiklendi!", {
+          serverActiveDeviceId: activeDeviceId,
+          currentDeviceUuid: myDeviceId
         });
+        isTerminated = true;
+
+        // Oturumu güvenli şekilde kapat
         try {
-          await setDoc(userDocRef, { activeDeviceId: myDeviceId, lastActiveAt: new Date().toISOString() }, { merge: true });
-        } catch (_) {}
+          await signOut(auth);
+        } catch (e) {
+          console.warn("[DeviceSession] signOut hatası:", e);
+        }
+
+        // Yerel önbelleği temizle
+        localStorage.removeItem("currentUser");
+        localStorage.setItem("is_premium", "false");
+        localStorage.removeItem("premium_source");
+
+        onTerminated("Oturumunuz başka bir cihazda açıldığı için sonlandırıldı.");
       }
     } catch (err) {
-      console.warn("[DeviceSession] Cihaz eşleştirme kontrol uyarısı:", err);
+      console.error("[DeviceSession] Cihaz eşleştirme kontrol hatası:", err);
     }
   };
 

@@ -45,10 +45,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
     } catch (_) {}
   }
 
-  private handleAttemptRecovery = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
-  };
-
   private handleRestart = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
     window.location.reload();
@@ -84,7 +80,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 Uygulama Güvenle Kurtarıldı
               </h1>
               <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-sm mx-auto">
-                Beklenmeyen bir arayüz hatası engellendi. Finansal verileriniz ve bütçe kayıtlarınız güvendedir ve kaybolmamıştır.
+                Beklenmeyen bir tarayıcı arayüz hatası engellendi. Finansal verileriniz ve bütçe kayıtlarınız güvendedir ve kaybolmamıştır.
               </p>
             </div>
 
@@ -101,17 +97,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <div className="space-y-2.5 pt-2">
               <button
                 type="button"
-                onClick={this.handleAttemptRecovery}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Devam Etmeyi Dene (Kurtarma Modu)</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={this.handleRestart}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 via-indigo-650 to-purple-600 hover:opacity-95 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 via-indigo-650 to-purple-600 hover:opacity-95 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Uygulamayı Yeniden Başlat</span>
