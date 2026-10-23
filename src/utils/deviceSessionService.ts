@@ -225,29 +225,18 @@ export function startDeviceSessionWatcher(
       const myDeviceId = await getDeviceUuid();
       if (!myDeviceId || myDeviceId.trim().length === 0) return;
 
-      if (activeDeviceId !== myDeviceId) {
-        console.warn("[DeviceSession] Eşzamanlı tek cihaz kısıtlaması tetiklendi!", {
-          serverActiveDeviceId: activeDeviceId,
-          currentDeviceUuid: myDeviceId
+      // Eğer Firestore'daki activeDeviceId bu cihazla eşleşmiyorsa, bu cihazı aktif cihaz olarak kaydet (Oturumu ASLA kapatma)
+      if (activeDeviceId !== myDeviceId && auth.currentUser) {
+        console.log("[DeviceSession] Bu cihaz aktif oturum cihazı olarak güncelleniyor:", {
+          myDeviceId,
+          previousActiveDeviceId: activeDeviceId
         });
-        isTerminated = true;
-
-        // Oturumu güvenli şekilde kapat
         try {
-          await signOut(auth);
-        } catch (e) {
-          console.warn("[DeviceSession] signOut hatası:", e);
-        }
-
-        // Yerel önbelleği temizle
-        localStorage.removeItem("currentUser");
-        localStorage.setItem("is_premium", "false");
-        localStorage.removeItem("premium_source");
-
-        onTerminated("Oturumunuz başka bir cihazda açıldığı için sonlandırıldı.");
+          await setDoc(userDocRef, { activeDeviceId: myDeviceId, lastActiveAt: new Date().toISOString() }, { merge: true });
+        } catch (_) {}
       }
     } catch (err) {
-      console.error("[DeviceSession] Cihaz eşleştirme kontrol hatası:", err);
+      console.warn("[DeviceSession] Cihaz eşleştirme kontrol uyarısı:", err);
     }
   };
 

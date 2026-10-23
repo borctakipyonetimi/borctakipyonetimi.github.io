@@ -68,19 +68,13 @@ export async function BiyometrikDogrulamaYap(): Promise<boolean> {
         });
         if (authResult && authResult.verified) {
           console.log("Giriş Başarılı!");
-          // Burada ana ekranı görünür yap
           return true;
         } else {
-          try {
-            (navigator as any).app?.exitApp?.();
-          } catch (_) {}
+          console.warn("[BiometricAuth] Doğrulama iptal edildi veya başarısız.");
           return false;
         }
       } catch (error) {
-        // Doğrulama başarısız olursa uygulamayı kapat veya kilitli ekranda tut
-        try {
-          (navigator as any).app?.exitApp?.();
-        } catch (_) {}
+        console.warn("[BiometricAuth] Biyometrik doğrulama hatası yakalandı:", error);
         return false;
       }
     }

@@ -222,6 +222,16 @@ public class AndroidAlarmBridge {
         showNotificationInternal(title, message, false);
     }
 
+    @JavascriptInterface
+    public void showNotification(String title, String message, int id) {
+        showNotificationInternal(title, message, false);
+    }
+
+    @JavascriptInterface
+    public void showNotification(String title, String message, String id) {
+        showNotificationInternal(title, message, false);
+    }
+
     public static Bitmap getNotificationLargeIcon(Context context, String title, String message) {
         if (context == null) return null;
         try {
@@ -278,6 +288,7 @@ public class AndroidAlarmBridge {
 
     private void showNotificationInternal(String title, String message, boolean isSilent) {
         try {
+            if (context == null) return;
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (notificationManager == null) return;
 
@@ -328,7 +339,7 @@ public class AndroidAlarmBridge {
             }
 
             notificationManager.notify(notifId, builder.build());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }

@@ -1868,12 +1868,14 @@ export default function App() {
       : undefined;
 
     // 3a. Android Doze Modu ve Kilit Ekranı Kesin Uyandırma (Capacitor LocalNotifications)
-    sendInstantCapacitorNotification(title, officialSmsMessage, fixedNotifId).catch(() => {});
+    if (!IS_NOTIFICATIONS_ISOLATED) {
+      sendInstantCapacitorNotification(title, officialSmsMessage, fixedNotifId).catch(() => {});
+    }
 
     // 3b. Native Android WebView Bridge - Direct Drawer & Heads-Up Banner
-    if (typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
+    if (!IS_NOTIFICATIONS_ISOLATED && typeof window !== "undefined" && (window as any).AndroidAlarm && typeof (window as any).AndroidAlarm.showNotification === "function") {
       try {
-        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage, fixedNotifId);
+        (window as any).AndroidAlarm.showNotification(title, officialSmsMessage);
       } catch (bridgeErr) {
         console.warn("AndroidAlarm.showNotification hatası:", bridgeErr);
       }
