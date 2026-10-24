@@ -159,29 +159,30 @@ export function getReportPresetDates(
 
 /**
  * Kullanıcının arayüzden seçtiği bildirim periyodu saatini milisaniye cinsinden hesaplar.
- * - "2" (Günde 2 Kez) = 12 saat = 43.200.000 milisaniye (12 Saat Kilidi)
- * - "1" (Günde 1 Kez) = 24 saat = 86.400.000 milisaniye
- * - "3" (Günde 3 Kez) = 8 saat = 28.800.000 milisaniye
- * - "4" (Günde 4 Kez) = 6 saat = 21.600.000 milisaniye
- * - "hourly" (2 Saatte Bir) = 2 saat = 7.200.000 milisaniye
+ * Planlanmış bildirim saatleri arasındaki asgari güvenlik aralığını belirler:
+ * - "2" (Günde 2 Kez: 09:00 ve 18:00) -> 5 saat (09:00 ile 18:00 arasındaki 9 saati engellemez)
+ * - "1" (Günde 1 Kez: 09:00) -> 18 saat
+ * - "3" (Günde 3 Kez: 09:00, 13:00, 19:00) -> 3 saat
+ * - "4" (Günde 4 Kez: 09:00, 13:00, 18:00, 21:00) -> 2 saat
+ * - "hourly" (2 Saatte Bir) -> 75 dakika (1 saat 15 dk)
  */
 export function getNotificationPeriodMs(frequency: string | number | undefined | null): number {
-  if (!frequency) return 12 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez = 12 saat = 43.200.000 ms
+  if (!frequency) return 5 * 60 * 60 * 1000; // Varsayılan: Günde 2 Kez -> 5 saat
   const str = String(frequency).trim().toLowerCase();
-  if (str === "2") return 12 * 60 * 60 * 1000; // 12 saat = 43.200.000 ms (12 Saat Kilidi)
-  if (str === "1") return 24 * 60 * 60 * 1000; // 24 saat = 86.400.000 ms
-  if (str === "3") return 8 * 60 * 60 * 1000;  // 8 saat = 28.800.000 ms
-  if (str === "4") return 6 * 60 * 60 * 1000;  // 6 saat = 21.600.000 ms
-  if (str === "hourly") return 2 * 60 * 60 * 1000; // 2 saat = 7.200.000 ms
+  if (str === "2") return 5 * 60 * 60 * 1000;
+  if (str === "1") return 18 * 60 * 60 * 1000;
+  if (str === "3") return 3 * 60 * 60 * 1000;
+  if (str === "4") return 2 * 60 * 60 * 1000;
+  if (str === "hourly") return 75 * 60 * 1000;
 
   const num = parseFloat(str);
   if (!isNaN(num) && num > 0) {
-    if (num === 2) return 12 * 60 * 60 * 1000;
-    if (num === 1) return 24 * 60 * 60 * 1000;
-    if (num === 3) return 8 * 60 * 60 * 1000;
-    if (num === 4) return 6 * 60 * 60 * 1000;
-    return num * 60 * 60 * 1000;
+    if (num === 2) return 5 * 60 * 60 * 1000;
+    if (num === 1) return 18 * 60 * 60 * 1000;
+    if (num === 3) return 3 * 60 * 60 * 1000;
+    if (num === 4) return 2 * 60 * 60 * 1000;
+    return Math.max(1, num) * 60 * 60 * 1000;
   }
-  return 12 * 60 * 60 * 1000; // Varsayılan 12 saat
+  return 5 * 60 * 60 * 1000;
 }
 

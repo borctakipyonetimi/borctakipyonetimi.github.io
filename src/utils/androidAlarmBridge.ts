@@ -21,6 +21,7 @@ export interface AndroidBridgeInterface {
   syncAllData?: (alarmsJson: string, debtsJson: string, installmentDebtsJson: string) => void;
   testDelayedNotification?: (delaySeconds: number) => void;
   showToast?: (message: string) => void;
+  setNotificationFrequency?: (frequency: string) => void;
   saveBackupFile?: (fileName: string, jsonContent: string) => boolean | void;
   saveFile?: (fileName: string, content: string, mimeType?: string) => boolean | void;
   saveImageToGallery?: (fileName: string, base64Data: string, mimeType?: string) => boolean | void;
@@ -108,11 +109,24 @@ export function isAndroidAlarmBridgeAvailable(): boolean {
 }
 
 /**
- * KRİTİK GÜVENLİK KALKANI:
- * Bildirim planlayıcı ve zamanlayıcı servislerini ana akıştan izole eder.
- * Uygulama açılışında native plugin ve AlarmManager çökmelerini %100 engeller.
+ * BİLDİRİM VE ALARM SERVİSİ AKTİF:
+ * Bildirim planlayıcı ve zamanlayıcı servisleri güvenli try/catch korumasıyla devrededir.
  */
-export const IS_NOTIFICATIONS_ISOLATED = true;
+export const IS_NOTIFICATIONS_ISOLATED = false;
+
+/**
+ * Android WebView köprüsüne kullanıcının seçtiği bildirim sıklığını bildirir ("1", "2", "3", "4", "hourly").
+ */
+export function setAndroidNotificationFrequency(frequency: string): void {
+  try {
+    const bridge = getActiveBridge();
+    if (bridge && typeof bridge.setNotificationFrequency === "function") {
+      bridge.setNotificationFrequency(frequency);
+    }
+  } catch (err) {
+    console.warn("[AndroidAlarmBridge] setNotificationFrequency hatası:", err);
+  }
+}
 
 let isRequestingPermission = false;
 

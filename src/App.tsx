@@ -159,6 +159,7 @@ import {
   parseAlarmDateToMillis,
   syncAllAlarmsToAndroid,
   syncAllDebtsAndAlarmsToAndroid,
+  setAndroidNotificationFrequency,
   testAndroidBackgroundAlarm,
   isAndroidAlarmBridgeAvailable,
   saveAndroidNativeFile,
@@ -1310,6 +1311,7 @@ export default function App() {
   const handleSetPushFrequency = (val: string) => {
     setPushFrequency(val);
     localStorage.setItem("pushNotificationFrequency", val);
+    setAndroidNotificationFrequency(val);
 
     if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
@@ -2354,8 +2356,8 @@ export default function App() {
     // Run initial instant check right away on load/resume
     checkScheduledAlarms();
 
-    // 60 saniyelik kontrollü periyot (10 saniyeden 60 saniyeye optimize edildi, idle bellek sızıntılarını ve WebView çökmesini önler)
-    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 60000);
+    // 30 saniyelik optimize periyot (belleği ve CPU'yu korur, alarmların tam zamanında çalmasını sağlar)
+    const checkAlarmsInterval = setInterval(checkScheduledAlarms, 30000);
 
     // Instant check when user unlocks their phone / turns on their screen and returns to the app
     const handleVisibilityChange = () => {
@@ -3669,18 +3671,7 @@ export default function App() {
         // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
         if (currentHour < 8 || currentHour >= 23) return;
 
-        // --- 12 SAAT KİLİDİ: 'Günde 2 kez' Bildirim Ayarı İçin Kesin Zaman Damgası Engeli ---
-        const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // 43.200.000 milisaniye
-        const isTwiceDaily = !pushFrequency || pushFrequency === "2";
-        const lastTwiceDailyTime = Number(localStorage.getItem("sonGundeIkiBildirimZamani") || 0);
-
-        if (isTwiceDaily && lastTwiceDailyTime > 0 && (nowMs - lastTwiceDailyTime) < TWELVE_HOURS_MS) {
-          const remainingMinutes = Math.ceil((TWELVE_HOURS_MS - (nowMs - lastTwiceDailyTime)) / 60000);
-          console.log(`[12 Saat Kilidi] 'Günde 2 kez' bildirim aralığı henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim gönderme ertelendi.`);
-          return;
-        }
-
-        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Saate Sabitle ---
+        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Sıklığa Göre Ayarla ---
         const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
         const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
 
@@ -3869,7 +3860,17 @@ export default function App() {
       checkAndTriggerPushReminders().catch(() => {});
     }, 5 * 60 * 1000); // 5 dakikada bir kontrol (arka plan bellek ve donma koruması)
 
-    return () => clearInterval(interval);
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        checkAndTriggerPushReminders().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [pushNotificationsEnabled, pushFrequency]);
 
   // --- OS DÜZEYİNDE YEREL BİLDİRİM VE EXACT ALARM SENKRONİZASYONU ---
