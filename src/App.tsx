@@ -2233,19 +2233,10 @@ export default function App() {
     window.addEventListener("blur", handleBlur);
     window.addEventListener("beforeunload", handleBlur);
 
-    // Heartbeat sync every 60 seconds (only when app is in foreground to prevent background memory leaks)
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      syncStateWithSW().catch(() => {});
-    }, 60000);
-
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("beforeunload", handleBlur);
-      clearInterval(interval);
     };
   }, [alarms, debts, installmentDebts, currentUser]);
 
@@ -3886,7 +3877,7 @@ export default function App() {
       rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency }).catch((err) => {
         console.warn("[App.tsx] rescheduleAllNotifications hatası:", err);
       });
-    }, 800);
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, [debts, installmentDebts, pushFrequency, pushNotificationsEnabled]);

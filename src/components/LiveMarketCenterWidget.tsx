@@ -37,8 +37,9 @@ export const LiveMarketCenterWidget: React.FC<LiveMarketCenterWidgetProps> = ({
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setLocalCountdown((prev) => (prev <= 1 ? 60 : prev - 1));
-    }, 1000);
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      setLocalCountdown((prev) => (prev <= 5 ? 60 : prev - 5));
+    }, 5000);
     return () => clearInterval(timer);
   }, []);
 

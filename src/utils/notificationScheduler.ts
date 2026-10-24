@@ -487,16 +487,16 @@ export async function cancelInstallmentNotifications(installmentId: number | str
   }
 }
 
+let isReschedulingInProgress = false;
+
 /**
  * TÜM AKTİF BORÇ VE TAKSİTLERİ CİHAZIN OS YEREL BİLDİRİM KUYRUĞUNA (LOCAL NOTIFICATION QUEUE) KAYDEDER.
  * 
  * Bu fonksiyon çağrıldığında:
  *  1. Önceden kurulmuş olan tüm borç/taksit alarmları OS kuyruğundan temizlenir.
- *  2. Aktif olan tüm borç ve taksitler için seçilen sıklığa (Günde 1, 2, 3, 4 kez veya 2 saatte bir)
- *     göre ileriye dönük tam takvim oluşturulur.
- *  3. Bütün bildirimler 50'şerli güvenli paketlerle ve Exact Alarm Fallback korumasıyla OS kuyruğuna yazılır.
- *  4. Böylece uygulama kapalı veya arka planda olsa dahi Android AlarmManager zamanı geldiğinde
- *     bildirimi ekrana düşürür, izin eksikse çökmez.
+ *  2. Aktif olan tüm borç ve taksitler için seçilen sıklığa göre takvim oluşturulur.
+ *  3. Sistem ve bellek güvenliği için en yakın vadesi gelen maksimum 40 alarm güvenli paketlerle kaydedilir.
+ *  4. Çiftleme ve Binder bellek taşmasını önlemek için asenkron kilit (mutex) kullanılır.
  */
 export async function rescheduleAllNotifications(
   debts: Partial<Debt>[],
@@ -504,6 +504,12 @@ export async function rescheduleAllNotifications(
   options?: ScheduleNotificationOptions
 ): Promise<number> {
   if (IS_NOTIFICATIONS_ISOLATED) return 0;
+  if (isReschedulingInProgress) {
+    console.log("[notificationScheduler] Planlama işlemi zaten devam ediyor, mükerrer çağrı engellendi.");
+    return 0;
+  }
+
+  isReschedulingInProgress = true;
   try {
     const allItems: LocalNotificationSchema[] = [];
     const allIdsToCancel: number[] = [];
@@ -564,22 +570,20 @@ export async function rescheduleAllNotifications(
 
     if (allItems.length === 0) return 0;
 
-    // 5. Bildirim kanalını hazırla
+    // 5. Bellek ve Android Binder limiti koruması: En yakın vadesi gelen ilk 40 alarmı güvenle sınırla
+    allItems.sort((a, b) => {
+      const timeA = (a.schedule?.at as Date)?.getTime?.() || 0;
+      const timeB = (b.schedule?.at as Date)?.getTime?.() || 0;
+      return timeA - timeB;
+    });
+    const boundedItems = allItems.slice(0, 40);
+
+    // 6. Bildirim kanalını hazırla
     await initCapacitorNotificationChannel().catch(() => {});
 
-    // 6. Cihazın yerel bildirim kuyruğuna (OS Level Queue) 50'şerli güvenli paketlerle ve Exact Fallback ile kaydet
-    await safeScheduleLocalNotificationsBatch(allItems);
-    console.log(`[notificationScheduler] Toplam ${allItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
-
-    // 7. Android native köprüsünü de senkronize et
-    allItems.forEach((item) => {
-      try {
-        const at = (item.schedule?.at as Date)?.getTime?.() || 0;
-        if (at > 0) {
-          scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
-        }
-      } catch {}
-    });
+    // 7. Cihazın yerel bildirim kuyruğuna (OS Level Queue) güvenli paketlerle ve Exact Fallback ile kaydet
+    await safeScheduleLocalNotificationsBatch(boundedItems);
+    console.log(`[notificationScheduler] Toplam ${boundedItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
 
     // 8. ID'leri sakla
     if (typeof window !== "undefined") {
@@ -588,14 +592,16 @@ export async function rescheduleAllNotifications(
           localStorage.setItem(getStorageKey(debtId), JSON.stringify(ids));
         });
         localStorage.setItem("last_os_notifications_sync_time", String(Date.now()));
-        localStorage.setItem("last_os_notifications_count", String(allItems.length));
+        localStorage.setItem("last_os_notifications_count", String(boundedItems.length));
       } catch {}
     }
 
-    return allItems.length;
+    return boundedItems.length;
   } catch (err) {
     console.warn("[notificationScheduler] rescheduleAllNotifications safe catch:", err);
     return 0;
+  } finally {
+    isReschedulingInProgress = false;
   }
 }
 
