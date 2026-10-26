@@ -83,6 +83,7 @@ import {
   Play,
   Pause,
   ChevronRight,
+  ChevronDown,
   CheckCircle2,
   User,
   Pencil,
@@ -319,6 +320,21 @@ export default function App() {
   // Navigation & Page routing state
   const [activeTab, setActiveTab] = useState("overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Sol Menü Akordiyon Kategori Durumu (Varsayılan olarak Genel Bakış / Takip açık)
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
+    tracking: true,
+    finance: false,
+    pro_tools: false,
+    backup: false,
+    settings_support: false
+  });
+
+  const toggleCategory = useCallback((categoryId: string) => {
+    setOpenCategories((prev) => ({
+      ...prev,
+      [categoryId]: !prev[categoryId]
+    }));
+  }, []);
   const [contactSyncTrigger, setContactSyncTrigger] = useState(0);
   const [language, setLanguage] = useState<"tr" | "en">("tr");
 
@@ -7251,26 +7267,76 @@ export default function App() {
     return () => window.removeEventListener("nav-to-ai", handleNavToAi);
   }, []);
 
-  // Navigation target mappings
-  const sidebarItems = [
-    { id: "overview", label: "GENEL BAKIŞ", icon: LayoutDashboard },
-    { id: "monthly", label: "AYLIK TAKİP", icon: Calendar },
-    { id: "yearly", label: "YILLIK TAKİP", icon: Activity },
-    { id: "debts", label: "BORÇ LİSTESİ", icon: Coins },
-    { id: "contacts", label: "KİŞİ ALACAK/VERECEK", icon: Users, isPro: true },
-    { id: "income", label: "GELİRLER", icon: Wallet },
-    { id: "expenses", label: "GİDERLER", icon: ShoppingCart },
-    { id: "installments", label: "TAKSİTLİ BORÇLAR", icon: Calendar },
-    { id: "gplay_enhancements", label: "PRO ÖZELLİKLER", icon: Sparkles, isPro: true },
-    { id: "notifications", label: "BİLDİRİM AYARLARI", icon: Bell, isPro: true },
-    { id: "aiStrategy", label: "AKILLI ASİSTAN (AI)", icon: Sparkles, isPro: true },
-    { id: "financialTools", label: "FİNANSAL ANALİZ", icon: TrendingUp, isPro: true },
-    { id: "settings", label: "GÜVENLİK VE AYARLAR", icon: Settings },
-    { id: "faq", label: "SIK SORULAN SORULAR", icon: HelpCircle },
-    { id: "feedback", label: "GERİ BİLDİRİM", icon: MessageSquare },
-    { id: "about", label: "HAKKINDA", icon: Star },
-    { id: "privacy", label: "GİZLİLİK POLİTİKASI", icon: Shield }
-  ];
+  // Navigation target mappings - Akordiyon Kategori Yapısı
+  const sidebarCategories = useMemo(() => [
+    {
+      id: "tracking",
+      label: "Ana Menü & Takip",
+      icon: LayoutDashboard,
+      color: "indigo",
+      items: [
+        { id: "overview", label: "GENEL BAKIŞ", icon: LayoutDashboard },
+        { id: "monthly", label: "AYLIK TAKİP", icon: Calendar },
+        { id: "yearly", label: "YILLIK TAKİP", icon: Activity }
+      ]
+    },
+    {
+      id: "finance",
+      label: "Gelir & Borç Yönetimi",
+      icon: Wallet,
+      color: "emerald",
+      items: [
+        { id: "debts", label: "BORÇ LİSTESİ", icon: Coins },
+        { id: "installments", label: "TAKSİTLİ BORÇLAR", icon: Calendar },
+        { id: "income", label: "GELİRLER", icon: Wallet },
+        { id: "expenses", label: "GİDERLER", icon: ShoppingCart },
+        { id: "contacts", label: "KİŞİ ALACAK/VERECEK", icon: Users, isPro: true }
+      ]
+    },
+    {
+      id: "pro_tools",
+      label: "Akıllı & Pro Araçlar",
+      icon: Sparkles,
+      color: "amber",
+      items: [
+        { id: "aiStrategy", label: "AKILLI ASİSTAN (AI)", icon: Sparkles, isPro: true },
+        { id: "financialTools", label: "FİNANSAL ANALİZ", icon: TrendingUp, isPro: true },
+        { id: "gplay_enhancements", label: "PRO ÖZELLİKLER", icon: Sparkles, isPro: true },
+        { id: "notifications", label: "BİLDİRİM AYARLARI", icon: Bell, isPro: true }
+      ]
+    },
+    {
+      id: "settings_support",
+      label: "Ayarlar & Bilgi",
+      icon: Settings,
+      color: "slate",
+      items: [
+        { id: "settings", label: "GÜVENLİK VE AYARLAR", icon: Settings },
+        { id: "faq", label: "SIK SORULAN SORULAR", icon: HelpCircle },
+        { id: "feedback", label: "GERİ BİLDİRİM", icon: MessageSquare },
+        { id: "about", label: "HAKKINDA", icon: Star },
+        { id: "privacy", label: "GİZLİLİK POLİTİKASI", icon: Shield }
+      ]
+    }
+  ], []);
+
+  // Flat sidebar items list for lookup and backwards compatibility
+  const sidebarItems = useMemo(() => {
+    return sidebarCategories.flatMap(category => category.items);
+  }, [sidebarCategories]);
+
+  // Aktif sayfa değiştikçe kullanıcının bulunduğu kategoriyi açık tut
+  useEffect(() => {
+    const parentCategory = sidebarCategories.find(cat =>
+      cat.items.some(item => item.id === activeTab)
+    );
+    if (parentCategory) {
+      setOpenCategories(prev => {
+        if (prev[parentCategory.id]) return prev;
+        return { ...prev, [parentCategory.id]: true };
+      });
+    }
+  }, [activeTab, sidebarCategories]);
 
   const handleNavClick = (tabId: string) => {
     if (isSidebarOpen) {
@@ -8317,95 +8383,52 @@ export default function App() {
         />
       )}
 
-      {/* Side drawer panel - Açılır Menü */}
+      {/* Side drawer panel - Açılır Akordiyon Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-linear-to-b from-white via-slate-50/95 to-indigo-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col justify-between overflow-y-auto shadow-2xl shadow-indigo-950/15 dark:shadow-black/70 ${
+        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Animated fluid floating vector blobs for premium backdrop depth (only rendered when sidebar is open to conserve performance) */}
-        {isSidebarOpen && (
-          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.08] dark:opacity-[0.14] z-0">
-            <motion.div
-              animate={{
-                x: [0, 24, -14, 0],
-                y: [0, -35, 25, 0],
-                scale: [1, 1.18, 0.92, 1],
-                rotate: [0, 90, 180, 0]
-              }}
-              transition={{
-                duration: 18,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-gradient-to-tr from-indigo-500 to-sky-400 blur-2xl"
-            />
-            <motion.div
-              animate={{
-                x: [0, -28, 18, 0],
-                y: [0, 30, -22, 0],
-                scale: [1, 0.88, 1.12, 1],
-                rotate: [0, -90, -180, 0]
-              }}
-              transition={{
-                duration: 22,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 3
-              }}
-              className="absolute top-1/3 -right-12 w-48 h-48 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 blur-2xl"
-            />
-            <motion.div
-              animate={{
-                y: [0, 50, -35, 0],
-                scale: [0.93, 1.16, 0.93]
-              }}
-              transition={{
-                duration: 25,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="absolute bottom-12 left-6 w-38 h-38 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 blur-2xl"
-            />
-          </div>
-        )}
-
-        <div className="p-4 sm:p-5 space-y-4 relative z-10">
-          {/* Workspace Title & Close Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
-                <img
-                  src={appLogo}
-                  alt="Bütçem Pro"
-                  className="w-full h-full object-contain rounded-xl"
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h2 className="text-sm font-black text-slate-900 dark:text-slate-50 tracking-tight uppercase leading-none truncate">
-                    {language === "tr" ? "Bütçem Pro" : "Budget Pro"}
-                  </h2>
-                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                    v1.0
-                  </span>
-                </div>
-                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                  {language === "tr" ? "Akıllı Finans Asistanı" : "Financial Assistant"}
-                </p>
-              </div>
+        {/* Workspace Title & Close Header (Fixed/Sticky at Top) */}
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
+              <img
+                src={appLogo}
+                alt="Bütçem Pro"
+                className="w-full h-full object-contain rounded-xl"
+              />
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(false)}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition cursor-pointer active:scale-95 border border-slate-200/70 dark:border-slate-700/70 shrink-0"
-              title="Menüyü Kapat"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm font-black text-slate-900 dark:text-slate-50 tracking-tight uppercase leading-none truncate">
+                  {language === "tr" ? "Bütçem Pro" : "Budget Pro"}
+                </h2>
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                  v1.0
+                </span>
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                {language === "tr" ? "Akıllı Finans Asistanı" : "Financial Assistant"}
+              </p>
+            </div>
           </div>
 
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition cursor-pointer active:scale-95 border border-slate-200/70 dark:border-slate-700/70 shrink-0"
+            title="Menüyü Kapat"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Single Scroll Container with Touch Momentum & GPU Acceleration */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain p-3.5 space-y-3.5 scroll-smooth sidebar-scroll-container gpu-scroll-container"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {/* Tema Seçici: Telefona Uyarla (Otomatik) / Aydınlık / Karanlık */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-1">
@@ -8472,17 +8495,17 @@ export default function App() {
           </div>
 
           {/* Local User Login profile area */}
-          <div className="p-3.5 bg-white/90 dark:bg-slate-900/90 rounded-2xl flex flex-col gap-2 relative overflow-hidden border border-slate-200/90 dark:border-indigo-500/20 shadow-xs">
+          <div className="p-3 bg-slate-50/80 dark:bg-slate-900/90 rounded-2xl flex flex-col gap-2 relative overflow-hidden border border-slate-200/90 dark:border-indigo-500/20 shadow-2xs">
             {isQuickLoggingIn ? (
-              <div className="py-6 text-center space-y-3">
-                <span className="w-7 h-7 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin inline-block" />
+              <div className="py-5 text-center space-y-2.5">
+                <span className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin inline-block" />
                 <p className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 animate-pulse">
                   Google Hesabına Bağlanılıyor...
                 </p>
                 <p className="text-[9.5px] text-slate-400 font-medium">Lütfen açılan pencereyi onaylayın...</p>
               </div>
             ) : !currentUser ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70 dark:border-slate-800">
                   <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Shield className="w-3 h-3 text-indigo-500" />
@@ -8503,28 +8526,11 @@ export default function App() {
 
                 {/* E-Posta ile Bulut Giriş & Kayıt Kartı */}
                 <div className="relative group/auth">
-                  <motion.div
-                    animate={{
-                      scale: [1, 1.03, 1],
-                      opacity: [0.4, 0.7, 0.4]
-                    }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 rounded-xl blur-xs pointer-events-none"
-                  />
-
-                  <motion.button
+                  <button
                     type="button"
-                    whileHover={{ scale: 1.02, y: -1 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={handleSidebarDeviceLogin}
-                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border-2 border-amber-400/70 shadow-lg shadow-amber-600/20 transition-all cursor-pointer overflow-hidden text-left"
+                    className="relative w-full py-2.5 px-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-indigo-900 text-white rounded-xl text-[10px] font-black flex items-center justify-between border border-amber-400/70 shadow-md shadow-amber-600/15 transition-all cursor-pointer overflow-hidden text-left active:scale-98"
                   >
-                    <motion.div
-                      animate={{ x: ["-100%", "240%"] }}
-                      transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
-                      className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-amber-300/20 to-transparent skew-x-12 pointer-events-none"
-                    />
-
                     <div className="flex items-center gap-2.5 relative z-10">
                       <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-xs text-amber-300">
                         <Mail className="w-3.5 h-3.5 text-amber-300" />
@@ -8542,7 +8548,7 @@ export default function App() {
                         <span>👑</span> PREMİUM
                       </span>
                     </div>
-                  </motion.button>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -8555,10 +8561,10 @@ export default function App() {
                         src={userAvatar}
                         alt="Profil"
                         referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500 shadow-md block"
+                        className="w-13 h-13 rounded-full object-cover border-2 border-indigo-500 shadow-md block"
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 text-white flex items-center justify-center text-md font-black shadow-md uppercase">
+                      <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 text-white flex items-center justify-center text-sm font-black shadow-md uppercase">
                         {(userProfileName?.trim() || currentUser || "G").substring(0, 2)}
                       </div>
                     )}
@@ -8627,7 +8633,7 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Aktif Profil</p>
                     <button
@@ -8658,7 +8664,7 @@ export default function App() {
                       {isPaidPremium ? (
                         <span
                           onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
-                          className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider animate-pulse cursor-pointer shadow-xs flex items-center gap-0.5"
+                          className="px-1.5 py-0.5 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer shadow-xs flex items-center gap-0.5"
                           title="Abonelik Yönetimi"
                         >
                           PREMIUM 👑
@@ -8730,143 +8736,277 @@ export default function App() {
             )}
           </div>
 
-          {/* Navigation link directories */}
-          <nav className="space-y-1 flex-1 overflow-y-auto pr-1">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isProFeatured = (item as any).isPro;
-              const isActive = activeTab === item.id;
+          {/* Akordiyon Menü Kategorileri */}
+          <nav className="space-y-2.5">
+            {sidebarCategories.map((category) => {
+              const CategoryIcon = category.icon;
+              const isOpen = !!openCategories[category.id];
+              const hasActiveChild = category.items.some((item) => item.id === activeTab);
+
+              // Kategori renkleri ve stilleri
+              const colorStyles: Record<string, { iconBg: string; activeHeader: string; border: string }> = {
+                indigo: {
+                  iconBg: isOpen ? "bg-indigo-600 text-white shadow-xs" : "bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400",
+                  activeHeader: "bg-indigo-50/80 dark:bg-indigo-950/30 text-indigo-950 dark:text-indigo-200",
+                  border: hasActiveChild ? "border-indigo-400/50 dark:border-indigo-700/50 ring-1 ring-indigo-400/20" : "border-slate-200/80 dark:border-slate-800"
+                },
+                emerald: {
+                  iconBg: isOpen ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400",
+                  activeHeader: "bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-950 dark:text-emerald-200",
+                  border: hasActiveChild ? "border-emerald-400/50 dark:border-emerald-700/50 ring-1 ring-emerald-400/20" : "border-slate-200/80 dark:border-slate-800"
+                },
+                amber: {
+                  iconBg: isOpen ? "bg-amber-600 text-white shadow-xs" : "bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400",
+                  activeHeader: "bg-amber-50/80 dark:bg-amber-950/30 text-amber-950 dark:text-amber-200",
+                  border: hasActiveChild ? "border-amber-400/50 dark:border-amber-700/50 ring-1 ring-amber-400/20" : "border-slate-200/80 dark:border-slate-800"
+                },
+                slate: {
+                  iconBg: isOpen ? "bg-slate-700 text-white shadow-xs" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+                  activeHeader: "bg-slate-100/80 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100",
+                  border: hasActiveChild ? "border-slate-400/50 dark:border-slate-600/50 ring-1 ring-slate-400/20" : "border-slate-200/80 dark:border-slate-800"
+                }
+              };
+              const style = colorStyles[category.color] || colorStyles.indigo;
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`group w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-xs leading-normal transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-linear-to-r from-indigo-600 to-indigo-700 text-white font-black shadow-md shadow-indigo-600/25 ring-1 ring-indigo-500/30"
-                      : "text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800/80 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent hover:border-slate-200/70 dark:hover:border-slate-700/60 shadow-none hover:shadow-xs font-bold"
-                  }`}
+                <div
+                  key={category.id}
+                  className={`rounded-2xl border transition-all overflow-hidden bg-white dark:bg-slate-900/70 shadow-2xs ${style.border}`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-950/60 dark:group-hover:text-indigo-400"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
+                  {/* Category Accordion Header Button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(category.id)}
+                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors cursor-pointer select-none ${
+                      isOpen ? style.activeHeader : "hover:bg-slate-50/90 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${style.iconBg}`}>
+                        <CategoryIcon className="w-4 h-4" />
+                      </div>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-black tracking-tight truncate">
+                          {category.label}
+                        </span>
+                        {hasActiveChild && !isOpen && (
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" title="Aktif sayfa bu kategoride" />
+                        )}
+                      </div>
                     </div>
-                    <span className="truncate text-left">{item.label}</span>
-                  </div>
-                  {isProFeatured && (
-                    <motion.span
-                      animate={{ scale: [1, 1.08, 1] }}
-                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest font-mono shrink-0 ml-1.5 ${
-                        isPaidPremium
-                          ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs"
-                          : isTrialActive
-                          ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs"
-                          : item.id === "aiStrategy" && isTemporaryPassActive("ai")
-                          ? "bg-emerald-500 text-white shadow-xs"
-                          : isActive
-                          ? "bg-amber-300 text-slate-950 shadow-xs"
-                          : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.35)]"
-                      }`}
-                    >
-                      {isPaidPremium 
-                        ? "PRO 👑" 
-                        : isTrialActive 
-                        ? `${trialDaysRemaining}G DENEME` 
-                        : item.id === "aiStrategy" && isTemporaryPassActive("ai") 
-                        ? "24S AÇIK" 
-                        : "PRO 🔒"}
-                    </motion.span>
-                  )}
-                </button>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        {category.items.length}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isOpen ? "rotate-180 text-indigo-600 dark:text-indigo-400" : "text-slate-400"
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Collapsible Accordion Items */}
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                        className="overflow-hidden p-1.5 space-y-1 border-t border-slate-200/60 dark:border-slate-800/70 bg-slate-50/40 dark:bg-slate-950/20"
+                      >
+                        {category.items.map((item) => {
+                          const Icon = item.icon;
+                          const isProFeatured = item.isPro;
+                          const isActive = activeTab === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => handleNavClick(item.id)}
+                              className={`group w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs leading-normal transition-all cursor-pointer ${
+                                isActive
+                                  ? "bg-linear-to-r from-indigo-600 to-indigo-700 text-white font-black shadow-md shadow-indigo-600/25 ring-1 ring-indigo-500/30"
+                                  : "text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800/80 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent hover:border-slate-200/70 dark:hover:border-slate-700/60 font-bold"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all shrink-0 ${
+                                    isActive
+                                      ? "bg-white/20 text-white"
+                                      : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-950/60 dark:group-hover:text-indigo-400"
+                                  }`}
+                                >
+                                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                                </div>
+                                <span className="truncate text-left text-[11.5px]">{item.label}</span>
+                              </div>
+                              {isProFeatured && (
+                                <span
+                                  className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[7.5px] font-black tracking-wider font-mono shrink-0 ml-1.5 ${
+                                    isPaidPremium
+                                      ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs"
+                                      : isTrialActive
+                                      ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs"
+                                      : item.id === "aiStrategy" && isTemporaryPassActive("ai")
+                                      ? "bg-emerald-500 text-white shadow-xs"
+                                      : isActive
+                                      ? "bg-amber-300 text-slate-950 shadow-xs"
+                                      : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300"
+                                  }`}
+                                >
+                                  {isPaidPremium 
+                                    ? "PRO 👑" 
+                                    : isTrialActive 
+                                    ? `${trialDaysRemaining}G` 
+                                    : item.id === "aiStrategy" && isTemporaryPassActive("ai") 
+                                    ? "24S" 
+                                    : "PRO 🔒"}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
-          </nav>
-        </div>
 
-        {/* Database backup controllers inside side panel footer */}
-        <div className="p-4 border-t border-slate-200/80 dark:border-slate-800 space-y-2.5 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md relative z-10">
-          <div className="grid grid-cols-2 gap-2 text-[9px] font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                if (!isPremium && !isPassActive("export")) {
-                  openRewardedModal("export", () => handleExportBackup());
-                  return;
-                }
-                handleExportBackup();
-              }}
-              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> DIŞA AKTAR
-              {isPremium ? (
-                <span className="ml-1 text-[7px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>
-              ) : isTemporaryPassActive("export") ? (
-                <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
-              ) : (
-                <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!isPremium && !isPassActive("import")) {
-                  openRewardedModal("import", () => handleImportBackup());
-                  return;
-                }
-                handleImportBackup();
-              }}
-              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs hover:shadow-xs cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> İÇE AKTAR
-              {isPremium ? (
-                <span className="ml-1 text-[7px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>
-              ) : isTemporaryPassActive("import") ? (
-                <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
-              ) : (
-                <span className="ml-1 text-[7px] bg-amber-500 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
-              )}
-            </button>
+            {/* Accordion Category: Yedekleme & Raporlama */}
+            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900/70 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => toggleCategory("backup")}
+                className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors cursor-pointer select-none ${
+                  openCategories.backup
+                    ? "bg-sky-50/80 dark:bg-sky-950/30 text-sky-950 dark:text-sky-200"
+                    : "hover:bg-slate-50/90 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    openCategories.backup
+                      ? "bg-sky-600 text-white shadow-xs"
+                      : "bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400"
+                  }`}>
+                    <Folder className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black tracking-tight truncate">Yedekleme & Raporlar</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    4
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      openCategories.backup ? "rotate-180 text-sky-600 dark:text-sky-400" : "text-slate-400"
+                    }`}
+                  />
+                </div>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {openCategories.backup && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18, ease: "easeInOut" }}
+                    className="overflow-hidden p-2 space-y-2 border-t border-slate-200/60 dark:border-slate-800/70 bg-slate-50/40 dark:bg-slate-950/20"
+                  >
+                    <div className="grid grid-cols-2 gap-1.5 text-[9px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isPremium && !isPassActive("export")) {
+                            openRewardedModal("export", () => handleExportBackup());
+                            return;
+                          }
+                          handleExportBackup();
+                        }}
+                        className="py-2 px-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs cursor-pointer truncate"
+                      >
+                        <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span className="truncate">DIŞA AKTAR</span>
+                        {isPremium ? (
+                          <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                        ) : isTemporaryPassActive("export") ? (
+                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
+                        ) : (
+                          <span className="text-[7px] bg-amber-500 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isPremium && !isPassActive("import")) {
+                            openRewardedModal("import", () => handleImportBackup());
+                            return;
+                          }
+                          handleImportBackup();
+                        }}
+                        className="py-2 px-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition border border-slate-200/70 dark:border-slate-700/70 shadow-2xs cursor-pointer truncate"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="truncate">İÇE AKTAR</span>
+                        {isPremium ? (
+                          <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                        ) : isTemporaryPassActive("import") ? (
+                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
+                        ) : (
+                          <span className="text-[7px] bg-amber-500 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isPremium && !isPassActive("report")) {
+                          openRewardedModal("report", () => {
+                            setCsvStep("filter");
+                            setIsCsvModalOpen(true);
+                          });
+                          return;
+                        }
+                        setCsvStep("filter");
+                        setIsCsvModalOpen(true);
+                      }}
+                      className="w-full py-2 px-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[9.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs cursor-pointer uppercase tracking-tight"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">FİNANSAL RAPORU İNDİR (.CSV)</span>
+                      {isPremium ? (
+                        <span className="text-[7px] bg-amber-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                      ) : isTemporaryPassActive("report") ? (
+                        <span className="text-[7px] bg-emerald-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">24S</span>
+                      ) : (
+                        <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAMLA</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetAllData}
+                      className="w-full py-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-[9px] font-extrabold flex items-center justify-center gap-1 transition-all border border-dashed border-rose-400/40 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>TÜM VERİLERİ SIFIRLA</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </nav>
+
+          {/* Quick Footer inside scroll body */}
+          <div className="pt-2 pb-4 text-center">
+            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
+              Bütçem Pro © {new Date().getFullYear()} • Güvenli & Şifreli
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!isPremium && !isPassActive("report")) {
-                openRewardedModal("report", () => {
-                  setCsvStep("filter");
-                  setIsCsvModalOpen(true);
-                });
-                return;
-              }
-              setCsvStep("filter");
-              setIsCsvModalOpen(true);
-            }}
-            className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm hover:shadow-md cursor-pointer uppercase tracking-tight relative overflow-hidden"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" /> FİNANSAL RAPORU İNDİR (.CSV)
-            {isPremium ? (
-              <span className="ml-1 text-[7px] bg-amber-300 text-slate-950 px-1 py-0.2 rounded font-black font-mono">PRO</span>
-            ) : isTemporaryPassActive("report") ? (
-              <span className="ml-1 text-[7px] bg-emerald-300 text-slate-950 px-1 py-0.2 rounded font-black font-mono">24S AÇIK</span>
-            ) : (
-              <span className="ml-1 text-[7px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded font-black font-mono">REKLAMLA</span>
-            )}
-            {!isPremium && !isPassActive("report") && (
-              <span className="absolute -top-1 -right-4 px-5 py-2 bg-amber-500 text-[7px] text-white font-black transform rotate-12 shadow-sm border border-amber-300/30">PRO</span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={handleResetAllData}
-            className="w-full py-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-[9px] font-extrabold flex items-center justify-center gap-1 transition-all border border-dashed border-rose-400/40 cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> TÜM VERİLERİ SIFIRLA
-          </button>
         </div>
       </aside>
 

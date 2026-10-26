@@ -20,14 +20,28 @@
 
 /* Virtual Scroll & GPU Accelerated Scrollable Containers (60/120 FPS akıcı kaydırma) */
 .virtual-scroll-container,
-.gpu-scroll-container {
-  will-change: transform;
+.gpu-scroll-container,
+.sidebar-scroll-container {
+  will-change: transform, scroll-position;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
   -webkit-overflow-scrolling: touch;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  overscroll-behavior: contain;
 }
+
+.sidebar-scroll-container::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
 
 .virtual-scroll-item {
   will-change: transform;
