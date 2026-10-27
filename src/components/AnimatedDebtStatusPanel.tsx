@@ -246,7 +246,6 @@ const AnimatedDebtStatusPanelComponent: React.FC<AnimatedDebtStatusPanelProps> =
         transform: "translate3d(0, 0, 0)",
         WebkitBackfaceVisibility: "hidden",
         backfaceVisibility: "hidden",
-        contain: "content",
       }}
       className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 backdrop-blur-xl transition-all duration-300 shadow-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/70 ${className}`}
     >

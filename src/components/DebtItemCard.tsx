@@ -191,9 +191,6 @@ function DebtItemCardComponent({
         transform: "translate3d(0, 0, 0)",
         WebkitBackfaceVisibility: "hidden",
         backfaceVisibility: "hidden",
-        contentVisibility: "auto",
-        containIntrinsicSize: "0 160px",
-        contain: "content",
       }}
       className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
     >

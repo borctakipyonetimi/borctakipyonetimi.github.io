@@ -9011,7 +9011,7 @@ export default function App() {
       </aside>
 
       {/* Central View Dashboard Grid content container */}
-      <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
+      <main className="max-w-3xl mx-auto px-4 py-6 pb-32 sm:pb-36">
 
         {/* 7 Günlük Deneme Sürümü Aktif veya Dolmuş Bilgilendirme Kartı (Kompakt ve Şık) */}
         {isTrialActive && (

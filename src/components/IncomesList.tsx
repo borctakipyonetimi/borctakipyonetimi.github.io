@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { VirtualList } from "./VirtualList";
 import { IncomeCardItem } from "./IncomeCardItem";
 import {
   PlusCircle,
@@ -589,15 +588,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
               </div>
             </div>
           ) : (
-            <VirtualList
-              id="virtual-incomes-list"
-              items={incomes}
-              estimateSize={80}
-              overscan={4}
-              maxHeight="680px"
-              containerClassName="gpu-scroll-container pr-1"
-              getItemKey={(i) => i.id}
-              renderItem={(i) => (
+            <div className="space-y-3 pb-2">
+              {incomes.map((i) => (
                 <IncomeCardItem
                   key={i.id}
                   income={i}
@@ -605,8 +597,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
                   onEdit={handleOpenEdit}
                   onDelete={onDeleteIncome}
                 />
-              )}
-            />
+              ))}
+            </div>
           )}
         </div>
 

@@ -1885,13 +1885,34 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               <div className="text-center py-6 text-xs text-slate-400 font-medium bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl p-4">
                 Bu kategoride henüz bir gider harcaması kaydedilmemiş.
               </div>
+            ) : filteredExpenses.length <= 30 ? (
+              <div className="space-y-3 pb-2">
+                {filteredExpenses.map((e, idx) => {
+                  const cat = expenseCategories.find((c) => c.id === e.categoryId);
+                  const theme = getExpenseColorTheme(cat, idx, String(e.id));
+                  const isNew = newlyAddedIds.includes(e.id);
+                  return (
+                    <ExpenseCardItem
+                      key={e.id}
+                      e={e}
+                      idx={idx}
+                      cat={cat}
+                      theme={theme}
+                      isNew={isNew}
+                      format={format}
+                      onEdit={handleOpenEditExpense}
+                      onDelete={onDeleteExpense}
+                    />
+                  );
+                })}
+              </div>
             ) : (
               <VirtualList
                 id="virtual-expenses-list"
                 items={filteredExpenses}
                 estimateSize={88}
-                overscan={5}
-                maxHeight="24rem"
+                overscan={6}
+                maxHeight="580px"
                 containerClassName="gpu-scroll-container pr-1"
                 getItemKey={(e) => e.id}
                 renderItem={(e, idx) => {

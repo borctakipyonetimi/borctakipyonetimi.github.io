@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { VirtualList } from "./VirtualList";
 import { InstallmentCardItem } from "./InstallmentCardItem";
 import { PlusCircle, CalendarDays, Wallet, Edit, Trash2, Calendar, RotateCcw, Printer, FileText, Download, Upload, Save, Folder, FileJson, CheckCircle2, Copy, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -762,16 +761,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
           Kayıtlı aktif taksitli borç planı bulunmuyor.
         </div>
       ) : (
-        <VirtualList
-          id="virtual-installments-list"
-          items={installmentDebts}
-          columns={2}
-          estimateSize={230}
-          overscan={4}
-          maxHeight="750px"
-          containerClassName="gpu-scroll-container pr-1"
-          getItemKey={(inst) => inst.id}
-          renderItem={(inst) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
+          {installmentDebts.map((inst) => (
             <InstallmentCardItem
               key={inst.id}
               inst={inst}
@@ -781,8 +772,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
               onRevert={onRevertPayment}
               onPay={handleOpenPayModal}
             />
-          )}
-        />
+          ))}
+        </div>
       )}
 
       <InstallmentsPortalChart installmentDebts={installmentDebts} />

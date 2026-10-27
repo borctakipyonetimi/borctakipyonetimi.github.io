@@ -20,7 +20,17 @@
 
 /* Virtual Scroll & GPU Accelerated Scrollable Containers (60/120 FPS akıcı kaydırma) */
 .virtual-scroll-container,
-.gpu-scroll-container,
+.gpu-scroll-container {
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+}
+
 .sidebar-scroll-container {
   will-change: transform, scroll-position;
   -webkit-transform: translateZ(0);
@@ -51,16 +61,13 @@
   backface-visibility: hidden;
 }
 
-/* Borçlar Sayfası ve Kartları GPU Hızlandırma & Content Visibility */
+/* Borçlar Sayfası ve Kartları GPU Hızlandırma */
 .debt-card-gpu {
   will-change: transform, opacity;
   -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 160px;
-  contain: content;
 }
 
 .debt-panel-gpu {
@@ -69,7 +76,6 @@
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  contain: content;
 }
 
 /* Konfeti Canvas Donanımsal Hızlandırma (GPU Render - 60/120 FPS Kesintisiz Akış) */
@@ -87,6 +93,7 @@ body > canvas {
 html {
   scroll-behavior: smooth;
   height: 100%;
+  -webkit-text-size-adjust: 100%;
   background-color: #0b132b;
 }
 
@@ -95,6 +102,7 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
 }
 
 #root {
@@ -107,7 +115,7 @@ body {
 body {
   background-color: #f8fafc;
   color: #0f172a;
-  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body.dark {
@@ -115,9 +123,9 @@ body.dark {
   color: #f1f5f9;
 }
 
-/* Global fluidity for all components during theme switch */
-* {
-  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+/* Specific theme transition */
+.theme-transition {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ==========================================================================

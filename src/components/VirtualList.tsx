@@ -76,7 +76,26 @@ export function VirtualList<T>({
   }
 
   // Small lists optimization: render directly without virtual slicing
-  if (items.length <= threshold && columns === 1) {
+  if (items.length <= threshold) {
+    if (columns === 2) {
+      return (
+        <div
+          id={id}
+          className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${containerClassName}`}
+          style={{
+            willChange: "transform",
+            transform: "translateZ(0)",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {items.map((item, index) => (
+            <div key={getItemKey ? getItemKey(item, index) : index} className="w-full">
+              {renderItem(item, index)}
+            </div>
+          ))}
+        </div>
+      );
+    }
     return (
       <div
         id={id}
@@ -108,6 +127,8 @@ export function VirtualList<T>({
         willChange: "transform",
         transform: "translateZ(0)",
         WebkitOverflowScrolling: "touch",
+        overscrollBehaviorY: "auto",
+        touchAction: "pan-y",
       }}
     >
       <div
