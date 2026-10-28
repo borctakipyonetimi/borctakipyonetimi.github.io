@@ -1732,25 +1732,34 @@ function parseVoiceCommandOffline(rawText: string): any {
   };
 }
 
-// API Route for voice commands voice assistant parsing
+// API Route for voice commands voice assistant parsing (supports both text & audioBase64 from MediaRecorder)
 app.post("/api/voice-command", async (req, res) => {
-  const { text, userApiKey } = req.body;
+  const { text, audioBase64, mimeType, userApiKey } = req.body;
   
-  if (!text || text.trim() === "") {
-    return res.status(400).json({ error: "Boş komut algılandı." });
+  if ((!text || text.trim() === "") && !audioBase64) {
+    return res.status(400).json({ error: "Boş komut veya ses kaydı algılandı." });
   }
 
   const aiClient = getGeminiClient(userApiKey);
 
   if (!aiClient) {
-    console.log("[Voice Command API] Gemini API key not set or inactive. Falling back to offline fallback parser.");
-    const offlineResult = parseVoiceCommandOffline(text);
-    return res.json(offlineResult);
+    if (text && text.trim()) {
+      console.log("[Voice Command API] Gemini API key not set or inactive. Falling back to offline fallback parser.");
+      const offlineResult = parseVoiceCommandOffline(text);
+      return res.json(offlineResult);
+    }
+    return res.status(503).json({
+      action: "unknown",
+      explanation: "Ses kaydı analiz servisi şu anda meşgul. Lütfen komutunuzu yazarak girin.",
+      transcribedText: ""
+    });
   }
 
   try {
     const promptText = 
-      "Sen 'Bütçem Pro' finans asistanısın. Kullanıcının türkçe sesli bütçe kaydı / komutunu analiz edip bunu yapılandırılmış JSON verisine dönüştüreceksin.\n\n" +
+      "Sen 'Bütçem Pro' akıllı finans asistanısın. Kullanıcının Türkçe sesli veya yazılı bütçe komutunu analiz edip bunu yapılandırılmış JSON verisine dönüştüreceksin.\n\n" +
+      "Eğer ses kaydı (audio) verilmişse, önce bu ses kaydındaki Türkçe konuşmayı birebir dinleyip 'transcribedText' alanına yaz.\n" +
+      "Eğer doğrudan metin (text) verilmişse, 'transcribedText' alanına bu metni yaz.\n\n" +
       "Kullanıcı şunları yapabilir:\n" +
       "1. Borç ekleme (addDebt): Belirli bir şahsı belirtmeyen genel borçlar. Örn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', 'Kredi kartı 5000 TL' vb.\n" +
       "2. Kişi alacak/verecek ekleme (addContactDebt): Sesli komutta belirli bir şahıs/kişi ismi geçiyorsa (örn: 'Ahmet'e 5000 TL borç ekle', 'Ahmet'e 5000 lira borç verdim', 'Mehmet'ten 3000 lira borç aldım', 'Zeynep'ten 1000 TL alacağım var', 'Ayşe'ye 200 TL borcum var'). Bu durumda contactName (Örn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ayşe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlarını doldur.\n" +
@@ -1766,12 +1775,24 @@ app.post("/api/voice-command", async (req, res) => {
       "Senin görevin, söylenen ifadeyi bu eylemlerden birine sığdırmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri çıkarmaktır. Gerekirse tarihleri bugünün tarihi varsay.\n" +
       "Ayrıca, kullanıcının eylemi duyduğunu onaylayan sevimli, samimi bir yapay zeka Türkçe sesli asistan onay mesajı yaz (explanation). Örn: 'Elektrik faturası için 1.200 TL gider kaydı hazırlandı. Onaylıyor musunuz?'";
 
+    const contents: any[] = [{ text: promptText }];
+
+    if (audioBase64) {
+      const cleanBase64 = audioBase64.replace(/^data:audio\/[a-z0-9-+.]+;base64,/, "");
+      contents.push({
+        inlineData: {
+          mimeType: mimeType || "audio/webm",
+          data: cleanBase64
+        }
+      });
+      contents.push({ text: "Lütfen bu ses kaydını dinle, Türkçe konuşmayı deşifre edip finansal komuta dönüştür." });
+    } else {
+      contents.push({ text: `Kullanıcının Sözü: "${text}"` });
+    }
+
     const response = await aiClient.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [
-        { text: promptText },
-        { text: `Kullanıcının Sözü: "${text}"` }
-      ],
+      contents,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -1780,6 +1801,10 @@ app.post("/api/voice-command", async (req, res) => {
             action: {
               type: Type.STRING,
               description: "Eylem tipi: 'addDebt', 'addContactDebt', 'addInstallment', 'addExpense', 'addIncome', 'updateDebtPaid', 'deleteExpense', 'deleteIncome', 'deleteDebt' veya bilinmiyorsa 'unknown'."
+            },
+            transcribedText: {
+              type: Type.STRING,
+              description: "Ses kaydından deşifre edilen veya metinden aktarılan Türkçe komut ifadesi."
             },
             contactDebtData: {
               type: Type.OBJECT,
@@ -1873,12 +1898,21 @@ app.post("/api/voice-command", async (req, res) => {
     });
 
     const parsedData = JSON.parse(response.text || "{}");
+    if (!parsedData.transcribedText && text) {
+      parsedData.transcribedText = text;
+    }
     return res.json(parsedData);
   } catch (error: any) {
     console.error("[Voice Command API Error]:", error);
-    // Silent bypass to offline fallback parser
-    const offlineResult = parseVoiceCommandOffline(text);
-    return res.json(offlineResult);
+    if (text) {
+      const offlineResult = parseVoiceCommandOffline(text);
+      return res.json({ ...offlineResult, transcribedText: text });
+    }
+    return res.status(500).json({
+      action: "unknown",
+      transcribedText: "",
+      explanation: "Ses kaydınız ayrıştırılamadı. Lütfen tekrar deneyin veya komutunuzu yazarak iletin."
+    });
   }
 });
 

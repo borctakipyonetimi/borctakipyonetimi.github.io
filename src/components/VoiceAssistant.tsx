@@ -130,18 +130,9 @@ export default function VoiceAssistant({
     }
 
     if (!isSupported) {
-      triggerToast("Tarayıcınızda veya cihazınızda ses tanıma servisi bulunamadı. Komutunuzu yazarak iletebilirsiniz.");
-      setErrorMsg("Cihazınızda Web Speech ses tanıma özelliği desteklenmiyor. Aşağıdaki alandan yazılı komut girebilirsiniz.");
+      triggerToast("Cihazınızda ses tanıma veya mikrofon desteği bulunamadı. Komutunuzu yazarak iletebilirsiniz.");
+      setErrorMsg("Cihazınızda mikrofon desteği bulunamadı. Aşağıdaki alandan yazılı komut girebilirsiniz.");
       setStatus("error");
-      return;
-    }
-
-    // Mikrofon iznini güvenli kontrol et
-    const perm = await speechService.requestMicrophonePermission();
-    if (!perm.granted) {
-      setStatus("error");
-      setErrorMsg(perm.error || "Mikrofon izni alınamadı.");
-      triggerToast(perm.error || "Mikrofon izni alınamadı.");
       return;
     }
 
@@ -149,6 +140,8 @@ export default function VoiceAssistant({
     setTranscript("");
     setErrorMsg("");
     setPendingCommand(null);
+
+    let recordedAudioDispatched = false;
 
     const started = await speechService.startListening({
       onStart: () => {
@@ -163,6 +156,13 @@ export default function VoiceAssistant({
         setTranscript(text);
         setManualInput(text);
       },
+      onAudioRecorded: (base64Audio, mimeType) => {
+        // Eğer Web Speech API metin üretemediyse, kaydedilen sesi doğrudan sunucuya (Gemini 2.5 Flash) ilet
+        if (!transcript.trim()) {
+          recordedAudioDispatched = true;
+          processVoiceAudio(base64Audio, mimeType);
+        }
+      },
       onError: (errMsg, isFatal) => {
         setIsListening(false);
         setMicVolume(0);
@@ -172,10 +172,13 @@ export default function VoiceAssistant({
       onEnd: (finalText) => {
         setIsListening(false);
         setMicVolume(0);
-        if (finalText.trim()) {
+        if (finalText && finalText.trim()) {
           processVoiceText(finalText.trim());
-        } else {
-          setStatus((prev) => (prev === "listening" ? "idle" : prev));
+        } else if (!recordedAudioDispatched) {
+          // Eğer metin yoksa ve henüz ses kaydı işlenmiyorsa durumu koru veya idle yap
+          setTimeout(() => {
+            setStatus((prev) => (prev === "listening" ? "idle" : prev));
+          }, 300);
         }
       }
     });
@@ -194,6 +197,47 @@ export default function VoiceAssistant({
     speechService.stopListening();
     setIsListening(false);
     setMicVolume(0);
+  };
+
+  /**
+   * MediaRecorder ses kaydını sunucuya gönderip Gemini 2.5 Flash ile Türkçe deşifre eder.
+   */
+  const processVoiceAudio = async (audioBase64: string, mimeType: string) => {
+    setStatus("processing");
+    setErrorMsg("");
+
+    try {
+      const res = await fetch(getApiUrl("/api/voice-command"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audioBase64, mimeType, userApiKey })
+      });
+
+      if (!res.ok) {
+        throw new Error("Ses kaydı çözümlenemedi.");
+      }
+
+      const aiData = await res.json();
+      if (aiData.transcribedText) {
+        setTranscript(aiData.transcribedText);
+        setManualInput(aiData.transcribedText);
+      }
+
+      if (aiData.action && aiData.action !== "unknown") {
+        const fallbackParsed = parseFinancialVoiceCommand(aiData.transcribedText || "");
+        const finalCommand = mapServerResponseToParsedCommand(aiData, aiData.transcribedText || "", fallbackParsed);
+        setupConfirmationForm(finalCommand);
+      } else {
+        setStatus("error");
+        const msg = aiData.explanation || "Ses kaydından bir komut anlaşılamadı. Lütfen tekrar konuşun veya komutu yazın.";
+        setErrorMsg(msg);
+        speak(msg);
+      }
+    } catch (err: any) {
+      console.warn("[VoiceAssistant] Ses kaydı analizi başarısız:", err);
+      setStatus("error");
+      setErrorMsg("Ses algılanamadı veya sunucu yanıt vermedi. Lütfen tekrar deneyin veya komutunuzu yazarak girin.");
+    }
   };
 
   /**
