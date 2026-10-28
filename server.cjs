@@ -1623,24 +1623,41 @@ function parseVoiceCommandOffline(rawText) {
   };
 }
 app.post("/api/voice-command", async (req, res) => {
-  const { text, userApiKey } = req.body;
-  if (!text || text.trim() === "") {
-    return res.status(400).json({ error: "Bo\u015F komut alg\u0131land\u0131." });
+  const { text, audioBase64, mimeType, userApiKey } = req.body;
+  if ((!text || text.trim() === "") && !audioBase64) {
+    return res.status(400).json({ error: "Bo\u015F komut veya ses kayd\u0131 alg\u0131land\u0131." });
   }
   const aiClient = getGeminiClient(userApiKey);
   if (!aiClient) {
-    console.log("[Voice Command API] Gemini API key not set or inactive. Falling back to offline fallback parser.");
-    const offlineResult = parseVoiceCommandOffline(text);
-    return res.json(offlineResult);
+    if (text && text.trim()) {
+      console.log("[Voice Command API] Gemini API key not set or inactive. Falling back to offline fallback parser.");
+      const offlineResult = parseVoiceCommandOffline(text);
+      return res.json(offlineResult);
+    }
+    return res.status(503).json({
+      action: "unknown",
+      explanation: "Ses kayd\u0131 analiz servisi \u015Fu anda me\u015Fgul. L\xFCtfen komutunuzu yazarak girin.",
+      transcribedText: ""
+    });
   }
   try {
-    const promptText = "Sen 'B\xFCt\xE7em Pro' finans asistan\u0131s\u0131n. Kullan\u0131c\u0131n\u0131n t\xFCrk\xE7e sesli b\xFCt\xE7e kayd\u0131 / komutunu analiz edip bunu yap\u0131land\u0131r\u0131lm\u0131\u015F JSON verisine d\xF6n\xFC\u015Ft\xFCreceksin.\n\nKullan\u0131c\u0131 \u015Funlar\u0131 yapabilir:\n1. Bor\xE7 ekleme (addDebt): Belirli bir \u015Fahs\u0131 belirtmeyen genel bor\xE7lar. \xD6rn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', 'Kredi kart\u0131 5000 TL' vb.\n2. Ki\u015Fi alacak/verecek ekleme (addContactDebt): Sesli komutta belirli bir \u015Fah\u0131s/ki\u015Fi ismi ge\xE7iyorsa (\xF6rn: 'Ahmet'e 5000 TL bor\xE7 ekle', 'Ahmet'e 5000 lira bor\xE7 verdim', 'Mehmet'ten 3000 lira bor\xE7 ald\u0131m', 'Zeynep'ten 1000 TL alaca\u011F\u0131m var', 'Ay\u015Fe'ye 200 TL borcum var'). Bu durumda contactName (\xD6rn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ay\u015Fe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlar\u0131n\u0131 doldur.\n   - 'receivable' (Alacak): Biz ona bor\xE7 verdiysek ya da ondan bir alaca\u011F\u0131m\u0131z varsa. (\xD6rn: 'bor\xE7 verdim', 'alaca\u011F\u0131m var', 'bana bor\xE7lu')\n   - 'payable' (Verecek): Ondan bor\xE7 ald\u0131ysak, ona bor\xE7 eklediysek ya da ona bir borcumuz varsa. (\xD6rn: 'bor\xE7 ald\u0131m', 'borcum var', 'Ahmet'e 5000 TL bor\xE7 ekle')\n3. Taksit/Taksitli bor\xE7 ekleme (addInstallment): 'Koltuk tak\u0131m\u0131 12000 lira 6 taksit', 'Telefon i\xE7in 24000 TL 12 taksit', vb.\n4. Harcama/Gider ekleme (addExpense): \xD6rn: 'Bug\xFCn elektrik faturas\u0131na 1200 TL gider yaz', 'Market harcamas\u0131 250 lira', 'Benzin ald\u0131m 800 TL', 'Yemek 350 lira', vb. description k\u0131sm\u0131n\u0131 temiz yaz (\xF6rn: 'Elektrik Faturas\u0131', 'Market Al\u0131\u015Fveri\u015Fi', 'Benzin') ve uygun categoryId ver (1: Di\u011Fer, 2: Market, 3: Ula\u015F\u0131m, 4: Yeme \u0130\xE7me, 5: Faturalar).\n5. Gelir ekleme (addIncome): 'Maa\u015F yatt\u0131 35000 lira', 'Kira geliri ald\u0131m 15000 TL', vb.\n6. Bor\xE7 g\xFCncelleme / \xD6denen k\u0131sm\u0131 g\xFCncelleme (updateDebtPaid): 'Ahmet borcunun \xF6denen k\u0131sm\u0131n\u0131 500 TL yap', 'Banka kredisi borcunun \xF6denenini 1000 lira yap', 'Mehmet borcuna 200 TL \xF6dedim' vb.\n7. Harcama/Gider silme (deleteExpense): 'Market harcamas\u0131n\u0131 sil', 'Yemek giderini kald\u0131r' vb.\n8. Gelir silme (deleteIncome): 'Maa\u015F gelirini kald\u0131r', 'Kira gelirini sil' vb.\n9. Bor\xE7 silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kald\u0131r' vb.\n\nSenin g\xF6revin, s\xF6ylenen ifadeyi bu eylemlerden birine s\u0131\u011Fd\u0131rmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri \xE7\u0131karmakt\u0131r. Gerekirse tarihleri bug\xFCn\xFCn tarihi varsay.\nAyr\u0131ca, kullan\u0131c\u0131n\u0131n eylemi duydu\u011Funu onaylayan sevimli, samimi bir yapay zeka T\xFCrk\xE7e sesli asistan onay mesaj\u0131 yaz (explanation). \xD6rn: 'Elektrik faturas\u0131 i\xE7in 1.200 TL gider kayd\u0131 haz\u0131rland\u0131. Onayl\u0131yor musunuz?'";
+    const promptText = "Sen 'B\xFCt\xE7em Pro' ak\u0131ll\u0131 finans asistan\u0131s\u0131n. Kullan\u0131c\u0131n\u0131n T\xFCrk\xE7e sesli veya yaz\u0131l\u0131 b\xFCt\xE7e komutunu analiz edip bunu yap\u0131land\u0131r\u0131lm\u0131\u015F JSON verisine d\xF6n\xFC\u015Ft\xFCreceksin.\n\nE\u011Fer ses kayd\u0131 (audio) verilmi\u015Fse, \xF6nce bu ses kayd\u0131ndaki T\xFCrk\xE7e konu\u015Fmay\u0131 birebir dinleyip 'transcribedText' alan\u0131na yaz.\nE\u011Fer do\u011Frudan metin (text) verilmi\u015Fse, 'transcribedText' alan\u0131na bu metni yaz.\n\nKullan\u0131c\u0131 \u015Funlar\u0131 yapabilir:\n1. Bor\xE7 ekleme (addDebt): Belirli bir \u015Fahs\u0131 belirtmeyen genel bor\xE7lar. \xD6rn: 'Birim borcu 2000 TL', 'Banka kredisi borcu 100000 TL', 'Kredi kart\u0131 5000 TL' vb.\n2. Ki\u015Fi alacak/verecek ekleme (addContactDebt): Sesli komutta belirli bir \u015Fah\u0131s/ki\u015Fi ismi ge\xE7iyorsa (\xF6rn: 'Ahmet'e 5000 TL bor\xE7 ekle', 'Ahmet'e 5000 lira bor\xE7 verdim', 'Mehmet'ten 3000 lira bor\xE7 ald\u0131m', 'Zeynep'ten 1000 TL alaca\u011F\u0131m var', 'Ay\u015Fe'ye 200 TL borcum var'). Bu durumda contactName (\xD6rn: 'Ahmet', 'Mehmet', 'Zeynep', 'Ay\u015Fe'), amount (Tutar), type ('receivable' veya 'payable') ve description alanlar\u0131n\u0131 doldur.\n   - 'receivable' (Alacak): Biz ona bor\xE7 verdiysek ya da ondan bir alaca\u011F\u0131m\u0131z varsa. (\xD6rn: 'bor\xE7 verdim', 'alaca\u011F\u0131m var', 'bana bor\xE7lu')\n   - 'payable' (Verecek): Ondan bor\xE7 ald\u0131ysak, ona bor\xE7 eklediysek ya da ona bir borcumuz varsa. (\xD6rn: 'bor\xE7 ald\u0131m', 'borcum var', 'Ahmet'e 5000 TL bor\xE7 ekle')\n3. Taksit/Taksitli bor\xE7 ekleme (addInstallment): 'Koltuk tak\u0131m\u0131 12000 lira 6 taksit', 'Telefon i\xE7in 24000 TL 12 taksit', vb.\n4. Harcama/Gider ekleme (addExpense): \xD6rn: 'Bug\xFCn elektrik faturas\u0131na 1200 TL gider yaz', 'Market harcamas\u0131 250 lira', 'Benzin ald\u0131m 800 TL', 'Yemek 350 lira', vb. description k\u0131sm\u0131n\u0131 temiz yaz (\xF6rn: 'Elektrik Faturas\u0131', 'Market Al\u0131\u015Fveri\u015Fi', 'Benzin') ve uygun categoryId ver (1: Di\u011Fer, 2: Market, 3: Ula\u015F\u0131m, 4: Yeme \u0130\xE7me, 5: Faturalar).\n5. Gelir ekleme (addIncome): 'Maa\u015F yatt\u0131 35000 lira', 'Kira geliri ald\u0131m 15000 TL', vb.\n6. Bor\xE7 g\xFCncelleme / \xD6denen k\u0131sm\u0131 g\xFCncelleme (updateDebtPaid): 'Ahmet borcunun \xF6denen k\u0131sm\u0131n\u0131 500 TL yap', 'Banka kredisi borcunun \xF6denenini 1000 lira yap', 'Mehmet borcuna 200 TL \xF6dedim' vb.\n7. Harcama/Gider silme (deleteExpense): 'Market harcamas\u0131n\u0131 sil', 'Yemek giderini kald\u0131r' vb.\n8. Gelir silme (deleteIncome): 'Maa\u015F gelirini kald\u0131r', 'Kira gelirini sil' vb.\n9. Bor\xE7 silme (deleteDebt): 'Ahmet borcunu sil', 'banka borcunu kald\u0131r' vb.\n\nSenin g\xF6revin, s\xF6ylenen ifadeyi bu eylemlerden birine s\u0131\u011Fd\u0131rmak (action: 'addDebt' | 'addContactDebt' | 'addInstallment' | 'addExpense' | 'addIncome' | 'updateDebtPaid' | 'deleteExpense' | 'deleteIncome' | 'deleteDebt' | 'unknown') ve ilgili bilgileri \xE7\u0131karmakt\u0131r. Gerekirse tarihleri bug\xFCn\xFCn tarihi varsay.\nAyr\u0131ca, kullan\u0131c\u0131n\u0131n eylemi duydu\u011Funu onaylayan sevimli, samimi bir yapay zeka T\xFCrk\xE7e sesli asistan onay mesaj\u0131 yaz (explanation). \xD6rn: 'Elektrik faturas\u0131 i\xE7in 1.200 TL gider kayd\u0131 haz\u0131rland\u0131. Onayl\u0131yor musunuz?'";
+    const contents = [{ text: promptText }];
+    if (audioBase64) {
+      const cleanBase64 = audioBase64.replace(/^data:audio\/[a-z0-9-+.]+;base64,/, "");
+      contents.push({
+        inlineData: {
+          mimeType: mimeType || "audio/webm",
+          data: cleanBase64
+        }
+      });
+      contents.push({ text: "L\xFCtfen bu ses kayd\u0131n\u0131 dinle, T\xFCrk\xE7e konu\u015Fmay\u0131 de\u015Fifre edip finansal komuta d\xF6n\xFC\u015Ft\xFCr." });
+    } else {
+      contents.push({ text: `Kullan\u0131c\u0131n\u0131n S\xF6z\xFC: "${text}"` });
+    }
     const response = await aiClient.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [
-        { text: promptText },
-        { text: `Kullan\u0131c\u0131n\u0131n S\xF6z\xFC: "${text}"` }
-      ],
+      contents,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -1649,6 +1666,10 @@ app.post("/api/voice-command", async (req, res) => {
             action: {
               type: import_genai.Type.STRING,
               description: "Eylem tipi: 'addDebt', 'addContactDebt', 'addInstallment', 'addExpense', 'addIncome', 'updateDebtPaid', 'deleteExpense', 'deleteIncome', 'deleteDebt' veya bilinmiyorsa 'unknown'."
+            },
+            transcribedText: {
+              type: import_genai.Type.STRING,
+              description: "Ses kayd\u0131ndan de\u015Fifre edilen veya metinden aktar\u0131lan T\xFCrk\xE7e komut ifadesi."
             },
             contactDebtData: {
               type: import_genai.Type.OBJECT,
@@ -1741,11 +1762,21 @@ app.post("/api/voice-command", async (req, res) => {
       }
     });
     const parsedData = JSON.parse(response.text || "{}");
+    if (!parsedData.transcribedText && text) {
+      parsedData.transcribedText = text;
+    }
     return res.json(parsedData);
   } catch (error) {
     console.error("[Voice Command API Error]:", error);
-    const offlineResult = parseVoiceCommandOffline(text);
-    return res.json(offlineResult);
+    if (text) {
+      const offlineResult = parseVoiceCommandOffline(text);
+      return res.json({ ...offlineResult, transcribedText: text });
+    }
+    return res.status(500).json({
+      action: "unknown",
+      transcribedText: "",
+      explanation: "Ses kayd\u0131n\u0131z ayr\u0131\u015Ft\u0131r\u0131lamad\u0131. L\xFCtfen tekrar deneyin veya komutunuzu yazarak iletin."
+    });
   }
 });
 app.post("/api/scan-receipt", async (req, res) => {
