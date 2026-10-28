@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Ininal Red rounded squircle -->
+  <rect width="100" height="100" rx="22" fill="#E30613" />
+
+  <!-- Ininal stylized white 'ininal' emblem -->
+  <circle cx="50" cy="30" r="8" fill="#FFFFFF" />
+  <rect x="42" y="44" width="16" height="34" rx="8" fill="#FFFFFF" />
+
+  <!-- Dynamic card strip lines -->
+  <path d="M24 74 L24 78" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-opacity="0.6" />
+  <path d="M76 74 L76 78" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-opacity="0.6" />
+</svg>
