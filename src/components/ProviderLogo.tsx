@@ -30,7 +30,7 @@ export const LOGO_PATHS: Record<string, string> = {
   kuveytturk: "/logos/emblems/kuveytturk.png",
   turkiyefinans: "/logos/emblems/turkiyefinans.png",
   papara: "/logos/emblems/papara.png",
-  ininal: "/logos/emblems/ininal.png",
+  ininal: "/logos/emblems/ininal.svg",
   hsbc: "/logos/emblems/hsbc.png",
   ing: "/logos/emblems/ing.png",
   odeabank: "/logos/emblems/odeabank.png",
@@ -58,7 +58,7 @@ export const LOGO_PATHS: Record<string, string> = {
   // --- ELEKTRİK, SU, GAZ, İNTERNET ---
   elektrik_faturasi: "/logos/emblems/elektrik_faturasi.png",
   su_faturasi: "/logos/emblems/su_faturasi.png",
-  dogalgaz_faturasi: "/logos/emblems/dogalgaz_faturasi.png",
+  dogalgaz_faturasi: "/logos/emblems/dogalgaz_faturasi.svg",
   superonline: "/logos/emblems/superonline.png",
   turknet: "/logos/emblems/turknet.png",
   kablonet: "/logos/emblems/kablonet.png",
@@ -68,8 +68,8 @@ export const LOGO_PATHS: Record<string, string> = {
   netflix: "/logos/emblems/netflix.png",
   spotify: "/logos/emblems/spotify.png",
   youtube: "/logos/emblems/youtube.png",
-  amazon: "/logos/emblems/amazon.png",
-  disney: "/logos/emblems/disney.png",
+  amazon: "/logos/emblems/amazon.svg",
+  disney: "/logos/emblems/disney.svg",
   digiturk: "/logos/emblems/digiturk.png",
 
   // --- ALIŞVERİŞ & TESLİMAT ---
