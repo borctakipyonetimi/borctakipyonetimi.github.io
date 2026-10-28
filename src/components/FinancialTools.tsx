@@ -7,9 +7,11 @@ import {
   Coins,
   FileText,
   Printer,
+  ChevronLeft,
   ChevronRight,
   TrendingDown,
   DollarSign,
+  Calendar,
   CalendarRange,
   CalendarDays,
   Plus,
@@ -74,6 +76,11 @@ export interface SavingsGoal {
   currentAmount: number;
   category: string;
 }
+
+export const TURKISH_MONTH_NAMES = [
+  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+];
 
 export function FinancialTools({
   debts,
@@ -274,6 +281,9 @@ export function FinancialTools({
   const [reportDebtFilter, setReportDebtFilter] = useState<"all" | "active" | "paid">("all");
   const [reportStatusMessage, setReportStatusMessage] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [reportPeriodMode, setReportPeriodMode] = useState<"monthly" | "yearly">("monthly");
+  const [reportGroupingMode, setReportGroupingMode] = useState<"by_month" | "by_category">("by_month");
+  const [selectedReportMonth, setSelectedReportMonth] = useState<string>("all");
 
   useEffect(() => {
     if (reportStatusMessage) {
@@ -306,8 +316,201 @@ export function FinancialTools({
   }, [pegCalculatorInput, usdRate, eurRate, goldRate]);
 
   // Financial metrics calculations based on clean deduplicated data
-  const totalIncomesSum = incomes.reduce((sum, inc) => sum + inc.amount, 0);
-  const totalExpensesSum = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const totalIncomesSum = incomes.reduce((sum, inc) => sum + (Number(inc.amount) || 0), 0);
+  const totalExpensesSum = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+
+  // Month-aware income & expense calculations
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const currentMonthIncomes = incomes.filter(i => (i.date || "").startsWith(currentMonthStr));
+  const currentMonthIncomeSum = currentMonthIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const incomeMonthsSet = new Set(incomes.map(i => (i.date || "").slice(0, 7)).filter(Boolean));
+  const distinctMonthsCount = Math.max(1, incomeMonthsSet.size);
+
+  // Effective Monthly & Annual Income:
+  // If user entered income for the current month, take it;
+  // If user entered total salary once or across multiple months, derive monthly and annual projection accurately
+  const monthlyIncome = currentMonthIncomeSum > 0
+    ? currentMonthIncomeSum
+    : (distinctMonthsCount > 1 ? Math.round(totalIncomesSum / distinctMonthsCount) : totalIncomesSum);
+
+  const annualIncome = distinctMonthsCount >= 10 ? totalIncomesSum : (monthlyIncome * 12);
+
+  // Month-aware expenses:
+  const currentMonthExpenses = expenses.filter(e => (e.date || "").startsWith(currentMonthStr));
+  const currentMonthExpenseSum = currentMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const expenseMonthsSet = new Set(expenses.map(e => (e.date || "").slice(0, 7)).filter(Boolean));
+  const distinctExpMonthsCount = Math.max(1, expenseMonthsSet.size);
+
+  const monthlyExpense = currentMonthExpenseSum > 0
+    ? currentMonthExpenseSum
+    : (distinctExpMonthsCount > 1 ? Math.round(totalExpensesSum / distinctExpMonthsCount) : totalExpensesSum);
+
+  const annualExpense = distinctExpMonthsCount >= 10 ? totalExpensesSum : (monthlyExpense * 12);
+
+  // Monthly installment payment total:
+  const totalMonthlyInstallmentLoad = cleanInstallments.reduce((sum, inst) => {
+    const monthly = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
+    const isFinished = (inst.paidInstallmentCount || 0) >= (inst.installmentCount || 1);
+    return isFinished ? sum : sum + monthly;
+  }, 0);
+
+  // Group all debts, installments, and payables chronologically by month
+  const monthlyDebtGroups = useMemo(() => {
+    const groupsMap = new Map<string, Array<{
+      id: string;
+      name: string;
+      category: string;
+      dueDate: string;
+      day: number;
+      amount: number;
+      paid: number;
+      remaining: number;
+      isPaid: boolean;
+      type: "Banka Borcu" | "Kredi Kartı" | "Taksit" | "Kişi Borcu";
+      details?: string;
+    }>>();
+
+    const addToGroup = (monthKey: string, item: any) => {
+      if (!groupsMap.has(monthKey)) {
+        groupsMap.set(monthKey, []);
+      }
+      groupsMap.get(monthKey)!.push(item);
+    };
+
+    // 1. Simple debts:
+    cleanDebts.forEach(d => {
+      const rem = Math.max(0, d.amount - (d.paid || 0));
+      const isPaid = rem === 0;
+      let mKey = "Tarihsiz";
+      let day = 1;
+      if (d.dueDate && d.dueDate.length >= 7) {
+        mKey = d.dueDate.slice(0, 7);
+        const parts = d.dueDate.split("-");
+        if (parts[2]) day = parseInt(parts[2], 10) || 1;
+      }
+
+      addToGroup(mKey, {
+        id: `debt_${d.id}`,
+        name: d.name,
+        category: d.category || "Banka Borcu",
+        dueDate: d.dueDate || "",
+        day,
+        amount: d.amount,
+        paid: d.paid || 0,
+        remaining: rem,
+        isPaid,
+        type: (d.category || "").toLowerCase().includes("kart") ? "Kredi Kartı" : "Banka Borcu"
+      });
+    });
+
+    // 2. Installments:
+    cleanInstallments.forEach(inst => {
+      const count = inst.installmentCount || 1;
+      const paidCount = inst.paidInstallmentCount || 0;
+      const monthlyAmt = inst.totalAmount / count;
+
+      let startY = new Date().getFullYear();
+      let startM = new Date().getMonth() + 1;
+      let day = 15;
+      if (inst.firstDueDate && inst.firstDueDate.includes("-")) {
+        const parts = inst.firstDueDate.split("-").map(Number);
+        if (parts[0]) startY = parts[0];
+        if (parts[1]) startM = parts[1];
+        if (parts[2]) day = parts[2] || 15;
+      }
+
+      for (let i = 0; i < count; i++) {
+        const totalM = startM - 1 + i;
+        const itemY = startY + Math.floor(totalM / 12);
+        const itemM = (totalM % 12) + 1;
+        const mKey = `${itemY}-${String(itemM).padStart(2, "0")}`;
+        const itemDateStr = `${mKey}-${String(day).padStart(2, "0")}`;
+        const isPaid = i < paidCount;
+
+        addToGroup(mKey, {
+          id: `inst_${inst.id}_${i + 1}`,
+          name: `${inst.name} (${i + 1}/${count}. Taksit)`,
+          category: (inst as any).category || "Taksit",
+          dueDate: itemDateStr,
+          day,
+          amount: monthlyAmt,
+          paid: isPaid ? monthlyAmt : 0,
+          remaining: isPaid ? 0 : monthlyAmt,
+          isPaid,
+          type: "Taksit",
+          details: `Taksit ${i + 1} / ${count}`
+        });
+      }
+    });
+
+    // 3. Contact Payables:
+    cleanContactTxs.forEach(tx => {
+      if (tx.type === "payable") {
+        let mKey = "Tarihsiz";
+        let day = 1;
+        const dStr = tx.dueDate || tx.date;
+        if (dStr && dStr.length >= 7) {
+          mKey = dStr.slice(0, 7);
+          const parts = dStr.split("-");
+          if (parts[2]) day = parseInt(parts[2], 10) || 1;
+        }
+
+        addToGroup(mKey, {
+          id: `contact_${tx.id || tx.contactName}_${tx.amount}`,
+          name: `${tx.contactName} (Kişiye Borç)`,
+          category: "Cari Kişi Borcu",
+          dueDate: dStr || "",
+          day,
+          amount: tx.amount,
+          paid: tx.isPaid ? tx.amount : 0,
+          remaining: tx.isPaid ? 0 : tx.amount,
+          isPaid: !!tx.isPaid,
+          type: "Kişi Borcu"
+        });
+      }
+    });
+
+    const keys = Array.from(groupsMap.keys());
+    const datedKeys = keys.filter(k => k !== "Tarihsiz").sort();
+    if (groupsMap.has("Tarihsiz")) {
+      datedKeys.push("Tarihsiz");
+    }
+
+    const nowMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+
+    return datedKeys.map(k => {
+      const rawItems = groupsMap.get(k) || [];
+      const items = [...rawItems].sort((a, b) => a.day - b.day);
+
+      let year = 0;
+      let month = 0;
+      let monthName = "Genel / Tarihsiz Borçlar";
+
+      if (k !== "Tarihsiz") {
+        const [y, m] = k.split("-").map(Number);
+        year = y;
+        month = m;
+        monthName = `${TURKISH_MONTH_NAMES[m - 1] || m} ${y}`;
+      }
+
+      const totalAmount = items.reduce((s, it) => s + it.amount, 0);
+      const totalPaid = items.reduce((s, it) => s + it.paid, 0);
+      const totalRemaining = items.reduce((s, it) => s + it.remaining, 0);
+
+      return {
+        monthKey: k,
+        year,
+        month,
+        monthName,
+        isCurrentMonth: k === nowMonthKey,
+        totalAmount,
+        totalPaid,
+        totalRemaining,
+        items
+      };
+    });
+  }, [cleanDebts, cleanInstallments, cleanContactTxs]);
   
   // Calculate remaining debt
   const simpleUnpaidDebt = cleanDebts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
@@ -448,39 +651,98 @@ export function FinancialTools({
     setSavingsGoals(prev => prev.filter(g => g.id !== goalId));
   };
 
-  // Calendar due dates mapping
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-indexed
-  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  // Calendar due dates mapping & Month selection state
+  const [calYear, setCalYear] = useState<number>(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState<number>(() => new Date().getMonth() + 1); // 1-indexed
+  const daysInCalMonth = new Date(calYear, calMonth, 0).getDate();
+  // Day of week of 1st day of month (Monday=0, ..., Sunday=6)
+  const firstDayWeekday = (new Date(calYear, calMonth - 1, 1).getDay() + 6) % 7;
 
-  // Highlight days helper
+  // Highlight days helper for the selected calendar month & year
   const getDebtsOnDay = (dayNum: number) => {
     const paddedDay = dayNum.toString().padStart(2, "0");
-    const formattedMonth = currentMonth.toString().padStart(2, "0");
-    const targetDateStr = `${currentYear}-${formattedMonth}-${paddedDay}`;
+    const formattedMonth = calMonth.toString().padStart(2, "0");
+    const targetDateStr = `${calYear}-${formattedMonth}-${paddedDay}`;
 
-    const matchedDebts: { name: string; amount: number; type: string }[] = [];
+    const matchedDebts: { name: string; amount: number; type: string; isPaid?: boolean }[] = [];
 
     // Check simple debts
-    debts.forEach(d => {
+    cleanDebts.forEach(d => {
       if (d.dueDate === targetDateStr) {
-        matchedDebts.push({ name: d.name, amount: d.amount - d.paid, type: "Borç" });
+        const rem = Math.max(0, d.amount - (d.paid || 0));
+        matchedDebts.push({
+          name: d.name,
+          amount: rem > 0 ? rem : d.amount,
+          type: (d.category || "").toLowerCase().includes("kart") ? "Kredi Kartı" : "Banka Borcu",
+          isPaid: rem === 0
+        });
       }
     });
 
-    // Check installment debts (just comparing the day part for simplicity since it repeats monthly)
-    installmentDebts.forEach(inst => {
+    // Check installment debts in this month
+    cleanInstallments.forEach(inst => {
       try {
-        const dayPart = inst.firstDueDate.split("-")[2];
-        if (dayPart === paddedDay) {
-          const monthly = inst.totalAmount / inst.installmentCount;
-          matchedDebts.push({ name: `${inst.name} (Taksit)`, amount: monthly, type: "Taksit" });
+        if (!inst.firstDueDate) return;
+        const [startY, startM, startD] = inst.firstDueDate.split("-").map(Number);
+        if (startY && startM) {
+          const diffMonths = (calYear - startY) * 12 + (calMonth - startM);
+          if (diffMonths >= 0 && diffMonths < (inst.installmentCount || 1)) {
+            const installmentIndex = diffMonths + 1;
+            const targetDay = startD || 15;
+            if (targetDay === dayNum) {
+              const monthly = inst.totalAmount / (inst.installmentCount || 1);
+              const isPaid = (inst.paidInstallmentCount || 0) >= installmentIndex;
+              matchedDebts.push({
+                name: `${inst.name} (${installmentIndex}/${inst.installmentCount}. Taksit)`,
+                amount: monthly,
+                type: "Taksit",
+                isPaid
+              });
+            }
+          }
         }
       } catch {}
     });
 
+    // Check contact payables
+    cleanContactTxs.forEach(tx => {
+      if (tx.type === "payable") {
+        const dStr = tx.dueDate || tx.date;
+        if (dStr === targetDateStr) {
+          matchedDebts.push({
+            name: `${tx.contactName} (Kişi Borcu)`,
+            amount: tx.amount,
+            type: "Cari",
+            isPaid: !!tx.isPaid
+          });
+        }
+      }
+    });
+
     return matchedDebts;
   };
+
+  const selectedMonthPaymentsSummary = useMemo(() => {
+    let totalDue = 0;
+    let totalPaid = 0;
+    let count = 0;
+
+    for (let day = 1; day <= daysInCalMonth; day++) {
+      const items = getDebtsOnDay(day);
+      items.forEach(it => {
+        totalDue += it.amount;
+        if (it.isPaid) totalPaid += it.amount;
+        count++;
+      });
+    }
+
+    return {
+      totalDue,
+      totalPaid,
+      totalRemaining: Math.max(0, totalDue - totalPaid),
+      count
+    };
+  }, [calYear, calMonth, daysInCalMonth, cleanDebts, cleanInstallments, cleanContactTxs]);
 
   // --- HESAPLAYICILAR VE SİMÜLASYON MOTORLARI ---
   // KKDF and BSMV rates according to Turkish legislation
@@ -1830,51 +2092,177 @@ export function FinancialTools({
           >
             {/* Calendar Grid Sheet */}
             <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              {/* Header with Month Navigation and Month/Year selectors */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 pb-4 gap-3">
                 <div className="flex items-center gap-2">
                   <CalendarRange className="w-5 h-5 text-indigo-500" />
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">
-                    AYLIK BORÇ VADE MATRİSİ
-                  </h3>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                      AYLIK BORÇ VADE MATRİSİ
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      İstediğiniz ayı ve yılı seçerek o aya ait tüm borç ve taksitleri inceleyebilirsiniz.
+                    </p>
+                  </div>
                 </div>
-                <span className="text-xs bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-xl uppercase">
-                  {new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
+
+                {/* Month / Year Controls */}
+                <div className="flex items-center gap-1.5 self-end sm:self-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                  {/* Prev Month */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (calMonth === 1) {
+                        setCalYear(y => y - 1);
+                        setCalMonth(12);
+                      } else {
+                        setCalMonth(m => m - 1);
+                      }
+                      setSelectedDayTab(1);
+                    }}
+                    title="Önceki Ay"
+                    className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {/* Month Select */}
+                  <select
+                    value={calMonth}
+                    onChange={(e) => {
+                      setCalMonth(Number(e.target.value));
+                      setSelectedDayTab(1);
+                    }}
+                    className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-bold px-2 py-1.5 rounded-xl border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {TURKISH_MONTH_NAMES.map((name, idx) => (
+                      <option key={name} value={idx + 1}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Year Select */}
+                  <select
+                    value={calYear}
+                    onChange={(e) => {
+                      setCalYear(Number(e.target.value));
+                      setSelectedDayTab(1);
+                    }}
+                    className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-bold px-2 py-1.5 rounded-xl border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Next Month */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (calMonth === 12) {
+                        setCalYear(y => y + 1);
+                        setCalMonth(1);
+                      } else {
+                        setCalMonth(m => m + 1);
+                      }
+                      setSelectedDayTab(1);
+                    }}
+                    title="Sonraki Ay"
+                    className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  {/* Quick "Bugün" Jump Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = new Date();
+                      setCalYear(t.getFullYear());
+                      setCalMonth(t.getMonth() + 1);
+                      setSelectedDayTab(t.getDate());
+                    }}
+                    title="Bu Aya Dön"
+                    className="px-2 py-1 text-[10px] font-black uppercase tracking-wider bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition cursor-pointer ml-1"
+                  >
+                    Bu Ay
+                  </button>
+                </div>
+              </div>
+
+              {/* Monthly Overview Badges */}
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs font-medium">
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">
+                  🗓️ {TURKISH_MONTH_NAMES[calMonth - 1]} {calYear} Matrisi
                 </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Ödeme Sayısı: <b className="text-slate-800 dark:text-slate-200 font-black">{selectedMonthPaymentsSummary.count}</b>
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Toplam: <b className="text-rose-600 dark:text-rose-400 font-black">{format(selectedMonthPaymentsSummary.totalDue)}</b>
+                  </span>
+                  {selectedMonthPaymentsSummary.totalPaid > 0 && (
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Ödenen: {format(selectedMonthPaymentsSummary.totalPaid)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Calendar Grid */}
               <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 text-center">
                 {/* Days of week */}
                 {["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"].map(day => (
-                  <span key={day} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <span key={day} className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-1">
                     {day}
                   </span>
                 ))}
 
+                {/* Blank days before day 1 */}
+                {Array.from({ length: firstDayWeekday }).map((_, i) => (
+                  <div key={`empty-${i}`} className="h-11 sm:h-12 rounded-xl bg-slate-50/20 dark:bg-slate-950/20" />
+                ))}
+
                 {/* Days matrix of the active month */}
-                {Array.from({ length: daysInMonth }).map((_, i) => {
+                {Array.from({ length: daysInCalMonth }).map((_, i) => {
                   const dayNum = i + 1;
                   const matchedItems = getDebtsOnDay(dayNum);
                   const hasDebt = matchedItems.length > 0;
                   const isSelected = selectedDayTab === dayNum;
+                  const isToday =
+                    calYear === new Date().getFullYear() &&
+                    calMonth === (new Date().getMonth() + 1) &&
+                    dayNum === new Date().getDate();
+
+                  const totalDayAmount = matchedItems.reduce((s, it) => s + it.amount, 0);
 
                   return (
                     <button
                       key={dayNum}
                       onClick={() => setSelectedDayTab(dayNum)}
+                      title={hasDebt ? `${dayNum} ${TURKISH_MONTH_NAMES[calMonth - 1]}: ${matchedItems.length} borç (${format(totalDayAmount)})` : `${dayNum} ${TURKISH_MONTH_NAMES[calMonth - 1]}`}
                       className={`h-11 sm:h-12 relative rounded-xl font-mono text-[11px] font-black cursor-pointer transition-all flex flex-col items-center justify-center ${
                         isSelected
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 scale-102"
                           : hasDebt
-                          ? "bg-rose-500/10 text-rose-500 border border-semibold border-rose-500/20 hover:bg-rose-500/20"
+                          ? "bg-rose-500/10 text-rose-500 border border-rose-500/30 hover:bg-rose-500/20"
                           : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-850 text-slate-600 dark:text-slate-400"
-                      }`}
+                      } ${isToday && !isSelected ? "ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-900" : ""}`}
                     >
                       <span>{dayNum}</span>
                       
                       {/* Debt alert indicator dots */}
                       {hasDebt && !isSelected && (
-                        <span className="absolute bottom-1 w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
+                        <span className="absolute bottom-1 flex items-center justify-center">
+                          <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
+                        </span>
+                      )}
+                      {isToday && !hasDebt && !isSelected && (
+                        <span className="absolute bottom-1 w-1 h-1 bg-indigo-500 rounded-full" />
                       )}
                     </button>
                   );
@@ -1883,21 +2271,30 @@ export function FinancialTools({
             </div>
 
             {/* Selected Day Agenda Side panel */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[300px]">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[340px]">
               <div>
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">GÜNLÜK VADE DETAYI</span>
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight mt-0.5">
-                    {selectedDayTab ? `${selectedDayTab} Haziran 2026 Ajandası` : "Gün Seçiniz"}
-                  </h3>
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">GÜNLÜK VADE DETAYI</span>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight mt-0.5">
+                      {selectedDayTab
+                        ? `${selectedDayTab} ${TURKISH_MONTH_NAMES[calMonth - 1]} ${calYear} Ajandası`
+                        : "Gün Seçiniz"}
+                    </h3>
+                  </div>
+                  {selectedDayTab && (
+                    <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-black rounded-lg">
+                      {getDebtsOnDay(selectedDayTab).length} Kalem
+                    </span>
+                  )}
                 </div>
 
                 {selectedDayTab ? (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                     {getDebtsOnDay(selectedDayTab).length === 0 ? (
                       <div className="p-5 text-center space-y-2 border border-dashed border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20">
                         <Check className="w-8 h-8 text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 p-1.5 rounded-full mx-auto" />
-                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
                           Harika! Vade Bulunmuyor
                         </h4>
                         <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">
@@ -1908,17 +2305,34 @@ export function FinancialTools({
                       getDebtsOnDay(selectedDayTab).map((item, idx) => (
                         <div
                           key={idx}
-                          className="p-3 bg-rose-500/5 dark:bg-rose-950/10 border-l-[3px] border-rose-500 rounded-xl flex justify-between items-center"
+                          className={`p-3 rounded-xl border-l-[3px] flex justify-between items-center transition ${
+                            item.isPaid
+                              ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500"
+                              : "bg-rose-500/5 dark:bg-rose-950/10 border-rose-500"
+                          }`}
                         >
                           <div>
-                            <span className="px-1.5 py-0.5 bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400 text-[8px] font-bold rounded">
-                              {item.type}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded ${
+                                item.isPaid
+                                  ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                                  : "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400"
+                              }`}>
+                                {item.type}
+                              </span>
+                              {item.isPaid && (
+                                <span className="text-[8px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                                  <Check className="w-2.5 h-2.5" /> ÖDENDİ
+                                </span>
+                              )}
+                            </div>
                             <h4 className="text-xs font-bold text-slate-800 dark:text-white mt-1">
                               {item.name}
                             </h4>
                           </div>
-                          <strong className="text-xs font-black text-rose-500">
+                          <strong className={`text-xs font-black ${
+                            item.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+                          }`}>
                             {format(item.amount)}
                           </strong>
                         </div>
@@ -1932,8 +2346,8 @@ export function FinancialTools({
                 )}
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-[10px] text-slate-400 font-semibold leading-normal mt-4">
-                ℹ️ Ödeme günü takipleri, borç oluştururken girdiğiniz vadeleri ve taksitli borç başlangıç tarihlerini referans almaktadır.
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850 text-[10px] text-slate-400 font-semibold leading-normal mt-4">
+                ℹ️ Ödeme günü takipleri, borç oluştururken girdiğiniz vadeleri ve taksitli borç başlangıç tarihlerini referans alarak seçilen aya özel dinamik hesaplanır.
               </div>
             </div>
           </motion.div>
@@ -2120,11 +2534,11 @@ export function FinancialTools({
 
                       // KPI Blocks (3 columns, 2 rows)
                       const kpis = [
-                        { label: "TOPLAM GELIR", val: formatPdf(totalIncomesSum), color: [16, 185, 129] },
-                        { label: "TOPLAM GIDER", val: formatPdf(totalExpensesSum), color: [244, 63, 94] },
-                        { label: "NET BAKIYE", val: formatPdf(totalIncomesSum - totalExpensesSum), color: [14, 165, 233] },
+                        { label: "AYLIK NET GELIR", val: formatPdf(monthlyIncome), color: [16, 185, 129] },
+                        { label: "YILLIK GELIR (12 AY)", val: formatPdf(annualIncome), color: [16, 185, 129] },
+                        { label: "AYLIK GIDER", val: formatPdf(monthlyExpense), color: [244, 63, 94] },
+                        { label: "AYLIK NET BAKIYE", val: formatPdf(monthlyIncome - monthlyExpense), color: [14, 165, 233] },
                         { label: "BANKA & TAKSIT BORCU", val: formatPdf(bankAndInstallmentDebt), color: [245, 158, 11] },
-                        { label: "KISI BORCLARI (CARI)", val: formatPdf(contactPayablesRemaining), color: [239, 68, 68] },
                         { label: "SAGLIK SKORU", val: `${healthScore} / 100`, color: [99, 102, 241] }
                       ];
 
@@ -2501,20 +2915,89 @@ export function FinancialTools({
                 </div>
               </div>
 
+              {/* Report Timeframe Mode Switcher */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5 print:hidden">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-indigo-500" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Bütçe Zaman Ölçeği:
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {reportPeriodMode === "monthly" ? "(Aylık Nakit Akışı Esaslı)" : "(12 Aylık Yıllık Projeksiyon)"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setReportPeriodMode("monthly")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      reportPeriodMode === "monthly"
+                        ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    }`}
+                  >
+                    📅 Aylık Bütçe Görünümü
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportPeriodMode("yearly")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      reportPeriodMode === "yearly"
+                        ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    }`}
+                  >
+                    📆 Yıllık Bütçe Görünümü (12 Ay)
+                  </button>
+                </div>
+              </div>
+
               {/* Data Summary Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gelir</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                    {reportPeriodMode === "monthly" ? "Aylık Net Gelir" : "Yıllık Toplam Gelir"}
+                  </span>
                   <strong className="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
-                    {format(totalIncomesSum)}
+                    {format(reportPeriodMode === "monthly" ? monthlyIncome : annualIncome)}
                   </strong>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                    {reportPeriodMode === "monthly"
+                      ? `Yıllık: ${format(annualIncome)}`
+                      : `Aylık Ort: ${format(monthlyIncome)}`}
+                  </span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Toplam Gider</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                    {reportPeriodMode === "monthly" ? "Aylık Gider" : "Yıllık Gider"}
+                  </span>
                   <strong className="text-xs sm:text-sm font-black text-rose-500 mt-1 block">
-                    {format(totalExpensesSum)}
+                    {format(reportPeriodMode === "monthly" ? monthlyExpense : annualExpense)}
                   </strong>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                    {reportPeriodMode === "monthly"
+                      ? `Yıllık: ${format(annualExpense)}`
+                      : `Aylık Ort: ${format(monthlyExpense)}`}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                    {reportPeriodMode === "monthly" ? "Aylık Net Tasarruf" : "Yıllık Net Bakiye"}
+                  </span>
+                  <strong className={`text-xs sm:text-sm font-black mt-1 block ${
+                    (reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense) >= 0
+                      ? "text-sky-600 dark:text-sky-400"
+                      : "text-rose-500"
+                  }`}>
+                    {format(reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense)}
+                  </strong>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                    {(reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense) >= 0
+                      ? "Pozitif Bakiye"
+                      : "Bütçe Açığı"}
+                  </span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
@@ -2522,6 +3005,9 @@ export function FinancialTools({
                   <strong className="text-xs sm:text-sm font-black text-amber-500 mt-1 block">
                     {format(bankAndInstallmentDebt)}
                   </strong>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                    Aylık Taksit: {format(totalMonthlyInstallmentLoad)}
+                  </span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
@@ -2529,13 +3015,9 @@ export function FinancialTools({
                   <strong className="text-xs sm:text-sm font-black text-red-500 dark:text-red-400 mt-1 block">
                     {format(contactPayablesRemaining)}
                   </strong>
-                </div>
-
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kişi Alacakları</span>
-                  <strong className="text-xs sm:text-sm font-black text-sky-600 dark:text-sky-400 mt-1 block">
-                    {format(contactReceivablesRemaining)}
-                  </strong>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
+                    Alacak: {format(contactReceivablesRemaining)}
+                  </span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
@@ -2543,62 +3025,259 @@ export function FinancialTools({
                   <strong className="text-xs sm:text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                     {healthScore} / 100
                   </strong>
+                  <span className="text-[9px] text-indigo-500 font-bold block mt-0.5">
+                    {advice.badge}
+                  </span>
                 </div>
               </div>
 
-              {/* In-Report Interactive Filter Pills (Hidden during printing) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/80 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800 print:hidden">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <Filter className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Borç Görünümü:</span>
+              {/* In-Report Interactive Filter & Layout Controls */}
+              <div className="space-y-2.5 bg-slate-50 dark:bg-slate-950/80 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 print:hidden">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  {/* Status Filters */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 mr-1 flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5 text-indigo-500" /> Durum:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setReportDebtFilter("all")}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                        reportDebtFilter === "all"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                      }`}
+                    >
+                      Tüm Kayıtlar ({cleanDebts.length + cleanInstallments.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportDebtFilter("active")}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                        reportDebtFilter === "active"
+                          ? "bg-rose-600 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
+                      Yalnızca Kalan / Aktif
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportDebtFilter("paid")}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                        reportDebtFilter === "paid"
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      Ödenenler
+                    </button>
+                  </div>
+
+                  {/* Grouping Mode Switch */}
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setReportGroupingMode("by_month")}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        reportGroupingMode === "by_month"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                      }`}
+                    >
+                      <CalendarDays className="w-3 h-3" /> Aylara Göre Sıralı
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportGroupingMode("by_category")}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        reportGroupingMode === "by_category"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                      }`}
+                    >
+                      <Layers className="w-3 h-3" /> Kategoriye Göre
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    onClick={() => setReportDebtFilter("all")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      reportDebtFilter === "all"
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
-                    }`}
-                  >
-                    Tüm Kayıtlar ({cleanDebts.length + cleanInstallments.length})
-                  </button>
-                  <button
-                    onClick={() => setReportDebtFilter("active")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
-                      reportDebtFilter === "active"
-                        ? "bg-rose-600 text-white shadow-sm"
-                        : "bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50"
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
-                    Yalnızca Kalan / Aktif Borçlar ({
-                      cleanDebts.filter(d => Math.max(0, d.amount - d.paid) > 0).length +
-                      cleanInstallments.filter(i => {
-                        const m = i.totalAmount / (i.installmentCount || 1);
-                        return Math.max(0, i.totalAmount - (i.paidInstallmentCount || 0) * m) > 0;
-                      }).length
-                    })
-                  </button>
-                  <button
-                    onClick={() => setReportDebtFilter("paid")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
-                      reportDebtFilter === "paid"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50"
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3 h-3" />
-                    Kapanan / Ödenenler ({
-                      cleanDebts.filter(d => Math.max(0, d.amount - d.paid) === 0).length +
-                      cleanInstallments.filter(i => {
-                        const m = i.totalAmount / (i.installmentCount || 1);
-                        return Math.max(0, i.totalAmount - (i.paidInstallmentCount || 0) * m) === 0;
-                      }).length
-                    })
-                  </button>
-                </div>
+
+                {/* If by_month mode, show Month quick picker pills */}
+                {reportGroupingMode === "by_month" && monthlyDebtGroups.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-200/50 dark:border-slate-800/60 pb-1 scrollbar-none">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">
+                      Ay Filtresi:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReportMonth("all")}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition cursor-pointer ${
+                        selectedReportMonth === "all"
+                          ? "bg-slate-800 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                          : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                      }`}
+                    >
+                      Tüm Aylar ({monthlyDebtGroups.length})
+                    </button>
+                    {monthlyDebtGroups.map((g) => (
+                      <button
+                        key={g.monthKey}
+                        type="button"
+                        onClick={() => setSelectedReportMonth(g.monthKey)}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition cursor-pointer flex items-center gap-1 ${
+                          selectedReportMonth === g.monthKey
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                        }`}
+                      >
+                        {g.monthName}
+                        {g.isCurrentMonth && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* AYLARA GÖRE BÖLÜMLENDİRİLMİŞ BORÇ LİSTESİ */}
+              {reportGroupingMode === "by_month" && (
+                <div className="space-y-6">
+                  {monthlyDebtGroups
+                    .filter((g) => selectedReportMonth === "all" || g.monthKey === selectedReportMonth)
+                    .map((group) => {
+                      const filteredItems = group.items.filter((item) => {
+                        if (reportDebtFilter === "active") return !item.isPaid;
+                        if (reportDebtFilter === "paid") return item.isPaid;
+                        return true;
+                      });
+
+                      const groupTotal = filteredItems.reduce((s, it) => s + it.amount, 0);
+                      const groupRemaining = filteredItems.reduce((s, it) => s + it.remaining, 0);
+                      const groupPaid = filteredItems.reduce((s, it) => s + it.paid, 0);
+
+                      return (
+                        <div
+                          key={group.monthKey}
+                          className="bg-slate-50/70 dark:bg-slate-950/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3"
+                        >
+                          {/* Month Group Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <CalendarRange className="w-4 h-4 text-indigo-500" />
+                              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
+                                {group.monthName}
+                                {group.isCurrentMonth && (
+                                  <span className="px-2 py-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full uppercase tracking-wider">
+                                    🎯 BU AY
+                                  </span>
+                                )}
+                              </h3>
+                              <span className="px-2 py-0.5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 rounded-md">
+                                {filteredItems.length} Kalem
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                              <span className="text-slate-500">
+                                Bu Ay Toplam: <b className="text-slate-800 dark:text-slate-200 font-black">{format(groupTotal)}</b>
+                              </span>
+                              <span className="text-rose-500 font-bold">
+                                Kalan: <b className="font-black">{format(groupRemaining)}</b>
+                              </span>
+                              {groupPaid > 0 && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                  Ödenen: {format(groupPaid)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Month Table */}
+                          {filteredItems.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-slate-400 italic">
+                              Bu ay için seçilen filtreye uygun borç kaydı bulunmamaktadır.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs bg-white dark:bg-slate-900">
+                              <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-black">
+                                  <tr>
+                                    <th className="p-3">Borç / Kurum Adı</th>
+                                    <th className="p-3">Türü & Kategori</th>
+                                    <th className="p-3">Vade Günü</th>
+                                    <th className="p-3">Durum</th>
+                                    <th className="p-3 text-right">Ödenen</th>
+                                    <th className="p-3 text-right">Kalan</th>
+                                    <th className="p-3 text-right">Aylık Tutar</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                                  {filteredItems.map((item) => (
+                                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                                      <td className="p-3">
+                                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                                          {item.name}
+                                        </div>
+                                      </td>
+                                      <td className="p-3">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                          item.type === "Taksit"
+                                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400"
+                                            : item.type === "Kişi Borcu"
+                                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                                            : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400"
+                                        }`}>
+                                          {item.type}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-slate-500 font-mono text-[11px]">
+                                        {item.dueDate ? `${item.dueDate}` : `${item.day}. Gün`}
+                                      </td>
+                                      <td className="p-3">
+                                        {item.isPaid ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                                            <Check className="w-2.5 h-2.5" /> ÖDENDİ
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                                            Ödeme Bekliyor
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                        {format(item.paid)}
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-rose-500">
+                                        {format(item.remaining)}
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">
+                                        {format(item.amount)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {monthlyDebtGroups.length === 0 && (
+                    <div className="p-8 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                      <p className="text-xs text-slate-400 italic">
+                        Kayıtlı aktif borç veya taksit bulunmamaktadır.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* KATEGORİYE GÖRE BORÇ LİSTESİ */}
+              {reportGroupingMode === "by_category" && (
+                <>
 
               {/* 1. BANKA VEYA KREDİ KARTI BORÇLARI (Tekrarlardan Arındırılmış) */}
               <div className="space-y-3">
@@ -2909,6 +3588,8 @@ export function FinancialTools({
                   );
                 })()}
               </div>
+              </>
+              )}
 
               {/* 4. BAŞ ASİSTAN STRATEJİ VE ANALİZ KARARI */}
               <div className="space-y-2 p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200/60 dark:border-slate-800">
