@@ -2069,11 +2069,14 @@ app.get("/api/rates", async (req, res) => {
   }
   try {
     const goldCtrl = new AbortController();
-    const goldTimeout = setTimeout(() => goldCtrl.abort(), 3e3);
-    const goldRes = await fetch("https://api.gold-api.com/price/XAU", { signal: goldCtrl.signal });
+    const goldTimeout = setTimeout(() => goldCtrl.abort(), 4e3);
+    const goldRes = await fetch("https://api.gold-api.com/price/XAU", {
+      signal: goldCtrl.signal,
+      headers: { "Accept": "application/json" }
+    }).catch(() => null);
     clearTimeout(goldTimeout);
-    if (goldRes.ok) {
-      const gData = await goldRes.json();
+    if (goldRes && goldRes.ok) {
+      const gData = await goldRes.json().catch(() => null);
       if (gData && gData.price) {
         goldOns = Number(gData.price);
         details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
@@ -2085,9 +2088,17 @@ app.get("/api/rates", async (req, res) => {
           goldCumhuriyet = goldCeyrek * 4.12;
         }
       }
+    } else {
+      if (goldGram > 0 && usdRate > 0) {
+        goldOns = Number((goldGram * 31.1034768 / usdRate).toFixed(2));
+        details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
+      }
     }
-  } catch (e) {
-    console.warn("[Rates] Gold-api fetch error:", e.message);
+  } catch (_e) {
+    if (goldGram > 0 && usdRate > 0) {
+      goldOns = Number((goldGram * 31.1034768 / usdRate).toFixed(2));
+      details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
+    }
   }
   let cryptos = {
     BTC: { usd: 84648, change: 1.2 },
@@ -2103,7 +2114,7 @@ app.get("/api/rates", async (req, res) => {
   };
   try {
     const cryptoCtrl = new AbortController();
-    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 3500);
+    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 4e3);
     const symbolsParam = JSON.stringify([
       "BTCUSDT",
       "ETHUSDT",
@@ -2116,10 +2127,10 @@ app.get("/api/rates", async (req, res) => {
     ]);
     const cryptoRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`, {
       signal: cryptoCtrl.signal
-    });
+    }).catch(() => null);
     clearTimeout(cryptoTimeout);
-    if (cryptoRes.ok) {
-      const cryptoData = await cryptoRes.json();
+    if (cryptoRes && cryptoRes.ok) {
+      const cryptoData = await cryptoRes.json().catch(() => null);
       if (Array.isArray(cryptoData)) {
         for (const item of cryptoData) {
           const sym = item.symbol.replace("USDT", "");
@@ -2131,8 +2142,7 @@ app.get("/api/rates", async (req, res) => {
         }
       }
     }
-  } catch (e) {
-    console.warn("[Rates] Binance multi-crypto fetch error:", e.message);
+  } catch (_e) {
   }
   btcUsd = cryptos.BTC.usd;
   for (const [sym, data] of Object.entries(cryptos)) {
@@ -2294,8 +2304,7 @@ app.get("/api/weather", async (req, res) => {
         });
       }
     }
-  } catch (err) {
-    console.warn(`[Weather Proxy Warn] Weather fetch fallback triggered for (${lat}, ${lon}):`, err.message);
+  } catch (_err) {
   }
   const currentMonth = (/* @__PURE__ */ new Date()).getMonth();
   let fallbackTemp = 24;
@@ -2335,10 +2344,10 @@ app.get("/api/weather/search", async (req, res) => {
     const response = await fetch(geoUrl, {
       signal: controller.signal,
       headers: { "User-Agent": "ButcemPro/2.5" }
-    });
+    }).catch(() => null);
     clearTimeout(timer);
-    if (response.ok) {
-      const data = await response.json();
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
       if (data && data.results && data.results.length > 0) {
         return res.json({
           success: true,
@@ -2350,8 +2359,7 @@ app.get("/api/weather/search", async (req, res) => {
         });
       }
     }
-  } catch (err) {
-    console.warn(`[Weather Geo Proxy Warn] Search query "${query}" failed:`, err.message);
+  } catch (_err) {
   }
   return res.json({
     success: true,
