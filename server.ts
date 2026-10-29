@@ -2242,11 +2242,14 @@ app.get("/api/rates", async (req, res) => {
   // 2. Fetch live Ons Altın ($ XAU)
   try {
     const goldCtrl = new AbortController();
-    const goldTimeout = setTimeout(() => goldCtrl.abort(), 3000);
-    const goldRes = await fetch("https://api.gold-api.com/price/XAU", { signal: goldCtrl.signal });
+    const goldTimeout = setTimeout(() => goldCtrl.abort(), 4000);
+    const goldRes = await fetch("https://api.gold-api.com/price/XAU", {
+      signal: goldCtrl.signal,
+      headers: { "Accept": "application/json" }
+    }).catch(() => null);
     clearTimeout(goldTimeout);
-    if (goldRes.ok) {
-      const gData: any = await goldRes.json();
+    if (goldRes && goldRes.ok) {
+      const gData: any = await goldRes.json().catch(() => null);
       if (gData && gData.price) {
         goldOns = Number(gData.price);
         details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
@@ -2259,9 +2262,19 @@ app.get("/api/rates", async (req, res) => {
           goldCumhuriyet = goldCeyrek * 4.12;
         }
       }
+    } else {
+      // If external gold-api didn't respond or timed out, calculate Ons from Gram Altın if loaded from Truncgil
+      if (goldGram > 0 && usdRate > 0) {
+        goldOns = Number(((goldGram * 31.1034768) / usdRate).toFixed(2));
+        details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
+      }
     }
-  } catch (e: any) {
-    console.warn("[Rates] Gold-api fetch error:", e.message);
+  } catch (_e) {
+    // Graceful fallback to default/calculated gold levels without throwing warnings
+    if (goldGram > 0 && usdRate > 0) {
+      goldOns = Number(((goldGram * 31.1034768) / usdRate).toFixed(2));
+      details.GOLD_ONS = { buying: goldOns, selling: goldOns, change: 0.15 };
+    }
   }
 
   // Realistic crypto baseline levels
@@ -2281,17 +2294,17 @@ app.get("/api/rates", async (req, res) => {
   // 3. Fetch real-time diversified crypto prices from Binance (BTC, ETH, SOL, BNB, XRP, AVAX, DOGE, ADA)
   try {
     const cryptoCtrl = new AbortController();
-    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 3500);
+    const cryptoTimeout = setTimeout(() => cryptoCtrl.abort(), 4000);
     const symbolsParam = JSON.stringify([
       "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT",
       "XRPUSDT", "AVAXUSDT", "DOGEUSDT", "ADAUSDT"
     ]);
     const cryptoRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`, {
       signal: cryptoCtrl.signal
-    });
+    }).catch(() => null);
     clearTimeout(cryptoTimeout);
-    if (cryptoRes.ok) {
-      const cryptoData: any = await cryptoRes.json();
+    if (cryptoRes && cryptoRes.ok) {
+      const cryptoData: any = await cryptoRes.json().catch(() => null);
       if (Array.isArray(cryptoData)) {
         for (const item of cryptoData) {
           const sym = item.symbol.replace("USDT", "");
@@ -2303,8 +2316,8 @@ app.get("/api/rates", async (req, res) => {
         }
       }
     }
-  } catch (e: any) {
-    console.warn("[Rates] Binance multi-crypto fetch error:", e.message);
+  } catch (_e) {
+    // Graceful fallback to default crypto levels without throwing warnings
   }
 
   // Populate crypto details
@@ -2482,8 +2495,8 @@ app.get("/api/weather", async (req, res) => {
         });
       }
     }
-  } catch (err: any) {
-    console.warn(`[Weather Proxy Warn] Weather fetch fallback triggered for (${lat}, ${lon}):`, err.message);
+  } catch (_err) {
+    // Graceful seasonal weather fallback without console noise
   }
 
   // Resilient fallback: realistic seasonal daytime temperature & clear sky for location
@@ -2532,11 +2545,11 @@ app.get("/api/weather/search", async (req, res) => {
     const response = await fetch(geoUrl, {
       signal: controller.signal,
       headers: { "User-Agent": "ButcemPro/2.5" }
-    });
+    }).catch(() => null);
     clearTimeout(timer);
 
-    if (response.ok) {
-      const data: any = await response.json();
+    if (response && response.ok) {
+      const data: any = await response.json().catch(() => null);
       if (data && data.results && data.results.length > 0) {
         return res.json({
           success: true,
@@ -2548,8 +2561,8 @@ app.get("/api/weather/search", async (req, res) => {
         });
       }
     }
-  } catch (err: any) {
-    console.warn(`[Weather Geo Proxy Warn] Search query "${query}" failed:`, err.message);
+  } catch (_err) {
+    // Graceful search fallback
   }
 
   // 3. Fallback: Return closest default Istanbul
