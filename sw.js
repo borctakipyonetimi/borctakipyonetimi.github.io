@@ -23,7 +23,8 @@ self.addEventListener("activate", (event) => {
       loadAndScheduleCachedAlarms(),
       loadCachedDebts(),
       loadCachedInstallments(),
-      loadPushSettingsFromCache()
+      loadPushSettingsFromCache(),
+      checkSpecialDayAndNotify()
     ])
   );
 });
@@ -274,10 +275,66 @@ function buildAutoDebtAlarms() {
   return autoAlarms;
 }
 
+// Önemli Günler ve Resmi/Dini Bayramlar Takvimi (Service Worker Arka Plan Kontrolü)
+const SW_SPECIAL_DAYS = [
+  { id: "cumhuriyet-bayrami", month: 10, day: 29, title: "29 Ekim Cumhuriyet Bayramınız Kutlu Olsun! 🇹🇷", body: "Bütçem Pro ailesi olarak Cumhuriyetimizin kurucusu Gazi Mustafa Kemal Atatürk'ü ve silah arkadaşlarını minnetle anıyoruz. Cumhuriyetimizin 103. yılı kutlu olsun!" },
+  { id: "ataturku-anma", month: 11, day: 10, title: "10 Kasım: Sevgi, Saygı ve Özlemle Anıyoruz 🇹🇷", body: "Cumhuriyetimizin kurucusu Ulu Önder Gazi Mustafa Kemal Atatürk'ü saygı, minnet ve sonsuz özlemle anıyoruz." },
+  { id: "zafer-bayrami", month: 8, day: 30, title: "30 Ağustos Zafer Bayramınız Kutlu Olsun! 🇹🇷", body: "Büyük Zafer'in yıl dönümünde Gazi Mustafa Kemal Atatürk ve silah arkadaşlarını minnetle anıyoruz." },
+  { id: "ulusal-egemenlik", month: 4, day: 23, title: "23 Nisan Ulusal Egemenlik ve Çocuk Bayramı Kutlu Olsun! 🇹🇷", body: "Geleceğimizin teminatı tüm çocuklarımızın bayramını kutluyor; Atatürk'ü minnetle anıyoruz." },
+  { id: "genclik-spor", month: 5, day: 19, title: "19 Mayıs Gençlik ve Spor Bayramınız Kutlu Olsun! 🇹🇷", body: "Tüm gençlerimizin 19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı kutlu olsun." },
+  { id: "demokrasi-birlik", month: 7, day: 15, title: "15 Temmuz Demokrasi ve Milli Birlik Günü 🇹🇷", body: "Vatanımız uğruna can veren tüm aziz şehitlerimizi rahmet ve minnetle anıyoruz." },
+  { id: "yilbasi", month: 1, day: 1, title: "Mutlu Yıllar! Sağlık, Huzur ve Bereket Dolu Bir Yıl Dileriz 🎊", body: "Yeni yılın size ve sevdiklerinize sağlık, mutluluk ve finansal başarılar getirmesini dileriz." },
+  { id: "emek-dayanisma", month: 5, day: 1, title: "1 Mayıs Emek ve Dayanışma Günü Kutlu Olsun! 🛠️", body: "Tüm emekçilerimizin 1 Mayıs Emek ve Dayanışma Günü kutlu olsun." }
+];
+
+async function checkSpecialDayAndNotify() {
+  try {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    const todayStr = `${now.getFullYear()}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
+
+    for (const sd of SW_SPECIAL_DAYS) {
+      if (sd.month === m && sd.day === d) {
+        const cache = await caches.open("butcempro-special-days-cache");
+        const cacheKey = `/special-day-${sd.id}-${todayStr}`;
+        const alreadySent = await cache.match(cacheKey);
+
+        if (!alreadySent) {
+          const appIcon = self.location.origin + "/notification-icon.png";
+          await self.registration.showNotification(sd.title, {
+            body: sd.body,
+            icon: appIcon,
+            badge: appIcon,
+            image: appIcon,
+            vibrate: [300, 100, 300, 100, 400],
+            tag: `special-day-${sd.id}-${todayStr}`,
+            renotify: false,
+            requireInteraction: true,
+            timestamp: Date.now(),
+            actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
+            data: { url: "/?tab=overview" }
+          });
+
+          await cache.put(cacheKey, new Response(JSON.stringify({ sentAt: Date.now() }), {
+            headers: { "Content-Type": "application/json" }
+          }));
+          console.log("[SW] Özel gün bildirimi arka planda gönderildi:", sd.title);
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    console.warn("[SW] checkSpecialDayAndNotify hatası:", err);
+  }
+}
+
 // Reschedule both manual and automatic scheduled alarms inside the Service Worker thread
 function rescheduleAlarms() {
   alarmTimers.forEach(t => clearTimeout(t));
   alarmTimers = [];
+
+  checkSpecialDayAndNotify().catch(() => {});
 
   const now = Date.now();
   const appIcon = self.location.origin + "/notification-icon.png";
