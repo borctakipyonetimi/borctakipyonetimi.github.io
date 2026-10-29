@@ -27,6 +27,14 @@ import {
   IS_NOTIFICATIONS_ISOLATED
 } from "./androidAlarmBridge";
 import { LocalNotifications, LocalNotificationSchema } from "@capacitor/local-notifications";
+import {
+  buildSpecialDayNotificationItems,
+  scheduleSpecialDayNotifications,
+  getTodaySpecialDay,
+  checkAndTriggerTodaySpecialDayNotification,
+  SPECIAL_DAYS,
+  type SpecialDay
+} from "./specialDays";
 
 /**
  * Kullanıcının ayarlardan seçtiği bildirim saatlerini döndürür.
@@ -568,15 +576,25 @@ export async function rescheduleAllNotifications(
       }
     }
 
+    // 4c. Önemli ve Resmi/Dini Günler (29 Ekim, 23 Nisan, 30 Ağustos vb.) alarmlarını derle
+    try {
+      const specialDayItems = buildSpecialDayNotificationItems({ nowMs: options?.nowMs });
+      if (specialDayItems.length > 0) {
+        allItems.push(...specialDayItems);
+      }
+    } catch (sdErr) {
+      console.warn("[notificationScheduler] Özel gün bildirimleri derleme uyarısı:", sdErr);
+    }
+
     if (allItems.length === 0) return 0;
 
-    // 5. Bellek ve Android Binder limiti koruması: En yakın vadesi gelen ilk 40 alarmı güvenle sınırla
+    // 5. Bellek ve Android Binder limiti koruması: En yakın vadesi gelen ilk 50 alarmı güvenle sınırla
     allItems.sort((a, b) => {
       const timeA = (a.schedule?.at as Date)?.getTime?.() || 0;
       const timeB = (b.schedule?.at as Date)?.getTime?.() || 0;
       return timeA - timeB;
     });
-    const boundedItems = allItems.slice(0, 40);
+    const boundedItems = allItems.slice(0, 50);
 
     // 6. Bildirim kanalını hazırla
     await initCapacitorNotificationChannel().catch(() => {});
@@ -823,3 +841,12 @@ export async function scheduleSubscriptionExpiryNotifications(expiryDateStr?: st
 
   return scheduledIds;
 }
+
+// Re-export special days utilities
+export {
+  SPECIAL_DAYS,
+  SpecialDay,
+  getTodaySpecialDay,
+  scheduleSpecialDayNotifications,
+  checkAndTriggerTodaySpecialDayNotification
+};

@@ -23,7 +23,8 @@ self.addEventListener("activate", (event) => {
       loadAndScheduleCachedAlarms(),
       loadCachedDebts(),
       loadCachedInstallments(),
-      loadPushSettingsFromCache()
+      loadPushSettingsFromCache(),
+      checkSpecialDayAndNotify()
     ])
   );
 });
@@ -108,9 +109,30 @@ function resolveNotificationIcon(title, body, fallbackIcon) {
  * Ödenmemiş tüm borçlar için son ödeme tarihine 3 gün kaladan son güne kadar
  * her gün saat 09:30'a otomatik yerel alarm nesneleri üretir.
  */
+function getSwNotificationHours(frequency) {
+  const freq = frequency || (pushSettings && pushSettings.frequency) || "2";
+  switch (freq) {
+    case "1":
+      return [9];
+    case "2":
+      return [9, 18];
+    case "3":
+      return [9, 13, 19];
+    case "4":
+      return [9, 13, 18, 21];
+    case "hourly":
+      return [9, 11, 13, 15, 17, 19, 21];
+    default:
+      return [9, 18];
+  }
+}
+
 function buildAutoDebtAlarms() {
   const autoAlarms = [];
   const now = Date.now();
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const hours = getSwNotificationHours(pushSettings && pushSettings.frequency);
 
   // 1. Normal Borçlar İçin Otomatik Alarm
   if (Array.isArray(activeDebts)) {
@@ -124,29 +146,55 @@ function buildAutoDebtAlarms() {
       if (debt.dueDate) {
         const dueTime = parseDateRobust(debt.dueDate);
         if (!isNaN(dueTime)) {
-          // Son 3 gün kaladan (3, 2, 1) son güne (0) kadar her gün için
-          for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
-            const targetDate = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
-            targetDate.setHours(9, 30, 0, 0);
-            const triggerTime = targetDate.getTime();
+          const debtName = debt.name || "Borç";
 
-            if (triggerTime > now) {
-              const debtName = debt.name || "Borç";
-              const title = dayOffset === 0
-                ? `🚨 Son Ödeme Günü Bugün! (${debtName})`
-                : `⏰ Son ${dayOffset} Gün Kaldı! (${debtName})`;
-              const body = `${debtName} için son ${dayOffset === 0 ? "gün bugün" : dayOffset + " gün kaldı"}. Tutar: ${Math.round(remaining).toLocaleString("tr-TR")} TL`;
+          if (dueTime < todayStart) {
+            // Vadesi geçmiş borç: Bugün ve yarın için seçilen saatlerde alarm üret
+            const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
+            for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+              for (const hour of hours) {
+                const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset, hour, 0, 0, 0);
+                const triggerTime = targetDate.getTime();
+                if (triggerTime > now) {
+                  autoAlarms.push({
+                    id: `auto-overdue-${debt.id || Math.random()}-${dayOffset}-${hour}`,
+                    debtId: debt.id,
+                    title: `⚠️ Gecikmiş Borç: ${debtName} (${daysLate + dayOffset} gün gecikti)`,
+                    body: `${debtName} ödemeniz vadesini geçti. Tutar: ${Math.round(remaining).toLocaleString("tr-TR")} TL. Faiz işlememesi için ödeyiniz.`,
+                    date: new Date(triggerTime).toISOString(),
+                    timestamp: triggerTime,
+                    isAuto: true,
+                    silent: false
+                  });
+                }
+              }
+            }
+          } else {
+            // Son 3 gün kaladan son güne kadar seçilen saatlerde alarm üret
+            for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
+              const baseTarget = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
+              for (const hour of hours) {
+                const targetDate = new Date(baseTarget.getFullYear(), baseTarget.getMonth(), baseTarget.getDate(), hour, 0, 0, 0);
+                const triggerTime = targetDate.getTime();
 
-              autoAlarms.push({
-                id: `auto-debt-${debt.id || Math.random()}-${dayOffset}`,
-                debtId: debt.id,
-                title,
-                body,
-                date: new Date(triggerTime).toISOString(),
-                timestamp: triggerTime,
-                isAuto: true,
-                silent: false
-              });
+                if (triggerTime > now) {
+                  const title = dayOffset === 0
+                    ? `🚨 Son Ödeme Günü Bugün! (${debtName})`
+                    : `⏰ Son ${dayOffset} Gün Kaldı! (${debtName})`;
+                  const body = `${debtName} için son ${dayOffset === 0 ? "gün bugün" : dayOffset + " gün kaldı"}. Tutar: ${Math.round(remaining).toLocaleString("tr-TR")} TL`;
+
+                  autoAlarms.push({
+                    id: `auto-debt-${debt.id || Math.random()}-${dayOffset}-${hour}`,
+                    debtId: debt.id,
+                    title,
+                    body,
+                    date: new Date(triggerTime).toISOString(),
+                    timestamp: triggerTime,
+                    isAuto: true,
+                    silent: false
+                  });
+                }
+              }
             }
           }
         }
@@ -172,27 +220,51 @@ function buildAutoDebtAlarms() {
           const dueTime = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate()).getTime();
           const instTitle = `${inst.title || inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
 
-          for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
-            const targetDate = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
-            targetDate.setHours(9, 30, 0, 0);
-            const triggerTime = targetDate.getTime();
+          if (dueTime < todayStart) {
+            const daysLate = Math.max(1, Math.floor((todayStart - dueTime) / (1000 * 60 * 60 * 24)));
+            for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+              for (const hour of hours) {
+                const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset, hour, 0, 0, 0);
+                const triggerTime = targetDate.getTime();
+                if (triggerTime > now) {
+                  autoAlarms.push({
+                    id: `auto-overdue-inst-${inst.id || Math.random()}-${dayOffset}-${hour}`,
+                    debtId: inst.id,
+                    title: `⚠️ Gecikmiş Taksit: ${instTitle} (${daysLate + dayOffset} gün gecikti)`,
+                    body: `${instTitle} taksit ödemeniz gecikmiştir. Tutar: ${Math.round(perInst).toLocaleString("tr-TR")} TL`,
+                    date: new Date(triggerTime).toISOString(),
+                    timestamp: triggerTime,
+                    isAuto: true,
+                    silent: false
+                  });
+                }
+              }
+            }
+          } else {
+            for (let dayOffset = 3; dayOffset >= 0; dayOffset--) {
+              const baseTarget = new Date(dueTime - (dayOffset * 24 * 60 * 60 * 1000));
+              for (const hour of hours) {
+                const targetDate = new Date(baseTarget.getFullYear(), baseTarget.getMonth(), baseTarget.getDate(), hour, 0, 0, 0);
+                const triggerTime = targetDate.getTime();
 
-            if (triggerTime > now) {
-              const title = dayOffset === 0
-                ? `🚨 Taksit Günü Bugün! (${instTitle})`
-                : `⏰ Taksite Son ${dayOffset} Gün! (${instTitle})`;
-              const body = `${instTitle} taksit ödemeniz için son gün yaklaştı. Tutar: ${Math.round(perInst).toLocaleString("tr-TR")} TL`;
+                if (triggerTime > now) {
+                  const title = dayOffset === 0
+                    ? `🚨 Taksit Günü Bugün! (${instTitle})`
+                    : `⏰ Taksite Son ${dayOffset} Gün! (${instTitle})`;
+                  const body = `${instTitle} taksit ödemeniz için son gün yaklaştı. Tutar: ${Math.round(perInst).toLocaleString("tr-TR")} TL`;
 
-              autoAlarms.push({
-                id: `auto-inst-${inst.id || Math.random()}-${dayOffset}`,
-                debtId: inst.id,
-                title,
-                body,
-                date: new Date(triggerTime).toISOString(),
-                timestamp: triggerTime,
-                isAuto: true,
-                silent: false
-              });
+                  autoAlarms.push({
+                    id: `auto-inst-${inst.id || Math.random()}-${dayOffset}-${hour}`,
+                    debtId: inst.id,
+                    title,
+                    body,
+                    date: new Date(triggerTime).toISOString(),
+                    timestamp: triggerTime,
+                    isAuto: true,
+                    silent: false
+                  });
+                }
+              }
             }
           }
         }
@@ -203,10 +275,66 @@ function buildAutoDebtAlarms() {
   return autoAlarms;
 }
 
+// Önemli Günler ve Resmi/Dini Bayramlar Takvimi (Service Worker Arka Plan Kontrolü)
+const SW_SPECIAL_DAYS = [
+  { id: "cumhuriyet-bayrami", month: 10, day: 29, title: "29 Ekim Cumhuriyet Bayramınız Kutlu Olsun! 🇹🇷", body: "Bütçem Pro ailesi olarak Cumhuriyetimizin kurucusu Gazi Mustafa Kemal Atatürk'ü ve silah arkadaşlarını minnetle anıyoruz. Cumhuriyetimizin 103. yılı kutlu olsun!" },
+  { id: "ataturku-anma", month: 11, day: 10, title: "10 Kasım: Sevgi, Saygı ve Özlemle Anıyoruz 🇹🇷", body: "Cumhuriyetimizin kurucusu Ulu Önder Gazi Mustafa Kemal Atatürk'ü saygı, minnet ve sonsuz özlemle anıyoruz." },
+  { id: "zafer-bayrami", month: 8, day: 30, title: "30 Ağustos Zafer Bayramınız Kutlu Olsun! 🇹🇷", body: "Büyük Zafer'in yıl dönümünde Gazi Mustafa Kemal Atatürk ve silah arkadaşlarını minnetle anıyoruz." },
+  { id: "ulusal-egemenlik", month: 4, day: 23, title: "23 Nisan Ulusal Egemenlik ve Çocuk Bayramı Kutlu Olsun! 🇹🇷", body: "Geleceğimizin teminatı tüm çocuklarımızın bayramını kutluyor; Atatürk'ü minnetle anıyoruz." },
+  { id: "genclik-spor", month: 5, day: 19, title: "19 Mayıs Gençlik ve Spor Bayramınız Kutlu Olsun! 🇹🇷", body: "Tüm gençlerimizin 19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı kutlu olsun." },
+  { id: "demokrasi-birlik", month: 7, day: 15, title: "15 Temmuz Demokrasi ve Milli Birlik Günü 🇹🇷", body: "Vatanımız uğruna can veren tüm aziz şehitlerimizi rahmet ve minnetle anıyoruz." },
+  { id: "yilbasi", month: 1, day: 1, title: "Mutlu Yıllar! Sağlık, Huzur ve Bereket Dolu Bir Yıl Dileriz 🎊", body: "Yeni yılın size ve sevdiklerinize sağlık, mutluluk ve finansal başarılar getirmesini dileriz." },
+  { id: "emek-dayanisma", month: 5, day: 1, title: "1 Mayıs Emek ve Dayanışma Günü Kutlu Olsun! 🛠️", body: "Tüm emekçilerimizin 1 Mayıs Emek ve Dayanışma Günü kutlu olsun." }
+];
+
+async function checkSpecialDayAndNotify() {
+  try {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    const todayStr = `${now.getFullYear()}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
+
+    for (const sd of SW_SPECIAL_DAYS) {
+      if (sd.month === m && sd.day === d) {
+        const cache = await caches.open("butcempro-special-days-cache");
+        const cacheKey = `/special-day-${sd.id}-${todayStr}`;
+        const alreadySent = await cache.match(cacheKey);
+
+        if (!alreadySent) {
+          const appIcon = self.location.origin + "/notification-icon.png";
+          await self.registration.showNotification(sd.title, {
+            body: sd.body,
+            icon: appIcon,
+            badge: appIcon,
+            image: appIcon,
+            vibrate: [300, 100, 300, 100, 400],
+            tag: `special-day-${sd.id}-${todayStr}`,
+            renotify: false,
+            requireInteraction: true,
+            timestamp: Date.now(),
+            actions: [{ action: "open_app", title: "Uygulamayı Aç" }],
+            data: { url: "/?tab=overview" }
+          });
+
+          await cache.put(cacheKey, new Response(JSON.stringify({ sentAt: Date.now() }), {
+            headers: { "Content-Type": "application/json" }
+          }));
+          console.log("[SW] Özel gün bildirimi arka planda gönderildi:", sd.title);
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    console.warn("[SW] checkSpecialDayAndNotify hatası:", err);
+  }
+}
+
 // Reschedule both manual and automatic scheduled alarms inside the Service Worker thread
 function rescheduleAlarms() {
   alarmTimers.forEach(t => clearTimeout(t));
   alarmTimers = [];
+
+  checkSpecialDayAndNotify().catch(() => {});
 
   const now = Date.now();
   const appIcon = self.location.origin + "/notification-icon.png";
@@ -788,6 +916,7 @@ self.addEventListener("message", (event) => {
       saveCachedLastTwiceDailyNotificationTime(event.data.sonGundeIkiBildirimZamani);
     }
     console.log("[Service Worker] Push settings updated & cached:", pushSettings);
+    rescheduleAlarms();
   }
 
   if (event.data.type === "SYNC_USER_PROFILE") {

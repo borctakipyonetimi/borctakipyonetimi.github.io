@@ -183,7 +183,10 @@ import {
   scheduleInstallmentNotification,
   cancelInstallmentNotifications,
   rescheduleAllNotifications,
-  cancelAllDebtAndInstallmentNotifications
+  cancelAllDebtAndInstallmentNotifications,
+  scheduleSpecialDayNotifications,
+  checkAndTriggerTodaySpecialDayNotification,
+  getTodaySpecialDay
 } from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
@@ -1583,6 +1586,23 @@ export default function App() {
   const [testPushStatus, setTestPushStatus] = useState<string>("");
   const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(false);
 
+  // Bugün Önemli Gün / Resmi Tatil Durumu (29 Ekim vb.)
+  const [activeSpecialDay, setActiveSpecialDay] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      return getTodaySpecialDay();
+    }
+    return null;
+  });
+  const [showSpecialDayBanner, setShowSpecialDayBanner] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const todaySd = getTodaySpecialDay();
+      if (!todaySd) return false;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      return localStorage.getItem(`special_banner_dismissed_${todayStr}_${todaySd.id}`) !== "true";
+    }
+    return false;
+  });
+
   const triggerDiagnosticTestPush = async () => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
       triggerToast("Bu tarayıcı bildirim altyapısını desteklemiyor.");
@@ -1872,8 +1892,13 @@ export default function App() {
       || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
     const safeUser = rawResolvedName ? rawResolvedName.toUpperCase() : "SERKAN SAĞLAM";
 
-    // Eğer body zaten özel formatlanmışsa (👤 SN. ile başlıyorsa veya AKTİF BORÇ LİSTENİZ içeriyorsa) tekrara girmeden doğrudan kullan
-    const isAlreadyFormatted = Boolean(
+    // Eğer mesaj özel bir bayram/resmi gün kutlamasıysa veya body zaten özel formatlanmışsa doğrudan kullan
+    const isSpecialGreeting = Boolean(
+      (title && (title.includes("Bayram") || title.includes("Cumhuriyet") || title.includes("Kutlu Olsun") || title.includes("Atatürk") || title.includes("Yılbaşı") || title.includes("1 Mayıs") || title.includes("15 Temmuz") || title.includes("30 Ağustos"))) ||
+      (body && (body.includes("Bayram") || body.includes("Atatürk") || body.includes("Cumhuriyet") || body.includes("Kutlu Olsun") || body.includes("Mutlu Yıllar") || body.includes("Bütçem Pro ailesi")))
+    );
+
+    const isAlreadyFormatted = isSpecialGreeting || Boolean(
       body && (
         body.startsWith("👤") ||
         body.startsWith("SN.") ||
@@ -2039,6 +2064,48 @@ export default function App() {
       setShowToast(false);
     }, duration);
   };
+
+  // Önemli Günler ve Resmi/Dini Bayramlar (29 Ekim Cumhuriyet Bayramı vb.) Otomatik Bildirim ve Tebrik Sistemi
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const runSpecialDayCheck = () => {
+      try {
+        const todaySd = getTodaySpecialDay();
+        setActiveSpecialDay(todaySd);
+
+        checkAndTriggerTodaySpecialDayNotification((title, body, id) => {
+          sendSystemNotification(title, body, false, id);
+          triggerToast(`🇹🇷 ${title}`, 5000);
+          try {
+            confetti({
+              particleCount: 60,
+              spread: 75,
+              origin: { y: 0.6 }
+            });
+          } catch (_) {}
+        });
+      } catch (err) {
+        console.warn("[App.tsx] Özel gün kontrol uyarısı:", err);
+      }
+    };
+
+    // Açılışta 1.5 saniye sonra kontrol et
+    const initialTimer = setTimeout(runSpecialDayCheck, 1500);
+
+    // Her 30 dakikada bir arka plan kontrolü yap
+    const intervalTimer = setInterval(runSpecialDayCheck, 30 * 60 * 1000);
+
+    // Tüm özel gün alarmlarını OS kuyruğuna planla (allowWhileIdle / Exact Alarm)
+    scheduleSpecialDayNotifications().catch((err) => {
+      console.warn("[App.tsx] scheduleSpecialDayNotifications hatası:", err);
+    });
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+    };
+  }, []);
 
   // Robust client-side Web Push subscription manager
   const registerPushSubscription = async (reg: ServiceWorkerRegistration, overrideAlarms?: Alarm[]) => {
@@ -9061,6 +9128,37 @@ export default function App() {
             >
               <span>👑</span>
               <span>Paket Seç</span>
+            </button>
+          </div>
+        )}
+
+        {/* Özel Gün ve Milli/Dini Bayram Tebrik Kartı */}
+        {activeSpecialDay && showSpecialDayBanner && (
+          <div className="relative mb-3.5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-rose-800 text-white shadow-lg border border-red-500/40 flex items-start sm:items-center justify-between gap-3 overflow-hidden">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-2xl sm:text-3xl filter drop-shadow-sm select-none shrink-0">
+                {activeSpecialDay.emoji || "🇹🇷"}
+              </span>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
+                  <span>{activeSpecialDay.title}</span>
+                </h4>
+                <p className="text-[11px] sm:text-xs text-red-100 font-medium leading-relaxed mt-0.5">
+                  {activeSpecialDay.message}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSpecialDayBanner(false);
+                const todayStr = new Date().toISOString().slice(0, 10);
+                localStorage.setItem(`special_banner_dismissed_${todayStr}_${activeSpecialDay.id}`, "true");
+              }}
+              className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition shrink-0 cursor-pointer"
+              title="Kapat"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
