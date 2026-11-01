@@ -11,7 +11,7 @@ export interface Debt {
   category: string;
   dueDate: string;
   date?: string;
-  providerId?: string;
+  providerId?: string | null;
   sonBildirimZamani?: number;
   sonGecikmeBildirimZamani?: number;
 }

@@ -358,12 +358,16 @@ export const DebtList: React.FC<DebtListProps> = ({
         const dayStr = String(validDay).padStart(2, "0");
         const newDueDate = `${targetYear}-${monthStr}-${dayStr}`;
 
+        const detected = detectProviderFromName(d.name, d.category);
+        const resolvedProviderId = d.providerId || (detected ? detected.id : undefined);
+
         itemsToSave.push({
           name: d.name,
           amount: d.amount,
           paid: 0,
           category: d.category,
           dueDate: newDueDate,
+          providerId: resolvedProviderId,
         });
         
         newlyAddedNames.push(dNameLower);
@@ -421,12 +425,17 @@ export const DebtList: React.FC<DebtListProps> = ({
     const sourceDebts = getSourceDebtsForTemplate();
     if (sourceDebts.length === 0) return;
 
-    const templateData = sourceDebts.map((d) => ({
-      name: d.name,
-      amount: d.amount,
-      category: d.category || "Diğer",
-      dueDate: d.dueDate || "",
-    }));
+    const templateData = sourceDebts.map((d) => {
+      const detected = detectProviderFromName(d.name, d.category);
+      const effectiveProviderId = d.providerId || (detected ? detected.id : undefined);
+      return {
+        name: d.name,
+        amount: d.amount,
+        category: d.category || "Diğer",
+        dueDate: d.dueDate || "",
+        providerId: effectiveProviderId,
+      };
+    });
 
     const jsonString = JSON.stringify(templateData, null, 2);
     let rawName = (templateNameInput || `Borc_Sablonu_${MONTH_NAMES[selectedMonthVal]}_${selectedYearVal}`).trim();
@@ -557,7 +566,7 @@ export const DebtList: React.FC<DebtListProps> = ({
     localStorage.setItem("user_named_debt_templates", JSON.stringify(updated));
   };
 
-  const handleImportTemplateItems = (items: Array<{ name: string; amount: number; category?: string; dueDate?: string }>) => {
+  const handleImportTemplateItems = (items: Array<{ name: string; amount: number; category?: string; dueDate?: string; providerId?: string | null }>) => {
     if (!Array.isArray(items) || items.length === 0) {
       alert("Yüklenecek geçerli borç verisi bulunamadı!");
       return;
@@ -606,12 +615,17 @@ export const DebtList: React.FC<DebtListProps> = ({
       const dayStr = String(validDay).padStart(2, "0");
       const newDueDate = `${targetYear}-${monthStr}-${dayStr}`;
 
+      // Extract providerId or auto-detect from name and category (supports both old and new templates)
+      const detected = detectProviderFromName(item.name.trim(), item.category || "Diğer");
+      const finalProviderId = item.providerId || (detected ? detected.id : undefined);
+
       itemsToSave.push({
         name: item.name.trim(),
         amount: Number(item.amount) || 0,
         paid: 0,
         category: item.category || "Diğer",
         dueDate: newDueDate,
+        providerId: finalProviderId,
       });
 
       newlyAddedNames.push(dNameLower);
@@ -1042,7 +1056,8 @@ export const DebtList: React.FC<DebtListProps> = ({
     setPaid(formatNumberWithDots(d.paid.toString()));
     setCategory(d.category);
     setDueDate(d.dueDate || "");
-    setProviderId(d.providerId);
+    const detected = detectProviderFromName(d.name, d.category);
+    setProviderId(d.providerId || (detected ? detected.id : undefined));
     setCreateAlarm(false);
     setIsInstallment(false);
     setIsModalOpen(true);
@@ -1988,7 +2003,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         )}
       </div>
 
-      {/* Animasyonlu Borç Durum Paneli - Yerleşim: [Borç Kartları] -> [Animasyonlu Borç Durum Paneli] -> [Borç Kapatma Rehberi] */}
+      {/* Borç Durum Paneli - Yerleşim: [Borç Kartları] -> [Borç Durum Paneli] -> [Borç Kapatma Rehberi] */}
       <AnimatedDebtStatusPanel
         debts={debts}
         installmentDebts={installmentDebts}
@@ -2672,6 +2687,23 @@ export const DebtList: React.FC<DebtListProps> = ({
                             <span>•</span>
                             <span className="font-bold text-emerald-600 dark:text-emerald-400">{format(t.totalAmount || 0)}</span>
                           </div>
+                          {/* Şablondaki Kurum Logoları Önizlemesi */}
+                          {Array.isArray(t.debts) && t.debts.length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              {t.debts.slice(0, 6).map((td: any, idx: number) => {
+                                const prov = getProviderById(td.providerId) || detectProviderFromName(td.name, td.category);
+                                if (!prov) return null;
+                                return (
+                                  <div key={idx} className="shrink-0" title={`${td.name} (${prov.name})`}>
+                                    <ProviderBadge providerId={prov.id} size="xs" showLabel={false} />
+                                  </div>
+                                );
+                              })}
+                              {t.debts.length > 6 && (
+                                <span className="text-[9px] text-slate-400 font-bold self-center">+{t.debts.length - 6}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button

@@ -273,7 +273,7 @@ const AnimatedDebtStatusPanelComponent: React.FC<AnimatedDebtStatusPanelProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-sm font-black tracking-wider text-slate-900 dark:text-slate-100 uppercase">
-                  {language === "tr" ? "ANİMASYONLU BORÇ DURUM PANELİ" : "ANIMATED DEBT STATUS PANEL"}
+                  {language === "tr" ? "BORÇ DURUM PANELİ" : "DEBT STATUS PANEL"}
                 </h3>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                   <Zap className="w-2.5 h-2.5" />

@@ -4857,13 +4857,18 @@ export default function App() {
       const newAmount = debtData.amount || 0;
       const newPaid = debtData.paid || 0;
 
+      // Extract providerId or auto-detect from name and category
+      const detected = detectProviderFromName(debtName, debtData.category || "Diğer");
+      const assignedProviderId = debtData.providerId || (detected ? detected.id : null);
+
       const newD: Debt = {
         id: nextId++,
         name: debtName,
         amount: newAmount,
         paid: newPaid,
         category: debtData.category || "Diğer",
-        dueDate: dueDate
+        dueDate: dueDate,
+        providerId: assignedProviderId
       };
       updated.push(newD);
       createdDebts.push(newD);
@@ -4939,7 +4944,11 @@ export default function App() {
         }
       }
 
-      updated = debts.map((d) => (d.id === debtData.id ? { ...d, ...debtData } as Debt : d));
+      const existingProviderId = oldDebt ? oldDebt.providerId : null;
+      const detectedOnUpdate = detectProviderFromName(debtName, debtData.category || oldDebt?.category);
+      const effectiveProviderId = debtData.providerId !== undefined ? debtData.providerId : (existingProviderId || (detectedOnUpdate ? detectedOnUpdate.id : null));
+
+      updated = debts.map((d) => (d.id === debtData.id ? ({ ...d, ...debtData, providerId: effectiveProviderId } as Debt) : d));
     } else {
       // It's a new debt creation.
       const newId = generateId(debts);
@@ -4951,6 +4960,9 @@ export default function App() {
         shouldCelebrate = true;
       }
 
+      const detected = detectProviderFromName(debtName, debtData.category || "Diğer");
+      const assignedProviderId = debtData.providerId || (detected ? detected.id : null);
+
       const newD: Debt = {
         id: newId,
         name: debtName,
@@ -4958,7 +4970,7 @@ export default function App() {
         paid: newPaid,
         category: debtData.category || "Diğer",
         dueDate: dueDate,
-        providerId: debtData.providerId || null
+        providerId: assignedProviderId
       };
       updated = [...debts, newD];
 
