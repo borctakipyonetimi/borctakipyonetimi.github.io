@@ -4364,6 +4364,41 @@ app.get("/api/notifications/email/smtp-status", (req, res) => {
   });
 });
 
+// 10.5. Send direct monthly / custom report email
+app.post("/api/notifications/email/send-direct", async (req, res) => {
+  try {
+    const { recipientEmail, subject, htmlContent } = req.body;
+    const cleanEmail = (recipientEmail || "").trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      return res.status(400).json({ success: false, error: "Geçerli bir alıcı e-posta adresi belirtilmedi." });
+    }
+
+    const textContent = htmlContent ? htmlContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "Bütçem Pro Finansal Raporu";
+
+    const mailResult = await sendMailHelper({
+      to: cleanEmail,
+      subject: subject || "Bütçem Pro: Aylık Finansal Rapor",
+      html: htmlContent,
+      text: textContent
+    });
+
+    return res.json({
+      success: mailResult.success,
+      delivered: !mailResult.simulated && mailResult.success,
+      simulated: mailResult.simulated,
+      messageId: mailResult.messageId,
+      message: mailResult.simulated
+        ? `E-posta ${cleanEmail} için simüle edildi. Canlı teslimat için SMTP bilgilerinizi tanımlayabilirsiniz.`
+        : mailResult.success
+        ? `Aylık finansal rapor ${cleanEmail} adresine başarıyla gönderildi! 🚀`
+        : `Gönderim hatası: ${mailResult.error || "Bilinmeyen hata"}`
+    });
+  } catch (err: any) {
+    console.error("[Email send-direct error]:", err);
+    return res.status(500).json({ success: false, error: err.message || "Sunucu hatası" });
+  }
+});
+
 // 11. Send automated overdue / due today debt alert email
 app.post("/api/notifications/email/send-alert", async (req, res) => {
   const { email, debts, installmentDebts, user, analysis: clientAnalysis, isWelcome } = req.body;
@@ -4480,6 +4515,43 @@ setInterval(async () => {
           sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmiş, ${qualifyingDueToday.length} bugün vadesi gelen (Toplam Kalan: ₺${analysis.totalActiveDebt})`;
           saveEmailSubscribersToFile();
         }
+      }
+    }
+
+    // Check 1st of the month automated monthly financial report emails
+    const nowCalendar = new Date(nowTime);
+    if (nowCalendar.getDate() === 1) {
+      const currentMonthKey = `${nowCalendar.getFullYear()}-${String(nowCalendar.getMonth() + 1).padStart(2, "0")}`;
+      for (const [emailKey, sub] of Object.entries(emailSubscribersMap)) {
+        if (!sub.verified) continue;
+        if ((sub as any).lastMonthlyReportMonth === currentMonthKey) continue;
+
+        const prevCal = new Date(nowCalendar.getFullYear(), nowCalendar.getMonth() - 1, 1);
+        const prevM = prevCal.getMonth();
+        const prevY = prevCal.getFullYear();
+        const trMonths = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+        const pName = `${trMonths[prevM]} ${prevY}`;
+
+        console.log(`[Monthly Report Daemon] Automated 1st-of-month report triggered for: ${sub.email} (${pName})`);
+
+        const subAnalysis = analyzeUserDebts(sub.debts || [], sub.installmentDebts || []);
+        const reportHtml = generateOverdueEmailHtml(
+          sub.email,
+          sub.user || "Bütçem Pro Kullanıcısı",
+          subAnalysis,
+          false,
+          false
+        );
+
+        await sendMailHelper({
+          to: sub.email,
+          subject: `Bütçem Pro: ${pName} Dönemi Aylık Finansal Rapor ve Bütçe Denetimi`,
+          html: reportHtml,
+          text: `Sayın ${sub.user || "Bütçem Pro Kullanıcısı"}, ${pName} dönemi finansal durum ve borç denetim raporunuz hazırlanmıştır.`
+        });
+
+        (sub as any).lastMonthlyReportMonth = currentMonthKey;
+        saveEmailSubscribersToFile();
       }
     }
 

@@ -143,6 +143,8 @@ import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, Rew
 import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
+import { VerifyEmailNotificationSection } from "./components/VerifyEmailNotificationSection";
+import { generateMonthlyPdfReport } from "./utils/annualPdfReport";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
 import { getProviderById, detectProviderFromName } from "./data/providers";
@@ -1456,7 +1458,7 @@ export default function App() {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
-  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings">("feed");
+  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings" | "email">("feed");
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
@@ -2236,6 +2238,57 @@ export default function App() {
           triggerToast(`🔔 Bildirim: ${notification.title}`);
         }
       });
+    }
+  }, []);
+
+  // Auto-generate and download Monthly PDF Report when launched from Email link (?action=download_monthly_pdf)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("action") === "download_monthly_pdf") {
+      const qMonth = searchParams.get("month");
+      const qYear = searchParams.get("year");
+      const now = new Date();
+      let targetM = qMonth !== null ? parseInt(qMonth, 10) : now.getMonth();
+      let targetY = qYear !== null ? parseInt(qYear, 10) : now.getFullYear();
+
+      if (isNaN(targetM) || targetM < 0 || targetM > 11) {
+        targetM = (now.getMonth() - 1 + 12) % 12;
+      }
+      if (isNaN(targetY) || targetY < 2000) {
+        targetY = now.getFullYear();
+      }
+
+      // Delay briefly to allow state and fonts to hydrate
+      const timer = setTimeout(async () => {
+        try {
+          await generateMonthlyPdfReport({
+            month: targetM,
+            year: targetY,
+            incomes: incomesRef.current || incomes,
+            expenses: expensesRef.current || expenses,
+            payments: paymentsRef.current || payments,
+            debts: debtsRef.current || debts,
+            installmentDebts: installmentDebtsRef.current || installmentDebts,
+            userName: currentUser || "Bütçem Pro Kullanıcısı",
+            currencySymbol: "₺",
+          });
+          const monthNames = [
+            "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+            "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+          ];
+          triggerToast(`📥 ${monthNames[targetM]} ${targetY} Detaylı Finansal PDF Raporunuz başarıyla indirildi!`);
+        } catch (err: any) {
+          console.error("[Monthly PDF] Download failed:", err);
+          triggerToast(`PDF indirme hatası: ${err?.message || "Hata oluştu"}`);
+        } finally {
+          // Remove query params smoothly without page reload
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      }, 1200);
+
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -4379,15 +4432,27 @@ export default function App() {
     const contactPayablesRemaining = contactPayablesTotal - contactPayablesPaid;
     const contactReceivablesRemaining = contactReceivablesTotal - contactReceivablesCollected;
 
-    const trueOverallDebt = debts.reduce((sum, d) => sum + d.amount, 0) + 
-      installmentDebts.reduce((sum, inst) => sum + inst.totalAmount, 0) +
-      contactPayablesTotal;
+    const standardDebtsRemaining = debts.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+    const installmentDebtsRemaining = installmentDebts.reduce((sum, inst) => {
+      const totalAmt = Number(inst.totalAmount) || 0;
+      const count = Number(inst.installmentCount) || 1;
+      const paidCount = Number(inst.paidInstallmentCount) || 0;
+      const paidSoFar = paidCount * (totalAmt / count);
+      return sum + Math.max(0, totalAmt - paidSoFar);
+    }, 0);
 
-    const trueOverallPaid = debts.reduce((sum, d) => sum + d.paid, 0) + 
-      installmentDebts.reduce((sum, inst) => sum + (inst.paidInstallmentCount * (inst.totalAmount / (inst.installmentCount || 1))), 0) +
+    const trueOverallDebt = standardDebtsRemaining + installmentDebtsRemaining + contactPayablesRemaining;
+
+    const trueOverallPaid = debts.reduce((sum, d) => sum + (Number(d.paid) || 0), 0) + 
+      installmentDebts.reduce((sum, inst) => {
+        const totalAmt = Number(inst.totalAmount) || 0;
+        const count = Number(inst.installmentCount) || 1;
+        const paidCount = Number(inst.paidInstallmentCount) || 0;
+        return sum + (paidCount * (totalAmt / count));
+      }, 0) +
       contactPayablesPaid;
 
-    const trueOverallRemaining = trueOverallDebt - trueOverallPaid;
+    const trueOverallRemaining = trueOverallDebt;
 
     // 5. Selected period's specific monthly debt calculation
     let periodSimpleDebtPaidThisMonth = 0;
@@ -9377,6 +9442,20 @@ export default function App() {
                 <span>Push Bildirim & Sıklık Ayarları</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setNotifSectionTab("email")}
+                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
+                  notifSectionTab === "email"
+                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Mail className="w-4 h-4" />
+                <span>Aylık Finansal Rapor E-Postası</span>
+                <span className="w-2 h-2 rounded-full bg-violet-500"></span>
+              </button>
             </div>
 
             {/* SEÇİLEN BÖLÜM 1: BİLDİRİMLER VE ALARMLAR LİSTESİ */}
@@ -9993,6 +10072,23 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* SEÇİLEN BÖLÜM 3: AYLIK FİNANSAL RAPOR E-POSTASI VE PDF */}
+            {notifSectionTab === "email" && (
+              <div className="space-y-5 animate-fade-in">
+                <VerifyEmailNotificationSection
+                  debts={debts}
+                  installmentDebts={installmentDebts}
+                  incomes={incomes}
+                  expenses={expenses}
+                  payments={payments}
+                  selectedMonth={selectedMonth}
+                  selectedYear={selectedYear}
+                  language={language}
+                  onSuccessToast={(msg) => triggerToast(msg)}
+                />
               </div>
             )}
           </div>

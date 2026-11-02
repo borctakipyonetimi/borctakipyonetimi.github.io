@@ -664,3 +664,484 @@ export async function generateAnnualPdfReport(options: AnnualReportOptions): Pro
 
   return { success: true, fileName, doc };
 }
+
+export interface MonthlyReportOptions {
+  month: number; // 0-11
+  year: number;
+  incomes: Income[];
+  expenses: Expense[];
+  payments: PaymentLog[];
+  debts?: Debt[];
+  installmentDebts?: InstallmentDebt[];
+  currencySymbol?: string;
+  userName?: string;
+  language?: "tr" | "en";
+}
+
+/**
+ * Generates and triggers download of the official Monthly Financial Statement PDF Report
+ */
+export async function generateMonthlyPdfReport(options: MonthlyReportOptions): Promise<{
+  success: boolean;
+  fileName: string;
+  doc: jsPDF;
+}> {
+  const {
+    month,
+    year,
+    incomes = [],
+    expenses = [],
+    payments = [],
+    debts = [],
+    installmentDebts = [],
+    currencySymbol = "TL",
+    userName = "Bütçem Pro Kullanıcısı"
+  } = options;
+
+  const monthsListTr = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ];
+  const monthName = monthsListTr[month] || "Ay";
+  const periodName = `${monthName} ${year}`;
+  const fileName = `ButcemPro_${monthName}_${year}_Finansal_Raporu.pdf`;
+
+  const selectedPeriodMonthIdx = year * 12 + month;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // 1. Incomes for this month (with recurring)
+  const monthIncomes: Array<{ name: string; amount: number; date: string; isRecurring?: boolean }> = [];
+  let totalIncome = 0;
+  incomes.forEach((i) => {
+    const amt = Number(i.amount) || 0;
+    if (amt <= 0) return;
+    const parts = parseDateParts(i.date);
+    if (!parts) {
+      monthIncomes.push({ name: i.name || "Gelir", amount: amt, date: i.date || `${year}-${String(month + 1).padStart(2, "0")}-01` });
+      totalIncome += amt;
+      return;
+    }
+    const incMonthIdx = parts.year * 12 + parts.month;
+    if (i.isRecurring) {
+      if (selectedPeriodMonthIdx >= incMonthIdx) {
+        monthIncomes.push({
+          name: i.name || "Düzenli Gelir",
+          amount: amt,
+          date: `${year}-${String(month + 1).padStart(2, "0")}-${String(Math.min(parts.day, daysInMonth)).padStart(2, "0")}`,
+          isRecurring: true
+        });
+        totalIncome += amt;
+      }
+    } else if (parts.year === year && parts.month === month) {
+      monthIncomes.push({ name: i.name || "Gelir", amount: amt, date: i.date, isRecurring: false });
+      totalIncome += amt;
+    }
+  });
+
+  // 2. Expenses for this month (with recurring)
+  const monthExpenses: Array<{ name: string; category: string; amount: number; date: string; isRecurring?: boolean }> = [];
+  let totalExpense = 0;
+  expenses.forEach((e) => {
+    const amt = Number(e.amount) || 0;
+    if (amt <= 0) return;
+    const parts = parseDateParts(e.date);
+    const cat = e.category || "Genel Gider";
+    const desc = e.description || "Gider Kaydı";
+    if (!parts) {
+      monthExpenses.push({ name: desc, category: cat, amount: amt, date: e.date || `${year}-${String(month + 1).padStart(2, "0")}-01` });
+      totalExpense += amt;
+      return;
+    }
+    const expMonthIdx = parts.year * 12 + parts.month;
+    if (e.isRecurring) {
+      if (selectedPeriodMonthIdx >= expMonthIdx) {
+        monthExpenses.push({
+          name: desc,
+          category: cat,
+          amount: amt,
+          date: `${year}-${String(month + 1).padStart(2, "0")}-${String(Math.min(parts.day, daysInMonth)).padStart(2, "0")}`,
+          isRecurring: true
+        });
+        totalExpense += amt;
+      }
+    } else if (parts.year === year && parts.month === month) {
+      monthExpenses.push({ name: desc, category: cat, amount: amt, date: e.date, isRecurring: false });
+      totalExpense += amt;
+    }
+  });
+
+  // 3. Debts & Installments paid / due in this month
+  const isDateInMonth = (dateStr: string) => {
+    const p = parseDateParts(dateStr);
+    return p ? (p.year === year && p.month === month) : false;
+  };
+
+  let totalPaidDebtsAndInstallments = 0;
+  let totalRemainingDebtInMonth = 0;
+  const monthDebtsList: Array<{ name: string; type: string; dueDate: string; amount: number; paid: number; remaining: number; status: string }> = [];
+
+  // Debts
+  debts.forEach((d) => {
+    const amt = Number(d.amount) || 0;
+    const parts = parseDateParts(d.dueDate || d.date);
+    const isDue = parts ? (parts.year === year && parts.month === month) : false;
+    const debtPaymentsInMonth = payments.filter((p) => p.debtId === d.id && p.type !== "installment" && isDateInMonth(p.date));
+    const paidInMonthFromLogs = debtPaymentsInMonth.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+    if (isDue) {
+      let effectivePaid = 0;
+      if (debtPaymentsInMonth.length > 0) {
+        effectivePaid = Math.min(amt, paidInMonthFromLogs);
+      } else if (d.paid !== undefined && d.paid !== null) {
+        effectivePaid = Math.min(amt, Number(d.paid) || 0);
+      }
+      const rem = Math.max(0, amt - effectivePaid);
+      totalPaidDebtsAndInstallments += effectivePaid;
+      totalRemainingDebtInMonth += rem;
+      monthDebtsList.push({
+        name: d.name || "Borç",
+        type: "Tekil Borç",
+        dueDate: d.dueDate || "-",
+        amount: amt,
+        paid: effectivePaid,
+        remaining: rem,
+        status: rem <= 0 ? "Ödendi" : "Bekliyor"
+      });
+    } else if (paidInMonthFromLogs > 0) {
+      totalPaidDebtsAndInstallments += paidInMonthFromLogs;
+      monthDebtsList.push({
+        name: d.name || "Borç",
+        type: "Borç Ara Ödeme",
+        dueDate: d.dueDate || "-",
+        amount: paidInMonthFromLogs,
+        paid: paidInMonthFromLogs,
+        remaining: 0,
+        status: "Ödendi"
+      });
+    }
+  });
+
+  // Installments
+  installmentDebts.forEach((inst) => {
+    const count = Number(inst.installmentCount) || 1;
+    const totalAmt = Number(inst.totalAmount) || 0;
+    const monthlyAmt = totalAmt / count;
+    const paidCount = Number(inst.paidInstallmentCount) || 0;
+
+    const startParts = parseDateParts(inst.firstDueDate);
+    let hasInstInMonth = false;
+    let instIdx = -1;
+    if (startParts) {
+      const diff = selectedPeriodMonthIdx - (startParts.year * 12 + startParts.month);
+      if (diff >= 0 && diff < count) {
+        hasInstInMonth = true;
+        instIdx = diff;
+      }
+    } else if (isDateInMonth(inst.firstDueDate)) {
+      hasInstInMonth = true;
+      instIdx = 0;
+    }
+
+    const instPaymentsInMonth = payments.filter((p) => p.debtId === inst.id && p.type === "installment" && isDateInMonth(p.date));
+    const paidInMonthFromLogs = instPaymentsInMonth.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+    if (hasInstInMonth) {
+      const isPaid = paidCount > instIdx || paidInMonthFromLogs >= (monthlyAmt - 0.01);
+      const paidAmt = isPaid ? monthlyAmt : Math.min(monthlyAmt, paidInMonthFromLogs);
+      const remAmt = Math.max(0, monthlyAmt - paidAmt);
+      totalPaidDebtsAndInstallments += paidAmt;
+      totalRemainingDebtInMonth += remAmt;
+      monthDebtsList.push({
+        name: inst.name || "Taksitli Borç",
+        type: `Taksit (${instIdx + 1}/${count})`,
+        dueDate: inst.firstDueDate || "-",
+        amount: monthlyAmt,
+        paid: paidAmt,
+        remaining: remAmt,
+        status: remAmt <= 0 ? "Ödendi" : "Bekliyor"
+      });
+    } else if (paidInMonthFromLogs > 0) {
+      totalPaidDebtsAndInstallments += paidInMonthFromLogs;
+      monthDebtsList.push({
+        name: inst.name || "Taksitli Borç",
+        type: "Taksit Ödemesi",
+        dueDate: "-",
+        amount: paidInMonthFromLogs,
+        paid: paidInMonthFromLogs,
+        remaining: 0,
+        status: "Ödendi"
+      });
+    }
+  });
+
+  const netBalance = totalIncome - totalExpense - totalPaidDebtsAndInstallments;
+  const savingsRate = totalIncome > 0 ? (netBalance / totalIncome) * 100 : 0;
+
+  // Build PDF Document
+  const symbol = options.currencySymbol || "TL";
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 14;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Header Banner Background
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, pageWidth, 36, "F");
+  doc.setFillColor(99, 102, 241); // indigo-500
+  doc.rect(0, 36, pageWidth, 2, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(safePdfText(`BÜTÇEM PRO - ${periodName.toUpperCase()} AYLIK FİNANSAL RAPORU`), margin, 15);
+
+  doc.setFont("Helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text(safePdfText(`Sayin ${userName} • ${periodName} Gelir, Harcama ve Borc Yonetim Performansi`), margin, 22);
+
+  const docSerial = `BP-AY-${year}-${String(month + 1).padStart(2, "0")}-${Date.now().toString().slice(-5)}`;
+  const dateStr = new Date().toLocaleDateString("tr-TR");
+  const timeStr = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(safePdfText(`Belge No: ${docSerial} | Tarih: ${dateStr} ${timeStr} | Para Birimi: ${symbol}`), margin, 30);
+
+  // SECTION 1: 4 KPI CARDS
+  let y = 44;
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(safePdfText(`1. ${periodName.toUpperCase()} DÖNEMİ FİNANSAL GÖSTERGELERİ`), margin, y);
+
+  y += 4;
+  const cardWidth = (contentWidth - 9) / 4;
+  const cardHeight = 22;
+
+  // KPI 1: Toplam Gelir
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(margin, y, cardWidth, cardHeight, 2, 2, "F");
+  doc.setDrawColor(187, 247, 208);
+  doc.roundedRect(margin, y, cardWidth, cardHeight, 2, 2, "S");
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(21, 128, 61);
+  doc.text(safePdfText("TOPLAM GELİR"), margin + 3, y + 6);
+  doc.setFontSize(9);
+  doc.setTextColor(5, 150, 105);
+  doc.text(formatPdfCurrency(totalIncome, symbol), margin + 3, y + 15);
+
+  // KPI 2: Toplam Gider
+  const kpi2X = margin + cardWidth + 3;
+  doc.setFillColor(254, 242, 242);
+  doc.roundedRect(kpi2X, y, cardWidth, cardHeight, 2, 2, "F");
+  doc.setDrawColor(254, 205, 211);
+  doc.roundedRect(kpi2X, y, cardWidth, cardHeight, 2, 2, "S");
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(190, 18, 60);
+  doc.text(safePdfText("TOPLAM GİDER"), kpi2X + 3, y + 6);
+  doc.setFontSize(9);
+  doc.setTextColor(225, 29, 72);
+  doc.text(formatPdfCurrency(totalExpense, symbol), kpi2X + 3, y + 15);
+
+  // KPI 3: Ödenen Borç & Taksitler
+  const kpi3X = kpi2X + cardWidth + 3;
+  doc.setFillColor(238, 242, 255);
+  doc.roundedRect(kpi3X, y, cardWidth, cardHeight, 2, 2, "F");
+  doc.setDrawColor(199, 210, 254);
+  doc.roundedRect(kpi3X, y, cardWidth, cardHeight, 2, 2, "S");
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(67, 56, 202);
+  doc.text(safePdfText("ÖDENEN BORÇ/TAKSİT"), kpi3X + 3, y + 6);
+  doc.setFontSize(9);
+  doc.setTextColor(79, 70, 229);
+  doc.text(formatPdfCurrency(totalPaidDebtsAndInstallments, symbol), kpi3X + 3, y + 15);
+
+  // KPI 4: Net Kalan Rezerv
+  const kpi4X = kpi3X + cardWidth + 3;
+  const isPos = netBalance >= 0;
+  doc.setFillColor(isPos ? 236 : 254, isPos ? 253 : 242, isPos ? 245 : 242);
+  doc.roundedRect(kpi4X, y, cardWidth, cardHeight, 2, 2, "F");
+  doc.setDrawColor(isPos ? 167 : 254, isPos ? 243 : 205, isPos ? 208 : 211);
+  doc.roundedRect(kpi4X, y, cardWidth, cardHeight, 2, 2, "S");
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(isPos ? 4 : 190, isPos ? 120 : 18, isPos ? 87 : 60);
+  doc.text(safePdfText(`NET REZERV (%${savingsRate.toFixed(1)})`), kpi4X + 3, y + 6);
+  doc.setFontSize(9);
+  doc.setTextColor(isPos ? 5 : 225, isPos ? 150 : 29, isPos ? 105 : 72);
+  doc.text(formatPdfCurrency(netBalance, symbol), kpi4X + 3, y + 15);
+
+  // SECTION 2: GELİR VE GİDER HAREKETLERİ TABLOSU
+  y += cardHeight + 8;
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(safePdfText(`2. GELİR VE GİDER İŞLEMLERİ DETAY TABLOSU`), margin, y);
+
+  y += 4;
+  const tableHeaderHeight = 6.5;
+  const rowHeight = 6;
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y, contentWidth, tableHeaderHeight, "F");
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, y, contentWidth, tableHeaderHeight, "S");
+
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(safePdfText("Açıklama"), margin + 3, y + 4.5);
+  doc.text(safePdfText("Kategori"), margin + 63, y + 4.5);
+  doc.text(safePdfText("Tarih"), margin + 103, y + 4.5);
+  doc.text(safePdfText("Tür"), margin + 131, y + 4.5);
+  doc.text(safePdfText("Tutar"), margin + contentWidth - 3, y + 4.5, { align: "right" });
+
+  y += tableHeaderHeight;
+  const combinedItems = [
+    ...monthIncomes.map((i) => ({ desc: i.name, cat: "Gelir", date: i.date, type: "GELİR", amount: i.amount })),
+    ...monthExpenses.map((e) => ({ desc: e.name, cat: e.category, date: e.date, type: "GİDER", amount: e.amount }))
+  ].slice(0, 14);
+
+  if (combinedItems.length === 0) {
+    doc.setFillColor(255, 255, 255);
+    doc.rect(margin, y, contentWidth, rowHeight, "F");
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, y, contentWidth, rowHeight, "S");
+    doc.setFont("Helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(safePdfText("Bu ay için kayıtlı gelir veya harcama bulunmamaktadır."), margin + 3, y + 4.2);
+    y += rowHeight;
+  } else {
+    combinedItems.forEach((item, idx) => {
+      const isInc = item.type === "GELİR";
+      doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 252);
+      doc.rect(margin, y, contentWidth, rowHeight, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(margin, y, contentWidth, rowHeight, "S");
+
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(30, 41, 59);
+      doc.text(safePdfText(item.desc.substring(0, 32)), margin + 3, y + 4.2);
+
+      doc.setFont("Helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(safePdfText(item.cat.substring(0, 20)), margin + 63, y + 4.2);
+      doc.text(safePdfText(item.date), margin + 103, y + 4.2);
+
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(isInc ? 21 : 190, isInc ? 128 : 18, isInc ? 61 : 60);
+      doc.text(safePdfText(item.type), margin + 131, y + 4.2);
+      doc.text(`${isInc ? "+" : "-"}${formatPdfCurrency(item.amount, symbol)}`, margin + contentWidth - 3, y + 4.2, { align: "right" });
+
+      y += rowHeight;
+    });
+  }
+
+  // SECTION 3: BORÇ VE TAKSİT TABLOSU
+  y += 6;
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(safePdfText(`3. BORÇ VE TAKSİT ÖDEMELERİ TABLOSU`), margin, y);
+
+  y += 4;
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y, contentWidth, tableHeaderHeight, "F");
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, y, contentWidth, tableHeaderHeight, "S");
+
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(safePdfText("Borç / Taksit Adı"), margin + 3, y + 4.5);
+  doc.text(safePdfText("Tür"), margin + 63, y + 4.5);
+  doc.text(safePdfText("Vade"), margin + 103, y + 4.5);
+  doc.text(safePdfText("Durum"), margin + 131, y + 4.5);
+  doc.text(safePdfText("Tutar / Ödenen"), margin + contentWidth - 3, y + 4.5, { align: "right" });
+
+  y += tableHeaderHeight;
+  const debtsToRender = monthDebtsList.slice(0, 10);
+  if (debtsToRender.length === 0) {
+    doc.setFillColor(255, 255, 255);
+    doc.rect(margin, y, contentWidth, rowHeight, "F");
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, y, contentWidth, rowHeight, "S");
+    doc.setFont("Helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(safePdfText("Bu ay için vadesi gelen veya ödenen borç/taksit bulunmamaktadır."), margin + 3, y + 4.2);
+    y += rowHeight;
+  } else {
+    debtsToRender.forEach((d, idx) => {
+      const isPaid = d.remaining <= 0;
+      doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 252);
+      doc.rect(margin, y, contentWidth, rowHeight, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(margin, y, contentWidth, rowHeight, "S");
+
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(30, 41, 59);
+      doc.text(safePdfText(d.name.substring(0, 32)), margin + 3, y + 4.2);
+
+      doc.setFont("Helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(safePdfText(d.type), margin + 63, y + 4.2);
+      doc.text(safePdfText(d.dueDate), margin + 103, y + 4.2);
+
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(isPaid ? 21 : 217, isPaid ? 128 : 119, isPaid ? 61 : 6);
+      doc.text(safePdfText(d.status), margin + 131, y + 4.2);
+      doc.text(`${formatPdfCurrency(d.amount, symbol)} (Öd: ${formatPdfCurrency(d.paid, symbol)})`, margin + contentWidth - 3, y + 4.2, { align: "right" });
+
+      y += rowHeight;
+    });
+  }
+
+  // FINANSAL ANALIZ VE AKILLI RAPOR NOTU
+  y += 6;
+  if (y < 255) {
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, contentWidth, 24, 2, 2, "F");
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(margin, y, contentWidth, 24, 2, 2, "S");
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+    doc.text(safePdfText(`Finansal Sağlık & Bütçe Disiplini Notu:`), margin + 4, y + 6);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+
+    let summaryNote = "";
+    if (netBalance >= 0) {
+      summaryNote = `${periodName} doneminde toplam ${formatPdfCurrency(totalIncome, symbol)} gelire karsilik ${formatPdfCurrency(totalExpense, symbol)} harcama ve ${formatPdfCurrency(totalPaidDebtsAndInstallments, symbol)} borc odemesi gerceklestirilmis olup %${savingsRate.toFixed(1)} net tasarruf saglanmistir. Finansal surdurulebilirlik cok basarilidir.`;
+    } else {
+      summaryNote = `${periodName} doneminde harcamalar ve borc odemeleri toplam geliri ${formatPdfCurrency(Math.abs(netBalance), symbol)} asmis bulunmaktadir. Gelecek ay icin acil olmayan harcamalarin kisilmasi tavsiye edilir.`;
+    }
+    const splitNote = doc.splitTextToSize(safePdfText(summaryNote), contentWidth - 8);
+    doc.text(splitNote, margin + 4, y + 12);
+  }
+
+  // Footer
+  doc.setFont("Helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(safePdfText("Bütçem Pro • Resmi Onaylı Aylık Finansal Denetim ve Bütçe Raporu"), margin, pageHeight - 8);
+
+  try {
+    await savePdfDocument(doc, fileName);
+  } catch (err) {
+    console.warn("[monthlyPdfReport] savePdfDocument error:", err);
+  }
+
+  return { success: true, fileName, doc };
+}

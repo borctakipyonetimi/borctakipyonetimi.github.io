@@ -10,9 +10,12 @@ import {
   generateRichFinancialEmailThemeHtml,
   generateFormattedAsciiFinancialTableText,
   generateEmlContent,
+  computeMonthlyFinancialData,
+  MONTH_NAMES_TR,
   EMAIL_THEME_CONFIGS,
   EmailThemeKey,
 } from "../utils/automatedMail";
+import { generateMonthlyPdfReport } from "../utils/annualPdfReport";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import {
   Mail,
@@ -40,6 +43,8 @@ import {
   AlertTriangle,
   Globe,
   Settings,
+  Calendar,
+  FileText,
 } from "lucide-react";
 
 interface VerifyEmailNotificationSectionProps {
@@ -47,6 +52,10 @@ interface VerifyEmailNotificationSectionProps {
   installmentDebts?: any[];
   incomes?: any[];
   expenses?: any[];
+  payments?: any[];
+  contactTransactions?: any[];
+  selectedMonth?: number;
+  selectedYear?: number;
   language?: string;
   onSuccessToast?: (msg: string) => void;
 }
@@ -56,6 +65,10 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
   installmentDebts = [],
   incomes = [],
   expenses = [],
+  payments = [],
+  contactTransactions = [],
+  selectedMonth,
+  selectedYear,
   language = "tr",
   onSuccessToast,
 }) => {
@@ -72,9 +85,23 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     return (localStorage.getItem("manual_report_theme") as EmailThemeKey) || "indigo";
   });
 
+  // Target reporting period (Default: previous completed month if 1st/2nd of month; else current month)
+  const [reportMonth, setReportMonth] = useState<number>(() => {
+    if (typeof selectedMonth === "number") return selectedMonth;
+    const now = new Date();
+    return now.getDate() <= 2 ? (now.getMonth() - 1 + 12) % 12 : now.getMonth();
+  });
+
+  const [reportYear, setReportYear] = useState<number>(() => {
+    if (typeof selectedYear === "number") return selectedYear;
+    const now = new Date();
+    return now.getDate() <= 2 && now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  });
+
   const [copiedType, setCopiedType] = useState<"rich" | "code" | null>(null);
   const [showFullPreviewModal, setShowFullPreviewModal] = useState(false);
   const [isSendingDirect, setIsSendingDirect] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [showServerConfigModal, setShowServerConfigModal] = useState(false);
   const [showStaticNoticeModal, setShowStaticNoticeModal] = useState(false);
   const [staticErrorMessage, setStaticErrorMessage] = useState("");
@@ -107,6 +134,24 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
     localStorage.setItem("manual_report_theme", selectedTheme);
   }, [selectedTheme]);
 
+  // Compute accurate monthly financial figures strictly for the target month
+  const computedMonthlyReport = React.useMemo(() => {
+    return computeMonthlyFinancialData({
+      user: userName.trim() || "Bütçem Pro Kullanıcısı",
+      email: recipientEmail.trim(),
+      theme: selectedTheme,
+      incomes,
+      expenses,
+      debts,
+      installmentDebts,
+      payments,
+      contactTransactions,
+      targetMonth: reportMonth,
+      targetYear: reportYear,
+      appBaseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+    });
+  }, [userName, recipientEmail, selectedTheme, incomes, expenses, debts, installmentDebts, payments, contactTransactions, reportMonth, reportYear]);
+
   // Generate current HTML email template
   const currentEmailHtml = React.useMemo(() => {
     return generateRichFinancialEmailThemeHtml({
@@ -117,8 +162,13 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
       expenses,
       debts,
       installmentDebts,
+      payments,
+      contactTransactions,
+      targetMonth: reportMonth,
+      targetYear: reportYear,
+      appBaseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
     });
-  }, [userName, recipientEmail, selectedTheme, incomes, expenses, debts, installmentDebts]);
+  }, [userName, recipientEmail, selectedTheme, incomes, expenses, debts, installmentDebts, payments, contactTransactions, reportMonth, reportYear]);
 
   // Generate ASCII box table text for plain text mailto
   const currentAsciiTableText = React.useMemo(() => {
@@ -130,17 +180,41 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
       expenses,
       debts,
       installmentDebts,
+      payments,
+      contactTransactions,
+      targetMonth: reportMonth,
+      targetYear: reportYear,
+      appBaseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
     });
-  }, [userName, recipientEmail, selectedTheme, incomes, expenses, debts, installmentDebts]);
+  }, [userName, recipientEmail, selectedTheme, incomes, expenses, debts, installmentDebts, payments, contactTransactions, reportMonth, reportYear]);
 
-  // Calculations for display cards
-  const totalIncome = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-  const totalExpense = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-  const netBalance = totalIncome - totalExpense;
-
-  const totalActiveDebt =
-    debts.filter((d) => !d.isPaid).reduce((acc, curr) => acc + (Number(curr.remaining ?? curr.amount) || 0), 0) +
-    installmentDebts.filter((i) => !i.isCompleted).reduce((acc, curr) => acc + (Number(curr.remainingAmount ?? curr.totalAmount) || 0), 0);
+  // Handle direct monthly PDF download
+  const handleDownloadMonthlyPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      await generateMonthlyPdfReport({
+        month: reportMonth,
+        year: reportYear,
+        incomes,
+        expenses,
+        payments,
+        debts,
+        installmentDebts,
+        userName: userName.trim() || "Bütçem Pro Kullanıcısı",
+        currencySymbol: "₺",
+      });
+      if (onSuccessToast) {
+        onSuccessToast(`📥 ${computedMonthlyReport.periodName} Detaylı PDF Raporunuz başarıyla indirildi!`);
+      }
+    } catch (err: any) {
+      console.error("Monthly PDF report generation error:", err);
+      if (onSuccessToast) {
+        onSuccessToast(`PDF oluşturulamadı: ${err?.message || "Hata oluştu"}`);
+      }
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // 1. OPEN IN MAIL APP DIRECTLY (Generate .EML Draft with HTML Tables + Launch Mailto with ASCII Box Table)
   const handleOpenInMailAppWithTables = () => {
@@ -341,36 +415,78 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
           </h2>
 
           <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed max-w-2xl">
-            Tüm borçlarınızı, taksitlerinizi, gelir ve giderlerinizi içeren <strong>link içermeyen, şık ve renkli</strong> bir e-posta raporu oluşturun. İstediğiniz temayı seçip şablonu kopyalayabilir veya mail uygulamanıza aktarabilirsiniz.
+            Tüm borçlarınızı, taksitlerinizi, gelir ve giderlerinizi içeren <strong>aylık kesinleşmiş bütçe ve denetim raporu</strong> oluşturun. İstediğiniz ayı seçip resmi PDF raporunu indirebilir veya e-posta ile gönderebilirsiniz.
           </p>
 
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+          {/* Target Month & Year Selector */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/15">
+              <Calendar className="w-4 h-4 text-indigo-300" />
+              <span className="text-xs font-bold text-indigo-200">Dönem:</span>
+              <select
+                value={reportMonth}
+                onChange={(e) => setReportMonth(Number(e.target.value))}
+                className="bg-slate-900/90 text-white text-xs font-bold px-2.5 py-1 rounded-xl border border-white/20 focus:outline-none cursor-pointer"
+              >
+                {MONTH_NAMES_TR.map((mName, idx) => (
+                  <option key={idx} value={idx} className="bg-slate-900 text-white">
+                    {mName}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={reportYear}
+                onChange={(e) => setReportYear(Number(e.target.value))}
+                className="bg-slate-900/90 text-white text-xs font-bold px-2.5 py-1 rounded-xl border border-white/20 focus:outline-none cursor-pointer"
+              >
+                {[2024, 2025, 2026, 2027, 2028].map((yr) => (
+                  <option key={yr} value={yr} className="bg-slate-900 text-white">
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <span className="text-[11px] font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-400/30 px-3 py-1.5 rounded-full">
+              📅 Seçilen Dönem: {computedMonthlyReport.periodName}
+            </span>
+          </div>
+
+          {/* Quick Metrics Bar (Accurately Filtered for Target Month) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
             <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
               <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Toplam Gelir</span>
               <span className="text-sm font-black text-emerald-300">
-                ₺{totalIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                ₺{computedMonthlyReport.totalIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
               <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Toplam Gider</span>
               <span className="text-sm font-black text-rose-300">
-                ₺{totalExpense.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                ₺{computedMonthlyReport.totalExpense.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
-              <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Net Bakiye</span>
-              <span className={`text-sm font-black ${netBalance >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                ₺{netBalance.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+              <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Ödenen Borç</span>
+              <span className="text-sm font-black text-indigo-300">
+                ₺{computedMonthlyReport.totalPaidDebtsAndInstallments.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
-              <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Toplam Borç</span>
+              <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Net Rezerv</span>
+              <span className={`text-sm font-black ${computedMonthlyReport.netRemainingReserve >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                ₺{computedMonthlyReport.netRemainingReserve.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 col-span-2 sm:col-span-1">
+              <span className="text-[10px] text-indigo-200 uppercase font-black tracking-wider block">Kalan Borç</span>
               <span className="text-sm font-black text-amber-300">
-                ₺{totalActiveDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                ₺{computedMonthlyReport.totalPeriodRemainingDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -545,6 +661,33 @@ export const VerifyEmailNotificationSection: React.FC<VerifyEmailNotificationSec
                 Kopyalama Gerektirmez ✅
               </span>
             </h4>
+
+            {/* 0. DETAYLI A4 PDF RAPORUNU İNDİR (ŞIK VE ÖNE ÇIKAN BUTON) */}
+            <button
+              type="button"
+              disabled={isDownloadingPdf}
+              onClick={handleDownloadMonthlyPdf}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white font-black text-xs rounded-2xl shadow-xl shadow-indigo-600/25 transition transform active:scale-[0.99] flex items-center justify-between cursor-pointer border border-violet-400/30"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  {isDownloadingPdf ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                <div className="text-left">
+                  <div className="font-black text-xs">
+                    {isDownloadingPdf ? "PDF Raporu Hazırlanıyor..." : `📥 ${computedMonthlyReport.periodName} Detaylı PDF Raporunu İndir`}
+                  </div>
+                  <div className="text-[10px] text-indigo-100/80 font-normal">
+                    Gelir, gider ve borç dökümlü resmi A4 PDF belgesi oluşturur
+                  </div>
+                </div>
+              </div>
+              <Download className="w-4 h-4 text-violet-200 shrink-0" />
+            </button>
 
             {/* 1. PRIMARY: Open Directly in Mail App with Tables (.EML Draft & Formatted Mailto) */}
             <button
