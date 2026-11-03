@@ -143,7 +143,6 @@ import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, Rew
 import VoiceAssistant from "./components/VoiceAssistant";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
-import { VerifyEmailNotificationSection } from "./components/VerifyEmailNotificationSection";
 import { generateMonthlyPdfReport } from "./utils/annualPdfReport";
 import { GPlayEnhancements } from "./components/GPlayEnhancements";
 import { ProviderBadge } from "./components/ProviderBadge";
@@ -1458,7 +1457,7 @@ export default function App() {
     return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
-  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings" | "email">("feed");
+  const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings">("feed");
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
@@ -9443,19 +9442,7 @@ export default function App() {
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setNotifSectionTab("email")}
-                className={`flex-1 min-w-[150px] sm:min-w-[180px] py-2.5 px-4 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none ${
-                  notifSectionTab === "email"
-                    ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md border border-slate-200/80 dark:border-slate-700"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                }`}
-              >
-                <Mail className="w-4 h-4" />
-                <span>Aylık Finansal Rapor E-Postası</span>
-                <span className="w-2 h-2 rounded-full bg-violet-500"></span>
-              </button>
+
             </div>
 
             {/* SEÇİLEN BÖLÜM 1: BİLDİRİMLER VE ALARMLAR LİSTESİ */}
@@ -10075,22 +10062,7 @@ export default function App() {
               </div>
             )}
 
-            {/* SEÇİLEN BÖLÜM 3: AYLIK FİNANSAL RAPOR E-POSTASI VE PDF */}
-            {notifSectionTab === "email" && (
-              <div className="space-y-5 animate-fade-in">
-                <VerifyEmailNotificationSection
-                  debts={debts}
-                  installmentDebts={installmentDebts}
-                  incomes={incomes}
-                  expenses={expenses}
-                  payments={payments}
-                  selectedMonth={selectedMonth}
-                  selectedYear={selectedYear}
-                  language={language}
-                  onSuccessToast={(msg) => triggerToast(msg)}
-                />
-              </div>
-            )}
+
           </div>
         )}
 
