@@ -3838,6 +3838,32 @@ app.get("/api/notifications/email/smtp-status", (req, res) => {
     fromName: currentCustomSmtp.fromName || "B\xFCt\xE7em Pro"
   });
 });
+app.post("/api/notifications/email/send-direct", async (req, res) => {
+  try {
+    const { recipientEmail, subject, htmlContent } = req.body;
+    const cleanEmail = (recipientEmail || "").trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      return res.status(400).json({ success: false, error: "Ge\xE7erli bir al\u0131c\u0131 e-posta adresi belirtilmedi." });
+    }
+    const textContent = htmlContent ? htmlContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "B\xFCt\xE7em Pro Finansal Raporu";
+    const mailResult = await sendMailHelper({
+      to: cleanEmail,
+      subject: subject || "B\xFCt\xE7em Pro: Ayl\u0131k Finansal Rapor",
+      html: htmlContent,
+      text: textContent
+    });
+    return res.json({
+      success: mailResult.success,
+      delivered: !mailResult.simulated && mailResult.success,
+      simulated: mailResult.simulated,
+      messageId: mailResult.messageId,
+      message: mailResult.simulated ? `E-posta ${cleanEmail} i\xE7in sim\xFCle edildi. Canl\u0131 teslimat i\xE7in SMTP bilgilerinizi tan\u0131mlayabilirsiniz.` : mailResult.success ? `Ayl\u0131k finansal rapor ${cleanEmail} adresine ba\u015Far\u0131yla g\xF6nderildi! \u{1F680}` : `G\xF6nderim hatas\u0131: ${mailResult.error || "Bilinmeyen hata"}`
+    });
+  } catch (err) {
+    console.error("[Email send-direct error]:", err);
+    return res.status(500).json({ success: false, error: err.message || "Sunucu hatas\u0131" });
+  }
+});
 app.post("/api/notifications/email/send-alert", async (req, res) => {
   const { email, debts, installmentDebts, user, analysis: clientAnalysis, isWelcome } = req.body;
   const normalizedEmail = email?.trim().toLowerCase();
@@ -3930,6 +3956,36 @@ setInterval(async () => {
           sub.lastSentDebtSummary = `${qualifyingOverdue.length} gecikmi\u015F, ${qualifyingDueToday.length} bug\xFCn vadesi gelen (Toplam Kalan: \u20BA${analysis.totalActiveDebt})`;
           saveEmailSubscribersToFile();
         }
+      }
+    }
+    const nowCalendar = new Date(nowTime);
+    if (nowCalendar.getDate() === 1) {
+      const currentMonthKey = `${nowCalendar.getFullYear()}-${String(nowCalendar.getMonth() + 1).padStart(2, "0")}`;
+      for (const [emailKey, sub] of Object.entries(emailSubscribersMap)) {
+        if (!sub.verified) continue;
+        if (sub.lastMonthlyReportMonth === currentMonthKey) continue;
+        const prevCal = new Date(nowCalendar.getFullYear(), nowCalendar.getMonth() - 1, 1);
+        const prevM = prevCal.getMonth();
+        const prevY = prevCal.getFullYear();
+        const trMonths = ["Ocak", "\u015Eubat", "Mart", "Nisan", "May\u0131s", "Haziran", "Temmuz", "A\u011Fustos", "Eyl\xFCl", "Ekim", "Kas\u0131m", "Aral\u0131k"];
+        const pName = `${trMonths[prevM]} ${prevY}`;
+        console.log(`[Monthly Report Daemon] Automated 1st-of-month report triggered for: ${sub.email} (${pName})`);
+        const subAnalysis = analyzeUserDebts(sub.debts || [], sub.installmentDebts || []);
+        const reportHtml = generateOverdueEmailHtml(
+          sub.email,
+          sub.user || "B\xFCt\xE7em Pro Kullan\u0131c\u0131s\u0131",
+          subAnalysis,
+          false,
+          false
+        );
+        await sendMailHelper({
+          to: sub.email,
+          subject: `B\xFCt\xE7em Pro: ${pName} D\xF6nemi Ayl\u0131k Finansal Rapor ve B\xFCt\xE7e Denetimi`,
+          html: reportHtml,
+          text: `Say\u0131n ${sub.user || "B\xFCt\xE7em Pro Kullan\u0131c\u0131s\u0131"}, ${pName} d\xF6nemi finansal durum ve bor\xE7 denetim raporunuz haz\u0131rlanm\u0131\u015Ft\u0131r.`
+        });
+        sub.lastMonthlyReportMonth = currentMonthKey;
+        saveEmailSubscribersToFile();
       }
     }
     for (const [endpointHash, details] of Object.entries(subscriptionsMap)) {
