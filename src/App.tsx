@@ -140,7 +140,7 @@ import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
 import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, RewardedFeatureType } from "./utils/rewardedAdService";
-import VoiceAssistant from "./components/VoiceAssistant";
+import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
 import { generateMonthlyPdfReport } from "./utils/annualPdfReport";
@@ -1452,9 +1452,6 @@ export default function App() {
   });
   const [csvEndDate, setCsvEndDate] = useState(() => {
     return getReportPresetDates("this_month").endDate;
-  });
-  const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState<boolean>(() => {
-    return localStorage.getItem("voiceAssistantEnabled") !== "0";
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
   const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings">("feed");
@@ -5904,31 +5901,96 @@ export default function App() {
     let updatedInstallments = [...installmentDebts];
     let updatedPayments = [...payments];
 
+    const monthNamesList = [
+      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+    ];
+
     if (scope === "current_month") {
       if (selectedMonth !== null && selectedYear !== null) {
-        // Reset paid on debts due this month
+        // 1. Reset paid on debts due or paid in this month
         updatedDebts = updatedDebts.map((d) => {
-          const parts = parseDateParts(d.dueDate);
-          if (parts && parts.month === selectedMonth && parts.year === selectedYear) {
+          const parts = parseDateParts(d.dueDate || d.date);
+          const isDueThisMonth = parts && parts.month === selectedMonth && parts.year === selectedYear;
+          const hasPaymentInThisMonth = payments.some((p) => {
+            if (p.debtId !== d.id) return false;
+            const pParts = parseDateParts(p.date);
+            return pParts && pParts.month === selectedMonth && pParts.year === selectedYear;
+          });
+
+          if (isDueThisMonth || hasPaymentInThisMonth) {
             return { ...d, paid: 0 };
           }
           return d;
         });
 
-        // Filter out payments logged in this month
+        // 2. Reset active installments for this month
+        updatedInstallments = updatedInstallments.map((inst) => {
+          const startParts = parseDateParts(inst.firstDueDate);
+          if (!startParts) return inst;
+          const monthDiff = (selectedYear - startParts.year) * 12 + (selectedMonth - startParts.month);
+          if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
+            if (inst.paidInstallmentCount > monthDiff) {
+              return { ...inst, paidInstallmentCount: monthDiff };
+            }
+          }
+          return inst;
+        });
+
+        // 3. Filter out payments logged in this month
         updatedPayments = updatedPayments.filter((p) => {
           const parts = parseDateParts(p.date);
           if (!parts) return true;
           return !(parts.month === selectedMonth && parts.year === selectedYear);
         });
+
+        // 4. Reset contact transactions for this month
+        try {
+          const raw = localStorage.getItem("contacts_transactions");
+          if (raw) {
+            const txs = JSON.parse(raw);
+            if (Array.isArray(txs)) {
+              const updatedTxs = txs.map((tx: any) => {
+                const p = parseDateParts(tx.paidDate || tx.dueDate || tx.date);
+                if (p && p.month === selectedMonth && p.year === selectedYear) {
+                  return { ...tx, isPaid: false, paidAmount: 0 };
+                }
+                return tx;
+              });
+              localStorage.setItem("contacts_transactions", JSON.stringify(updatedTxs));
+              setContactSyncTrigger((prev) => prev + 1);
+            }
+          }
+        } catch (e) {
+          console.error("Contacts reset error:", e);
+        }
+
+        triggerToast(`🗓️ ${monthNamesList[selectedMonth]} ${selectedYear} dönemine ait tüm borç ve taksit ödemeleri sıfırlandı.`);
+      } else {
+        triggerToast("Lütfen önce belirli bir ay seçiniz.");
+        return;
       }
-      triggerToast("Seçili aya ait tüm borç ödemeleri sıfırlandı.");
     } else {
-      // Reset ALL payments
+      // Reset ALL payments across all periods
       updatedDebts = updatedDebts.map((d) => ({ ...d, paid: 0 }));
       updatedInstallments = updatedInstallments.map((inst) => ({ ...inst, paidInstallmentCount: 0 }));
       updatedPayments = [];
-      triggerToast("Tüm borç ödemeleri ve taksit kayıtları başarıyla sıfırlandı.");
+
+      try {
+        const raw = localStorage.getItem("contacts_transactions");
+        if (raw) {
+          const txs = JSON.parse(raw);
+          if (Array.isArray(txs)) {
+            const updatedTxs = txs.map((tx: any) => ({ ...tx, isPaid: false, paidAmount: 0 }));
+            localStorage.setItem("contacts_transactions", JSON.stringify(updatedTxs));
+            setContactSyncTrigger((prev) => prev + 1);
+          }
+        }
+      } catch (e) {
+        console.error("Contacts reset error:", e);
+      }
+
+      triggerToast("⚡ Tüm dönemlere ait borç ve taksit ödemeleri başarıyla sıfırlandı.");
     }
 
     setDebts(updatedDebts);
@@ -6320,7 +6382,7 @@ export default function App() {
         contactId: contactObj.id,
         type: type,
         amount: Number(amount) || 0,
-        description: description || "Sesli asistan kaydı",
+        description: description || "Hızlı işlem kaydı",
         dueDate: new Date().toISOString().split("T")[0],
         isPaid: false,
         createdAt: new Date().toISOString()
@@ -7496,11 +7558,6 @@ export default function App() {
       return;
     }
 
-    if (tabId === "voice_assistant" || tabId === "voice") {
-      setVoiceAssistantEnabled(true);
-      triggerToast("🎙️ Sesli Finans Asistanı aktif edildi! Sağ alt taraftaki mikrofon butonuna basıp konuşabilirsiniz.");
-      return;
-    }
 
     if (tabId === "currency" || tabId === "markets") {
       startNavTransition(() => setActiveTab("gplay_enhancements"));
@@ -10027,36 +10084,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Akıllı Sesli Asistan Servisi */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block flex items-center gap-1.5">
-                          Akıllı Sesli Asistan Servisi
-                          {!isPremium && <span className="bg-amber-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium leading-none block mt-1">Ekrandaki mikrofon ikonu ile yönetin</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!isPremium) {
-                            openUpgradeModal("Akıllı Sesli Asistan Servisi");
-                          } else {
-                            const next = !voiceAssistantEnabled;
-                            setVoiceAssistantEnabled(next);
-                            localStorage.setItem("voiceAssistantEnabled", next ? "1" : "0");
-                            triggerToast(next ? "Sesli Asistan Servisi Aktifleştirildi 🎙️" : "Sesli Asistan Servisi Devre Dışı Bırakıldı 🔕");
-                          }
-                        }}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition select-none ${
-                          isPremium && voiceAssistantEnabled
-                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                        }`}
-                      >
-                        {!isPremium ? "KİLİTLİ 🔒" : voiceAssistantEnabled ? "AÇIK 🎙️" : "KAPALI 🔕"}
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -10165,8 +10192,6 @@ export default function App() {
             setMarqueeSpeed={setMarqueeSpeed}
             marqueePaused={marqueePaused}
             setMarqueePaused={handleSetMarqueePaused}
-            voiceAssistantEnabled={voiceAssistantEnabled}
-            setVoiceAssistantEnabled={setVoiceAssistantEnabled}
             isPremium={hasProAccess}
             onOpenUpgradeModal={(name) => openUpgradeModal(name)}
             onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
@@ -11690,7 +11715,7 @@ export default function App() {
                       </div>
                       {[
                         { icon: "🤖", title: "AI Finansal Koç", desc: "Harcamalarınızı yapay zeka ile analiz edin ve tasarruf stratejileri geliştirin." },
-                        { icon: "🎙️", title: "Akıllı Sesli Asistan", desc: "Sadece konuşarak bütçe, borç, gelir ve taksitlerinizi saniyeler içinde kaydedin." },
+                        { icon: "⚡", title: "Hızlı Ekle & Akıllı OCR", desc: "Sabit hızlı ekleme butonu ve akıllı fatura tarama ile saniyeler içinde kayıt yapın." },
                         { icon: "💹", title: "Canlı Borsa & Döviz", desc: "Tüm finansal verilerinizi anlık kurlar üzerinden takip edin." },
                         { icon: "📈", title: "Sınırsız PDF/Excel Rapor", desc: "Finansal verilerinizi dilediğiniz an profesyonel raporlara dönüştürün." },
                         { icon: "🔐", title: "Biyometrik Güvenlik", desc: "Parmak izi veya FaceID ile bütçe verilerinizi güvence altına alın." },
@@ -11895,7 +11920,7 @@ export default function App() {
                                 <span className="text-emerald-500 font-black">✓</span> AI Finansal Koç
                               </div>
                               <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
-                                <span className="text-emerald-500 font-black">✓</span> Akıllı Sesli Asistan
+                                <span className="text-emerald-500 font-black">✓</span> Akıllı Fatura & Fiş OCR
                               </div>
                               <div className="flex items-center gap-1.5 p-2 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-emerald-500/15">
                                 <span className="text-emerald-500 font-black">✓</span> Sınırsız Raporlar
@@ -12568,26 +12593,16 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Voice Assistant Speech-to-Text Module */}
-      {isUnlocked && voiceAssistantEnabled && (
-        <VoiceAssistant
-          debts={debts}
-          incomes={incomes}
-          expenses={expenses}
-          installmentDebts={installmentDebts}
-          onSaveDebt={handleSaveDebt}
+      {/* Floating Action Button (FAB) for Quick Add - Gelir, Gider, Borç */}
+      {isUnlocked && (
+        <FloatingQuickAdd
           onSaveIncome={handleSaveIncome}
           onSaveExpense={handleSaveExpense}
-          onSaveInstallment={handleSaveInstallment}
-          onSaveContactTx={handleSaveContactTx}
-          onDeleteDebt={handleDeleteDebt}
-          onDeleteIncome={handleDeleteIncome}
-          onDeleteExpense={handleDeleteExpense}
-          currentUser={currentUser}
-          userApiKey={localStorage.getItem("user_gemini_api_key") || undefined}
+          onSaveDebt={handleSaveDebt}
+          onNavigateTab={(tab) => {
+            startNavTransition(() => setActiveTab(tab));
+          }}
           triggerToast={triggerToast}
-          isPremium={hasProAccess}
-          onUpgradeClick={() => openUpgradeModal("Akıllı Sesli Asistan")}
         />
       )}
 

@@ -10,12 +10,12 @@ import {
   BellRing,
   Check,
   CheckCircle,
+  CheckCircle2,
   Smartphone,
   Bell,
   Volume2,
   Zap,
-  CheckCircle2,
-  Mic,
+  Scan,
   Cloud,
   BarChart3,
   Users,
@@ -427,20 +427,20 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
       iconColor: "text-indigo-500"
     },
     {
-      id: "voice_assistant",
-      icon: Mic,
-      title: "2. Eller Serbest Sesli Komut & Asistan",
-      subtitle: "Konuşarak Gelir, Gider ve Borç Kaydetme",
-      description: "Yazmaya gerek kalmadan sesinizle harcama ve gelir ekleyin. 'Bugün 250 TL market harcaması yaptım' veya 'Ahmet'e 1000 TL borç verdim' demeniz yeterli; asistan anında algılar ve kaydeder.",
+      id: "smart_ocr",
+      icon: Scan,
+      title: "2. Akıllı Fiş & Fatura Tarama (OCR)",
+      subtitle: "Kamerayla Fiş ve Fatura Okuma",
+      description: "Fiş veya faturalarınızın fotoğrafını çekerek veya yükleyerek tutar, tarih ve satıcı unvanını otomatik olarak sisteme aktarın.",
       category: "ai",
       highlights: [
-        "Doğal Türkçe Sesli Komut Tanıma ve Otomatik Kayıt",
-        "Tek Cümleyle Borç, Taksit ve Harcama Girişi",
-        "Sesli Bütçe Özeti ve Günlük Kalan Bakiye Sorgulama"
+        "Yapay Zeka Destekli Belge ve Fiş Analizi",
+        "Saniyeler İçinde Otomatik Tutar ve Tarih Çıkarımı",
+        "Fatura Vade Hatırlatıcılarına Doğrudan Aktarım"
       ],
-      actionText: "Sesli Asistanı Başlat",
-      actionTab: "voice_assistant",
-      badge: "SESLİ KOMUT",
+      actionText: "Fiş / Fatura Tara",
+      actionTab: "debts",
+      badge: "YAPAY ZEKA OCR",
       badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
       iconBg: "bg-purple-500/10 dark:bg-purple-500/20",
       iconColor: "text-purple-500"
@@ -612,7 +612,7 @@ export const GPlayEnhancements: React.FC<GPlayEnhancementsProps> = ({
             Finansal Özgürlüğünüz İçin Tasarlanmış 9 Güçlü Pro Özellik
           </h3>
           <p className="text-xs text-slate-300 font-medium leading-relaxed">
-            Yapay zeka asistanı, eller serbest sesli komut, biyometrik güvenlik kilidi, kilit ekranı bildirimleri, bulut yedekleme & Google Drive senkronizasyonu ve canlı piyasa kurları ile tüm bütçeniz kontrol altında.
+            Yapay zeka finansal danışmanı, kamera ile fiş tarama, biyometrik güvenlik kilidi, kilit ekranı bildirimleri, bulut yedekleme & Google Drive senkronizasyonu ve canlı piyasa kurları ile tüm bütçeniz kontrol altında.
           </p>
         </div>
       </div>

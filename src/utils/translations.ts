@@ -288,7 +288,7 @@ const dictionary: Record<string, string> = {
   // Guides
   "Kullanım Rehberi & Bilgi Bankası": "Knowledge Center and Tutorials",
   "Finans Kılavuzları & Blog": "Financial Guides & Articles",
-  "Geri Bildirim": "Voice Feedback Terminal",
+  "Geri Bildirim": "Feedback Terminal",
 };
 
 export function t(text: string, lang: "tr" | "en" = "tr"): string {

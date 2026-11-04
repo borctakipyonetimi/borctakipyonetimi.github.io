@@ -143,8 +143,8 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
         },
         {
           step: 4,
-          title: "Sesli Soru Sorun & Sesli Dinleyin",
-          desc: "Giriş kutusundaki mikrofon simgesine basarak konuşabilir, asistanın cevabının altındaki ses simgesine (🔊) dokunarak Türkçe sesli okuma özelliğini dinleyebilirsiniz."
+          title: "Hazır Analiz Şablonlarını Kullanın",
+          desc: "Alttaki hızlı soru butonlarına dokunarak borç ödeme sırası, birikim taktikleri ve gider optimizasyonu gibi konularda doğrudan uzman tavsiyesi alabilirsiniz."
         }
       ],
       proTips: [
@@ -153,41 +153,36 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       ]
     },
     {
-      id: "voice-assistant",
-      category: "ai",
-      categoryLabel: "Sesli Asistan",
-      badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
-      icon: "🎙️",
-      title: "Akıllı Sesli Asistan (AI Voice Assistant)",
-      summary: "Mikrofonla Türkçe konuşarak anında harcama, gelir, borç ekleme ve sesli finansal durum raporu dinleme.",
-      badge: "Hands-Free",
+      id: "quick-add-fab",
+      category: "tools",
+      categoryLabel: "Hızlı Ekleme",
+      badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+      icon: "⚡",
+      title: "Sabit Hızlı Ekleme Butonu (FAB)",
+      summary: "Ekranın sağ altındaki yuvarlak hızlı ekleme butonuyla her ekrandan anında gelir, gider ve borç kaydetme.",
+      badge: "Hızlı İşlem",
       targetTab: "overview",
-      whatItDoes: "Klavyeye dokunmadan, günlük konuşma diliyle mali işlemler yapmanızı sağlar. 'Marketten 450 lira harcadım', 'Maaş yattı 35 bin TL', 'Ahmet'e 1500 lira borç verdim' gibi doğal ifadeleri analiz ederek ilgili modüle otomatik veri ekler.",
+      whatItDoes: "Hangi menüde veya ekranda olursanız olun, sayfa değiştirmeden saniyeler içinde yeni bir gelir, gider veya borç kaydetmenizi sağlar.",
       instructions: [
         {
           step: 1,
-          title: "Sesli Asistanı Başlatın",
-          desc: "Ekranın altındaki mor mikrofon simgesine dokunun ve tarayıcınızın mikrofon erişimine izin verin."
+          title: "Sağ Alttaki '+' Butonuna Dokunun",
+          desc: "Ekranın sağ alt köşesinde sabit duran yuvarlak baloncuk butonuna tıklayın."
         },
         {
           step: 2,
-          title: "Komutunuzu Doğal Şekilde Söyleyin",
-          desc: "'500 lira benzin aldım', '2000 TL kira ödedim' veya 'Bana durum raporu ver' şeklinde net bir cümle kurun."
+          title: "İşlem Türünü Seçin",
+          desc: "Açılan baloncuk menüden yeşil Gelir, kırmızı Gider veya turuncu Borç Ekle butonuna basın."
         },
         {
           step: 3,
-          title: "İşlem Onayını Kontrol Edin",
-          desc: "Yapay zeka sesinizi metne döker, tutar ve kategoriyi otomatik ayıklar. Ekrana gelen onay kartında 'Onayla ve Kaydet' düğmesine dokunarak işlemi bitirin."
-        },
-        {
-          step: 4,
-          title: "Gürültülü Ortamlarda Manuel Giriş",
-          desc: "Çok gürültülü bir ortamdaysanız, sesli asistan penceresindeki klavye kutucuğuna komutu yazarak da aynı akıllı motoru çalıştırabilirsiniz."
+          title: "Tutarı Girip Kaydedin",
+          desc: "Açılan şık modalda tutar, açıklama ve kategoriyi belirleyip Kaydet'e dokunun; kayıt anında işlenir."
         }
       ],
       proTips: [
-        "'Bütçe durumumu oku' dediğinizde sesli asistan o anki net bakiyenizi, toplam borcunuzu ve aylık giderinizi Türkçe seslendirir.",
-        "Komut içinde kategori belirtirseniz (ör: 'fatura', 'market', 'yakıt'), harcama doğrudan o kategoriye atanır."
+        "Hızlı ekleme butonunu kullanarak kasa ve bütçe hareketlerinizi gün içinde anında sisteme aktarabilirsiniz.",
+        "Kategori seçimi yaparak aylık gider dağılım grafiklerinizi otomatik olarak güncel tutun."
       ]
     },
     {
@@ -633,7 +628,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
                 <Compass className="w-7 h-7 text-indigo-400" /> UYGULAMA VE ÖZELLİK REHBERİ
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 max-w-2xl font-medium leading-relaxed">
-                Gemini 3.7 Flash yapay zeka koçu, sesli asistan, kamera ile fiş tarama, kişi rehberi & WhatsApp borç takibi ve finansal hesaplama araçlarının tüm kullanma talimatlarını adım adım keşfedin.
+                Gemini 3.7 Flash yapay zeka koçu, hızlı ekleme butonu, kamera ile fiş tarama, kişi rehberi & WhatsApp borç takibi ve finansal hesaplama araçlarının tüm kullanma talimatlarını adım adım keşfedin.
               </p>
             </div>
 
@@ -671,7 +666,7 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
               type="text"
               value={guideSearchQuery}
               onChange={(e) => setGuideSearchQuery(e.target.value)}
-              placeholder="Kılavuzda özellik, komut veya talimat arayın (Örn: Fiş Tarama, WhatsApp, Kartopu, Sesli Asistan, Kredi)..."
+              placeholder="Kılavuzda özellik, komut veya talimat arayın (Örn: Fiş Tarama, WhatsApp, Kartopu, Hızlı Ekle, Kredi)..."
               className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
             />
             {guideSearchQuery && (

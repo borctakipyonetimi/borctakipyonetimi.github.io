@@ -611,7 +611,7 @@ export const PublicLanding: React.FC<PublicLandingProps> = ({
               
               <ul className="text-left text-xs font-semibold text-slate-600 dark:text-slate-400 space-y-2 pt-4">
                 <li className="flex items-center gap-2 font-bold text-indigo-600 dark:text-indigo-400"><Check className="w-4 h-4 text-indigo-500 shrink-0" /> ★ Sınırsız Yapay Zeka Finans Analizleri</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Akıllı Sesli Asistan ile Saniyeler İçi Kayıt</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Hızlı Ekle Butonu ile Saniyeler İçinde Kayıt</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> TCMB Otomatik Döviz Kur Güncellemesi</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> E-posta ile Çoklu Cihaz Bulut Eşitleme</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Sınırsız Kişi &amp; Taksitli Borç Planlayıcı</li>

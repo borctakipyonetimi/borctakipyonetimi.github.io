@@ -11,11 +11,7 @@ import {
   TrendingUp, 
   Copy, 
   CheckCheck, 
-  Volume2, 
-  VolumeX, 
   RotateCcw, 
-  Mic, 
-  MicOff, 
   X, 
   ShieldCheck, 
   Zap, 
@@ -315,8 +311,6 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [showApiKeyField, setShowApiKeyField] = useState(false);
   const [isApiKeySaved, setIsApiKeySaved] = useState(() => !!localStorage.getItem("user_gemini_api_key"));
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
-  const [isListening, setIsListening] = useState(false);
   const [effectiveIsPremium, setEffectiveIsPremium] = useState<boolean>(() => {
     if (typeof isPremium === "boolean") return isPremium;
     if (typeof window !== "undefined") {
@@ -357,7 +351,6 @@ export const AIChat: React.FC<AIChatProps> = ({
   
   // Custom scroll refs to target ONLY the scrollable chat container
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     if (chatContainerRef.current) {
@@ -375,143 +368,6 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
   }, [messages, loading]);
 
-  // Clean-up on unmount: Abort any active speech recognition and cancel ongoing speech synthesis
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (_) {}
-      }
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch (_) {}
-      }
-    };
-  }, []);
-
-  // Handle Speech Recognition for voice input in chat
-  const toggleSpeechRecognition = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      notify("Tarayıcınız ses tanıma özelliğini desteklemiyor. Klavyeden yazabilirsiniz.");
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = language === "tr" ? "tr-TR" : "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          setInputValue((prev) => (prev ? `${prev} ${transcript}` : transcript));
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn("Speech recognition error:", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      console.error("Speech recognition startup error:", e);
-      setIsListening(false);
-    }
-  };
-
-  // Handle Text-to-Speech (TTS)
-  const toggleSpeakText = (text: string, idx: number) => {
-    const synth = typeof window !== "undefined" ? (window.speechSynthesis || (window as any).webkitSpeechSynthesis) : null;
-    if (!synth) {
-      notify("Cihazınızda sesli okuma motoru (TTS) bulunamadı.");
-      return;
-    }
-
-    if (speakingIdx === idx) {
-      try {
-        synth.cancel();
-      } catch {}
-      setSpeakingIdx(null);
-      return;
-    }
-
-    try {
-      synth.cancel();
-      
-      // Clean markdown characters, emojis and format currencies for smooth Turkish speech
-      let cleanSpeech = text
-        .replace(/###/g, "")
-        .replace(/\*\*/g, "")
-        .replace(/•/g, "")
-        .replace(/\|/g, " ")
-        .replace(/-/g, " ")
-        .replace(/₺/g, " Türk Lirası ")
-        .replace(/\$/g, " Dolar ")
-        .replace(/€/g, " Euro ")
-        .replace(/%/g, " Yüzde ")
-        .replace(/[\u{1F300}-\u{1F9FF}\u{1F400}-\u{1F6FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}]/gu, "")
-        .replace(/[📊🚀💡🎯💰📌⚠️🟢🔴⚡💵💸📈📉🔍🏆🚨⚖️✨]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      if (!cleanSpeech) {
-        notify("Seslendirilecek metin bulunamadı.");
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(cleanSpeech);
-      utterance.lang = language === "tr" ? "tr-TR" : "en-US";
-      utterance.rate = 1.0;
-
-      // Select Turkish voice if available
-      try {
-        const voices = synth.getVoices ? synth.getVoices() : [];
-        const trVoice = voices.find((v: any) => v.lang && (v.lang.startsWith("tr") || v.lang.includes("tr-TR")));
-        if (trVoice) {
-          utterance.voice = trVoice;
-        }
-      } catch {}
-
-      utterance.onend = () => {
-        setSpeakingIdx(null);
-      };
-
-      utterance.onerror = (e) => {
-        console.warn("[TTS Speech Error]:", e);
-        setSpeakingIdx(null);
-      };
-
-      setSpeakingIdx(idx);
-      synth.speak(utterance);
-    } catch (err) {
-      console.warn("[TTS Exception]:", err);
-      setSpeakingIdx(null);
-      notify("Sesli okuma başlatılamadı.");
-    }
-  };
-
   const handleCopyMessage = (text: string, idx: number) => {
     navigator.clipboard.writeText(text);
     setCopiedIdx(idx);
@@ -519,8 +375,6 @@ export const AIChat: React.FC<AIChatProps> = ({
   };
 
   const handleClearChat = () => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    setSpeakingIdx(null);
     setMessages([
       {
         sender: "bot",
@@ -1582,18 +1436,7 @@ ${installmentDetailsStr}`;
                             <span>Doğrulanmış Finansal Analiz</span>
                           </span>
 
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => toggleSpeakText(msg.text, idx)}
-                              title={speakingIdx === idx ? "Sesli Okumayı Durdur" : "Sesli Oku"}
-                              className={`p-1.5 rounded-xl border transition cursor-pointer active:scale-95 ${
-                                speakingIdx === idx
-                                  ? "bg-indigo-600 text-white border-indigo-500 animate-pulse shadow-md shadow-indigo-500/30"
-                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-[#070c1d] dark:hover:bg-[#0e172e] dark:text-slate-200 dark:border-indigo-500/25"
-                              }`}
-                            >
-                              {speakingIdx === idx ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                            </button>
+
 
                             <button
                               onClick={() => handleCopyMessage(msg.text, idx)}
@@ -1611,7 +1454,6 @@ ${installmentDetailsStr}`;
                             </button>
                           </div>
                         </div>
-                      </div>
                     )}
                   </div>
                 </motion.div>
@@ -1717,12 +1559,8 @@ ${installmentDetailsStr}`;
                   if (e.key === "Enter" && !loading && inputValue.trim()) handleSend();
                 }}
                 disabled={loading}
-                placeholder={isListening ? "🎙️ Dinleniyor... Lütfen sorunuzu söyleyin..." : "Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"}
-                className={`w-full pl-4 pr-10 py-3.5 bg-slate-50 dark:bg-[#0c142b] text-slate-900 dark:text-white border-2 ${
-                  isListening 
-                    ? "border-red-500 ring-4 ring-red-500/30 bg-red-50 dark:bg-red-950/20" 
-                    : "border-slate-200 hover:border-indigo-400 focus:border-indigo-500 dark:border-indigo-500/40 dark:hover:border-indigo-400 dark:focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20"
-                } rounded-2xl text-xs sm:text-sm focus:outline-none focus:bg-white dark:focus:bg-[#0c142b] placeholder-slate-400 dark:placeholder-slate-500 font-medium transition shadow-inner`}
+                placeholder="Finansal sorunuzu yazın (Örn: Bu ay ne kadar tasarruf edebilirim?)"
+                className="w-full pl-4 pr-10 py-3.5 bg-slate-50 dark:bg-[#0c142b] text-slate-900 dark:text-white border-2 border-slate-200 hover:border-indigo-400 focus:border-indigo-500 dark:border-indigo-500/40 dark:hover:border-indigo-400 dark:focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 rounded-2xl text-xs sm:text-sm focus:outline-none focus:bg-white dark:focus:bg-[#0c142b] placeholder-slate-400 dark:placeholder-slate-500 font-medium transition shadow-inner"
               />
               
               {inputValue && (
@@ -1736,22 +1574,6 @@ ${installmentDetailsStr}`;
                 </button>
               )}
             </div>
-
-            {/* Voice Input Mic Button */}
-            <motion.button
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={toggleSpeechRecognition}
-              type="button"
-              title={isListening ? "Dinlemeyi Durdur" : "Sesli Soru Sor"}
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md shrink-0 cursor-pointer ${
-                isListening
-                  ? "bg-red-500 text-white animate-pulse shadow-red-500/40 ring-4 ring-red-400/40"
-                  : "bg-gradient-to-tr from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-emerald-500/30 border border-emerald-400/30"
-              }`}
-            >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            </motion.button>
 
             {/* Send Message Button */}
             <motion.button
