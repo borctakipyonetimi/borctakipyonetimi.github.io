@@ -1455,6 +1455,9 @@ export default function App() {
   });
   const [notifFilter, setNotifFilter] = useState<"all" | "alarm" | "system" | "upcoming">("all");
   const [notifSectionTab, setNotifSectionTab] = useState<"feed" | "settings">("feed");
+  const [showQuickAddFab, setShowQuickAddFab] = useState<boolean>(() => {
+    return localStorage.getItem("show_quick_add_fab") !== "0";
+  });
 
   // OneSignal Environment & Active States
   const [oneSignalAppId, setOneSignalAppId] = useState<string>(() => {
@@ -2055,7 +2058,7 @@ export default function App() {
     }
   };
 
-  const triggerToast = (msg: string, duration = 2000) => {
+  const triggerToast = (msg: string, duration = 5000) => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => {
@@ -7704,12 +7707,36 @@ export default function App() {
         </div>
       )}
 
-      {/* Dynamic Toast Alerts */}
-      {showToast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-slate-700/50 text-white rounded-full px-5 py-2.5 shadow-lg text-xs font-bold leading-relaxed flex items-center gap-2 animate-bounce">
-          <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" /> {toastMessage}
-        </div>
-      )}
+      {/* Dynamic Top Header Toast Alerts */}
+      <AnimatePresence>
+        {showToast && (
+          <div className="fixed top-4 inset-x-0 z-[99999] flex justify-center px-4 pointer-events-none select-none">
+            <motion.div
+              initial={{ opacity: 0, y: -25, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-xl border border-indigo-500/40 text-white rounded-2xl px-5 py-3.5 shadow-2xl shadow-indigo-600/30 text-xs sm:text-sm font-black leading-relaxed flex items-center gap-3 max-w-lg w-full"
+            >
+              <div className="p-2 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl text-white shadow-md shadow-indigo-500/30 shrink-0">
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-extrabold tracking-tight truncate sm:whitespace-normal">
+                  {toastMessage}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowToast(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition shrink-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Session Terminated (Single Concurrent Device Restriction) Dialog */}
       {sessionTerminatedReason && (
@@ -10226,6 +10253,8 @@ export default function App() {
             isOfflineMode={isOfflineMode}
             onBack={() => setActiveTab("overview")}
             onDeleteAccount={handleDeleteAccount}
+            showQuickAddFab={showQuickAddFab}
+            setShowQuickAddFab={setShowQuickAddFab}
           />
         )}
 
@@ -12594,7 +12623,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Floating Action Button (FAB) for Quick Add - Gelir, Gider, Borç */}
-      {isUnlocked && (
+      {isUnlocked && showQuickAddFab && (
         <FloatingQuickAdd
           onSaveIncome={handleSaveIncome}
           onSaveExpense={handleSaveExpense}

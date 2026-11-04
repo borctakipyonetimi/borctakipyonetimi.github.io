@@ -69,6 +69,8 @@ interface SecuritySettingsPanelProps {
   initialTab?: "cloud" | "security" | "settings";
   onBack?: () => void;
   onLogout?: () => void;
+  showQuickAddFab?: boolean;
+  setShowQuickAddFab?: (show: boolean) => void;
 }
 
 export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
@@ -100,6 +102,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   initialTab = "cloud",
   onBack,
   onDeleteAccount,
+  showQuickAddFab = true,
+  setShowQuickAddFab,
 }) => {
   const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings" | "none">(initialTab || "cloud");
 
@@ -1389,6 +1393,45 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
             >
               <span
                 className="pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out translate-x-0"
+              />
+            </button>
+          </div>
+
+          {/* Hızlı Ekleme Butonu (FAB) Ayarı */}
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                <Sliders className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Hızlı Ekleme Butonunu Göster (FAB)
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                  Sağ alt köşede sabit duran yuvarlak Gelir, Gider ve Borç hızlı ekleme baloncuğunu gösterir veya gizler.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showQuickAddFab;
+                if (setShowQuickAddFab) setShowQuickAddFab(next);
+                localStorage.setItem("show_quick_add_fab", next ? "1" : "0");
+                onSuccessToast(next ? "⚡ Hızlı Ekleme Butonu Gösteriliyor" : "⚡ Hızlı Ekleme Butonu Gizlendi");
+              }}
+              role="switch"
+              aria-checked={showQuickAddFab}
+              className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                showQuickAddFab ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"
+              }`}
+              title="Hızlı Ekleme Butonunu Göster/Gizle"
+            >
+              <span
+                className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  showQuickAddFab ? "translate-x-6" : "translate-x-0"
+                }`}
               />
             </button>
           </div>
