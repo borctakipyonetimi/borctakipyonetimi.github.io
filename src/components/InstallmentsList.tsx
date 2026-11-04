@@ -34,6 +34,8 @@ interface InstallmentsListProps {
   onUpgradeClick?: () => void;
   focusedInstallmentId?: number | null;
   setFocusedInstallmentId?: (id: number | null) => void;
+  onResetPayments?: (scope: "current_month" | "all") => void;
+  triggerToast?: (msg: string) => void;
 }
 
 export const InstallmentsList: React.FC<InstallmentsListProps> = ({
@@ -51,6 +53,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   onUpgradeClick,
   focusedInstallmentId,
   setFocusedInstallmentId,
+  onResetPayments,
+  triggerToast,
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format } = useCurrency();
@@ -72,6 +76,10 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   const [importedPreviewList, setImportedPreviewList] = useState<InstallmentDebt[] | null>(null);
   const [importError, setImportError] = useState<string>("");
   const importFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset payments states
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetScope, setResetScope] = useState<"current_month" | "all">("current_month");
 
   // State for Installment Payment Modal with Date Picker
   const [payModalInst, setPayModalInst] = useState<InstallmentDebt | null>(null);
@@ -564,6 +572,15 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
           >
             <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle
           </button>
+          {onResetPayments && (
+            <button
+              onClick={() => setIsResetModalOpen(true)}
+              title="Taksit ödemelerini sıfırla"
+              className="px-3 py-1.5 bg-rose-600/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-rose-600/20 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Ödemeleri Sıfırla
+            </button>
+          )}
           <button
             onClick={() => handlePrint(false)}
             className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
@@ -1176,6 +1193,121 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                     Geri Yüklemeyi Onayla ({importedPreviewList.length})
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </div>,
+          document.body
+        )}
+      </AnimatePresence>
+
+      {/* Reset Payments Confirmation Modal for Installments */}
+      <AnimatePresence>
+        {isResetModalOpen && typeof document !== "undefined" && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-fade-in">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 my-auto relative"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-2xl">
+                    <RotateCcw className="w-5 h-5 animate-spin-reverse" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Taksit Ödemelerini Sıfırla</h3>
+                    <p className="text-xs text-slate-500 font-medium">Ödeme kayıtlarını güvenle temizleyin</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsResetModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-900 dark:text-amber-200 font-medium leading-relaxed">
+                  Bu işlem taksit planlarının ödenmişlik sayaçlarını sıfırlayacaktır. Lütfen sıfırlamak istediğiniz dönemi belirleyin ve onaylayın:
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                {selectedMonth !== null && selectedMonth !== undefined && selectedYear !== null && selectedYear !== undefined && (
+                  <div
+                    onClick={() => setResetScope("current_month")}
+                    className={`p-3.5 rounded-2xl border-2 transition cursor-pointer ${
+                      resetScope === "current_month"
+                        ? "border-amber-500 bg-amber-50/70 dark:bg-amber-950/30 shadow-xs"
+                        : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        🗓️ {["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"][selectedMonth]} {selectedYear} (Seçili Ay)
+                      </span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                        resetScope === "current_month"
+                          ? "bg-amber-500 text-white"
+                          : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                      }`}>
+                        {resetScope === "current_month" ? "SEÇİLDİ" : "Seç"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                      Yalnızca bu aya ait taksit ödemelerini geri çeker ve bu ayın ödeme kayıtlarını temizler.
+                    </p>
+                  </div>
+                )}
+
+                <div
+                  onClick={() => setResetScope("all")}
+                  className={`p-3.5 rounded-2xl border-2 transition cursor-pointer ${
+                    resetScope === "all"
+                      ? "border-rose-500 bg-rose-50/70 dark:bg-rose-950/30 shadow-xs"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      ⚡ Tüm Dönemler (Genel Sıfırlama)
+                    </span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                      resetScope === "all"
+                        ? "bg-rose-600 text-white"
+                        : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                    }`}>
+                      {resetScope === "all" ? "SEÇİLDİ" : "Seç"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                    Tüm taksit planlarının ödenmiş sayaçlarını ve kayıtlı tüm taksit ödemelerini sıfırlar.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsResetModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResetPayments?.(resetScope);
+                    setIsResetModalOpen(false);
+                  }}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-black shadow-md shadow-rose-600/30 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Evet, Ödemeleri Sıfırla</span>
+                </button>
               </div>
             </motion.div>
           </div>,

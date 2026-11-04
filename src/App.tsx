@@ -1271,6 +1271,7 @@ export default function App() {
   // Local Alerts indicators
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [isToastExpanded, setIsToastExpanded] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
   const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
@@ -2058,14 +2059,16 @@ export default function App() {
     }
   };
 
-  const triggerToast = (msg: string, duration = 5000) => {
+  const triggerToast = (msg: string, duration?: number) => {
     setToastMessage(msg);
     setShowToast(true);
-    // Auto-close removed as per user request to close manually
+    setIsToastExpanded(false);
+    // Bildirimler otomatik olarak kaybolmaz; kullanıcı kapatana veya dokunana kadar ekranda kalır
   };
 
   const closeToast = () => {
     setShowToast(false);
+    setIsToastExpanded(false);
     setToastMessage("");
   };
 
@@ -5902,7 +5905,7 @@ export default function App() {
     triggerToast(`🎉 ${finalInstallments.length} adet taksit planı başarıyla geri yüklendi!`);
   };
 
-  const handleResetPayments = (scope: "current_month" | "all") => {
+  const handleResetPayments = async (scope: "current_month" | "all") => {
     let updatedDebts = [...debts];
     let updatedInstallments = [...installmentDebts];
     let updatedPayments = [...payments];
@@ -5912,70 +5915,90 @@ export default function App() {
       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
     ];
 
+    const now = new Date();
+    const targetMonth = selectedMonth !== null && selectedMonth !== undefined ? selectedMonth : now.getMonth();
+    const targetYear = selectedYear !== null && selectedYear !== undefined ? selectedYear : now.getFullYear();
+
     if (scope === "current_month") {
-      if (selectedMonth !== null && selectedYear !== null) {
-        // 1. Reset paid on debts due or paid in this month
-        updatedDebts = updatedDebts.map((d) => {
-          const parts = parseDateParts(d.dueDate || d.date);
-          const isDueThisMonth = parts && parts.month === selectedMonth && parts.year === selectedYear;
-          const hasPaymentInThisMonth = payments.some((p) => {
-            if (p.debtId !== d.id) return false;
-            const pParts = parseDateParts(p.date);
-            return pParts && pParts.month === selectedMonth && pParts.year === selectedYear;
-          });
+      const resetDebtIds = new Set<number>();
 
-          if (isDueThisMonth || hasPaymentInThisMonth) {
-            return { ...d, paid: 0 };
-          }
-          return d;
+      // 1. Reset paid on debts due, paid, or visible in this month
+      updatedDebts = updatedDebts.map((d) => {
+        if ((d.paid || 0) <= 0) return d;
+
+        const parts = parseDateParts(d.dueDate || d.date);
+        const isDueThisMonth = parts ? (parts.month === targetMonth && parts.year === targetYear) : false;
+        const hasPaymentInThisMonth = payments.some((p) => {
+          if (p.debtId !== d.id) return false;
+          const pParts = parseDateParts(p.date);
+          return pParts ? (pParts.month === targetMonth && pParts.year === targetYear) : false;
         });
+        // Borcun vadesi belirtilmemişse tüm aylarda görünür ve ödenmişse bu ay sıfırlanmalıdır
+        const hasNoDueDate = !d.dueDate;
 
-        // 2. Reset active installments for this month
-        updatedInstallments = updatedInstallments.map((inst) => {
-          const startParts = parseDateParts(inst.firstDueDate);
-          if (!startParts) return inst;
-          const monthDiff = (selectedYear - startParts.year) * 12 + (selectedMonth - startParts.month);
+        if (isDueThisMonth || hasPaymentInThisMonth || hasNoDueDate) {
+          resetDebtIds.add(d.id);
+          return { ...d, paid: 0 };
+        }
+        return d;
+      });
+
+      // 2. Reset active installments for this month
+      updatedInstallments = updatedInstallments.map((inst) => {
+        if ((inst.paidInstallmentCount || 0) <= 0) return inst;
+        const startParts = parseDateParts(inst.firstDueDate);
+        if (startParts) {
+          const monthDiff = (targetYear - startParts.year) * 12 + (targetMonth - startParts.month);
           if (monthDiff >= 0 && monthDiff < inst.installmentCount) {
             if (inst.paidInstallmentCount > monthDiff) {
-              return { ...inst, paidInstallmentCount: monthDiff };
+              return { ...inst, paidInstallmentCount: Math.max(0, monthDiff) };
             }
           }
-          return inst;
-        });
-
-        // 3. Filter out payments logged in this month
-        updatedPayments = updatedPayments.filter((p) => {
-          const parts = parseDateParts(p.date);
-          if (!parts) return true;
-          return !(parts.month === selectedMonth && parts.year === selectedYear);
-        });
-
-        // 4. Reset contact transactions for this month
-        try {
-          const raw = localStorage.getItem("contacts_transactions");
-          if (raw) {
-            const txs = JSON.parse(raw);
-            if (Array.isArray(txs)) {
-              const updatedTxs = txs.map((tx: any) => {
-                const p = parseDateParts(tx.paidDate || tx.dueDate || tx.date);
-                if (p && p.month === selectedMonth && p.year === selectedYear) {
-                  return { ...tx, isPaid: false, paidAmount: 0 };
-                }
-                return tx;
-              });
-              localStorage.setItem("contacts_transactions", JSON.stringify(updatedTxs));
-              setContactSyncTrigger((prev) => prev + 1);
-            }
+        } else {
+          // Vade yoksa ve bu ay ödeme kaydı varsa taksit sayacını 1 azalt
+          const hasPaymentInThisMonth = payments.some((p) => {
+            if (p.debtId !== inst.id || p.type !== "installment") return false;
+            const pParts = parseDateParts(p.date);
+            return pParts ? (pParts.month === targetMonth && pParts.year === targetYear) : false;
+          });
+          if (hasPaymentInThisMonth) {
+            return { ...inst, paidInstallmentCount: Math.max(0, (inst.paidInstallmentCount || 1) - 1) };
           }
-        } catch (e) {
-          console.error("Contacts reset error:", e);
         }
+        return inst;
+      });
 
-        triggerToast(`🗓️ ${monthNamesList[selectedMonth]} ${selectedYear} dönemine ait tüm borç ve taksit ödemeleri sıfırlandı.`);
-      } else {
-        triggerToast("Lütfen önce belirli bir ay seçiniz.");
-        return;
+      // 3. Filter out payments logged in this month or for reset debts
+      updatedPayments = updatedPayments.filter((p) => {
+        const parts = parseDateParts(p.date);
+        const isThisMonth = parts ? (parts.month === targetMonth && parts.year === targetYear) : false;
+        if (isThisMonth) return false;
+        if (resetDebtIds.has(p.debtId) && p.type === "manual") return false;
+        return true;
+      });
+
+      // 4. Reset contact transactions for this month
+      try {
+        const raw = localStorage.getItem("contacts_transactions");
+        if (raw) {
+          const txs = JSON.parse(raw);
+          if (Array.isArray(txs)) {
+            const updatedTxs = txs.map((tx: any) => {
+              const p = parseDateParts(tx.paidDate || tx.dueDate || tx.date);
+              if (p && p.month === targetMonth && p.year === targetYear) {
+                return { ...tx, isPaid: false, paidAmount: 0 };
+              }
+              return tx;
+            });
+            localStorage.setItem("contacts_transactions", JSON.stringify(updatedTxs));
+            setContactSyncTrigger((prev) => prev + 1);
+          }
+        }
+      } catch (e) {
+        console.error("Contacts reset error:", e);
       }
+
+      triggerToast(`🗓️ ${monthNamesList[targetMonth]} ${targetYear} Dönemi Borç ve Taksit Ödemeleri Sıfırlandı.\nİlgili borç kayıtları yeniden ödenmemiş durumuna getirildi ve veritabanı güncellendi.`);
     } else {
       // Reset ALL payments across all periods
       updatedDebts = updatedDebts.map((d) => ({ ...d, paid: 0 }));
@@ -5996,13 +6019,23 @@ export default function App() {
         console.error("Contacts reset error:", e);
       }
 
-      triggerToast("⚡ Tüm dönemlere ait borç ve taksit ödemeleri başarıyla sıfırlandı.");
+      triggerToast("⚡ Tüm Dönemlere Ait Borç ve Taksit Ödemeleri Başarıyla Sıfırlandı.\nTüm borç kayıtları, taksit planları ve ödeme geçmişi ödenmemişe çekildi.");
     }
 
     setDebts(updatedDebts);
     setInstallmentDebts(updatedInstallments);
     setPayments(updatedPayments);
-    saveAllToUser(
+
+    // Reschedule alarms for reset unpaid debts
+    try {
+      rescheduleAllNotifications(updatedDebts, updatedInstallments, { frequency: pushFrequency }).catch(() => {});
+      syncAllDebtsAndAlarmsToAndroid(alarms, updatedDebts, updatedInstallments);
+    } catch (alarmErr) {
+      console.warn("Alarm rescheduling error after reset:", alarmErr);
+    }
+
+    // silent=true ensures the specific notification toast is not overwritten by "Değişiklikler Kaydedildi"
+    await saveAllToUser(
       updatedDebts,
       incomes,
       alarms,
@@ -6010,7 +6043,8 @@ export default function App() {
       updatedInstallments,
       updatedPayments,
       expenses,
-      expenseCategories
+      expenseCategories,
+      true
     );
   };
 
@@ -7710,32 +7744,69 @@ export default function App() {
         </div>
       )}
 
-      {/* Dynamic Top Header Toast Alerts */}
+      {/* Dynamic Top Header Toast Alerts - Genişletilebilir, Tıklanabilir & Manuel Kapatılabilir */}
       <AnimatePresence>
         {showToast && (
-          <div className="fixed top-4 inset-x-0 z-[99999] flex justify-center px-4 pointer-events-none select-none">
+          <div className="fixed top-3 inset-x-0 z-[99999] flex justify-center px-3 sm:px-4 pointer-events-none select-none">
             <motion.div
+              layout
               initial={{ opacity: 0, y: -25, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-xl border border-indigo-500/40 text-white rounded-2xl px-4 py-3 shadow-2xl shadow-indigo-600/30 text-[11px] font-bold leading-relaxed flex items-center gap-3 max-w-sm w-full"
+              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-2xl border-2 border-indigo-500/50 text-white rounded-2xl p-3 sm:p-4 shadow-2xl shadow-indigo-950/70 max-w-lg w-full transition-all duration-200"
             >
-              <div className="p-1.5 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-lg text-white shadow-md shrink-0">
-                <Sparkles className="w-3 h-3 text-amber-300" />
+              <div className="flex items-start gap-3">
+                {/* Sol İkon Rozeti */}
+                <div className="p-2 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl text-white shadow-md shadow-indigo-600/30 shrink-0 mt-0.5">
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                </div>
+
+                {/* Tıklanabilir Mesaj Alanı */}
+                <div
+                  onClick={() => setIsToastExpanded((prev) => !prev)}
+                  className="flex-1 min-w-0 cursor-pointer group select-text"
+                  title="Mesajın tamamını açmak veya kapatmak için dokunun"
+                >
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">
+                      BİLDİRİM & BİLGİLENDİRME
+                    </span>
+                    <span className="text-[9px] text-slate-400 group-hover:text-indigo-300 transition font-bold">
+                      ({isToastExpanded ? "Küçültmek için dokunun ▲" : "Tamamını okumak için dokunun ▼"})
+                    </span>
+                  </div>
+
+                  {/* Mesaj İçeriği: Genişletildiğinde tam ve kaydırılabilir, kapalıyken 2 satır önizleme */}
+                  <p
+                    className={`text-slate-100 font-semibold text-xs sm:text-[13px] leading-relaxed break-words whitespace-pre-wrap ${
+                      isToastExpanded ? "max-h-60 overflow-y-auto pr-1" : "line-clamp-2"
+                    }`}
+                  >
+                    {toastMessage}
+                  </p>
+
+                  {!isToastExpanded && toastMessage.length > 70 && (
+                    <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-indigo-400 group-hover:text-indigo-300">
+                      <span>Tamamını Gör</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Sağ Üst Kapat Butonu (X) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeToast();
+                  }}
+                  title="Bildirimi Kapat"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition shrink-0 cursor-pointer -mr-1 -mt-1 active:scale-90"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-medium tracking-tight truncate sm:whitespace-normal">
-                  {toastMessage}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeToast}
-                className="p-1 text-slate-400 hover:text-white rounded-lg transition shrink-0 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
             </motion.div>
           </div>
         )}
@@ -9468,6 +9539,8 @@ export default function App() {
             onUpgradeClick={() => openUpgradeModal("Taksitli Borçlar & Ödeme Planı")}
             focusedInstallmentId={focusedInstallmentId}
             setFocusedInstallmentId={setFocusedInstallmentId}
+            onResetPayments={handleResetPayments}
+            triggerToast={triggerToast}
           />
         )}
 
