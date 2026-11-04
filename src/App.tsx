@@ -2061,9 +2061,12 @@ export default function App() {
   const triggerToast = (msg: string, duration = 5000) => {
     setToastMessage(msg);
     setShowToast(true);
-    setTimeout(() => {
-      setShowToast(false);
-    }, duration);
+    // Auto-close removed as per user request to close manually
+  };
+
+  const closeToast = () => {
+    setShowToast(false);
+    setToastMessage("");
   };
 
   // Önemli Günler ve Resmi/Dini Bayramlar (29 Ekim Cumhuriyet Bayramı vb.) Otomatik Bildirim ve Tebrik Sistemi
@@ -7716,22 +7719,22 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-xl border border-indigo-500/40 text-white rounded-2xl px-5 py-3.5 shadow-2xl shadow-indigo-600/30 text-xs sm:text-sm font-black leading-relaxed flex items-center gap-3 max-w-lg w-full"
+              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-xl border border-indigo-500/40 text-white rounded-2xl px-4 py-3 shadow-2xl shadow-indigo-600/30 text-[11px] font-bold leading-relaxed flex items-center gap-3 max-w-sm w-full"
             >
-              <div className="p-2 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl text-white shadow-md shadow-indigo-500/30 shrink-0">
-                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              <div className="p-1.5 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-lg text-white shadow-md shrink-0">
+                <Sparkles className="w-3 h-3 text-amber-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-extrabold tracking-tight truncate sm:whitespace-normal">
+                <p className="text-white font-medium tracking-tight truncate sm:whitespace-normal">
                   {toastMessage}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowToast(false)}
+                onClick={closeToast}
                 className="p-1 text-slate-400 hover:text-white rounded-lg transition shrink-0 cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </motion.div>
           </div>
@@ -10539,6 +10542,24 @@ export default function App() {
                 </motion.button>
               </div>
             </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-200/50 dark:border-slate-800/80 flex flex-col items-center justify-center text-center space-y-3">
+            <motion.div 
+              animate={{ y: [0, -3, 0] }}
+              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+              className="flex items-center gap-2.5 px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm"
+            >
+              <div className="w-8 h-8 flex items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-sm shadow-md">
+                B
+              </div>
+              <span className="text-sm font-black tracking-widest text-slate-900 dark:text-white uppercase">
+                BÜTÇEM PRO
+              </span>
+            </motion.div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold tracking-wider">
+              Kişisel Finans, Borç ve Bütçe Yönetim Asistanı • Güvenli Yerel & Bulut Defteri
+            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-200/40 dark:border-slate-800/80 text-center sm:text-left">
