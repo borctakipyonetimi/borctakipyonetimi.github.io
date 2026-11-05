@@ -83,6 +83,34 @@ export const TURKISH_MONTH_NAMES = [
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
 ];
 
+// Universal safe number parser with fallback to 0
+export function safeNumber(val: any): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === "number") {
+    return isNaN(val) || !isFinite(val) ? 0 : val;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed) return 0;
+    let normalized = trimmed;
+    if (normalized.includes(",") && normalized.includes(".")) {
+      if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) {
+        // Turkish format: 1.250,50 -> 1250.50
+        normalized = normalized.replace(/\./g, "").replace(",", ".");
+      } else {
+        // US format: 1,250.50 -> 1250.50
+        normalized = normalized.replace(/,/g, "");
+      }
+    } else if (normalized.includes(",")) {
+      normalized = normalized.replace(",", ".");
+    }
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) || !isFinite(parsed) ? 0 : parsed;
+  }
+  const num = Number(val);
+  return isNaN(num) || !isFinite(num) ? 0 : num;
+}
+
 // Helper to extract real mandatory monthly expenses from expenses and debts without mock/dummy numbers
 function extractMandatoryExpensesData(
   expList: Expense[],
@@ -122,7 +150,7 @@ function extractMandatoryExpensesData(
   let otherSum = 0;
 
   targetExpenses.forEach(e => {
-    const amt = Number(e.amount) || 0;
+    const amt = safeNumber(e.amount);
     const text = `${e.category || ""} ${e.description || ""}`.toLocaleLowerCase("tr");
 
     if (/kira|konut|lojm|ev kiras|aidat/.test(text)) {
@@ -140,25 +168,29 @@ function extractMandatoryExpensesData(
     }
   });
 
-  // Active monthly installments
+  // Active monthly installments - mandatory monthly payments
   const activeMonthlyInst = (instList || []).reduce((sum, inst) => {
-    const total = Number(inst.totalAmount) || 0;
-    const count = Number(inst.installmentCount) || 1;
-    const paid = Number(inst.paidInstallmentCount) || 0;
+    const total = safeNumber(inst.totalAmount);
+    const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+    const paid = safeNumber(inst.paidInstallmentCount);
     if (paid < count) {
       return sum + (total / count);
     }
     return sum;
   }, 0);
 
-  // Bank loans due this month
+  // Bank loans due this month or active debt obligations
   let bankLoansDueThisMonth = 0;
   (debtsList || []).forEach(d => {
-    const remaining = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+    const remaining = Math.max(0, safeNumber(d.amount) - safeNumber(d.paid));
     if (remaining > 0) {
       const dParts = parseDateParts(d.dueDate);
-      if (dParts && dParts.year === curYear && dParts.month === curMonth) {
-        bankLoansDueThisMonth += remaining;
+      if (dParts) {
+        if (dParts.year < curYear || (dParts.year === curYear && dParts.month <= curMonth)) {
+          bankLoansDueThisMonth += remaining;
+        }
+      } else {
+        bankLoansDueThisMonth += remaining > 50000 ? Math.round(remaining / 12) : remaining;
       }
     }
   });
@@ -193,6 +225,81 @@ export function FinancialTools({
   const spaceKey = currentUser ? `user_${currentUser.toLowerCase()}` : "user_anonymous";
   const [activeSubTab, setActiveSubTab] = useState<"health" | "calculators" | "savings" | "calendar" | "report">(defaultSubTab || "health");
 
+  // Load Contacts and Transactions
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactTxs, setContactTxs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const savedC = localStorage.getItem(`${spaceKey}_contacts_directory`) || localStorage.getItem("contacts_directory");
+    const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`) || localStorage.getItem("contacts_transactions");
+    if (savedC) {
+      try { setContacts(JSON.parse(savedC)); } catch {}
+    } else {
+      setContacts([]);
+    }
+    if (savedT) {
+      try { setContactTxs(JSON.parse(savedT)); } catch {}
+    } else {
+      setContactTxs([]);
+    }
+  }, [spaceKey]);
+
+  // --- DEDUPLICATION & CONSOLIDATION OF DEBTS & TRANSACTIONS ---
+  const cleanInstallments = useMemo(() => {
+    const seenIds = new Set<any>();
+    const seenKeys = new Set<string>();
+    return (installmentDebts || []).filter((inst) => {
+      if (!inst || !inst.name) return false;
+      if (inst.id !== undefined && inst.id !== null) {
+        if (seenIds.has(inst.id)) return false;
+        seenIds.add(inst.id);
+      }
+      const normName = inst.name.trim().toLowerCase();
+      const key = `${normName}_${safeNumber(inst.totalAmount)}_${safeNumber(inst.installmentCount)}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+  }, [installmentDebts]);
+
+  const cleanDebts = useMemo(() => {
+    const seenIds = new Set<any>();
+    const seenKeys = new Set<string>();
+    const installmentNames = new Set(
+      cleanInstallments.map((inst) => inst.name.trim().toLowerCase())
+    );
+
+    return (debts || []).filter((d) => {
+      if (!d || !d.name) return false;
+      if (d.id !== undefined && d.id !== null) {
+        if (seenIds.has(d.id)) return false;
+        seenIds.add(d.id);
+      }
+      const normName = d.name.trim().toLowerCase();
+      if (installmentNames.has(normName)) {
+        const matchInst = cleanInstallments.find(
+          (i) => i.name.trim().toLowerCase() === normName && Math.abs(safeNumber(i.totalAmount) - safeNumber(d.amount)) < 1
+        );
+        if (matchInst) return false;
+      }
+      const key = `${normName}_${safeNumber(d.amount)}_${(d.category || "").toLowerCase()}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+  }, [debts, cleanInstallments]);
+
+  const cleanContactTxs = useMemo(() => {
+    const seen = new Set<string>();
+    return (contactTxs || []).filter((tx) => {
+      if (!tx || !tx.contactName) return false;
+      const key = tx.id ? String(tx.id) : `${tx.contactName.trim().toLowerCase()}_${tx.type}_${safeNumber(tx.amount)}_${tx.isPaid}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [contactTxs]);
+
   // Calculator Sub-tab State
   const [calcTab, setCalcTab] = useState<"loan" | "emergency" | "networth">("loan");
 
@@ -204,10 +311,10 @@ export function FinancialTools({
   const [showAmortization, setShowAmortization] = useState<boolean>(false);
   const [loanAddedToast, setLoanAddedToast] = useState<string>("");
 
-  // Initial Mandatory Expenses extracted from actual user records
-  const initialMandatory = extractMandatoryExpensesData(expenses, installmentDebts, debts);
+  // Initial Mandatory Expenses extracted from actual user records (deduplicated clean data)
+  const initialMandatory = extractMandatoryExpensesData(expenses, cleanInstallments, cleanDebts);
 
-  // 2. Acil Durum Fonu State - Initialized directly from user's real financial data (0 if not recorded)
+  // 2. Acil Durum Fonu State - Initialized directly from user's real financial data
   const [emergencyRent, setEmergencyRent] = useState<number>(initialMandatory.rent);
   const [emergencyBills, setEmergencyBills] = useState<number>(initialMandatory.bills);
   const [emergencyFood, setEmergencyFood] = useState<number>(initialMandatory.food);
@@ -217,15 +324,16 @@ export function FinancialTools({
   const [emergencyMonths, setEmergencyMonths] = useState<number>(6);
   const [emergencySavedToast, setEmergencySavedToast] = useState<string>("");
 
-  // 3. Net Varlık (Net Worth) State - Derived from actual app records (debts, installments, incomes, expenses, contacts)
+  // 3. Net Varlık (Net Worth) State - Derived from actual app records with strong casting
   const [assetCash, setAssetCash] = useState<number>(() => {
     try {
-      const savedIncomes = (incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-      const savedExpenses = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-      const savedDebtsPaid = (debts || []).reduce((s, d) => s + (Number(d.paid) || 0), 0);
+      const savedIncomes = (incomes || []).reduce((s, i) => s + safeNumber(i.amount), 0);
+      const savedExpenses = (expenses || []).reduce((s, e) => s + safeNumber(e.amount), 0);
+      const savedDebtsPaid = (debts || []).reduce((s, d) => s + safeNumber(d.paid), 0);
       const savedInstPaid = (installmentDebts || []).reduce((s, i) => {
-        const single = (Number(i.totalAmount) || 0) / (i.installmentCount || 1);
-        return s + ((Number(i.paidInstallmentCount) || 0) * single);
+        const count = Math.max(1, safeNumber(i.installmentCount) || 1);
+        const single = safeNumber(i.totalAmount) / count;
+        return s + (safeNumber(i.paidInstallmentCount) * single);
       }, 0);
       return Math.max(0, Math.round(savedIncomes - savedExpenses - savedDebtsPaid - savedInstPaid));
     } catch {
@@ -242,38 +350,44 @@ export function FinancialTools({
       const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`) || localStorage.getItem("contacts_transactions");
       if (raw) {
         const txs = JSON.parse(raw);
-        return txs.filter((t: any) => t.type === "receivable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+        return txs.filter((t: any) => t.type === "receivable" && !t.isPaid).reduce((s: number, t: any) => s + safeNumber(t.amount), 0);
       }
     } catch {}
     return 0;
   });
   const [assetOther, setAssetOther] = useState<number>(0);
 
+  // Kredi Kartı ve Taksitli Borçların Kalan Güncel Ana Para Bakiyesi:
   const [liabCreditCard, setLiabCreditCard] = useState<number>(() => {
     try {
       return (installmentDebts || []).reduce((s, i) => {
-        const single = (Number(i.totalAmount) || 0) / (i.installmentCount || 1);
-        return s + (Math.max(0, (i.installmentCount || 1) - (i.paidInstallmentCount || 0)) * single);
+        const count = Math.max(1, safeNumber(i.installmentCount) || 1);
+        const total = safeNumber(i.totalAmount);
+        const single = total / count;
+        const paidCount = safeNumber(i.paidInstallmentCount);
+        return s + Math.max(0, total - (paidCount * single));
       }, 0);
     } catch {
       return 0;
     }
   });
 
+  // Banka Kredileri ve Diğer Borçların Kalan Güncel Ana Para Bakiyesi:
   const [liabBankLoans, setLiabBankLoans] = useState<number>(() => {
     try {
-      return (debts || []).filter(d => ((Number(d.amount) || 0) - (Number(d.paid) || 0)) > 0).reduce((s, d) => s + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+      return (debts || []).reduce((s, d) => s + Math.max(0, safeNumber(d.amount) - safeNumber(d.paid)), 0);
     } catch {
       return 0;
     }
   });
 
+  // Şahıs / Kişi Borçları Kalan Bakiyesi:
   const [liabPersonalDebts, setLiabPersonalDebts] = useState<number>(() => {
     try {
       const raw = localStorage.getItem(`${spaceKey}_contacts_transactions`) || localStorage.getItem("contacts_transactions");
       if (raw) {
         const txs = JSON.parse(raw);
-        return txs.filter((t: any) => t.type === "payable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+        return txs.filter((t: any) => t.type === "payable" && !t.isPaid).reduce((s: number, t: any) => s + safeNumber(t.amount), 0);
       }
     } catch {}
     return 0;
@@ -295,7 +409,7 @@ export function FinancialTools({
   const [emergencyCurrentSaved, setEmergencyCurrentSaved] = useState<number>(() => {
     try {
       const emg = savingsGoals.find(g => g.category === "emergency" || g.name.toLowerCase().includes("acil"));
-      if (emg) return emg.currentAmount;
+      if (emg) return safeNumber(emg.currentAmount);
     } catch {}
     return 0;
   });
@@ -303,8 +417,8 @@ export function FinancialTools({
   // Emergency monthly saving capacity derived from real cashflow
   const [emergencyMonthlySaveCap, setEmergencyMonthlySaveCap] = useState<number>(() => {
     try {
-      const totalInc = (incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-      const totalExp = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const totalInc = (incomes || []).reduce((s, i) => s + safeNumber(i.amount), 0);
+      const totalExp = (expenses || []).reduce((s, e) => s + safeNumber(e.amount), 0);
       return Math.max(0, Math.round(totalInc - totalExp - initialMandatory.debts));
     } catch {
       return 0;
@@ -314,83 +428,6 @@ export function FinancialTools({
   useEffect(() => {
     localStorage.setItem(`${spaceKey}_savings_goals`, JSON.stringify(savingsGoals));
   }, [savingsGoals, spaceKey]);
-
-  // Load Contacts and Transactions for Report inclusion
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [contactTxs, setContactTxs] = useState<any[]>([]);
-
-  useEffect(() => {
-    const savedC = localStorage.getItem(`${spaceKey}_contacts_directory`) || localStorage.getItem("contacts_directory");
-    const savedT = localStorage.getItem(`${spaceKey}_contacts_transactions`) || localStorage.getItem("contacts_transactions");
-    if (savedC) {
-      try { setContacts(JSON.parse(savedC)); } catch {}
-    } else {
-      setContacts([]);
-    }
-    if (savedT) {
-      try { setContactTxs(JSON.parse(savedT)); } catch {}
-    } else {
-      setContactTxs([]);
-    }
-  }, [spaceKey]);
-
-  // --- DEDUPLICATION & CONSOLIDATION OF DEBTS & TRANSACTIONS ---
-  // Eliminate repeated, confusing, or cross-listed debt records
-  const cleanInstallments = useMemo(() => {
-    const seenIds = new Set<any>();
-    const seenKeys = new Set<string>();
-    return (installmentDebts || []).filter((inst) => {
-      if (!inst || !inst.name) return false;
-      if (inst.id !== undefined && inst.id !== null) {
-        if (seenIds.has(inst.id)) return false;
-        seenIds.add(inst.id);
-      }
-      const normName = inst.name.trim().toLowerCase();
-      const key = `${normName}_${inst.totalAmount}_${inst.installmentCount}`;
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
-      return true;
-    });
-  }, [installmentDebts]);
-
-  const cleanDebts = useMemo(() => {
-    const seenIds = new Set<any>();
-    const seenKeys = new Set<string>();
-    const installmentNames = new Set(
-      cleanInstallments.map((inst) => inst.name.trim().toLowerCase())
-    );
-
-    return (debts || []).filter((d) => {
-      if (!d || !d.name) return false;
-      if (d.id !== undefined && d.id !== null) {
-        if (seenIds.has(d.id)) return false;
-        seenIds.add(d.id);
-      }
-      const normName = d.name.trim().toLowerCase();
-      // If debt matches an installment debt by name and amount, exclude the duplicate simple debt record
-      if (installmentNames.has(normName)) {
-        const matchInst = cleanInstallments.find(
-          (i) => i.name.trim().toLowerCase() === normName && Math.abs(i.totalAmount - d.amount) < 1
-        );
-        if (matchInst) return false;
-      }
-      const key = `${normName}_${d.amount}_${(d.category || "").toLowerCase()}`;
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
-      return true;
-    });
-  }, [debts, cleanInstallments]);
-
-  const cleanContactTxs = useMemo(() => {
-    const seen = new Set<string>();
-    return (contactTxs || []).filter((tx) => {
-      if (!tx || !tx.contactName) return false;
-      const key = tx.id ? String(tx.id) : `${tx.contactName.trim().toLowerCase()}_${tx.type}_${tx.amount}_${tx.isPaid}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [contactTxs]);
 
   // Report filter and status message state
   const [reportDebtFilter, setReportDebtFilter] = useState<"all" | "active" | "paid">("all");
@@ -422,17 +459,17 @@ export function FinancialTools({
   const [pegCalculatorResult, setPegCalculatorResult] = useState({ usd: 0, eur: 0, gold: 0 });
 
   useEffect(() => {
-    const val = Number(pegCalculatorInput) || 0;
+    const val = safeNumber(pegCalculatorInput);
     setPegCalculatorResult({
-      usd: val / usdRate,
-      eur: val / eurRate,
-      gold: val / goldRate
+      usd: usdRate > 0 ? val / usdRate : 0,
+      eur: eurRate > 0 ? val / eurRate : 0,
+      gold: goldRate > 0 ? val / goldRate : 0
     });
   }, [pegCalculatorInput, usdRate, eurRate, goldRate]);
 
-  // Financial metrics calculations based on clean deduplicated data
-  const totalIncomesSum = incomes.reduce((sum, inc) => sum + (Number(inc.amount) || 0), 0);
-  const totalExpensesSum = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+  // Financial metrics calculations based on clean deduplicated data with strong type casting
+  const totalIncomesSum = (incomes || []).reduce((sum, inc) => sum + safeNumber(inc.amount), 0);
+  const totalExpensesSum = (expenses || []).reduce((sum, exp) => sum + safeNumber(exp.amount), 0);
 
   // Month-aware income & expense calculations
   const now = new Date();
@@ -449,7 +486,7 @@ export function FinancialTools({
     }
     return dParts.year === curYear && dParts.month === curMonth;
   });
-  const currentMonthIncomeSum = currentMonthIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const currentMonthIncomeSum = currentMonthIncomes.reduce((s, i) => s + safeNumber(i.amount), 0);
 
   const incomeMonthsSet = new Set<string>();
   (incomes || []).forEach(i => {
@@ -459,7 +496,6 @@ export function FinancialTools({
   const distinctMonthsCount = Math.max(1, incomeMonthsSet.size);
 
   // Effective Monthly & Annual Income:
-  // Derived strictly from actual user income data
   const monthlyIncome = currentMonthIncomeSum > 0
     ? currentMonthIncomeSum
     : ((incomes || []).length === 0 ? 0 : (distinctMonthsCount > 1 ? Math.round(totalIncomesSum / distinctMonthsCount) : totalIncomesSum));
@@ -475,7 +511,7 @@ export function FinancialTools({
     }
     return dParts.year === curYear && dParts.month === curMonth;
   });
-  const currentMonthExpenseSum = currentMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const currentMonthExpenseSum = currentMonthExpenses.reduce((s, e) => s + safeNumber(e.amount), 0);
 
   const expenseMonthsSet = new Set<string>();
   (expenses || []).forEach(e => {
@@ -490,10 +526,13 @@ export function FinancialTools({
 
   const annualExpense = (expenses || []).length === 0 ? 0 : (distinctExpMonthsCount >= 10 ? totalExpensesSum : (monthlyExpense * 12));
 
-  // Monthly installment payment total:
+  // Monthly active installment payment load:
   const totalMonthlyInstallmentLoad = cleanInstallments.reduce((sum, inst) => {
-    const monthly = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
-    const isFinished = (inst.paidInstallmentCount || 0) >= (inst.installmentCount || 1);
+    const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+    const total = safeNumber(inst.totalAmount);
+    const monthly = total / count;
+    const paidCount = safeNumber(inst.paidInstallmentCount);
+    const isFinished = paidCount >= count;
     return isFinished ? sum : sum + monthly;
   }, 0);
 
@@ -522,7 +561,9 @@ export function FinancialTools({
 
     // 1. Simple debts:
     cleanDebts.forEach(d => {
-      const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      const amount = safeNumber(d.amount);
+      const paid = safeNumber(d.paid);
+      const rem = Math.max(0, amount - paid);
       const isPaid = rem === 0;
       let mKey = "Tarihsiz";
       let day = 1;
@@ -538,8 +579,8 @@ export function FinancialTools({
         category: d.category || "Banka Borcu",
         dueDate: d.dueDate || "",
         day,
-        amount: Number(d.amount) || 0,
-        paid: Number(d.paid) || 0,
+        amount,
+        paid,
         remaining: rem,
         isPaid,
         type: (d.category || "").toLowerCase().includes("kart") ? "Kredi Kartı" : "Banka Borcu"
@@ -548,9 +589,10 @@ export function FinancialTools({
 
     // 2. Installments:
     cleanInstallments.forEach(inst => {
-      const count = inst.installmentCount || 1;
-      const paidCount = inst.paidInstallmentCount || 0;
-      const monthlyAmt = (Number(inst.totalAmount) || 0) / count;
+      const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+      const paidCount = safeNumber(inst.paidInstallmentCount);
+      const total = safeNumber(inst.totalAmount);
+      const monthlyAmt = total / count;
 
       let startY = new Date().getFullYear();
       let startM = new Date().getMonth() + 1;
@@ -597,15 +639,16 @@ export function FinancialTools({
           day = dParts.day;
         }
 
+        const amt = safeNumber(tx.amount);
         addToGroup(mKey, {
           id: `contact_${tx.id || tx.contactName}_${tx.amount}`,
           name: `${tx.contactName} (Kişiye Borç)`,
           category: "Cari Kişi Borcu",
           dueDate: tx.dueDate || tx.date || "",
           day,
-          amount: Number(tx.amount) || 0,
-          paid: tx.isPaid ? (Number(tx.amount) || 0) : 0,
-          remaining: tx.isPaid ? 0 : (Number(tx.amount) || 0),
+          amount: amt,
+          paid: tx.isPaid ? amt : 0,
+          remaining: tx.isPaid ? 0 : amt,
           isPaid: !!tx.isPaid,
           type: "Kişi Borcu"
         });
@@ -653,58 +696,68 @@ export function FinancialTools({
     });
   }, [cleanDebts, cleanInstallments, cleanContactTxs]);
   
-  // Calculate remaining debt
-  const simpleUnpaidDebt = cleanDebts.reduce((sum, d) => sum + Math.max(0, d.amount - d.paid), 0);
+  // Calculate remaining debt principal balances with strong type casting
+  const simpleUnpaidDebt = cleanDebts.reduce((sum, d) => sum + Math.max(0, safeNumber(d.amount) - safeNumber(d.paid)), 0);
   const installmentUnpaidDebt = cleanInstallments.reduce((sum, inst) => {
-    const monthly = inst.totalAmount / (inst.installmentCount || 1);
-    const paidValue = (inst.paidInstallmentCount || 0) * monthly;
-    return sum + Math.max(0, inst.totalAmount - paidValue);
+    const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+    const total = safeNumber(inst.totalAmount);
+    const monthly = total / count;
+    const paidCount = safeNumber(inst.paidInstallmentCount);
+    const paidValue = paidCount * monthly;
+    return sum + Math.max(0, total - paidValue);
   }, 0);
   const bankAndInstallmentDebt = simpleUnpaidDebt + installmentUnpaidDebt;
 
   // Person debts
   const contactPayablesRemaining = cleanContactTxs.reduce((sum, tx) => {
     if (!tx.isPaid && tx.type === "payable") {
-      return sum + tx.amount;
+      return sum + safeNumber(tx.amount);
     }
     return sum;
   }, 0);
   const contactReceivablesRemaining = cleanContactTxs.reduce((sum, tx) => {
     if (!tx.isPaid && tx.type === "receivable") {
-      return sum + tx.amount;
+      return sum + safeNumber(tx.amount);
     }
     return sum;
   }, 0);
 
   const grandTotalRemainingDebt = bankAndInstallmentDebt + contactPayablesRemaining;
 
-  // BUDGET HEALTH SCORE (Algorithm: 0 to 100)
+  // BUDGET HEALTH SCORE (Algorithm: 0 to 100) - Integrates monthly expenses and active installment obligations
   const calculateBudgetScore = () => {
     if (totalIncomesSum === 0) return 30; // base score with no income
 
     let score = 70; // middle starting point
 
-    // Income vs Expense Ratio (up to +20 or -30)
-    const expenseRatio = totalExpensesSum / totalIncomesSum;
-    if (expenseRatio < 0.3) score += 20;
-    else if (expenseRatio < 0.5) score += 12;
-    else if (expenseRatio < 0.75) score += 2;
-    else if (expenseRatio < 1.0) score -= 15;
-    else score -= 30; // spending more than earning is extremely unhealthy
+    // Effective monthly obligations include regular monthly expenses AND active installment burdens
+    const effectiveMonthlyObligation = monthlyExpense + totalMonthlyInstallmentLoad;
+    const effectiveExpenseRatio = monthlyIncome > 0
+      ? (effectiveMonthlyObligation / monthlyIncome)
+      : (totalExpensesSum / Math.max(1, totalIncomesSum));
 
-    // Debt to Income Ratio (up to +10 or -35)
-    const debtRatio = grandTotalRemainingDebt / totalIncomesSum;
+    if (effectiveExpenseRatio < 0.3) score += 20;
+    else if (effectiveExpenseRatio < 0.5) score += 12;
+    else if (effectiveExpenseRatio < 0.75) score += 2;
+    else if (effectiveExpenseRatio < 1.0) score -= 15;
+    else score -= 30; // obligations exceed earnings
+
+    // Debt to Income Ratio
+    const annualCapacity = annualIncome > 0 ? annualIncome : (totalIncomesSum * 12 / Math.max(1, distinctMonthsCount));
+    const debtRatio = grandTotalRemainingDebt / Math.max(1, annualCapacity);
     if (debtRatio === 0) score += 10;
-    else if (debtRatio < 0.5) score += 5;
+    else if (debtRatio < 0.3) score += 7;
+    else if (debtRatio < 0.8) score += 3;
     else if (debtRatio < 1.5) score -= 5;
     else if (debtRatio < 3) score -= 15;
-    else score -= 30; // debt is more than 3 times income
+    else score -= 30;
 
-    // Savings capacity (up to +10)
-    const surplus = totalIncomesSum - totalExpensesSum;
-    if (surplus > 10000) score += 10;
-    else if (surplus > 5000) score += 7;
-    else if (surplus > 1000) score += 3;
+    // Monthly Surplus / Net cashflow
+    const monthlySurplus = monthlyIncome - effectiveMonthlyObligation;
+    if (monthlySurplus > 10000) score += 10;
+    else if (monthlySurplus > 5000) score += 7;
+    else if (monthlySurplus > 1000) score += 3;
+    else if (monthlySurplus < 0) score -= 15;
 
     // Clamp score between 0 and 100
     return Math.max(0, Math.min(100, Math.round(score)));
@@ -756,8 +809,8 @@ export function FinancialTools({
     e.preventDefault();
     if (!newGoalName.trim() || !newGoalTarget) return;
 
-    const targetVal = parseFloat(newGoalTarget);
-    if (isNaN(targetVal) || targetVal <= 0) return;
+    const targetVal = safeNumber(newGoalTarget);
+    if (targetVal <= 0) return;
 
     const newGoal: SavingsGoal = {
       id: "sg_" + Date.now(),
@@ -773,8 +826,8 @@ export function FinancialTools({
   };
 
   const handleUpdateGoalAmount = (goalId: string, add: boolean) => {
-    const inputVal = parseFloat(goalAddAmounts[goalId] || "0");
-    if (isNaN(inputVal) || inputVal <= 0) return;
+    const inputVal = safeNumber(goalAddAmounts[goalId]);
+    if (inputVal <= 0) return;
 
     setSavingsGoals(prev => prev.map(g => {
       if (g.id === goalId) {
@@ -807,10 +860,11 @@ export function FinancialTools({
     cleanDebts.forEach(d => {
       const dParts = parseDateParts(d.dueDate);
       if (dParts && dParts.year === calYear && (dParts.month + 1) === calMonth && dParts.day === dayNum) {
-        const rem = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+        const amt = safeNumber(d.amount);
+        const rem = Math.max(0, amt - safeNumber(d.paid));
         matchedDebts.push({
           name: d.name,
-          amount: rem > 0 ? rem : Number(d.amount) || 0,
+          amount: rem > 0 ? rem : amt,
           type: (d.category || "").toLowerCase().includes("kart") ? "Kredi Kartı" : "Banka Borcu",
           isPaid: rem === 0
         });
@@ -827,13 +881,14 @@ export function FinancialTools({
           const startM = startParts.month + 1;
           const startD = startParts.day || 15;
           const diffMonths = (calYear - startY) * 12 + (calMonth - startM);
-          if (diffMonths >= 0 && diffMonths < (inst.installmentCount || 1)) {
+          const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+          if (diffMonths >= 0 && diffMonths < count) {
             const installmentIndex = diffMonths + 1;
             if (startD === dayNum) {
-              const monthly = (Number(inst.totalAmount) || 0) / (inst.installmentCount || 1);
-              const isPaid = (inst.paidInstallmentCount || 0) >= installmentIndex;
+              const monthly = safeNumber(inst.totalAmount) / count;
+              const isPaid = safeNumber(inst.paidInstallmentCount) >= installmentIndex;
               matchedDebts.push({
-                name: `${inst.name} (${installmentIndex}/${inst.installmentCount}. Taksit)`,
+                name: `${inst.name} (${installmentIndex}/${count}. Taksit)`,
                 amount: monthly,
                 type: "Taksit",
                 isPaid
@@ -851,7 +906,7 @@ export function FinancialTools({
         if (dParts && dParts.year === calYear && (dParts.month + 1) === calMonth && dParts.day === dayNum) {
           matchedDebts.push({
             name: `${tx.contactName} (Kişi Borcu)`,
-            amount: Number(tx.amount) || 0,
+            amount: safeNumber(tx.amount),
             type: "Cari",
             isPaid: !!tx.isPaid
           });
@@ -890,9 +945,9 @@ export function FinancialTools({
   const bsmvRate = loanType === "housing" ? 0 : loanType === "vehicle" ? 0.05 : loanType === "commercial" ? 0.05 : 0.15;
 
   const loanResults = useMemo(() => {
-    const P = Math.max(100, Number(loanAmount) || 0);
-    const n = Math.max(1, Number(loanTerm) || 1);
-    const nominalMonthlyRate = (Number(loanMonthlyRate) || 0) / 100;
+    const P = Math.max(100, safeNumber(loanAmount));
+    const n = Math.max(1, Math.round(safeNumber(loanTerm)) || 1);
+    const nominalMonthlyRate = safeNumber(loanMonthlyRate) / 100;
     const r = nominalMonthlyRate * (1 + kkdfRate + bsmvRate);
 
     let monthlyPayment = 0;
@@ -943,11 +998,11 @@ export function FinancialTools({
       return;
     }
     const typeLabel = loanType === "personal" ? "İhtiyaç Kredisi" : loanType === "housing" ? "Konut Kredisi" : loanType === "vehicle" ? "Taşıt Kredisi" : "Ticari Kredi";
-    const loanName = `${typeLabel} (${format(loanAmount)})`;
+    const loanName = `${typeLabel} (${format(safeNumber(loanAmount))})`;
     onSaveInstallment({
       name: loanName,
       totalAmount: Math.round(loanResults.totalPayment),
-      installmentCount: Number(loanTerm) || 1,
+      installmentCount: Math.max(1, Math.round(safeNumber(loanTerm)) || 1),
       paidInstallmentCount: 0,
       firstDueDate: new Date().toISOString().slice(0, 10)
     });
@@ -955,25 +1010,25 @@ export function FinancialTools({
     setTimeout(() => setLoanAddedToast(""), 4000);
   };
 
-  // 2. Emergency Fund Calculation
+  // 2. Acil Durum Fonu (Emergency Fund) - Comprehensive sum of mandatory expenses and active installment burdens
   const emergencyMonthlyTotal = useMemo(() => {
     return (
-      (Number(emergencyRent) || 0) +
-      (Number(emergencyBills) || 0) +
-      (Number(emergencyFood) || 0) +
-      (Number(emergencyTransport) || 0) +
-      (Number(emergencyDebts) || 0) +
-      (Number(emergencyOther) || 0)
+      safeNumber(emergencyRent) +
+      safeNumber(emergencyBills) +
+      safeNumber(emergencyFood) +
+      safeNumber(emergencyTransport) +
+      safeNumber(emergencyDebts) +
+      safeNumber(emergencyOther)
     );
   }, [emergencyRent, emergencyBills, emergencyFood, emergencyTransport, emergencyDebts, emergencyOther]);
 
   const emergencyTargetTotal = useMemo(() => {
-    return emergencyMonthlyTotal * emergencyMonths;
+    return emergencyMonthlyTotal * (Math.max(1, safeNumber(emergencyMonths)) || 6);
   }, [emergencyMonthlyTotal, emergencyMonths]);
 
-  const emergencyMissingAmount = Math.max(0, emergencyTargetTotal - (Number(emergencyCurrentSaved) || 0));
-  const emergencyProgressPct = Math.min(100, Math.round(((Number(emergencyCurrentSaved) || 0) / Math.max(1, emergencyTargetTotal)) * 100));
-  const emergencyMonthsToFinish = emergencyMonthlySaveCap > 0 ? Math.ceil(emergencyMissingAmount / emergencyMonthlySaveCap) : 0;
+  const emergencyMissingAmount = Math.max(0, emergencyTargetTotal - safeNumber(emergencyCurrentSaved));
+  const emergencyProgressPct = Math.min(100, Math.round((safeNumber(emergencyCurrentSaved) / Math.max(1, emergencyTargetTotal)) * 100));
+  const emergencyMonthsToFinish = safeNumber(emergencyMonthlySaveCap) > 0 ? Math.ceil(emergencyMissingAmount / safeNumber(emergencyMonthlySaveCap)) : 0;
 
   const handleAutoFillEmergencyFromApp = () => {
     const extracted = extractMandatoryExpensesData(expenses, cleanInstallments, cleanDebts);
@@ -985,16 +1040,16 @@ export function FinancialTools({
     setEmergencyDebts(extracted.debts);
     setEmergencyOther(extracted.other);
 
-    // Dynamic savings cap based on real cashflow
-    const calculatedCap = Math.max(0, monthlyIncome - monthlyExpense - totalMonthlyInstallmentLoad);
+    // Dynamic savings cap based on real cashflow: monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)
+    const calculatedCap = Math.max(0, monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad));
     setEmergencyMonthlySaveCap(Math.round(calculatedCap));
 
     // Dynamic current saved amount from real emergency goal or available cash
     const emgGoal = savingsGoals.find(g => g.category === "emergency" || g.name.toLowerCase().includes("acil"));
     if (emgGoal) {
-      setEmergencyCurrentSaved(emgGoal.currentAmount);
+      setEmergencyCurrentSaved(safeNumber(emgGoal.currentAmount));
     } else {
-      setEmergencyCurrentSaved(Math.max(0, assetCash));
+      setEmergencyCurrentSaved(Math.max(0, safeNumber(assetCash)));
     }
 
     setEmergencySavedToast("⚡ Gerçek bütçe, harcama ve taksit verileriniz hesaplayıcıya aktarıldı!");
@@ -1007,7 +1062,7 @@ export function FinancialTools({
       id: "sg_emg_" + Date.now(),
       name: goalTitle,
       targetAmount: emergencyTargetTotal,
-      currentAmount: Math.min(emergencyTargetTotal, Number(emergencyCurrentSaved) || 0),
+      currentAmount: Math.min(emergencyTargetTotal, safeNumber(emergencyCurrentSaved)),
       category: "emergency"
     };
     setSavingsGoals([newGoal, ...savingsGoals.filter(g => !g.name.includes("Acil Durum Fonu"))]);
@@ -1015,54 +1070,58 @@ export function FinancialTools({
     setTimeout(() => setEmergencySavedToast(""), 4000);
   };
 
-  // 3. Net Worth Calculation
+  // 3. Net Varlık (Net Worth) Calculation: Total Assets - Total Liabilities
   const totalAssetsSum = useMemo(() => {
     return (
-      (Number(assetCash) || 0) +
-      (Number(assetGoldFx) || 0) +
-      (Number(assetInvest) || 0) +
-      (Number(assetRealEstate) || 0) +
-      (Number(assetVehicle) || 0) +
-      (Number(assetReceivables) || 0) +
-      (Number(assetOther) || 0)
+      safeNumber(assetCash) +
+      safeNumber(assetGoldFx) +
+      safeNumber(assetInvest) +
+      safeNumber(assetRealEstate) +
+      safeNumber(assetVehicle) +
+      safeNumber(assetReceivables) +
+      safeNumber(assetOther)
     );
   }, [assetCash, assetGoldFx, assetInvest, assetRealEstate, assetVehicle, assetReceivables, assetOther]);
 
   const totalLiabilitiesSum = useMemo(() => {
     return (
-      (Number(liabCreditCard) || 0) +
-      (Number(liabBankLoans) || 0) +
-      (Number(liabPersonalDebts) || 0) +
-      (Number(liabOther) || 0)
+      safeNumber(liabCreditCard) +
+      safeNumber(liabBankLoans) +
+      safeNumber(liabPersonalDebts) +
+      safeNumber(liabOther)
     );
   }, [liabCreditCard, liabBankLoans, liabPersonalDebts, liabOther]);
 
+  // Mathematical Net Worth formula: Total Assets - Total Liabilities
   const netWorthValue = totalAssetsSum - totalLiabilitiesSum;
   const debtToAssetRatio = totalAssetsSum > 0 ? Math.round((totalLiabilitiesSum / totalAssetsSum) * 100) : 100;
 
   const handleAutoFillNetWorthFromApp = () => {
     // 1. Recalculate true cash balance = all incomes - all expenses - paid simple debts - paid installments
-    const totalInc = (incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-    const totalExp = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const totalSimpleDebtsPaid = cleanDebts.reduce((s, d) => s + (Number(d.paid) || 0), 0);
+    const totalInc = (incomes || []).reduce((s, i) => s + safeNumber(i.amount), 0);
+    const totalExp = (expenses || []).reduce((s, e) => s + safeNumber(e.amount), 0);
+    const totalSimpleDebtsPaid = cleanDebts.reduce((s, d) => s + safeNumber(d.paid), 0);
     const totalInstPaid = cleanInstallments.reduce((s, i) => {
-      const single = (Number(i.totalAmount) || 0) / (i.installmentCount || 1);
-      return s + ((Number(i.paidInstallmentCount) || 0) * single);
+      const count = Math.max(1, safeNumber(i.installmentCount) || 1);
+      const single = safeNumber(i.totalAmount) / count;
+      return s + (safeNumber(i.paidInstallmentCount) * single);
     }, 0);
     const realCash = Math.max(0, Math.round(totalInc - totalExp - totalSimpleDebtsPaid - totalInstPaid));
     setAssetCash(realCash);
 
-    // 2. Remaining installments
+    // 2. Remaining active installment debts principal balance
     const instRem = cleanInstallments.reduce((s, i) => {
-      const single = (Number(i.totalAmount) || 0) / (i.installmentCount || 1);
-      return s + (Math.max(0, (i.installmentCount || 1) - (i.paidInstallmentCount || 0)) * single);
+      const count = Math.max(1, safeNumber(i.installmentCount) || 1);
+      const total = safeNumber(i.totalAmount);
+      const single = total / count;
+      const paidCount = safeNumber(i.paidInstallmentCount);
+      return s + Math.max(0, total - (paidCount * single));
     }, 0);
     setLiabCreditCard(Math.round(instRem));
 
-    // 3. Remaining bank / simple debts
+    // 3. Remaining bank / simple debts principal balance
     const bankDebts = cleanDebts
-      .filter(d => ((Number(d.amount) || 0) - (Number(d.paid) || 0)) > 0)
-      .reduce((s, d) => s + Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0)), 0);
+      .reduce((s, d) => s + Math.max(0, safeNumber(d.amount) - safeNumber(d.paid)), 0);
     setLiabBankLoans(Math.round(bankDebts));
 
     // 4. Contact transactions (payables and receivables)
@@ -1074,8 +1133,8 @@ export function FinancialTools({
         return [];
       }
     })();
-    const contactPay = activeTxs.filter((t: any) => t.type === "payable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-    const contactRec = activeTxs.filter((t: any) => t.type === "receivable" && !t.isPaid).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+    const contactPay = activeTxs.filter((t: any) => t.type === "payable" && !t.isPaid).reduce((s: number, t: any) => s + safeNumber(t.amount), 0);
+    const contactRec = activeTxs.filter((t: any) => t.type === "receivable" && !t.isPaid).reduce((s: number, t: any) => s + safeNumber(t.amount), 0);
 
     setLiabPersonalDebts(Math.round(contactPay));
     setAssetReceivables(Math.round(contactRec));
@@ -1450,7 +1509,7 @@ export function FinancialTools({
                         min="1000"
                         step="1000"
                         value={loanAmount || ""}
-                        onChange={(e) => setLoanAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        onChange={(e) => setLoanAmount(Math.max(0, safeNumber(e.target.value)))}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-indigo-500"
                       />
                       <div className="flex gap-1.5 flex-wrap">
@@ -1483,7 +1542,7 @@ export function FinancialTools({
                         max={loanType === "housing" ? "120" : "60"}
                         step="1"
                         value={loanTerm}
-                        onChange={(e) => setLoanTerm(parseInt(e.target.value, 10))}
+                        onChange={(e) => setLoanTerm(Math.max(1, Math.round(safeNumber(e.target.value)) || 1))}
                         className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
                       />
                       <div className="flex gap-1.5 flex-wrap">
@@ -1517,7 +1576,7 @@ export function FinancialTools({
                           min="0.1"
                           max="15"
                           value={loanMonthlyRate || ""}
-                          onChange={(e) => setLoanMonthlyRate(parseFloat(e.target.value) || 0)}
+                          onChange={(e) => setLoanMonthlyRate(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
@@ -1672,7 +1731,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyRent || ""}
-                          onChange={(e) => setEmergencyRent(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyRent(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1684,7 +1743,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyBills || ""}
-                          onChange={(e) => setEmergencyBills(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyBills(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1696,7 +1755,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyFood || ""}
-                          onChange={(e) => setEmergencyFood(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyFood(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1708,7 +1767,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyTransport || ""}
-                          onChange={(e) => setEmergencyTransport(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyTransport(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1720,7 +1779,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyDebts || ""}
-                          onChange={(e) => setEmergencyDebts(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyDebts(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1732,7 +1791,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={emergencyOther || ""}
-                          onChange={(e) => setEmergencyOther(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setEmergencyOther(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1779,7 +1838,7 @@ export function FinancialTools({
                           <input
                             type="number"
                             value={emergencyCurrentSaved || ""}
-                            onChange={(e) => setEmergencyCurrentSaved(Math.max(0, parseFloat(e.target.value) || 0))}
+                            onChange={(e) => setEmergencyCurrentSaved(Math.max(0, safeNumber(e.target.value)))}
                             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -1790,7 +1849,7 @@ export function FinancialTools({
                           <input
                             type="number"
                             value={emergencyMonthlySaveCap || ""}
-                            onChange={(e) => setEmergencyMonthlySaveCap(Math.max(0, parseFloat(e.target.value) || 0))}
+                            onChange={(e) => setEmergencyMonthlySaveCap(Math.max(0, safeNumber(e.target.value)))}
                             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -1940,7 +1999,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetCash || ""}
-                          onChange={(e) => setAssetCash(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetCash(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -1952,7 +2011,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetGoldFx || ""}
-                          onChange={(e) => setAssetGoldFx(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetGoldFx(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -1964,7 +2023,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetInvest || ""}
-                          onChange={(e) => setAssetInvest(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetInvest(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -1976,7 +2035,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetRealEstate || ""}
-                          onChange={(e) => setAssetRealEstate(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetRealEstate(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -1988,7 +2047,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetVehicle || ""}
-                          onChange={(e) => setAssetVehicle(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetVehicle(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -2000,7 +2059,19 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={assetReceivables || ""}
-                          onChange={(e) => setAssetReceivables(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setAssetReceivables(Math.max(0, safeNumber(e.target.value)))}
+                          className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          💎 Diğer Değerli Varlıklar (TL)
+                        </label>
+                        <input
+                          type="number"
+                          value={assetOther || ""}
+                          onChange={(e) => setAssetOther(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -2029,7 +2100,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={liabCreditCard || ""}
-                          onChange={(e) => setLiabCreditCard(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setLiabCreditCard(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
                         />
                       </div>
@@ -2041,7 +2112,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={liabBankLoans || ""}
-                          onChange={(e) => setLiabBankLoans(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setLiabBankLoans(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
                         />
                       </div>
@@ -2053,7 +2124,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={liabPersonalDebts || ""}
-                          onChange={(e) => setLiabPersonalDebts(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setLiabPersonalDebts(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
                         />
                       </div>
@@ -2065,7 +2136,7 @@ export function FinancialTools({
                         <input
                           type="number"
                           value={liabOther || ""}
-                          onChange={(e) => setLiabOther(Math.max(0, parseFloat(e.target.value) || 0))}
+                          onChange={(e) => setLiabOther(Math.max(0, safeNumber(e.target.value)))}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-rose-500"
                         />
                       </div>
@@ -2704,8 +2775,8 @@ export function FinancialTools({
                       const kpis = [
                         { label: "AYLIK NET GELIR", val: formatPdf(monthlyIncome), color: [16, 185, 129] },
                         { label: "YILLIK GELIR (12 AY)", val: formatPdf(annualIncome), color: [16, 185, 129] },
-                        { label: "AYLIK GIDER", val: formatPdf(monthlyExpense), color: [244, 63, 94] },
-                        { label: "AYLIK NET BAKIYE", val: formatPdf(monthlyIncome - monthlyExpense), color: [14, 165, 233] },
+                        { label: "AYLIK GIDER VE TAKSIT", val: formatPdf(monthlyExpense + totalMonthlyInstallmentLoad), color: [244, 63, 94] },
+                        { label: "AYLIK NET BAKIYE", val: formatPdf(monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)), color: [14, 165, 233] },
                         { label: "BANKA & TAKSIT BORCU", val: formatPdf(bankAndInstallmentDebt), color: [245, 158, 11] },
                         { label: "SAGLIK SKORU", val: `${healthScore} / 100`, color: [99, 102, 241] }
                       ];
@@ -3138,32 +3209,32 @@ export function FinancialTools({
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {reportPeriodMode === "monthly" ? "Aylık Gider" : "Yıllık Gider"}
+                    {reportPeriodMode === "monthly" ? "Aylık Gider + Taksit" : "Yıllık Gider + Taksit"}
                   </span>
                   <strong className="text-xs sm:text-sm font-black text-rose-500 mt-1 block">
-                    {format(reportPeriodMode === "monthly" ? monthlyExpense : annualExpense)}
+                    {format(reportPeriodMode === "monthly" ? (monthlyExpense + totalMonthlyInstallmentLoad) : (annualExpense + totalMonthlyInstallmentLoad * 12))}
                   </strong>
                   <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
                     {reportPeriodMode === "monthly"
-                      ? `Yıllık: ${format(annualExpense)}`
-                      : `Aylık Ort: ${format(monthlyExpense)}`}
+                      ? `Harcama: ${format(monthlyExpense)} | Taksit: ${format(totalMonthlyInstallmentLoad)}`
+                      : `Yıllık: ${format(annualExpense)} | Taksit: ${format(totalMonthlyInstallmentLoad * 12)}`}
                   </span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {reportPeriodMode === "monthly" ? "Aylık Net Tasarruf" : "Yıllık Net Bakiye"}
+                    {reportPeriodMode === "monthly" ? "Aylık Net Nakit Akışı" : "Yıllık Net Bakiye"}
                   </span>
                   <strong className={`text-xs sm:text-sm font-black mt-1 block ${
-                    (reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense) >= 0
+                    (reportPeriodMode === "monthly" ? monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad) : annualIncome - (annualExpense + totalMonthlyInstallmentLoad * 12)) >= 0
                       ? "text-sky-600 dark:text-sky-400"
                       : "text-rose-500"
                   }`}>
-                    {format(reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense)}
+                    {format(reportPeriodMode === "monthly" ? monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad) : annualIncome - (annualExpense + totalMonthlyInstallmentLoad * 12))}
                   </strong>
                   <span className="text-[9px] text-slate-400 font-medium block mt-0.5">
-                    {(reportPeriodMode === "monthly" ? monthlyIncome - monthlyExpense : annualIncome - annualExpense) >= 0
-                      ? "Pozitif Bakiye"
+                    {(reportPeriodMode === "monthly" ? monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad) : annualIncome - (annualExpense + totalMonthlyInstallmentLoad * 12)) >= 0
+                      ? "Pozitif Nakit Akışı"
                       : "Bütçe Açığı"}
                   </span>
                 </div>

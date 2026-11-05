@@ -1325,11 +1325,11 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       categoryLabel: "Akıllı Bildirimler",
       badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
       question: "Vade hatırlatıcı bildirimler ne zaman ve nasıl tetiklenir?",
-      answer: "Bütçem Pro akıllı arka plan tarayıcısı; vadesine 3 gün kalan, vadesi bugün gelen veya günü geçmiş ödenmemiş borçları periyodik olarak kontrol eder. 'Bildirim Ayarları' sekmesinden seçtiğiniz periyotta (Günde 2 kez, Günde 1 kez veya 2 Saatte bir) kilit ekranınıza net ve düzenli bir özet bildirim gönderir.",
+      answer: "Bütçem Pro akıllı bildirim motoru sabah 09:00 ile akşam 21:00 saatleri arasında aktiftir. Her sabah saat 09:00'da günde 1 defa genel borç ve taksit durum özeti raporu sunulur. Ayrıca 'Bildirim Ayarları' sekmesinden seçtiğiniz sıklıkta (Günde 1 kez, Günde 2 kez, Günde 3 kez, Günde 4 kez veya 2 Saatte bir) vadesi yaklaşan, vadesi bugün gelen veya geciken borçlarınız için kilit ekranınıza net hatırlatmalar iletilir.",
       keyPoints: [
-        "Vadesine 3 gün kala ön uyarı",
-        "Vadesi bugün gelen borçlar için acil hatırlatma",
-        "Gecikmiş borçlar için güncel bakiye raporu"
+        "Her sabah 09:00'da günlük genel borç raporu",
+        "09:00 - 21:00 arasında seçilen sıklıkta periyodik bildirim",
+        "Vadesi yaklaşan ve gecikmiş borçlar için akıllı koruma"
       ],
       targetTab: "notifications",
       targetTabLabel: "Bildirim Ayarları Paneli"
@@ -1337,14 +1337,14 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
     {
       id: "faq-quiet-hours",
       category: "notifications",
-      categoryLabel: "Rahatsız Etmeme",
+      categoryLabel: "Rahatsız Etmeme & Sabah Raporu",
       badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
-      question: "Gece saatlerinde bildirim alıp rahatsız olur muyum?",
-      answer: "Hayır! Sistemde akıllı 'Rahatsız Etmeme' penceresi bulunmaktadır. Gece saat 23:00 ile sabah 08:30 arasında bildirim motoru otomatik olarak uyku moduna geçer ve sizi asla rahatsız etmez. Vadesi gelen tüm bildirimler sabah 08:30 sonrasında devreye girer.",
+      question: "Gece saatlerinde bildirim alıp rahatsız olur muyum? Sabah özet raporu nedir?",
+      answer: "Kesinlikle hayır! Sistemde akıllı 'Rahatsız Etmeme' protokolü aktiftir. Bildirimler akşam saat 21:00'de sona erer; akşam 21:00 ile sabah 09:00 arasında bildirim motoru tam sessizlik moduna geçer ve sizi asla rahatsız etmez. Sabah saat 09:00'da ise günde 1 defa genel borç özet raporu verilir. Bu raporda, borçlarınızın ödeme günü henüz gelmemiş olsa dahi tüm aktif borçlarınızın ve taksitlerinizin genel durum özeti kilit ekranınıza tek bir düzenli bildirim olarak ulaştırılır.",
       keyPoints: [
-        "Gece 23:00 - Sabah 08:30 arası tam sessizlik",
-        "Rahatsız etmeyen akıllı gecikme yönetimi",
-        "Sabah uyanınca tek parça özet rapor"
+        "Akşam 21:00 - Sabah 09:00 arası tam sessizlik (Rahatsız Etmeme)",
+        "Her sabah saat 09:00'da günde 1 defa genel borç durum raporu",
+        "Günü gelmemiş borçlar da dahil tüm aktif ödemeleri kapsayan sabah özeti"
       ],
       targetTab: "notifications",
       targetTabLabel: "Bildirim Tercihleri"
@@ -1369,15 +1369,60 @@ export const HelpAndGuides: React.FC<HelpAndGuidesProps> = ({ activeTab, onNavig
       category: "security",
       categoryLabel: "Güvenlik & PIN",
       badgeColor: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
-      question: "Uygulamaya PIN kodu veya Desen kilidi koyabilir miyim? Ekran kilitlendiğinde ne olur?",
-      answer: "Evet. 'Güvenlik ve Ayarlar' sekmesinden 4 haneli PIN Kodu veya Çizgisel Desen Kilidi aktif edebilirsiniz. Kilit açıkken uygulamayı kapattığınızda, sekme değiştirdiğinizde veya telefonunuzun ekranını kilitlediğinizde Bütçem Pro anında kilit ekranına geçer. Şifreniz doğru girilmeden hiçbir finansal veri görüntülenemez.",
+      question: "Uygulamaya PIN şifresi koyabilir miyim? Ekran kilitlendiğinde ne olur?",
+      answer: "Evet. 'Güvenlik ve Ayarlar' sekmesinden 4 haneli sayısal PIN Kodu kilit sistemini aktif edebilirsiniz. Kilit açıkken uygulamayı kapattığınızda, sekme değiştirdiğinizde veya telefonunuzun ekranını kilitlediğinizde Bütçem Pro anında kilit ekranına geçer. 4 haneli PIN girilmeden hiçbir finansal veri görüntülenemez. Şifrenizi unutmanız ihtimaline karşı kurulumda belirlediğiniz Gizli Kurtarma Sorusu ile kilidi sıfırlayabilirsiniz. 5 kez üst üste yanlış girildiğinde sistem brute-force koruması uygulayarak 30 saniye süreyle beklemeye geçer.",
       keyPoints: [
-        "4 haneli PIN kodu ve 9 noktalı Desen kilidi desteği",
-        "Uygulama minimize edildiğinde anında otomatik kilitleme",
-        "Hatalı deneme kilitlenmesi ve brute-force koruması"
+        "4 haneli sayısal PIN kodu şifreleme",
+        "Gizli kurtarma sorusu ile şifre sıfırlama güvencesi",
+        "5 hatalı denemede 30 saniye otomatik koruma engeli"
       ],
       targetTab: "settings",
       targetTabLabel: "Güvenlik & Kilit Ayarları"
+    },
+    {
+      id: "faq-marquee-banner",
+      category: "architecture",
+      categoryLabel: "Vade Bandı Ayarı",
+      badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+      question: "Ana ekrandaki kayan Vade Uyarı Bandı nedir ve nasıl kapatılır / hızı ayarlanır?",
+      answer: "Ana sayfanın üstünde yer alan canlı kayan bant; yaklaşan ve geciken borç taksitlerinizi tek bakışta görmenizi sağlar. İstemiyorsanız 'Güvenlik ve Ayarlar' sekmesinden veya bandın üzerindeki ayarlar simgesinden tek dokunuşla tamamen kapatabilirsiniz. Ayrıca akış hızını (20s - 240s arası) dilediğiniz gibi yavaşlatabilir, hızlandırabilir veya dondurabilirsiniz.",
+      keyPoints: [
+        "İsteğe bağlı tek tıkla açma ve tamamen kapatma",
+        "20s - 240s arası özelleştirilebilir tur süresi slider'ı",
+        "Durdur / Başlat oynatma kontrolleri ve bulut senkronizasyonu"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Ayarlar Paneli"
+    },
+    {
+      id: "faq-quick-add-fab",
+      category: "architecture",
+      categoryLabel: "Hızlı Ekleme (FAB)",
+      badgeColor: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
+      question: "Ekranın sağ altındaki hızlı ekleme butonu (FAB) nedir ve kapatılabilir mi?",
+      answer: "Sağ alt köşede sabit duran yuvarlak mor buton; tek dokunuşla yeni Gelir, Gider veya Borç eklemenizi sağlayan pratik bir hızlı işlem baloncuğudur. Bütçem PRO kullanıcıları 'Güvenlik ve Ayarlar' sekmesinden bu butonu diledikleri zaman açıp kapatabilir.",
+      keyPoints: [
+        "Tek dokunuşla anında gelir, gider ve borç ekleme",
+        "Ayarlar sekmesinden açılıp kapatılabilme",
+        "Bütçem PRO abonelerine özel kontrol imkanı"
+      ],
+      targetTab: "settings",
+      targetTabLabel: "Ayarlar & FAB"
+    },
+    {
+      id: "faq-financial-modeling",
+      category: "debts",
+      categoryLabel: "Finansal Analiz & Modelleme",
+      badgeColor: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+      question: "Acil Durum Fonu ve Net Varlık hesaplamaları nasıl çalışır?",
+      answer: "Finansal Analiz ve Modelleme Araçları; veritabanına eklediğiniz gerçek gelir, zorunlu gider ve aktif taksit verilerini baz alır. Acil Durum Fonu motoru, aylık zorunlu harcamalarınız ve ödemekle yükümlü olduğunuz taksitleri eksiksiz toplayarak 3, 6 veya 12 aylık bilimsel tampon hedefi hesaplar. Net Varlık aracı ise nakit ve yatırım varlıklarınızdan tüm borç ana para bakiyelerinizi hatasız şekilde düşerek gerçek net değerinizi ortaya koyar.",
+      keyPoints: [
+        "Gerçek zorunlu gider ve taksit verilerine dayalı acil durum tamponu",
+        "Toplam varlıklardan borç ana para bakiyesini düşen hatasız net varlık",
+        "Sahte veya mock veriden arındırılmış gerçek matematiksel hesaplama"
+      ],
+      targetTab: "financialTools",
+      targetTabLabel: "Finansal Modelleme Araçları"
     },
     {
       id: "faq-backups",

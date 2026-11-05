@@ -1140,7 +1140,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         category,
         dueDate,
         providerId: providerId || null,
-      }, createAlarm);
+      }, isPremium ? createAlarm : false);
     }
 
     setIsModalOpen(false);
@@ -2311,16 +2311,30 @@ export const DebtList: React.FC<DebtListProps> = ({
               </div>
               {debtId === undefined && (
                 <div className="space-y-3.5 bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80">
-                  <div className="flex items-center gap-2 cursor-pointer select-none" 
+                  <div className="flex items-center justify-between cursor-pointer select-none" 
                     onClick={() => {
+                      if (!isPremium) {
+                        if (onUpgradeClick) onUpgradeClick();
+                        if (triggerToast) triggerToast("⭐ Ödeme Hatırlatıcı Alarmı Bütçem PRO özelliğidir.");
+                        return;
+                      }
                       setCreateAlarm(!createAlarm);
                     }}
                   >
-                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${createAlarm ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
-                      {createAlarm && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${!isPremium ? "opacity-50 bg-slate-200 dark:bg-slate-800 border-slate-300" : createAlarm ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
+                        {createAlarm && isPremium && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                        ÖDEME HATIRLATICI ALARMI KUR ⏰
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                      ÖDEME HATIRLATICI ALARMI KUR ⏰
+                    <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
+                      isPremium
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1"
+                    }`}>
+                      {isPremium ? "👑 PRO AKTİF" : "🔒 PRO (KİLİTLİ)"}
                     </span>
                   </div>
                   

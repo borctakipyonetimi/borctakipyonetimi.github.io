@@ -47,6 +47,8 @@ interface SecuritySettingsPanelProps {
   setMarqueeSpeed?: (speed: number) => void;
   marqueePaused?: boolean;
   setMarqueePaused?: (paused: boolean) => void;
+  marqueeEnabled?: boolean;
+  setMarqueeEnabled?: (enabled: boolean) => void;
   isPremium?: boolean;
   onOpenUpgradeModal?: (featureName?: string) => void;
   onOpenRewardedModal?: (feature: "ai" | "export" | "import", onSuccess: () => void) => void;
@@ -80,6 +82,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   setMarqueeSpeed: propSetMarqueeSpeed,
   marqueePaused: propMarqueePaused,
   setMarqueePaused: propSetMarqueePaused,
+  marqueeEnabled: propMarqueeEnabled,
+  setMarqueeEnabled: propSetMarqueeEnabled,
   isPremium = false,
   onOpenUpgradeModal,
   onOpenRewardedModal,
@@ -301,11 +305,17 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     }
   };
 
-  // Local state fallbacks for banner speed
+  // Local state fallbacks for banner speed & visibility
+  const [localMarqueeEnabled, setLocalMarqueeEnabled] = useState<boolean>(() => {
+    if (propMarqueeEnabled !== undefined) return propMarqueeEnabled;
+    const saved = localStorage.getItem("marqueeEnabled");
+    return saved === null ? true : saved !== "false";
+  });
+
   const [localMarqueeSpeed, setLocalMarqueeSpeed] = useState<number>(() => {
     if (propMarqueeSpeed !== undefined) return propMarqueeSpeed;
     const saved = localStorage.getItem("marqueeSpeed");
-    return saved ? parseInt(saved, 10) : 90;
+    return saved ? parseInt(saved, 10) : 55;
   });
 
   const [localMarqueePaused, setLocalMarqueePaused] = useState<boolean>(() => {
@@ -313,8 +323,17 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     return false;
   });
 
+  const currentMarqueeEnabled = propMarqueeEnabled !== undefined ? propMarqueeEnabled : localMarqueeEnabled;
   const currentMarqueeSpeed = propMarqueeSpeed !== undefined ? propMarqueeSpeed : localMarqueeSpeed;
   const currentMarqueePaused = propMarqueePaused !== undefined ? propMarqueePaused : localMarqueePaused;
+
+  const handleToggleMarqueeEnabled = () => {
+    const next = !currentMarqueeEnabled;
+    setLocalMarqueeEnabled(next);
+    if (propSetMarqueeEnabled) propSetMarqueeEnabled(next);
+    localStorage.setItem("marqueeEnabled", String(next));
+    onSuccessToast(next ? "⏰ Vade uyarı bandı açıldı" : "🚫 Vade uyarı bandı kapatıldı");
+  };
 
   const handleUpdateMarqueeSpeed = (val: number, labelText?: string) => {
     setLocalMarqueeSpeed(val);
@@ -1448,6 +1467,151 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 }`}
               />
             </button>
+          </div>
+
+          {/* Vade Uyarı Bandı & Akış Ayarları (Kayan Bant) */}
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-5">
+            {/* Header row with on/off switch */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Sliders className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      Vade Uyarı Bandı & Canlı Akış Ayarları
+                    </h4>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                      currentMarqueeEnabled
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                    }`}>
+                      {currentMarqueeEnabled ? "GÖSTERİLİYOR 🟢" : "KAPATILDI 🚫"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                    Ana sayfanın üstünde yaklaşan ve geciken borç taksitlerini kayan bant şeklinde gösterir. İstenildiğinde tamamen kapatılabilir.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleMarqueeEnabled}
+                role="switch"
+                aria-checked={currentMarqueeEnabled}
+                className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none self-start sm:self-center ${
+                  currentMarqueeEnabled ? "bg-amber-600" : "bg-slate-300 dark:bg-slate-700"
+                }`}
+                title={currentMarqueeEnabled ? "Vade Uyarı Bandını Kapat" : "Vade Uyarı Bandını Aç"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    currentMarqueeEnabled ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Additional Controls visible when banner is enabled */}
+            {currentMarqueeEnabled && (
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
+                {/* Play / Pause toggle button */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">{currentMarqueePaused ? "⏸️" : "▶️"}</span>
+                    <div>
+                      <h5 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                        {currentMarqueePaused ? "Bant Akışı Duraklatıldı" : "Bant Akışı Oynatılıyor"}
+                      </h5>
+                      <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                        {currentMarqueePaused ? "Bant şu anda hareketsiz sabit duruyor" : "Uyarılar belirlenen hızda kaymaya devam ediyor"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleMarqueePaused}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 ${
+                      currentMarqueePaused
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "bg-rose-600 hover:bg-rose-700 text-white"
+                    }`}
+                  >
+                    {currentMarqueePaused ? "▶ Başlat" : "⏸ Duraklat"}
+                  </button>
+                </div>
+
+                {/* Speed Card */}
+                <div className="p-4 rounded-2xl bg-amber-500/5 dark:bg-amber-500/5 border border-amber-500/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Seçili Akış Süresi</span>
+                    <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                      {currentMarqueeSpeed} <span className="text-xs font-bold text-slate-500">saniye/tur</span>
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hız Seviyesi</span>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 inline-block mt-0.5">
+                      {currentMarqueeSpeed <= 30
+                        ? "🚀 Çok Hızlı"
+                        : currentMarqueeSpeed <= 45
+                        ? "⚡ Hızlı"
+                        : currentMarqueeSpeed <= 70
+                        ? "✨ Dengeli (Önerilen)"
+                        : currentMarqueeSpeed <= 100
+                        ? "🐢 Sakin / Rahat"
+                        : "☕ Çok Yavaş"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Speed Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                    <span>Çok Hızlı (20s)</span>
+                    <span>Standart (55s)</span>
+                    <span>Çok Yavaş (240s)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="240"
+                    step="5"
+                    value={currentMarqueeSpeed}
+                    onChange={(e) => handleUpdateMarqueeSpeed(parseInt(e.target.value, 10))}
+                    className="w-full accent-amber-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-800 rounded-lg"
+                  />
+                </div>
+
+                {/* Preset Chips */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Hazır Hız Şablonları</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { val: 25, label: "🚀 Çok Hızlı (25s)" },
+                      { val: 40, label: "⚡ Hızlı (40s)" },
+                      { val: 55, label: "✨ Dengeli (55s)" },
+                      { val: 80, label: "🐢 Sakin (80s)" }
+                    ].map((p) => (
+                      <button
+                        key={p.val}
+                        type="button"
+                        onClick={() => handleUpdateMarqueeSpeed(p.val, p.label)}
+                        className={`py-2 px-2 rounded-xl text-[10.5px] font-black transition cursor-pointer border ${
+                          currentMarqueeSpeed === p.val
+                            ? "bg-amber-600 text-white border-amber-700 shadow-md shadow-amber-600/20"
+                            : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Help Info Card */}

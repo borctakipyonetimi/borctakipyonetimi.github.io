@@ -1354,7 +1354,11 @@ export default function App() {
     };
     triggerToast(`Bildirim Sıklığı: ${labels[val] || val} ⏰`);
   };
-  // Vade Uyarı Bandı Hız Ayarı & Bulut Senkronizasyonu
+  // Vade Uyarı Bandı Hız & Görünürlük Ayarı & Bulut Senkronizasyonu
+  const [marqueeEnabled, setMarqueeEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem("marqueeEnabled");
+    return saved === null ? true : saved !== "false";
+  });
   const [marqueeSpeed, setMarqueeSpeed] = useState<number>(() => {
     const saved = localStorage.getItem("marqueeSpeed");
     return saved ? parseInt(saved, 10) : 55;
@@ -1363,6 +1367,33 @@ export default function App() {
     return localStorage.getItem("marqueePaused") === "true";
   });
   const [isMarqueeSpeedModalOpen, setIsMarqueeSpeedModalOpen] = useState<boolean>(false);
+
+  const handleSetMarqueeEnabled = async (val: boolean) => {
+    setMarqueeEnabled(val);
+    localStorage.setItem("marqueeEnabled", String(val));
+
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        await Promise.all([
+          update(ref(db, `kullanicilar/${fbUser.uid}/veriler`), {
+            marqueeEnabled: val,
+            updatedAt: Date.now()
+          }),
+          set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeEnabled`), val)
+        ]);
+        try {
+          await setDoc(doc(firestore, "users", fbUser.uid), {
+            marqueeEnabled: val,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (_) {}
+      } catch (err) {
+        console.warn("Bulut bant görünürlük kaydetme uyarısı:", err);
+      }
+    }
+    triggerToast(val ? "⏰ Vade uyarı bandı açıldı" : "🚫 Vade uyarı bandı kapatıldı");
+  };
 
   const handleUpdateMarqueeSpeed = async (val: number, labelText?: string) => {
     const safeVal = Math.max(20, Math.min(240, Number(val) || 55));
@@ -3050,6 +3081,10 @@ export default function App() {
                 setMarqueePaused(Boolean(aVal.marqueePaused));
                 localStorage.setItem("marqueePaused", String(aVal.marqueePaused));
               }
+              if (aVal && aVal.marqueeEnabled !== undefined) {
+                setMarqueeEnabled(Boolean(aVal.marqueeEnabled));
+                localStorage.setItem("marqueeEnabled", String(aVal.marqueeEnabled));
+              }
             }
             if (!speedFound) {
               get(ref(db, `kullanicilar/${user.uid}/veriler/marqueeSpeed`)).then((sSnap) => {
@@ -3069,6 +3104,10 @@ export default function App() {
                   if (uData?.marqueePaused !== undefined) {
                     setMarqueePaused(Boolean(uData.marqueePaused));
                     localStorage.setItem("marqueePaused", String(uData.marqueePaused));
+                  }
+                  if (uData?.marqueeEnabled !== undefined) {
+                    setMarqueeEnabled(Boolean(uData.marqueeEnabled));
+                    localStorage.setItem("marqueeEnabled", String(uData.marqueeEnabled));
                   }
                 }
               }).catch(() => {});
@@ -3313,6 +3352,10 @@ export default function App() {
         setMarqueePaused(Boolean(data.marqueePaused));
         localStorage.setItem("marqueePaused", String(data.marqueePaused));
       }
+      if (data.marqueeEnabled !== undefined) {
+        setMarqueeEnabled(Boolean(data.marqueeEnabled));
+        localStorage.setItem("marqueeEnabled", String(data.marqueeEnabled));
+      }
 
       // Cache locally for instant offline loading
       const userKey = currentUser || (auth.currentUser?.email ? auth.currentUser.email.toLowerCase() : auth.currentUser?.uid);
@@ -3328,7 +3371,8 @@ export default function App() {
           expenses: cleanExpenses,
           expenseCategories: hasCats ? data.expenseCategories : defaultCategories,
           marqueeSpeed: typeof data.marqueeSpeed === "number" ? data.marqueeSpeed : marqueeSpeed,
-          marqueePaused: data.marqueePaused !== undefined ? Boolean(data.marqueePaused) : marqueePaused
+          marqueePaused: data.marqueePaused !== undefined ? Boolean(data.marqueePaused) : marqueePaused,
+          marqueeEnabled: data.marqueeEnabled !== undefined ? Boolean(data.marqueeEnabled) : marqueeEnabled
         };
         try {
           localStorage.setItem(spaceKey, JSON.stringify(dataBag));
@@ -3374,6 +3418,9 @@ export default function App() {
           if (parsed.marqueePaused !== undefined) {
             setMarqueePaused(Boolean(parsed.marqueePaused));
           }
+          if (parsed.marqueeEnabled !== undefined) {
+            setMarqueeEnabled(Boolean(parsed.marqueeEnabled));
+          }
 
           // Update storage with cleaned data
           try {
@@ -3388,7 +3435,8 @@ export default function App() {
               expenses: loadedExpenses,
               expenseCategories: cleanCats,
               marqueeSpeed: typeof parsed.marqueeSpeed === "number" ? parsed.marqueeSpeed : marqueeSpeed,
-              marqueePaused: parsed.marqueePaused !== undefined ? Boolean(parsed.marqueePaused) : marqueePaused
+              marqueePaused: parsed.marqueePaused !== undefined ? Boolean(parsed.marqueePaused) : marqueePaused,
+              marqueeEnabled: parsed.marqueeEnabled !== undefined ? Boolean(parsed.marqueeEnabled) : marqueeEnabled
             };
             localStorage.setItem(spaceKey, JSON.stringify(cleanBag));
           } catch {}
@@ -3795,18 +3843,8 @@ export default function App() {
         const currentHour = now.getHours();
         const nowMs = now.getTime();
 
-        // Gece 23:00 ile sabah 08:30 arası rahatsız etmeme penceresi
-        if (currentHour < 8 || currentHour >= 23) return;
-
-        // --- AKILLI ENGEL: Gecikmiş/Yaklaşan Borç Döngüsünü Seçilen Sıklığa Göre Ayarla ---
-        const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
-        const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
-
-        if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
-          const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
-          console.log(`[Akıllı Engel] Arka plan döngüsü periyodu henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim fırlatma ertelendi.`);
-          return;
-        }
+        // Akşam 21:00 ile sabah 09:00 arası rahatsız etmeme penceresi (Bildirimler sabah 09:00'da başlar, akşam 21:00'de biter)
+        if (currentHour < 9 || currentHour >= 21) return;
 
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
@@ -3870,11 +3908,80 @@ export default function App() {
           } catch (_) {}
         });
 
+        const rawPeriodicName = (userProfileName && userProfileName.trim())
+          || (localStorage.getItem("user_profile_name") || "").trim()
+          || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "");
+        const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
+        const dateFormatted = now.toLocaleDateString("tr-TR");
+
+        // --- 1.5. Adım: Her sabah saat 09:00'da günde 1 defa genel borç raporu gönderimi ---
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const lastMorningReportKey = localStorage.getItem("sonSabahBorcRaporuTarihi");
+
+        if (lastMorningReportKey !== todayKey && scannedItems.length > 0) {
+          const totalRemainingAll = scannedItems.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
+          const totalFormatted = Math.round(totalRemainingAll).toLocaleString("tr-TR");
+          const overdueMorning = scannedItems.filter((item) => item.daysLeft < 0);
+          const dueTodayMorning = scannedItems.filter((item) => item.daysLeft === 0);
+          const upcomingMorning = scannedItems.filter((item) => item.daysLeft > 0 && item.daysLeft <= 3);
+          const futureMorning = scannedItems.filter((item) => item.daysLeft > 3).sort((a, b) => a.daysLeft - b.daysLeft);
+
+          let morningStatusText = "";
+          if (overdueMorning.length > 0) {
+            morningStatusText += `🚨 Vadesi Geciken: ${overdueMorning.length} adet (${Math.round(overdueMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR")} TL)\n`;
+          }
+          if (dueTodayMorning.length > 0) {
+            morningStatusText += `⚠️ Bugün Ödenecek: ${dueTodayMorning.length} adet (${Math.round(dueTodayMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR")} TL)\n`;
+          }
+          if (upcomingMorning.length > 0) {
+            morningStatusText += `⏳ 3 Gün İçinde Yaklaşan: ${upcomingMorning.length} adet (${Math.round(upcomingMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR")} TL)\n`;
+          }
+          if (overdueMorning.length === 0 && dueTodayMorning.length === 0 && upcomingMorning.length === 0) {
+            if (futureMorning.length > 0) {
+              morningStatusText += `✨ Bugün acil bir ödemeniz bulunmamaktadır.\n🗓️ Sıradaki en yakın ödemeniz: ${futureMorning[0].name} (${futureMorning[0].daysLeft} gün sonra - ${Math.round(futureMorning[0].amount).toLocaleString("tr-TR")} TL)\n`;
+            } else {
+              morningStatusText += `✨ Tüm borçlarınız güncel ve kontrol altındadır.\n`;
+            }
+          }
+
+          const sabahBildirimBasligi = "📊 Bütçem Pro: Günlük Sabah Borç Raporu 🌅";
+          const sabahBildirimIcerigi = `👤 SN. ${safePeriodicUser}\n` +
+            `📅 Rapor Tarihi: ${dateFormatted} (Sabah 09:00 Özeti)\n\n` +
+            `📌 GENEL BORÇ & TAKSİT DURUMU:\n` +
+            `• Toplam Aktif Borç/Taksit: ${scannedItems.length} adet\n` +
+            `• Toplam Kalan Borç Bakiyesi: ${totalFormatted} TL\n\n` +
+            `${morningStatusText}\n` +
+            `💡 Mali durumunuzu erkenden planlamanız için iyi günler dileriz. Bütçem Pro`;
+
+          sendSystemNotification(
+            sabahBildirimBasligi,
+            sabahBildirimIcerigi,
+            false
+          );
+
+          localStorage.setItem("sonSabahBorcRaporuTarihi", todayKey);
+          if (auth.currentUser) {
+            try {
+              set(ref(db, `kullanicilar/${auth.currentUser.uid}/veriler/sonSabahBorcRaporuTarihi`), todayKey);
+            } catch (_) {}
+          }
+        }
+
+        // --- 2. Adım: Gün içi periyodik vade hatırlatmaları (seçilen bildirim sıklığına göre) ---
+        const selectedPeriodMs = getNotificationPeriodMs(pushFrequency);
+        const lastGeneralTime = Number(localStorage.getItem("sonGenelBildirimZamani") || 0);
+
+        if (lastGeneralTime > 0 && (nowMs - lastGeneralTime) < selectedPeriodMs) {
+          const remainingMinutes = Math.ceil((selectedPeriodMs - (nowMs - lastGeneralTime)) / 60000);
+          console.log(`[Akıllı Engel] Arka plan döngüsü periyodu henüz dolmadı (${remainingMinutes} dk kaldı). Bildirim fırlatma ertelendi.`);
+          return;
+        }
+
         let updatedDebtsCopy = [...currentDebts];
         let updatedInstsCopy = [...currentInsts];
         let hasStateChanges = false;
 
-        // --- 2. Adım: Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat ---
+        // --- 3. Adım: Yalnızca seçilen süre dolduğunda TEK BİR ÖZET BİLDİRİM fırlat ---
         const overdueItems = scannedItems.filter((item) => item.daysLeft < 0);
         const dueTodayItems = scannedItems.filter((item) => item.daysLeft === 0);
         const upcomingItems = scannedItems.filter((item) => item.daysLeft > 0 && item.daysLeft <= 3);
@@ -4044,7 +4151,8 @@ export default function App() {
       expenses: updatedExpenses || [],
       expenseCategories: updatedCategories || [],
       marqueeSpeed: typeof marqueeSpeed === "number" ? marqueeSpeed : 50,
-      marqueePaused: Boolean(marqueePaused)
+      marqueePaused: Boolean(marqueePaused),
+      marqueeEnabled: marqueeEnabled !== false
     };
 
     try {
@@ -4065,6 +4173,7 @@ export default function App() {
           premiumPlan: localStorage.getItem("premium_plan") || "yearly",
           marqueeSpeed: typeof marqueeSpeed === "number" ? marqueeSpeed : 50,
           marqueePaused: Boolean(marqueePaused),
+          marqueeEnabled: marqueeEnabled !== false,
           updatedAt: Date.now(),
           lastSyncAt: Date.now(),
           lastSyncDate: new Date().toISOString()
@@ -4096,7 +4205,8 @@ export default function App() {
               set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), rtdbPayload),
               set(ref(db, `users/${fbUser.uid}/veriler`), rtdbPayload),
               set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed ?? 50),
-              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), Boolean(marqueePaused))
+              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), Boolean(marqueePaused)),
+              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeEnabled`), marqueeEnabled !== false)
             ]),
             5000,
             "Realtime Database yanıt zaman aşımı"
@@ -8307,6 +8417,7 @@ export default function App() {
 
       {/* Dynamic Overdue & Due Debts Sliding Marquee Banner */}
       {(() => {
+        if (!marqueeEnabled) return null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -10284,8 +10395,10 @@ export default function App() {
         {activeTab === "settings" && (
           <SecuritySettingsPanel
             language={language}
+            marqueeEnabled={marqueeEnabled}
+            setMarqueeEnabled={handleSetMarqueeEnabled}
             marqueeSpeed={marqueeSpeed}
-            setMarqueeSpeed={setMarqueeSpeed}
+            setMarqueeSpeed={(val) => handleUpdateMarqueeSpeed(val)}
             marqueePaused={marqueePaused}
             setMarqueePaused={handleSetMarqueePaused}
             isPremium={hasProAccess}
@@ -13137,8 +13250,51 @@ export default function App() {
                 {/* Body */}
                 <div className="p-5 sm:p-6 space-y-5">
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Üst kısımdaki kayan vade uyarı bandının akış hızını dilediğiniz gibi ayarlayın. Tercihiniz hesabınıza anlık olarak kaydedilir, böylece uygulamayı silip yükleseniz veya başka cihazdan giriş yapsanız dahi hız ayarınız korunur.
+                    Üst kısımdaki kayan vade uyarı bandının akış hızını ve gösterimini dilediğiniz gibi ayarlayın. Tercihiniz hesabınıza anlık olarak kaydedilir, böylece uygulamayı silip yükleseniz veya başka cihazdan giriş yapsanız dahi ayarlarınız korunur.
                   </p>
+
+                  {/* On / Off Toggle Card in Modal */}
+                  <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/30 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{marqueeEnabled ? "⏰" : "🔕"}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                            Vade Uyarı Bandı Gösterimi
+                          </h4>
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                            marqueeEnabled
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                              : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                          }`}>
+                            {marqueeEnabled ? "AÇIK 🟢" : "KAPALI 🚫"}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                          {marqueeEnabled
+                            ? "Kayan uyarı bandı ana ekranda aktiftir"
+                            : "Bant kapatıldı, ana ekranda gizlendi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSetMarqueeEnabled(!marqueeEnabled)}
+                      role="switch"
+                      aria-checked={marqueeEnabled}
+                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        marqueeEnabled ? "bg-amber-600" : "bg-slate-300 dark:bg-slate-700"
+                      }`}
+                      title={marqueeEnabled ? "Vade Bandını Kapat" : "Vade Bandını Aç"}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          marqueeEnabled ? "translate-x-6" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
 
                   {/* Speed Indicator Card */}
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
