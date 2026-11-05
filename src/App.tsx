@@ -737,7 +737,6 @@ export default function App() {
       if (localStorage.getItem("user_role") !== "free_guest") {
         setIsTrialExpiredLocked(true);
         setIsUpgradeModalOpen(true);
-        triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
       } else {
         setIsTrialExpiredLocked(false);
       }
@@ -852,9 +851,6 @@ export default function App() {
             localStorage.setItem("is_premium", "false");
             localStorage.setItem("is_guest", "true");
             localStorage.removeItem("premium_source");
-            
-            const expMsg = "⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.";
-            triggerToast(expMsg);
               
               setNotifications(prev => {
                 const alreadyExists = prev.some(n => n.title?.includes("deneme") || (n as any).message?.includes("deneme"));
@@ -2852,7 +2848,6 @@ export default function App() {
 
       setShowPublicView(null);
       setIsUpgradeModalOpen(true);
-      triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
       return;
     }
 
@@ -7627,9 +7622,7 @@ export default function App() {
     const clickedItem = sidebarItems.find(item => item.id === tabId);
     if (clickedItem?.isPro && !hasProAccess) {
       openUpgradeModal(clickedItem.label);
-      if (isTrialExpiredLocked) {
-        triggerToast("⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen.");
-      } else {
+      if (!isTrialExpiredLocked) {
         triggerToast(`👑 ${clickedItem.label} özelliği Pro üyelere özeldir!`);
       }
       return;
@@ -9342,26 +9335,28 @@ export default function App() {
           </div>
         )}
 
-        {isTrialExpiredLocked && (
-          <div className="mb-3 py-1.5 px-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between gap-2 shadow-xs animate-pulse">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm shrink-0">⚠️</span>
-              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-tight">
-                  7 Günlük Süreniz Doldu
-                </span>
-                <span className="hidden sm:inline text-[10.5px] text-slate-600 dark:text-slate-400 font-medium truncate">
-                  • Devam etmek için paket seçin
-                </span>
+        {(!isPaidPremium && !isTrialActive && (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)) && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-rose-500/15 border-2 border-rose-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-3 min-w-0 text-left">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shrink-0">
+                <span className="text-xl">⚠️</span>
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-rose-700 dark:text-rose-400 uppercase tracking-wide">
+                  7 Günlük Deneme Süreniz Sona Erdi
+                </h4>
+                <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mt-0.5 leading-relaxed">
+                  Tüm PRO özelliklere kesintisiz devam etmek ve hesap güvenliğiniz için lütfen hemen bir paket seçin.
+                </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => openUpgradeModal("Zorunlu Paket Seçimi")}
-              className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center gap-1"
+              className="px-4 py-2.5 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:opacity-90 text-white font-black text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md active:scale-95 shrink-0 flex items-center gap-1.5"
             >
               <span>👑</span>
-              <span>Paket Seç</span>
+              <span>Hemen Paket Seç</span>
             </button>
           </div>
         )}
