@@ -18,10 +18,10 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file(System.getenv("KEYSTORE_PATH") ?: "upload-keystore.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "Emir@2014"
-            keyAlias System.getenv("KEY_ALIAS") ?: "butcempro"
-            keyPassword System.getenv("KEY_PASSWORD") ?: "Emir@2014"
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: (project.hasProperty('MYAPP_RELEASE_STORE_FILE') ? MYAPP_RELEASE_STORE_FILE : "upload-keystore.jks"))
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: (project.hasProperty('MYAPP_RELEASE_STORE_PASSWORD') ? MYAPP_RELEASE_STORE_PASSWORD : "")
+            keyAlias System.getenv("KEY_ALIAS") ?: (project.hasProperty('MYAPP_RELEASE_KEY_ALIAS') ? MYAPP_RELEASE_KEY_ALIAS : "butcempro")
+            keyPassword System.getenv("KEY_PASSWORD") ?: (project.hasProperty('MYAPP_RELEASE_KEY_PASSWORD') ? MYAPP_RELEASE_KEY_PASSWORD : "")
         }
     }
     buildTypes {

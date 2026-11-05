@@ -9336,27 +9336,25 @@ export default function App() {
         )}
 
         {(!isPaidPremium && !isTrialActive && (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)) && (
-          <div className="mb-4 p-4 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-rose-500/15 border-2 border-rose-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-            <div className="flex items-center gap-3 min-w-0 text-left">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shrink-0">
-                <span className="text-xl">⚠️</span>
-              </div>
-              <div>
-                <h4 className="text-xs font-black text-rose-700 dark:text-rose-400 uppercase tracking-wide">
-                  7 Günlük Deneme Süreniz Sona Erdi
-                </h4>
-                <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mt-0.5 leading-relaxed">
-                  Tüm PRO özelliklere kesintisiz devam etmek ve hesap güvenliğiniz için lütfen hemen bir paket seçin.
-                </p>
+          <div className="mb-3 py-1.5 px-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0">⚠️</span>
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-tight">
+                  Deneme Süresi Doldu
+                </span>
+                <span className="hidden sm:inline text-[10.5px] text-slate-600 dark:text-slate-400 font-medium truncate">
+                  • Devam etmek için paket seçin
+                </span>
               </div>
             </div>
             <button
               type="button"
               onClick={() => openUpgradeModal("Zorunlu Paket Seçimi")}
-              className="px-4 py-2.5 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:opacity-90 text-white font-black text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md active:scale-95 shrink-0 flex items-center gap-1.5"
+              className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center gap-1"
             >
               <span>👑</span>
-              <span>Hemen Paket Seç</span>
+              <span>Paket Seç</span>
             </button>
           </div>
         )}
@@ -12711,8 +12709,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Action Button (FAB) for Quick Add - Gelir, Gider, Borç */}
-      {isUnlocked && showQuickAddFab && (
+      {/* Floating Action Button (FAB) for Quick Add - Gelir, Gider, Borç (Only for Premium / Pro Access users) */}
+      {isUnlocked && showQuickAddFab && hasProAccess && (
         <FloatingQuickAdd
           onSaveIncome={handleSaveIncome}
           onSaveExpense={handleSaveExpense}

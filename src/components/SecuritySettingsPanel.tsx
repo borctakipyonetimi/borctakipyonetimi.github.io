@@ -1404,9 +1404,18 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 <Sliders className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                  Hızlı Ekleme Butonunu Göster (FAB)
-                </h4>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                    Hızlı Ekleme Butonunu Göster (FAB)
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                    isPremium
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1"
+                  }`}>
+                    {isPremium ? "👑 PRO ÖZELLİK" : "🔒 PRO KİLİTLİ"}
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                   Sağ alt köşede sabit duran yuvarlak Gelir, Gider ve Borç hızlı ekleme baloncuğunu gösterir veya gizler.
                 </p>
@@ -1416,6 +1425,11 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
             <button
               type="button"
               onClick={() => {
+                if (!isPremium) {
+                  onSuccessToast("⭐ Hızlı Ekleme Butonu (FAB) Ayarı Bütçem PRO özelliğidir.");
+                  if (onOpenUpgradeModal) onOpenUpgradeModal("Hızlı Ekleme Butonu (FAB) Ayarı");
+                  return;
+                }
                 const next = !showQuickAddFab;
                 if (setShowQuickAddFab) setShowQuickAddFab(next);
                 localStorage.setItem("show_quick_add_fab", next ? "1" : "0");
@@ -1424,13 +1438,13 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
               role="switch"
               aria-checked={showQuickAddFab}
               className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                showQuickAddFab ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"
+                !isPremium ? "opacity-60 bg-amber-500/30" : showQuickAddFab ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"
               }`}
-              title="Hızlı Ekleme Butonunu Göster/Gizle"
+              title={!isPremium ? "Pro Üyelere Özel Özellik (Kilitli)" : "Hızlı Ekleme Butonunu Göster/Gizle"}
             >
               <span
                 className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  showQuickAddFab ? "translate-x-6" : "translate-x-0"
+                  showQuickAddFab && isPremium ? "translate-x-6" : "translate-x-0"
                 }`}
               />
             </button>
