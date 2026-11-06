@@ -7745,7 +7745,7 @@ export default function App() {
 
   if (showPublicView === "landing") {
     return (
-      <div className={`min-h-screen font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
+      <div className={`min-h-screen font-sans transition-all duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] theme-${colorTheme}`}>
         <PublicLanding
           onStartApp={() => {
             localStorage.setItem("skip_landing", "true");
@@ -7780,7 +7780,7 @@ export default function App() {
 
   if (showPublicView === "blog") {
     return (
-      <div className={`min-h-screen font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
+      <div className={`min-h-screen font-sans transition-all duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] theme-${colorTheme}`}>
         <PublicBlog
           selectedPostId={selectedPublicPostId}
           onSelectPost={setSelectedPublicPostId}
@@ -7809,7 +7809,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#f8fafc] dark:bg-[#0f172a] theme-${colorTheme}`}>
+    <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] theme-${colorTheme}`}>
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
       {confirmModal.isOpen && (
