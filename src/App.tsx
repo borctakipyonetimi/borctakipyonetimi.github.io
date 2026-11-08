@@ -10061,24 +10061,118 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {alarms.map((a) => (
-                          <div
-                            key={a.id}
-                            className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs shadow-2xs hover:border-indigo-300 transition"
-                          >
-                            <div className="space-y-0.5">
-                              <span className="font-bold text-slate-800 dark:text-slate-100 block">
-                                🔔 {a.title}
-                              </span>
-                              {a.date && (
-                                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold block">
-                                  📅 {new Date(a.date).toLocaleString("tr-TR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                </span>
+                        {alarms.map((a) => {
+                          const alarmDate = a.date ? new Date(a.date) : null;
+                          const now = new Date();
+                          let diffDays: number | null = null;
+                          let diffHours: number | null = null;
+                          let isNearing = false;
+                          let isOverdue = false;
+                          let isToday = false;
+                          let progressPercent = 0;
+
+                          if (alarmDate && !isNaN(alarmDate.getTime())) {
+                            const diffMs = alarmDate.getTime() - now.getTime();
+                            diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                            diffHours = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)));
+                            isToday = diffDays === 0;
+                            isOverdue = diffDays < 0;
+                            isNearing = diffDays >= 0 && diffDays <= 3;
+
+                            if (isOverdue) {
+                              progressPercent = 100;
+                            } else if (isNearing) {
+                              // Yaklaşanlar (0-3 gün): Turuncu vurgu ve yüksek ilerleme
+                              progressPercent = Math.min(100, Math.max(70, Math.round(100 - (diffDays / 4) * 30)));
+                            } else {
+                              // 3 günden fazla olanlar
+                              progressPercent = Math.max(10, Math.min(65, Math.round((1 - Math.min(diffDays, 14) / 14) * 100)));
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={a.id}
+                              className={`alarm-card p-3.5 rounded-2xl border transition shadow-2xs space-y-2.5 ${
+                                isNearing
+                                  ? "bg-orange-50/50 dark:bg-orange-950/25 border-orange-300 dark:border-orange-500/60 ring-1 ring-orange-400/30 hover:border-orange-400"
+                                  : isOverdue
+                                  ? "bg-rose-50/40 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/60 hover:border-rose-300"
+                                  : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/40"
+                              }`}
+                            >
+                              <div className="flex justify-between items-start gap-3">
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">
+                                      🔔 {a.title}
+                                    </span>
+                                    {diffDays !== null && (
+                                      <span
+                                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                          isOverdue
+                                            ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800"
+                                            : isToday
+                                            ? "bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 animate-pulse font-black"
+                                            : isNearing
+                                            ? "bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 font-bold"
+                                            : "bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 font-semibold"
+                                        }`}
+                                      >
+                                        {isOverdue && `⚠️ ${Math.abs(diffDays)} gün gecikti`}
+                                        {isToday && `🔥 Vade Bugün (${diffHours && diffHours > 0 ? `${diffHours} sa kaldı` : "Zamanı geldi"})`}
+                                        {!isOverdue && !isToday && diffDays === 1 && `⚡ Yarın (1 gün kaldı)`}
+                                        {!isOverdue && !isToday && diffDays > 1 && diffDays <= 3 && `⏳ Son ${diffDays} gün kaldı`}
+                                        {!isOverdue && diffDays > 3 && `🗓️ ${diffDays} gün kaldı`}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {alarmDate && (
+                                    <span className={`text-[10px] font-mono font-bold block ${
+                                      isNearing ? "text-orange-600 dark:text-orange-400" : "text-indigo-600 dark:text-indigo-400"
+                                    }`}>
+                                      📅 {alarmDate.toLocaleString("tr-TR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <button
+                                  onClick={() => handleDeleteAlarm(a.id)}
+                                  className="text-rose-500 font-black hover:underline px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer text-xs shrink-0"
+                                >
+                                  Sil
+                                </button>
+                              </div>
+
+                              {/* Küçük görsel ilerleme çubuğu (progress bar) */}
+                              {diffDays !== null && (
+                                <div className="pt-1 space-y-1">
+                                  <div className="flex justify-between items-center text-[10px]">
+                                    <span className={`font-semibold ${isNearing ? "text-orange-600 dark:text-orange-400 font-bold" : "text-slate-400 dark:text-slate-500"}`}>
+                                      {isNearing ? "⚡ Vadesi yaklaşıyor!" : isOverdue ? "🚨 Vade süresi aşıldı" : "Kalan süre"}
+                                    </span>
+                                    <span className={`font-mono font-bold ${isNearing ? "text-orange-600 dark:text-orange-400" : "text-slate-500 dark:text-slate-400"}`}>
+                                      {isOverdue ? "Doldu" : isToday ? "Bugün son" : `${diffDays} gün`}
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700/60 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${
+                                        isOverdue
+                                          ? "bg-rose-500"
+                                          : isNearing
+                                          ? "bg-orange-500"
+                                          : "bg-indigo-500 dark:bg-indigo-400"
+                                      }`}
+                                      style={{ width: `${progressPercent}%` }}
+                                    />
+                                  </div>
+                                </div>
                               )}
                             </div>
-                            <button onClick={() => handleDeleteAlarm(a.id)} className="text-rose-500 font-black hover:underline px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer">Sil</button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
