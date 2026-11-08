@@ -134,6 +134,127 @@ public class AndroidAlarmBridge {
         }
     }
 
+    @JavascriptInterface
+    public boolean isIgnoringBatteryOptimizations() {
+        if (context == null) return true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                return pm.isIgnoringBatteryOptimizations(context.getPackageName());
+            }
+        }
+        return true;
+    }
+
+    @JavascriptInterface
+    public void requestIgnoreBatteryOptimizations() {
+        try {
+            if (context == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(context.getPackageName())) {
+                    Intent intent = new Intent();
+                    intent.setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                }
+            }
+        } catch (Throwable t) {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /**
+     * Hafta içi her sabah saat 09:00'da günde 1 defa genel borç raporu alarmını
+     * AlarmManager.RTC_WAKEUP ve setExactAndAllowWhileIdle ile donanıma kaydeder.
+     * Hafta sonları (Cumartesi ve Pazar) filtrelenir ve atlanır.
+     */
+    @JavascriptInterface
+    public void scheduleWeekdayMorningReportAlarms(String debtsJson, String installmentDebtsJson) {
+        try {
+            if (context == null) return;
+            Calendar nowCal = Calendar.getInstance();
+            long now = nowCal.getTimeInMillis();
+
+            int totalCount = 0;
+            double totalRemaining = 0;
+            if (debtsJson != null && !debtsJson.trim().isEmpty()) {
+                try {
+                    JSONArray debts = new JSONArray(debtsJson);
+                    for (int i = 0; i < debts.length(); i++) {
+                        JSONObject d = debts.getJSONObject(i);
+                        boolean isPaid = d.optBoolean("isPaid", false) ||
+                                         "odendi".equalsIgnoreCase(d.optString("durum", "")) ||
+                                         "paid".equalsIgnoreCase(d.optString("status", "")) ||
+                                         d.optDouble("paid", 0) >= d.optDouble("amount", 0);
+                        if (!isPaid) {
+                            totalCount++;
+                            totalRemaining += Math.max(0, d.optDouble("amount", 0) - d.optDouble("paid", 0));
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (installmentDebtsJson != null && !installmentDebtsJson.trim().isEmpty()) {
+                try {
+                    JSONArray insts = new JSONArray(installmentDebtsJson);
+                    for (int i = 0; i < insts.length(); i++) {
+                        JSONObject inst = insts.getJSONObject(i);
+                        int count = inst.optInt("installmentCount", 1);
+                        int paid = inst.optInt("paidInstallmentCount", 0);
+                        boolean isPaid = inst.optBoolean("isPaid", false) ||
+                                         "odendi".equalsIgnoreCase(inst.optString("durum", "")) ||
+                                         "paid".equalsIgnoreCase(inst.optString("status", "")) ||
+                                         paid >= count;
+                        if (!isPaid) {
+                            totalCount++;
+                            double total = inst.optDouble("totalAmount", 0);
+                            double perInst = count > 0 ? (total / count) : 0;
+                            totalRemaining += perInst * Math.max(1, (count - paid));
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Önümüzdeki 14 takvim gününü tara (Hafta sonları Cumartesi ve Pazar atlanır!)
+            for (int dayOffset = 0; dayOffset <= 14; dayOffset++) {
+                Calendar targetCal = Calendar.getInstance();
+                targetCal.add(Calendar.DAY_OF_YEAR, dayOffset);
+                int dow = targetCal.get(Calendar.DAY_OF_WEEK);
+
+                // HAFTA İÇİ FİLTRESİ: Cumartesi (7) ve Pazar (1) kesinlikle atlanır!
+                if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) {
+                    continue;
+                }
+
+                targetCal.set(Calendar.HOUR_OF_DAY, 9);
+                targetCal.set(Calendar.MINUTE, 0);
+                targetCal.set(Calendar.SECOND, 0);
+                targetCal.set(Calendar.MILLISECOND, 0);
+
+                long triggerMs = targetCal.getTimeInMillis();
+                if (triggerMs <= now) {
+                    continue; // Geçmiş saatleri atla
+                }
+
+                int morningAlarmId = 888000 + (targetCal.get(Calendar.MONTH) * 32) + targetCal.get(Calendar.DAY_OF_MONTH);
+                String title = "📊 Bütçem Pro: Günlük Sabah Borç Raporu 🌅";
+                String msg = "📌 GENEL BORÇ & TAKSİT DURUMU:\n"
+                           + "• Toplam Aktif Borç/Taksit: " + totalCount + " adet\n"
+                           + "• Toplam Kalan Borç: " + (int)totalRemaining + " TL\n\n"
+                           + "💡 Mali durumunuzu erkenden planlamanız için iyi günler dileriz.";
+
+                setDebtAlarmInternal(morningAlarmId, title, triggerMs, msg, false);
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
     /**
      * Uygulama tamamen kapalıyken de bildirimlerin kesin gelmesi için
      * setExactAndAllowWhileIdle ve Android 11+ (API 31 canScheduleExactAlarms) kontrolüyle
@@ -554,6 +675,9 @@ public class AndroidAlarmBridge {
             // 4. Önemli ve Resmi/Dini Günler Alarmlarını Donanıma (AlarmManager) Kur
             scheduleSpecialDaysAlarms();
 
+            // 5. Hafta İçi Sabah 09:00 Günlük Genel Borç Raporu Alarmlarını Donanıma (AlarmManager) Kur
+            scheduleWeekdayMorningReportAlarms(debtsJson, installmentDebtsJson);
+
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -632,6 +756,15 @@ public class AndroidAlarmBridge {
                 String title = intent.getStringExtra("title");
                 String message = intent.getStringExtra("message");
                 boolean isSilent = intent.getBooleanExtra("silent", false);
+
+                // Hafta içi sabah raporu koruması: id 888000 bandında ise ve gün hafta sonuysa (Cumartesi/Pazar) kesinlikle tetikleme
+                if (id >= 888000 && id < 890000) {
+                    Calendar checkCal = Calendar.getInstance();
+                    int dow = checkCal.get(Calendar.DAY_OF_WEEK);
+                    if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) {
+                        return; // Hafta sonu atla (Yalnızca Pazartesi-Cuma)
+                    }
+                }
 
                 if (title == null) title = "Bütçem Pro Ödeme Hatırlatması ⏰";
                 if (message == null) message = "Vadesi gelen borcunuz veya alarmınız bulunmaktadır!";

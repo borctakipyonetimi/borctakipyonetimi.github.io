@@ -272,6 +272,32 @@ function buildAutoDebtAlarms() {
     });
   }
 
+  // 3. Hafta İçi Sabah 09:00 Günlük Borç Raporu Alarmları (Cumartesi ve Pazar KESİNLİKLE atlanır!)
+  const totalDebtsCount = (Array.isArray(activeDebts) ? activeDebts.filter(d => d && !d.isPaid && d.durum !== "odendi" && d.status !== "paid" && (Number(d.paid || 0) < Number(d.amount || 0))).length : 0) +
+                         (Array.isArray(activeInstallments) ? activeInstallments.filter(i => i && !i.isPaid && i.durum !== "odendi" && i.status !== "paid" && (Number(i.paidInstallmentCount || 0) < Number(i.installmentCount || 1))).length : 0);
+
+  if (totalDebtsCount > 0) {
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+      const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset, 9, 0, 0, 0);
+      const dow = targetDate.getDay();
+      // HAFTA İÇİ FİLTRESİ: 0 = Pazar, 6 = Cumartesi (Kesinlikle atlanır!)
+      if (dow === 0 || dow === 6) continue;
+      const triggerTime = targetDate.getTime();
+      if (triggerTime > now) {
+        autoAlarms.push({
+          id: `auto-weekday-morning-report-${dayOffset}`,
+          debtId: 888000 + dayOffset,
+          title: "📊 Bütçem Pro: Günlük Sabah Borç Raporu 🌅",
+          body: `Günaydın! Toplam ${totalDebtsCount} adet aktif borç ve taksitinizi inceleyip günlük finansal planlamanızı yapabilirsiniz.`,
+          date: new Date(triggerTime).toISOString(),
+          timestamp: triggerTime,
+          isAuto: true,
+          silent: false
+        });
+      }
+    }
+  }
+
   return autoAlarms;
 }
 
