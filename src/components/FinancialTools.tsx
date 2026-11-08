@@ -112,18 +112,36 @@ export function safeNumber(val: any): number {
 }
 
 // Helper to extract real mandatory monthly expenses from expenses and debts without mock/dummy numbers
+// Helper to extract real mandatory monthly expenses from expenses and debts without mock/dummy numbers
 function extractMandatoryExpensesData(
   expList: Expense[],
   instList: InstallmentDebt[],
   debtsList: Debt[]
 ) {
+  const safeList = Array.isArray(expList) ? expList : [];
+  const safeInsts = Array.isArray(instList) ? instList : [];
+  const safeDebts = Array.isArray(debtsList) ? debtsList : [];
+
+  // 1. Sıfır Durum Kontrolü (Zero State): Kullanıcının kayıtlı hiçbir gideri veya borcu yoksa kesinlikle 0 döndür
+  if (safeList.length === 0 && safeInsts.length === 0 && safeDebts.length === 0) {
+    return {
+      rent: 0,
+      bills: 0,
+      food: 0,
+      transport: 0,
+      debts: 0,
+      other: 0
+    };
+  }
+
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth();
   const curMonthTime = curYear * 12 + curMonth;
 
-  // Filter expenses active for current month or recurring
-  const curExpenses = (expList || []).filter(e => {
+  // Gerçek cari ay giderlerini ve tekrarlayan (recurring) aktif giderleri filtrele
+  const curExpenses = safeList.filter(e => {
+    if (!e) return false;
     const dParts = parseDateParts(e.date);
     if (!dParts) return true;
     if (e.isRecurring === true) {
@@ -132,11 +150,12 @@ function extractMandatoryExpensesData(
     return dParts.year === curYear && dParts.month === curMonth;
   });
 
-  const useAvg = curExpenses.length === 0 && (expList || []).length > 0;
-  const targetExpenses = useAvg ? expList : curExpenses;
+  const useAvg = curExpenses.length === 0 && safeList.length > 0;
+  const targetExpenses = useAvg ? safeList : curExpenses;
 
   const expMonthsSet = new Set<string>();
-  (expList || []).forEach(e => {
+  safeList.forEach(e => {
+    if (!e) return;
     const dParts = parseDateParts(e.date);
     if (dParts) expMonthsSet.add(`${dParts.year}-${dParts.month}`);
   });
@@ -150,47 +169,64 @@ function extractMandatoryExpensesData(
   let otherSum = 0;
 
   targetExpenses.forEach(e => {
+    if (!e) return;
     const amt = safeNumber(e.amount);
+    if (amt <= 0) return;
+    const catId = Number(e.categoryId) || 0;
     const text = `${e.category || ""} ${e.description || ""}`.toLocaleLowerCase("tr");
 
-    if (/kira|konut|lojm|ev kiras|aidat/.test(text)) {
+    // 1. Kira / Konut / Aidat
+    if (catId === 1 || /kira|konut|lojm|ev kiras|aidat/.test(text)) {
       rentSum += amt;
-    } else if (/fatura|elektrik|su|do[gğ]algaz|gaz|ısınma|isinma|internet|telefon|abone|tv/.test(text)) {
+    }
+    // 2. Faturalar (Elektrik, Su, Doğalgaz, Isınma, İnternet, Telefon, vb.)
+    else if (catId === 5 || /fatura|elektrik|su|do[gğ]algaz|gaz|ısınma|isinma|internet|telefon|abone|tv/.test(text)) {
       billsSum += amt;
-    } else if (/market|mutfak|g[ıi]da|yemek|beslenme|manav|kasap|bakkal|s[üu]permarket|kahvalt|ö[gğ]le|ak[sş]am|yeme i[cç]me/.test(text)) {
+    }
+    // 3. Mutfak, Market & Temel Gıda
+    else if (catId === 2 || catId === 4 || /market|mutfak|g[ıi]da|yemek|beslenme|manav|kasap|bakkal|s[üu]permarket|kahvalt|ö[gğ]le|ak[sş]am|yeme i[cç]me/.test(text)) {
       foodSum += amt;
-    } else if (/ula[sş][ıi]m|yak[ıi]t|benzin|mazot|dizel|lpg|otob[üu]s|metro|akbil|bilet|dolmu[sş]|taksi|servis|akaryak[ıi]t|otopark|hgs|ogs|ara[cç]/.test(text)) {
+    }
+    // 4. Ulaşım & Yakıt
+    else if (catId === 3 || /ula[sş][ıi]m|yak[ıi]t|benzin|mazot|dizel|lpg|otob[üu]s|metro|akbil|bilet|dolmu[sş]|taksi|servis|akaryak[ıi]t|otopark|hgs|ogs|ara[cç]/.test(text)) {
       transportSum += amt;
-    } else if (/kredi|taksit|bor[cç]|ekstre/.test(text)) {
+    }
+    // 5. Borç ve Taksit harcamaları
+    else if (/kredi|taksit|bor[cç]|ekstre/.test(text)) {
       debtExpSum += amt;
-    } else {
+    }
+    // 6. Sağlık & Diğer Zorunlu
+    else {
       otherSum += amt;
     }
   });
 
-  // Active monthly installments - mandatory monthly payments
-  const activeMonthlyInst = (instList || []).reduce((sum, inst) => {
+  // Gerçek aktif taksit yükü: Yalnızca bitmemiş ve ödenmemiş aktif taksitler
+  const activeMonthlyInst = safeInsts.reduce((sum, inst) => {
+    if (!inst) return sum;
     const total = safeNumber(inst.totalAmount);
     const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
     const paid = safeNumber(inst.paidInstallmentCount);
-    if (paid < count) {
+    const isPaid = (inst as any).isPaid === true || (inst as any).durum === "odendi" || (inst as any).status === "paid" || paid >= count;
+    if (!isPaid) {
       return sum + (total / count);
     }
     return sum;
   }, 0);
 
-  // Bank loans due this month or active debt obligations
+  // Bu ay vadesi gelen veya vadesi geçmiş aktif basit borçlar (sahte / tahmini çarpanlar kesinlikle yok)
   let bankLoansDueThisMonth = 0;
-  (debtsList || []).forEach(d => {
+  safeDebts.forEach(d => {
+    if (!d) return;
+    const isPaid = (d as any).isPaid === true || (d as any).durum === "odendi" || (d as any).status === "paid" || safeNumber(d.paid) >= safeNumber(d.amount);
+    if (isPaid) return;
     const remaining = Math.max(0, safeNumber(d.amount) - safeNumber(d.paid));
-    if (remaining > 0) {
+    if (remaining > 0 && d.dueDate) {
       const dParts = parseDateParts(d.dueDate);
       if (dParts) {
         if (dParts.year < curYear || (dParts.year === curYear && dParts.month <= curMonth)) {
           bankLoansDueThisMonth += remaining;
         }
-      } else {
-        bankLoansDueThisMonth += remaining > 50000 ? Math.round(remaining / 12) : remaining;
       }
     }
   });
@@ -198,12 +234,12 @@ function extractMandatoryExpensesData(
   const totalDebtsLoad = Math.round(activeMonthlyInst + bankLoansDueThisMonth + (debtExpSum / divisor));
 
   return {
-    rent: Math.round(rentSum / divisor),
-    bills: Math.round(billsSum / divisor),
-    food: Math.round(foodSum / divisor),
-    transport: Math.round(transportSum / divisor),
-    debts: totalDebtsLoad,
-    other: Math.round(otherSum / divisor)
+    rent: Math.round(rentSum / divisor) || 0,
+    bills: Math.round(billsSum / divisor) || 0,
+    food: Math.round(foodSum / divisor) || 0,
+    transport: Math.round(transportSum / divisor) || 0,
+    debts: totalDebtsLoad || 0,
+    other: Math.round(otherSum / divisor) || 0
   };
 }
 
@@ -314,13 +350,14 @@ export function FinancialTools({
   // Initial Mandatory Expenses extracted from actual user records (deduplicated clean data)
   const initialMandatory = extractMandatoryExpensesData(expenses, cleanInstallments, cleanDebts);
 
-  // 2. Acil Durum Fonu State - Initialized directly from user's real financial data
-  const [emergencyRent, setEmergencyRent] = useState<number>(initialMandatory.rent);
-  const [emergencyBills, setEmergencyBills] = useState<number>(initialMandatory.bills);
-  const [emergencyFood, setEmergencyFood] = useState<number>(initialMandatory.food);
-  const [emergencyTransport, setEmergencyTransport] = useState<number>(initialMandatory.transport);
-  const [emergencyDebts, setEmergencyDebts] = useState<number>(initialMandatory.debts);
-  const [emergencyOther, setEmergencyOther] = useState<number>(initialMandatory.other);
+  // 2. Acil Durum Fonu State - Initialized directly from user's real financial data (defaults strictly to 0 if no records)
+  const [hasUserEditedEmergency, setHasUserEditedEmergency] = useState<boolean>(false);
+  const [emergencyRent, setEmergencyRent] = useState<number>(initialMandatory.rent || 0);
+  const [emergencyBills, setEmergencyBills] = useState<number>(initialMandatory.bills || 0);
+  const [emergencyFood, setEmergencyFood] = useState<number>(initialMandatory.food || 0);
+  const [emergencyTransport, setEmergencyTransport] = useState<number>(initialMandatory.transport || 0);
+  const [emergencyDebts, setEmergencyDebts] = useState<number>(initialMandatory.debts || 0);
+  const [emergencyOther, setEmergencyOther] = useState<number>(initialMandatory.other || 0);
   const [emergencyMonths, setEmergencyMonths] = useState<number>(6);
   const [emergencySavedToast, setEmergencySavedToast] = useState<string>("");
 
@@ -535,6 +572,28 @@ export function FinancialTools({
     const isFinished = paidCount >= count;
     return isFinished ? sum : sum + monthly;
   }, 0);
+
+  // Dinamik Veri Entegrasyonu: Kullanıcının gerçek gider, taksit ve borç kayıtları eklendikçe,
+  // güncellendikçe veya silindikçe zorunlu giderler ve acil durum fonu hesaplamalarını anlık olarak otomatik güncelle
+  useEffect(() => {
+    const freshMandatory = extractMandatoryExpensesData(expenses, cleanInstallments, cleanDebts);
+    const hasAnyRealExpenses = (Array.isArray(expenses) && expenses.length > 0) ||
+                               cleanInstallments.length > 0 ||
+                               cleanDebts.length > 0;
+
+    // Kullanıcı henüz elle özel bir simülasyon değeri girmemişse VEYA veriler tamamen temizlendiyse
+    if (!hasUserEditedEmergency || !hasAnyRealExpenses) {
+      setEmergencyRent(freshMandatory.rent || 0);
+      setEmergencyBills(freshMandatory.bills || 0);
+      setEmergencyFood(freshMandatory.food || 0);
+      setEmergencyTransport(freshMandatory.transport || 0);
+      setEmergencyDebts(freshMandatory.debts || 0);
+      setEmergencyOther(freshMandatory.other || 0);
+
+      const calculatedCap = Math.max(0, monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad));
+      setEmergencyMonthlySaveCap(Math.round(calculatedCap));
+    }
+  }, [expenses, cleanInstallments, cleanDebts, monthlyIncome, monthlyExpense, totalMonthlyInstallmentLoad, hasUserEditedEmergency]);
 
   // Group all debts, installments, and payables chronologically by month
   const monthlyDebtGroups = useMemo(() => {
@@ -1012,7 +1071,7 @@ export function FinancialTools({
 
   // 2. Acil Durum Fonu (Emergency Fund) - Comprehensive sum of mandatory expenses and active installment burdens
   const emergencyMonthlyTotal = useMemo(() => {
-    return (
+    const total = (
       safeNumber(emergencyRent) +
       safeNumber(emergencyBills) +
       safeNumber(emergencyFood) +
@@ -1020,25 +1079,33 @@ export function FinancialTools({
       safeNumber(emergencyDebts) +
       safeNumber(emergencyOther)
     );
+    return isNaN(total) || !isFinite(total) ? 0 : Math.max(0, Math.round(total));
   }, [emergencyRent, emergencyBills, emergencyFood, emergencyTransport, emergencyDebts, emergencyOther]);
 
   const emergencyTargetTotal = useMemo(() => {
-    return emergencyMonthlyTotal * (Math.max(1, safeNumber(emergencyMonths)) || 6);
+    const months = Math.max(1, safeNumber(emergencyMonths)) || 6;
+    const target = emergencyMonthlyTotal * months;
+    return isNaN(target) || !isFinite(target) ? 0 : Math.max(0, Math.round(target));
   }, [emergencyMonthlyTotal, emergencyMonths]);
 
   const emergencyMissingAmount = Math.max(0, emergencyTargetTotal - safeNumber(emergencyCurrentSaved));
-  const emergencyProgressPct = Math.min(100, Math.round((safeNumber(emergencyCurrentSaved) / Math.max(1, emergencyTargetTotal)) * 100));
-  const emergencyMonthsToFinish = safeNumber(emergencyMonthlySaveCap) > 0 ? Math.ceil(emergencyMissingAmount / safeNumber(emergencyMonthlySaveCap)) : 0;
+  const emergencyProgressPct = emergencyTargetTotal > 0
+    ? Math.min(100, Math.max(0, Math.round((safeNumber(emergencyCurrentSaved) / emergencyTargetTotal) * 100)))
+    : (safeNumber(emergencyCurrentSaved) > 0 ? 100 : 0);
+  const emergencyMonthsToFinish = emergencyTargetTotal > 0 && safeNumber(emergencyMonthlySaveCap) > 0
+    ? Math.ceil(emergencyMissingAmount / safeNumber(emergencyMonthlySaveCap))
+    : 0;
 
   const handleAutoFillEmergencyFromApp = () => {
+    setHasUserEditedEmergency(false);
     const extracted = extractMandatoryExpensesData(expenses, cleanInstallments, cleanDebts);
 
-    setEmergencyRent(extracted.rent);
-    setEmergencyBills(extracted.bills);
-    setEmergencyFood(extracted.food);
-    setEmergencyTransport(extracted.transport);
-    setEmergencyDebts(extracted.debts);
-    setEmergencyOther(extracted.other);
+    setEmergencyRent(extracted.rent || 0);
+    setEmergencyBills(extracted.bills || 0);
+    setEmergencyFood(extracted.food || 0);
+    setEmergencyTransport(extracted.transport || 0);
+    setEmergencyDebts(extracted.debts || 0);
+    setEmergencyOther(extracted.other || 0);
 
     // Dynamic savings cap based on real cashflow: monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)
     const calculatedCap = Math.max(0, monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad));
@@ -1730,8 +1797,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyRent || ""}
-                          onChange={(e) => setEmergencyRent(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyRent}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyRent(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1742,8 +1813,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyBills || ""}
-                          onChange={(e) => setEmergencyBills(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyBills}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyBills(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1754,8 +1829,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyFood || ""}
-                          onChange={(e) => setEmergencyFood(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyFood}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyFood(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1766,8 +1845,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyTransport || ""}
-                          onChange={(e) => setEmergencyTransport(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyTransport}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyTransport(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1778,8 +1861,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyDebts || ""}
-                          onChange={(e) => setEmergencyDebts(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyDebts}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyDebts(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1790,8 +1877,12 @@ export function FinancialTools({
                         </label>
                         <input
                           type="number"
-                          value={emergencyOther || ""}
-                          onChange={(e) => setEmergencyOther(Math.max(0, safeNumber(e.target.value)))}
+                          min="0"
+                          value={emergencyOther}
+                          onChange={(e) => {
+                            setHasUserEditedEmergency(true);
+                            setEmergencyOther(Math.max(0, safeNumber(e.target.value)));
+                          }}
                           className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1837,7 +1928,8 @@ export function FinancialTools({
                           </label>
                           <input
                             type="number"
-                            value={emergencyCurrentSaved || ""}
+                            min="0"
+                            value={emergencyCurrentSaved}
                             onChange={(e) => setEmergencyCurrentSaved(Math.max(0, safeNumber(e.target.value)))}
                             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                           />
@@ -1848,7 +1940,8 @@ export function FinancialTools({
                           </label>
                           <input
                             type="number"
-                            value={emergencyMonthlySaveCap || ""}
+                            min="0"
+                            value={emergencyMonthlySaveCap}
                             onChange={(e) => setEmergencyMonthlySaveCap(Math.max(0, safeNumber(e.target.value)))}
                             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
                           />
@@ -1890,7 +1983,9 @@ export function FinancialTools({
                           />
                         </div>
                         <p className="text-[11px] font-semibold text-amber-950 mt-1">
-                          {emergencyMissingAmount <= 0
+                          {emergencyMonthlyTotal === 0
+                            ? "💡 Henüz kayıtlı zorunlu gideriniz bulunmuyor. Gerçek harcama ve taksitlerinizi ekledikçe acil durum güvence hedefiniz anlık olarak güncellenecektir."
+                            : emergencyMissingAmount <= 0
                             ? "🎉 Tebrikler! Acil durum güvence fonunuz eksiksiz şekilde hazır."
                             : emergencyMonthlySaveCap > 0
                             ? `💡 Aylık ${format(emergencyMonthlySaveCap)} tasarruf ile yaklaşık ${emergencyMonthsToFinish} ay sonra fonunuz tamamlanacaktır.`
