@@ -28,6 +28,9 @@ export interface AndroidBridgeInterface {
   shareBackupFile?: (fileName: string, jsonContent: string, title?: string) => void;
   openGoogleDrive?: () => void;
   openExternalUrl?: (url: string) => void;
+  isIgnoringBatteryOptimizations?: () => boolean;
+  requestIgnoreBatteryOptimizations?: () => void;
+  scheduleWeekdayMorningReportAlarms?: (debtsJson: string, installmentDebtsJson: string) => void;
 }
 
 declare global {
@@ -125,6 +128,35 @@ export function setAndroidNotificationFrequency(frequency: string): void {
     }
   } catch (err) {
     console.warn("[AndroidAlarmBridge] setNotificationFrequency hatası:", err);
+  }
+}
+
+/**
+ * Android Doze modu ve pil optimizasyonunun devredışı olup olmadığını sorgular.
+ */
+export function isBatteryOptimizationIgnored(): boolean {
+  try {
+    const bridge = getActiveBridge();
+    if (bridge && typeof bridge.isIgnoringBatteryOptimizations === "function") {
+      return bridge.isIgnoringBatteryOptimizations();
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Android Doze modu ve arka plan kısıtlamalarını aşmak için pil optimizasyonu muafiyeti ister.
+ */
+export function requestBatteryOptimizationExemption(): void {
+  try {
+    const bridge = getActiveBridge();
+    if (bridge && typeof bridge.requestIgnoreBatteryOptimizations === "function") {
+      bridge.requestIgnoreBatteryOptimizations();
+    }
+  } catch (err) {
+    console.warn("[AndroidAlarmBridge] requestIgnoreBatteryOptimizations hatası:", err);
   }
 }
 

@@ -35,7 +35,11 @@ import {
   Check,
   Folder,
   Trash2,
-  LogOut
+  LogOut,
+  Sun,
+  Moon,
+  Smartphone,
+  Palette
 } from "lucide-react";
 import { isPassActive } from "../utils/rewardedAdService";
 
@@ -73,6 +77,8 @@ interface SecuritySettingsPanelProps {
   onLogout?: () => void;
   showQuickAddFab?: boolean;
   setShowQuickAddFab?: (show: boolean) => void;
+  themeMode?: "auto" | "dark" | "light";
+  onSelectThemeMode?: (mode: "auto" | "dark" | "light") => void;
 }
 
 export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
@@ -108,6 +114,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   onDeleteAccount,
   showQuickAddFab = true,
   setShowQuickAddFab,
+  themeMode = "auto",
+  onSelectThemeMode,
 }) => {
   const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings" | "none">(initialTab || "cloud");
 
@@ -1414,6 +1422,110 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 className="pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out translate-x-0"
               />
             </button>
+          </div>
+
+          {/* Görünüm ve Tema Tercihi (Gündüz #F4F6F9 / Gece #0F172A / Otomatik) */}
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Palette className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      Görünüm & Tema Modu
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                      {themeMode === "auto" ? "📱 SİSTEME UYUMLU" : themeMode === "dark" ? "🌙 GECE MODU" : "☀️ GÜNDÜZ MODU"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                    Gündüz modunda modern yumuşak krem (#F4F6F9), gece modunda derin lacivert antrasit (#0F172A) arka plan ve (#1E293B) kart tonları kullanılır.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSelectThemeMode) {
+                    onSelectThemeMode("light");
+                  }
+                  onSuccessToast("☀️ Gündüz Modu (Yumuşak Krem / Kırık Beyaz) Etkinleştirildi!");
+                }}
+                className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer active:scale-98 ${
+                  themeMode === "light"
+                    ? "bg-amber-500/10 border-amber-500 text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-md"
+                    : "bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
+                    <Sun className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black">Gündüz Modu</h5>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Yumuşak Krem (#F4F6F9)</p>
+                  </div>
+                </div>
+                {themeMode === "light" && <Check className="w-4 h-4 text-amber-600 shrink-0" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSelectThemeMode) {
+                    onSelectThemeMode("dark");
+                  }
+                  onSuccessToast("🌙 Gece Modu (Derin Antrasit / Gece Mavisi) Etkinleştirildi!");
+                }}
+                className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer active:scale-98 ${
+                  themeMode === "dark"
+                    ? "bg-indigo-500/15 border-indigo-500 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-md"
+                    : "bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                    <Moon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black">Gece Modu</h5>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Derin Gece (#0F172A)</p>
+                  </div>
+                </div>
+                {themeMode === "dark" && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSelectThemeMode) {
+                    onSelectThemeMode("auto");
+                  }
+                  onSuccessToast("📱 Telefona Uyumlu Otomatik Mod Etkinleştirildi!");
+                }}
+                className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer active:scale-98 ${
+                  themeMode === "auto"
+                    ? "bg-emerald-500/10 border-emerald-500 text-emerald-950 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-md"
+                    : "bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black">Sistemle Senkron</h5>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Telefon Ayarına Göre</p>
+                  </div>
+                </div>
+                {themeMode === "auto" && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+              </button>
+            </div>
           </div>
 
           {/* Hızlı Ekleme Butonu (FAB) Ayarı */}

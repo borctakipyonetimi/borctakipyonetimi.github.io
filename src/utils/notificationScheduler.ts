@@ -135,6 +135,7 @@ export interface ScheduleNotificationOptions {
   frequency?: string;
   customHours?: number[];
   nowMs?: number;
+  userName?: string;
 }
 
 /**
@@ -315,6 +316,200 @@ export function buildInstallmentNotificationItems(
     },
     options
   );
+}
+
+/**
+ * Hafta içi sabah 09:00 günlük genel borç özeti alarmlarını derler.
+ * HAFTA İÇİ FİLTRESİ:
+ * Cumartesi (day === 6) ve Pazar (day === 0) günleri KESİNLİKLE atlanır.
+ * Yalnızca Pazartesi-Cuma günleri saat 09:00:00 için OS seviyesinde exact alarm üretir.
+ * Uygulama kapalıyken veya telefon Doze modundayken bile tam saatinde uyanarak
+ * kullanıcıya genel özet raporu sunar.
+ */
+export function buildWeekdayMorningReportItems(
+  debts?: Partial<Debt>[],
+  installments?: Partial<InstallmentDebt>[],
+  options?: ScheduleNotificationOptions & { userName?: string }
+): LocalNotificationSchema[] {
+  const items: LocalNotificationSchema[] = [];
+  const nowMs = options?.nowMs || Date.now();
+  const now = new Date(nowMs);
+
+  // 1. Aktif borçları ve taksitleri tara
+  interface MorningDebtSummaryItem {
+    name: string;
+    amount: number;
+    dueDate: Date;
+    isInstallment?: boolean;
+  }
+
+  const activeItems: MorningDebtSummaryItem[] = [];
+
+  if (Array.isArray(debts)) {
+    debts.forEach((d) => {
+      if (!d || !d.dueDate) return;
+      const isPaid = Boolean(
+        (d as any).isPaid === true ||
+        (d as any).durum === "odendi" ||
+        (d as any).status === "paid" ||
+        Number(d.paid || 0) >= Number(d.amount || 0)
+      );
+      if (isPaid) return;
+      const remaining = Math.max(0, (Number(d.amount) || 0) - (Number(d.paid) || 0));
+      if (remaining <= 0) return;
+
+      const dateParts = parseDateParts(d.dueDate);
+      if (!dateParts) return;
+      const dueDate = new Date(dateParts.year, dateParts.month, dateParts.day, 0, 0, 0, 0);
+      activeItems.push({
+        name: d.name || "Borç",
+        amount: remaining,
+        dueDate
+      });
+    });
+  }
+
+  if (Array.isArray(installments)) {
+    installments.forEach((inst) => {
+      if (!inst || !inst.firstDueDate) return;
+      const count = Number(inst.installmentCount) || 1;
+      const paid = Number(inst.paidInstallmentCount) || 0;
+      const isPaid = Boolean(
+        (inst as any).isPaid === true ||
+        (inst as any).durum === "odendi" ||
+        (inst as any).status === "paid" ||
+        paid >= count
+      );
+      if (isPaid) return;
+
+      const dateParts = parseDateParts(inst.firstDueDate);
+      if (!dateParts) return;
+      const nextDue = new Date(dateParts.year, dateParts.month, dateParts.day, 0, 0, 0, 0);
+      nextDue.setMonth(nextDue.getMonth() + paid);
+
+      const perAmount = (Number(inst.totalAmount) || 0) / count;
+      const instTitle = `${inst.name || "Taksit"} (${paid + 1}/${count}. Taksit)`;
+      activeItems.push({
+        name: instTitle,
+        amount: perAmount,
+        dueDate: nextDue,
+        isInstallment: true
+      });
+    });
+  }
+
+  // Aktif borç yoksa alarm üretmeye gerek yok
+  if (activeItems.length === 0) return [];
+
+  const rawUserName = options?.userName?.trim()
+    || (typeof window !== "undefined" ? localStorage.getItem("user_profile_name") : "")?.trim()
+    || "DEĞERLİ KULLANICIMIZ";
+  const safeUser = rawUserName.toUpperCase();
+
+  // Önümüzdeki 14 takvim gününü tara (Hafta sonları Cumartesi ve Pazar KESİNLİKLE atlanır!)
+  for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
+    const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, 9, 0, 0, 0);
+    const dayOfWeek = targetDate.getDay();
+
+    // HAFTA İÇİ FİLTRESİ: 0 = Pazar, 6 = Cumartesi (Kesinlikle atlanır!)
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      continue;
+    }
+
+    // Geçmiş saatleri atla (Bugün saat 09:00'ı geçtiyse yarından başla)
+    if (targetDate.getTime() <= nowMs) {
+      continue;
+    }
+
+    const targetStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0).getTime();
+    const dateFormatted = targetDate.toLocaleDateString("tr-TR");
+
+    // Hedef gün bazında durum analizi
+    const overdueMorning: MorningDebtSummaryItem[] = [];
+    const dueTodayMorning: MorningDebtSummaryItem[] = [];
+    const upcomingMorning: MorningDebtSummaryItem[] = [];
+    let futureEnYakin: { name: string; daysLeft: number; amount: number } | null = null;
+
+    activeItems.forEach((item) => {
+      const dueTime = item.dueDate.getTime();
+      const diffDays = Math.ceil((dueTime - targetStart) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        overdueMorning.push(item);
+      } else if (diffDays === 0) {
+        dueTodayMorning.push(item);
+      } else if (diffDays > 0 && diffDays <= 3) {
+        upcomingMorning.push(item);
+      } else if (diffDays > 3) {
+        if (!futureEnYakin || diffDays < (futureEnYakin as any).daysLeft) {
+          futureEnYakin = { name: item.name, daysLeft: diffDays, amount: item.amount };
+        }
+      }
+    });
+
+    const totalRemainingAll = activeItems.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
+    const totalFormatted = Math.round(totalRemainingAll).toLocaleString("tr-TR");
+
+    let morningStatusText = "";
+    if (overdueMorning.length > 0) {
+      const overdueTotal = Math.round(overdueMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR");
+      morningStatusText += `🚨 Vadesi Geciken: ${overdueMorning.length} adet (${overdueTotal} TL)\n`;
+    }
+    if (dueTodayMorning.length > 0) {
+      const dueTodayTotal = Math.round(dueTodayMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR");
+      morningStatusText += `⚠️ Bugün Ödenecek: ${dueTodayMorning.length} adet (${dueTodayTotal} TL)\n`;
+    }
+    if (upcomingMorning.length > 0) {
+      const upcomingTotal = Math.round(upcomingMorning.reduce((a, c) => a + c.amount, 0)).toLocaleString("tr-TR");
+      morningStatusText += `⏳ 3 Gün İçinde Yaklaşan: ${upcomingMorning.length} adet (${upcomingTotal} TL)\n`;
+    }
+    if (overdueMorning.length === 0 && dueTodayMorning.length === 0 && upcomingMorning.length === 0) {
+      if (futureEnYakin) {
+        morningStatusText += `✨ Bugün acil bir ödemeniz bulunmamaktadır.\n🗓️ Sıradaki en yakın ödemeniz: ${(futureEnYakin as any).name} (${(futureEnYakin as any).daysLeft} gün sonra - ${Math.round((futureEnYakin as any).amount).toLocaleString("tr-TR")} TL)\n`;
+      } else {
+        morningStatusText += `✨ Tüm borçlarınız güncel ve kontrol altındadır.\n`;
+      }
+    }
+
+    const title = "📊 Bütçem Pro: Günlük Sabah Borç Raporu 🌅";
+    const body =
+      `👤 SN. ${safeUser}\n` +
+      `📅 Rapor Tarihi: ${dateFormatted} (Sabah 09:00 Özeti)\n\n` +
+      `📌 GENEL BORÇ & TAKSİT DURUMU:\n` +
+      `• Toplam Aktif Borç/Taksit: ${activeItems.length} adet\n` +
+      `• Toplam Kalan Borç Bakiyesi: ${totalFormatted} TL\n\n` +
+      `${morningStatusText}\n` +
+      `💡 Mali durumunuzu erkenden planlamanız için iyi günler dileriz. Bütçem Pro`;
+
+    const notifId = 888000 + (targetDate.getMonth() * 32) + targetDate.getDate();
+
+    items.push({
+      id: notifId,
+      title,
+      body,
+      largeBody: body,
+      summaryText: "Günlük Sabah Borç Raporu (Hafta İçi 09:00)",
+      schedule: {
+        at: targetDate,
+        allowWhileIdle: true,
+        exact: true,
+        forceShow: true
+      } as any,
+      channelId: "debt_reminders",
+      autoCancel: true,
+      smallIcon: "ic_stat_notify",
+      largeIcon: "ic_stat_notify_large",
+      iconColor: "#10B981",
+      sound: "beep.wav",
+      extra: {
+        type: "weekday_morning_report",
+        notifId,
+        targetDateStr: dateFormatted,
+        dayOfWeek
+      }
+    });
+  }
+
+  return items;
 }
 
 /**
@@ -542,6 +737,18 @@ export async function rescheduleAllNotifications(
             localStorage.removeItem(k);
           }
         }
+        const rawMorning = localStorage.getItem("scheduled_morning_report_ids");
+        if (rawMorning) {
+          const mArr = JSON.parse(rawMorning);
+          if (Array.isArray(mArr)) {
+            mArr.forEach((id) => {
+              if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                allIdsToCancel.push(id);
+              }
+            });
+          }
+          localStorage.removeItem("scheduled_morning_report_ids");
+        }
       } catch {}
     }
 
@@ -586,6 +793,18 @@ export async function rescheduleAllNotifications(
       console.warn("[notificationScheduler] Özel gün bildirimleri derleme uyarısı:", sdErr);
     }
 
+    // 4d. Hafta İçi Sabah 09:00 Günlük Genel Borç Raporu Alarmlarını Derle (Cumartesi-Pazar kesinlikle atlanır!)
+    let morningReportIds: number[] = [];
+    try {
+      const morningItems = buildWeekdayMorningReportItems(debts, installments, options);
+      if (morningItems.length > 0) {
+        allItems.push(...morningItems);
+        morningReportIds = morningItems.map((m) => m.id);
+      }
+    } catch (mErr) {
+      console.warn("[notificationScheduler] Hafta içi sabah raporu derleme uyarısı:", mErr);
+    }
+
     if (allItems.length === 0) return 0;
 
     // 5. Bellek ve Android Binder limiti koruması: En yakın vadesi gelen ilk 50 alarmı güvenle sınırla
@@ -603,12 +822,25 @@ export async function rescheduleAllNotifications(
     await safeScheduleLocalNotificationsBatch(boundedItems);
     console.log(`[notificationScheduler] Toplam ${boundedItems.length} adet kesin alarm cihazın OS bildirim kuyruğuna (Local Notifications) kaydedildi.`);
 
+    // 7b. Android Native AlarmManager köprüsünü (RTC_WAKEUP & setExactAndAllowWhileIdle) de senkronize et
+    boundedItems.forEach((item) => {
+      try {
+        const at = (item.schedule?.at as Date)?.getTime?.() || 0;
+        if (at > 0) {
+          scheduleAndroidDebtAlarm(item.id, item.title, at, item.body);
+        }
+      } catch {}
+    });
+
     // 8. ID'leri sakla
     if (typeof window !== "undefined") {
       try {
         debtIdToScheduledMap.forEach((ids, debtId) => {
           localStorage.setItem(getStorageKey(debtId), JSON.stringify(ids));
         });
+        if (morningReportIds.length > 0) {
+          localStorage.setItem("scheduled_morning_report_ids", JSON.stringify(morningReportIds));
+        }
         localStorage.setItem("last_os_notifications_sync_time", String(Date.now()));
         localStorage.setItem("last_os_notifications_count", String(boundedItems.length));
       } catch {}
@@ -648,6 +880,18 @@ export async function cancelAllDebtAndInstallmentNotifications(): Promise<void> 
             }
             localStorage.removeItem(k);
           }
+        }
+        const rawMorning = localStorage.getItem("scheduled_morning_report_ids");
+        if (rawMorning) {
+          const mArr = JSON.parse(rawMorning);
+          if (Array.isArray(mArr)) {
+            mArr.forEach((id) => {
+              if (typeof id === "number" && !allIdsToCancel.includes(id)) {
+                allIdsToCancel.push(id);
+              }
+            });
+          }
+          localStorage.removeItem("scheduled_morning_report_ids");
         }
       } catch {}
     }

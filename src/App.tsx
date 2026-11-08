@@ -3214,9 +3214,8 @@ export default function App() {
       metaThemeColor.setAttribute("name", "theme-color");
       document.head.appendChild(metaThemeColor);
     }
-    // Gündüz ve gece modunda üst başlık (header) ile tam uyumlu koyu lacivert ton (#0b132b / #020617),
-    // böylece telefonun pil göstergesi (99%), saat ve sinyal simgeleri bembeyaz ve kristal netliğinde görünür
-    const statusBarColor = darkMode ? "#020617" : "#0b132b";
+    // Gündüz (#F4F6F9) ve Gece (#0F172A) modern finans teması renkleri
+    const statusBarColor = darkMode ? "#0F172A" : "#F4F6F9";
     metaThemeColor.setAttribute("content", statusBarColor);
 
     // Native Capacitor Status Bar Senkronizasyonu (Android / iOS)
@@ -3225,7 +3224,7 @@ export default function App() {
         if (Capacitor.isPluginAvailable("StatusBar")) {
           await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
           await StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
-          await StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+          await StatusBar.setStyle({ style: darkMode ? Style.Dark : Style.Light }).catch(() => {});
         }
       } catch (e) {
         // Web ortamı için güvenle yutulur
@@ -3237,11 +3236,15 @@ export default function App() {
       document.documentElement.classList.add("dark");
       document.body.classList.add("dark");
       document.body.classList.add("dark-mode");
+      document.documentElement.style.backgroundColor = "#0F172A";
+      document.body.style.backgroundColor = "#0F172A";
       localStorage.setItem("darkMode", "1");
     } else {
       document.documentElement.classList.remove("dark");
       document.body.classList.remove("dark");
       document.body.classList.remove("dark-mode");
+      document.documentElement.style.backgroundColor = "#F4F6F9";
+      document.body.style.backgroundColor = "#F4F6F9";
       localStorage.setItem("darkMode", "0");
     }
   }, [darkMode]);
@@ -3914,11 +3917,13 @@ export default function App() {
         const safePeriodicUser = rawPeriodicName ? rawPeriodicName.toUpperCase() : "SERKAN SAĞLAM";
         const dateFormatted = now.toLocaleDateString("tr-TR");
 
-        // --- 1.5. Adım: Her sabah saat 09:00'da günde 1 defa genel borç raporu gönderimi ---
+        // --- 1.5. Adım: Her sabah saat 09:00'da günde 1 defa genel borç raporu gönderimi (Yalnızca Hafta İçi Pazartesi-Cuma) ---
+        const dayOfWeek = now.getDay(); // 0 = Pazar, 6 = Cumartesi
+        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
         const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         const lastMorningReportKey = localStorage.getItem("sonSabahBorcRaporuTarihi");
 
-        if (lastMorningReportKey !== todayKey && scannedItems.length > 0) {
+        if (isWeekday && lastMorningReportKey !== todayKey && scannedItems.length > 0) {
           const totalRemainingAll = scannedItems.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
           const totalFormatted = Math.round(totalRemainingAll).toLocaleString("tr-TR");
           const overdueMorning = scannedItems.filter((item) => item.daysLeft < 0);
@@ -4117,7 +4122,10 @@ export default function App() {
     }
 
     const timer = setTimeout(() => {
-      rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency }).catch((err) => {
+      const uName = (userProfileName && userProfileName.trim())
+        || (currentUser && currentUser !== "Varsayılan Kullanıcı" ? currentUser : "")
+        || (typeof window !== "undefined" ? localStorage.getItem("user_profile_name") : "") || "";
+      rescheduleAllNotifications(debts, installmentDebts, { frequency: pushFrequency, userName: uName }).catch((err) => {
         console.warn("[App.tsx] rescheduleAllNotifications hatası:", err);
       });
     }, 2500);
@@ -8026,10 +8034,10 @@ export default function App() {
         }}
       />
 
-      {/* Header Container - Premium Glossy Mesh Header */}
+      {/* Header Container - Premium Responsive Adaptive Header */}
       <header 
         style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
-        className="sticky top-0 z-30 bg-gradient-to-r from-slate-950 via-[#0b132b] to-[#1c2541] dark:from-slate-950 dark:via-black dark:to-slate-950 border-b border-indigo-500/20 text-white shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-all duration-300 relative group"
+        className="sticky top-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-all duration-300 relative group"
       >
         
         {/* Decorative ambient lighting overlays */}
@@ -8045,14 +8053,14 @@ export default function App() {
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => setIsSidebarOpen((prev) => !prev)}
-                className="p-2 sm:p-2.5 shrink-0 focus:outline-none bg-white/[0.04] hover:bg-white/[0.1] active:scale-95 rounded-2xl border border-white/10 transition-all cursor-pointer flex items-center justify-center shadow-md shadow-black/30"
+                className="p-2 sm:p-2.5 shrink-0 focus:outline-none bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.1] active:scale-95 rounded-2xl border border-slate-200/80 dark:border-white/10 transition-all cursor-pointer flex items-center justify-center shadow-xs dark:shadow-md dark:shadow-black/30"
                 title="Menüyü Aç/Kapat"
               >
-                <Menu className="w-5 h-5 text-indigo-200 group-hover:text-white transition" />
+                <Menu className="w-5 h-5 text-slate-700 dark:text-indigo-200 group-hover:text-indigo-600 dark:group-hover:text-white transition" />
               </button>
 
               {/* Official APK Application Logo */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-amber-500/30 p-0.5 shadow-md shadow-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-amber-500/30 p-0.5 shadow-xs dark:shadow-md dark:shadow-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
                 <img
                   src={appLogo}
                   alt="Bütçem Pro"
@@ -8061,7 +8069,7 @@ export default function App() {
               </div>
               
               <div className="space-y-1 min-w-0">
-                <h1 className="text-lg sm:text-2xl md:text-2xl lg:text-3xl font-black tracking-normal flex items-center select-none whitespace-nowrap gap-1.5 sm:gap-3 leading-none bg-gradient-to-r from-white via-slate-100 to-indigo-100 bg-clip-text text-transparent">
+                <h1 className="text-lg sm:text-2xl md:text-2xl lg:text-3xl font-black tracking-normal flex items-center select-none whitespace-nowrap gap-1.5 sm:gap-3 leading-none bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 dark:from-white dark:via-slate-100 dark:to-indigo-100 bg-clip-text text-transparent">
                   <span className="animate-wave-flag inline-block shrink-0 select-none">
                     <svg viewBox="0 0 1200 800" className="w-[18px] h-[12px] sm:w-[32px] sm:h-[21.5px] md:w-[38px] md:h-[25.5px] rounded-xs shadow-md overflow-hidden shrink-0 inline-block border border-white/10" style={{ minWidth: "18px" }}>
                       <rect width="1200" height="800" fill="#e30a17"/>
@@ -8077,7 +8085,7 @@ export default function App() {
                     PRO
                   </span>
                 </h1>
-                <p className={`text-[7px] sm:text-[10px] font-black tracking-wider uppercase flex items-center gap-1 sm:gap-1.5 select-none leading-none ${isOfflineMode ? "text-amber-400" : "text-emerald-400/90"}`}>
+                <p className={`text-[7px] sm:text-[10px] font-black tracking-wider uppercase flex items-center gap-1 sm:gap-1.5 select-none leading-none ${isOfflineMode ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400/90"}`}>
                   <span className="relative flex h-1.5 w-1.5 shrink-0">
                     {isOfflineMode ? (
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 animate-pulse"></span>
@@ -8118,14 +8126,14 @@ export default function App() {
 
               const getWelcomeThemeStyles = () => {
                 switch (colorTheme) {
-                  case "purple": return { bg: "from-purple-500/15 to-indigo-500/15", border: "border-purple-500/30", textGradient: "text-purple-400", iconContainerBg: "bg-purple-500 text-white", pencilColor: "text-purple-400" };
-                  case "green": return { bg: "from-emerald-500/15 to-teal-500/15", border: "border-emerald-500/30", textGradient: "text-emerald-400", iconContainerBg: "bg-emerald-500 text-white", pencilColor: "text-emerald-400" };
-                  case "blue": return { bg: "from-sky-500/15 to-blue-500/15", border: "border-sky-500/30", textGradient: "text-sky-400", iconContainerBg: "bg-sky-500 text-white", pencilColor: "text-sky-400" };
-                  case "pink": return { bg: "from-pink-500/15 to-rose-500/15", border: "border-pink-500/30", textGradient: "text-pink-400", iconContainerBg: "bg-pink-500 text-white", pencilColor: "text-pink-400" };
-                  case "orange": return { bg: "from-amber-500/15 to-rose-500/15", border: "border-amber-500/30", textGradient: "text-amber-400", iconContainerBg: "bg-amber-500 text-white", pencilColor: "text-amber-400" };
-                  case "cyan": return { bg: "from-cyan-500/15 to-teal-500/15", border: "border-cyan-500/30", textGradient: "text-cyan-400", iconContainerBg: "bg-cyan-500 text-white", pencilColor: "text-cyan-400" };
-                  case "coral": return { bg: "from-rose-500/15 to-red-500/15", border: "border-rose-500/30", textGradient: "text-rose-400", iconContainerBg: "bg-rose-500 text-white", pencilColor: "text-rose-400" };
-                  default: return { bg: "from-indigo-500/15 to-cyan-500/15", border: "border-indigo-500/30", textGradient: "text-indigo-400", iconContainerBg: "bg-indigo-500 text-white", pencilColor: "text-indigo-400" };
+                  case "purple": return { bg: "from-purple-500/15 to-indigo-500/15", border: "border-purple-500/30", textGradient: "text-purple-600 dark:text-purple-400", iconContainerBg: "bg-purple-600 text-white", pencilColor: "text-purple-600 dark:text-purple-400" };
+                  case "green": return { bg: "from-emerald-500/15 to-teal-500/15", border: "border-emerald-500/30", textGradient: "text-emerald-600 dark:text-emerald-400", iconContainerBg: "bg-emerald-600 text-white", pencilColor: "text-emerald-600 dark:text-emerald-400" };
+                  case "blue": return { bg: "from-sky-500/15 to-blue-500/15", border: "border-sky-500/30", textGradient: "text-sky-600 dark:text-sky-400", iconContainerBg: "bg-sky-600 text-white", pencilColor: "text-sky-600 dark:text-sky-400" };
+                  case "pink": return { bg: "from-pink-500/15 to-rose-500/15", border: "border-pink-500/30", textGradient: "text-pink-600 dark:text-pink-400", iconContainerBg: "bg-pink-600 text-white", pencilColor: "text-pink-600 dark:text-pink-400" };
+                  case "orange": return { bg: "from-amber-500/15 to-rose-500/15", border: "border-amber-500/30", textGradient: "text-amber-600 dark:text-amber-400", iconContainerBg: "bg-amber-600 text-white", pencilColor: "text-amber-600 dark:text-amber-400" };
+                  case "cyan": return { bg: "from-cyan-500/15 to-teal-500/15", border: "border-cyan-500/30", textGradient: "text-cyan-600 dark:text-cyan-400", iconContainerBg: "bg-cyan-600 text-white", pencilColor: "text-cyan-600 dark:text-cyan-400" };
+                  case "coral": return { bg: "from-rose-500/15 to-red-500/15", border: "border-rose-500/30", textGradient: "text-rose-600 dark:text-rose-400", iconContainerBg: "bg-rose-600 text-white", pencilColor: "text-rose-600 dark:text-rose-400" };
+                  default: return { bg: "from-indigo-500/15 to-cyan-500/15", border: "border-indigo-500/30", textGradient: "text-indigo-600 dark:text-indigo-400", iconContainerBg: "bg-indigo-600 text-white", pencilColor: "text-indigo-600 dark:text-indigo-400" };
                 }
               };
               const themeStyles = getWelcomeThemeStyles();
@@ -8155,7 +8163,7 @@ export default function App() {
                     )}
                   </div>
                   <div className="flex flex-col text-left leading-tight min-w-0 pr-0.5 select-none">
-                    <span className="text-[6px] font-black uppercase tracking-widest text-slate-400">
+                    <span className="text-[6px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                       HOŞGELDİNİZ
                     </span>
                     <div className="flex items-center gap-0.5">
@@ -8176,7 +8184,7 @@ export default function App() {
         </div>
 
         {/* Row 2: Bottom row inside header containing Contacts, Pro, Settings, Theme, Refresh, Notifications, Color Theme, and Currency */}
-        <div className="flex items-center gap-1.5 shrink-0 relative z-10 flex-nowrap select-none overflow-x-auto scrollbar-none pt-1.5 border-t border-white/10">
+        <div className="flex items-center gap-1.5 shrink-0 relative z-10 flex-nowrap select-none overflow-x-auto scrollbar-none pt-1.5 border-t border-slate-200/80 dark:border-white/10">
           {/* Animated Contacts Directory Logo */}
           <motion.button
             onClick={() => {
@@ -8198,16 +8206,16 @@ export default function App() {
             className={`p-1.5 sm:p-2 rounded-xl transition-all duration-305 flex items-center justify-center border cursor-pointer shrink-0 relative ${
               activeTab === "contacts"
                 ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
-                : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:border-indigo-500/30"
+                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 dark:bg-white/5 dark:border-white/10 dark:hover:bg-white/10 dark:text-slate-300 hover:border-indigo-500/30"
             }`}
           >
             <div className="absolute left-0.5 top-1 bottom-1 w-0.5 rounded flex flex-col justify-around py-0.5">
-              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
-              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
-              <div className="w-[2.5px] h-[2.5px] bg-indigo-400/80 rounded-full" />
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-500 dark:bg-indigo-400/80 rounded-full" />
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-500 dark:bg-indigo-400/80 rounded-full" />
+              <div className="w-[2.5px] h-[2.5px] bg-indigo-500 dark:bg-indigo-400/80 rounded-full" />
             </div>
             
-            <Users className={`w-3.5 h-3.5 ml-0.5 text-indigo-300 group-hover:text-white ${activeTab === "contacts" ? "animate-pulse" : "animate-bounce"}`} style={{ animationDuration: "2.5s" }} />
+            <Users className={`w-3.5 h-3.5 ml-0.5 text-indigo-600 dark:text-indigo-300 group-hover:text-indigo-700 dark:group-hover:text-white ${activeTab === "contacts" ? "animate-pulse" : "animate-bounce"}`} style={{ animationDuration: "2.5s" }} />
             
             <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -8238,7 +8246,7 @@ export default function App() {
             className={`p-1.5 sm:p-2 rounded-xl border transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0 active:scale-95 ${
               activeTab === "settings"
                 ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
-                : "bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-600/30 text-indigo-400 dark:text-indigo-300"
+                : "bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 dark:bg-indigo-600/15 dark:hover:bg-indigo-600/25 dark:border-indigo-600/30 dark:text-indigo-300"
             }`}
           >
             <Settings className="w-3.5 h-3.5" />
@@ -8267,9 +8275,9 @@ export default function App() {
               }
             }}
             title={`Tema: ${themeMode === "auto" ? "Telefona Göre Otomatik 📱" : themeMode === "dark" ? "Karanlık Mod 🌙" : "Aydınlık Mod ☀️"}`}
-            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner shrink-0 relative"
+            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 active:scale-95 rounded-xl transition-all text-slate-700 dark:text-white flex items-center justify-center duration-300 cursor-pointer shadow-xs dark:shadow-inner shrink-0 relative"
           >
-            {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-sky-200" />}
+            {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-500 dark:text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600 dark:text-sky-200" />}
             {themeMode === "auto" && (
               <span className="absolute -top-1 -right-1 px-1 py-0.2 text-[7px] font-black bg-emerald-500 text-slate-950 rounded-full leading-none shadow-xs">
                 OTO
@@ -8285,9 +8293,9 @@ export default function App() {
               }, 350);
             }}
             title="Sayfayı Yenile"
-            className="p-1.5 sm:p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
+            className="p-1.5 sm:p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 active:scale-95 rounded-xl transition-all flex items-center justify-center duration-300 cursor-pointer shrink-0"
           >
-            <RotateCw className="w-3.5 h-3.5 text-indigo-400 animate-spin [animation-duration:15s]" />
+            <RotateCw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-spin [animation-duration:15s]" />
           </button>
 
           <button
@@ -8299,9 +8307,9 @@ export default function App() {
               }
             }}
             title={`Bildirimler ve Alarmlar (${notifications.length})`}
-            className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 rounded-xl transition-all text-white flex items-center justify-center duration-300 cursor-pointer shadow-inner relative shrink-0"
+            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 active:scale-95 rounded-xl transition-all text-slate-700 dark:text-white flex items-center justify-center duration-300 cursor-pointer shadow-xs dark:shadow-inner relative shrink-0"
           >
-            <Bell className="w-4 h-4 text-indigo-300 hover:text-white transition-colors" />
+            <Bell className="w-4 h-4 text-slate-600 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-white transition-colors" />
             {notifications.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] font-black h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center ring-1 ring-slate-900 shadow-md">
                 {notifications.length}
@@ -8318,7 +8326,7 @@ export default function App() {
                 localStorage.setItem("colorTheme", e.target.value);
               }}
               title="Canlı Renk Teması Seç"
-              className="appearance-none pl-1.5 pr-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 dark:bg-slate-900 text-white rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[66px] sm:w-[76px]"
+              className="appearance-none pl-1.5 pr-4 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-white/10 dark:text-white rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[66px] sm:w-[76px]"
             >
               {COLOR_THEMES.map((theme) => (
                 <option
@@ -8330,7 +8338,7 @@ export default function App() {
                 </option>
               ))}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-white/50 text-[7px]" style={{ right: "4px" }}>
+            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-slate-400 dark:text-white/50 text-[7px]" style={{ right: "4px" }}>
               ▼
             </div>
           </div>
@@ -8344,14 +8352,14 @@ export default function App() {
                 triggerToast(`Hesaplama Birimi Değiştirildi: ${e.target.value}`);
               }}
               title="Para Birimi / Kur Çevirici Değiştir"
-              className="appearance-none pl-1 pr-3.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[48px] sm:w-[56px]"
+              className="appearance-none pl-1 pr-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 dark:border-emerald-500/30 dark:text-emerald-300 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase focus:outline-none cursor-pointer transition active:scale-95 text-center w-[48px] sm:w-[56px]"
             >
               <option value="TRY" className="text-slate-900 bg-white font-bold">₺ TRY</option>
               <option value="USD" className="text-slate-900 bg-white font-bold">$ USD</option>
               <option value="EUR" className="text-slate-900 bg-white font-mono font-bold">€ EUR</option>
               <option value="GBP" className="text-slate-900 bg-white font-mono font-bold">£ GBP</option>
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-emerald-300/60 text-[7px]" style={{ right: "4px" }}>
+            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-emerald-600/70 dark:text-emerald-300/60 text-[7px]" style={{ right: "4px" }}>
               ▼
             </div>
           </div>
@@ -8790,12 +8798,12 @@ export default function App() {
 
       {/* Side drawer panel - Açılır Akordiyon Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
+        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Workspace Title & Close Header (Fixed/Sticky at Top) */}
-        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
               <img
@@ -10437,6 +10445,19 @@ export default function App() {
             onDeleteAccount={handleDeleteAccount}
             showQuickAddFab={showQuickAddFab}
             setShowQuickAddFab={setShowQuickAddFab}
+            themeMode={themeMode}
+            onSelectThemeMode={(mode) => {
+              setThemeMode(mode);
+              localStorage.setItem("themeMode", mode);
+              if (mode === "dark") {
+                setDarkMode(true);
+              } else if (mode === "light") {
+                setDarkMode(false);
+              } else {
+                const isSysDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                setDarkMode(!!isSysDark);
+              }
+            }}
           />
         )}
 
@@ -10805,7 +10826,7 @@ export default function App() {
         };
 
         return (
-          <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-800/80 p-2 flex justify-around select-none shadow-xl">
+          <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-xl">
             <button
               onClick={() => handleNavClick("overview")}
               className={getBottomTabClass("overview")}
