@@ -3,15 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Official Google AdMob Identifiers configured for Bütçem Pro
+// Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
 export const ADMOB_CONFIG = {
-  PUBLISHER_ID: "pub-4449700232321088",
-  APP_ID: "ca-app-pub-4449700232321088~4683751583",
-  BANNER_ID: "ca-app-pub-4449700232321088/6318747286",
-  REWARDED_VIDEO_ID: "ca-app-pub-4449700232321088/6123306166",
-  BANNER_SLOT: "6318747286",
-  REWARDED_SLOT: "6123306166",
-  ADS_TXT_ENTRY: "google.com, pub-4449700232321088, DIRECT, f08c47fec0942fa0"
+  PUBLISHER_ID: "pub-3940256099942544",
+  APP_ID: "ca-app-pub-3940256099942544~3347511713",
+  BANNER_ID: "ca-app-pub-3940256099942544/6300978111",
+  INTERSTITIAL_ID: "ca-app-pub-3940256099942544/1033173712",
+  REWARDED_VIDEO_ID: "ca-app-pub-3940256099942544/5224354917",
+  BANNER_SLOT: "6300978111",
+  INTERSTITIAL_SLOT: "1033173712",
+  REWARDED_SLOT: "5224354917",
+  ADS_TXT_ENTRY: "google.com, pub-3940256099942544, DIRECT, f08c47fec0942fa0"
 };
 
 export type RewardedFeatureType = "ai" | "export" | "import" | "report" | "any";
