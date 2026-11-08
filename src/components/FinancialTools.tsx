@@ -43,7 +43,8 @@ import {
   RefreshCw,
   BookmarkCheck,
   CreditCard,
-  Wallet
+  Wallet,
+  BarChart3
 } from "lucide-react";
 import { Debt, Income, Expense, InstallmentDebt, PaymentLog } from "../types";
 import { AdMobBanner } from "./AdMobBanner";
@@ -54,6 +55,7 @@ import { generateAnnualPdfReport, safePdfText } from "../utils/annualPdfReport";
 import { Capacitor } from "@capacitor/core";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { parseDateParts } from "../utils/dateUtils";
+import { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -67,7 +69,7 @@ interface FinancialToolsProps {
   isPremium?: boolean;
   onUpgradeClick?: (featureName?: string) => void;
   onSaveInstallment?: (inst: Partial<InstallmentDebt>) => void;
-  defaultSubTab?: "health" | "calculators" | "savings" | "calendar" | "report";
+  defaultSubTab?: "health" | "calculators" | "savings" | "calendar" | "report" | "charts";
 }
 
 export interface SavingsGoal {
@@ -259,7 +261,7 @@ export function FinancialTools({
 }: FinancialToolsProps) {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const spaceKey = currentUser ? `user_${currentUser.toLowerCase()}` : "user_anonymous";
-  const [activeSubTab, setActiveSubTab] = useState<"health" | "calculators" | "savings" | "calendar" | "report">(defaultSubTab || "health");
+  const [activeSubTab, setActiveSubTab] = useState<"health" | "calculators" | "savings" | "calendar" | "report" | "charts">(defaultSubTab || "health");
 
   // Load Contacts and Transactions
   const [contacts, setContacts] = useState<any[]>([]);
@@ -1259,6 +1261,16 @@ export function FinancialTools({
             <Gauge className="w-3.5 h-3.5" /> Bütçe Sağlığı
           </button>
           <button
+            onClick={() => setActiveSubTab("charts")}
+            className={`flex-1 min-w-[125px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
+              activeSubTab === "charts"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-500" /> İnteraktif Grafikler
+          </button>
+          <button
             onClick={() => setActiveSubTab("calculators")}
             className={`flex-1 min-w-[130px] px-3 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 select-none ${
               activeSubTab === "calculators"
@@ -1459,6 +1471,30 @@ export function FinancialTools({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Quick Chart Studio Entry Banner */}
+            <div className="lg:col-span-3 p-5 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-slate-100 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900 rounded-3xl border border-indigo-500/20 dark:border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                    İnteraktif Finansal Grafik Stüdyosu
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Gelir, gider, borç ve taksit akışınızı tek tıkla Pasta, Çubuk ve Çizgi grafikler arasında geçiş yaparak inceleyin.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveSubTab("charts")}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+              >
+                <span>Grafikleri İncele</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </motion.div>
         )}
@@ -3944,6 +3980,29 @@ export function FinancialTools({
                 <p className="text-[9px] font-normal">Bu veri tablosu tamamen kişisel gizlilik standartlarına uygun olarak tarayıcınızda yerel olarak derlenmiştir ve 3. şahıslara sızdırılmaz.</p>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* TAB 6: INTERACTIVE FINANCIAL CHARTS STUDIO */}
+        {activeSubTab === "charts" && (
+          <motion.div
+            key="interactive-charts-studio"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+            <InteractiveFinancialCharts
+              incomes={incomes}
+              expenses={expenses}
+              debts={cleanDebts}
+              installmentDebts={cleanInstallments}
+              payments={payments}
+              language={language}
+              defaultChartType="donut"
+              defaultCategory="all"
+            />
           </motion.div>
         )}
       </AnimatePresence>

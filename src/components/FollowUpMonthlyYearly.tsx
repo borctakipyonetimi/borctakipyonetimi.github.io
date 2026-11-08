@@ -30,6 +30,7 @@ import { motion } from "motion/react";
 import { Debt, Income, Expense, PaymentLog, InstallmentDebt } from "../types";
 import { AdMobBanner } from "./AdMobBanner";
 import { BarChart, LineChart } from "./BudgetCharts";
+import { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
@@ -205,6 +206,18 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Dynamic Interactive Chart Switcher */}
+        <InteractiveFinancialCharts
+          incomes={incomes}
+          expenses={expenses}
+          debts={debts}
+          installmentDebts={installmentDebts}
+          payments={payments}
+          language={language}
+          defaultChartType="donut"
+          defaultCategory="all"
+        />
 
         {/* Bu Ayın Yapılan Ödeme Kayıtları Listesi */}
         <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/40 dark:border-slate-700/50 shadow-sm space-y-3">
@@ -527,6 +540,18 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Interactive Financial Charts Studio */}
+      <InteractiveFinancialCharts
+        incomes={incomes}
+        expenses={expenses}
+        debts={debts}
+        installmentDebts={installmentDebts}
+        payments={payments}
+        language={language}
+        defaultChartType="bar"
+        defaultCategory="all"
+      />
 
       {/* Category Breakdown & Trend Charts */}
       <div className="grid gap-6 md:grid-cols-2">

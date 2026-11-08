@@ -655,16 +655,19 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
 
   const getSimulatedRemainingTotal = (offset: number) => {
     return installmentDebts.reduce((sum, inst) => {
-      const monthlyVal = inst.totalAmount / inst.installmentCount;
-      const simulatedPaid = Math.min(inst.installmentCount, inst.paidInstallmentCount + offset);
-      const simulatedRemaining = (inst.installmentCount - simulatedPaid) * monthlyVal;
+      const count = Number(inst.installmentCount) || 1;
+      const total = Number(inst.totalAmount) || 0;
+      const paid = Number(inst.paidInstallmentCount) || 0;
+      const monthlyVal = count > 0 ? total / count : 0;
+      const simulatedPaid = Math.min(count, paid + offset);
+      const simulatedRemaining = Math.max(0, (count - simulatedPaid) * monthlyVal);
       return sum + simulatedRemaining;
     }, 0);
   };
 
   const currentRemainingTotal = getSimulatedRemainingTotal(0);
   const simulatedRemainingTotal = getSimulatedRemainingTotal(selectedMonthOffset);
-  const totalOriginalDebt = installmentDebts.reduce((sum, inst) => sum + inst.totalAmount, 0);
+  const totalOriginalDebt = installmentDebts.reduce((sum, inst) => sum + (Number(inst.totalAmount) || 0), 0);
 
   const projectionRange = Array.from({ length: 12 }, (_, i) => i);
   const curvePoints = projectionRange.map(m => {
@@ -676,7 +679,8 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
     };
   });
 
-  const maxVal = Math.max(...curvePoints.map(p => p.value), 100);
+  const rawMax = Math.max(...curvePoints.map(p => p.value), 1);
+  const maxVal = rawMax > 0 ? rawMax : 1;
 
   const curveW = 340;
   const curveH = 120;
@@ -685,7 +689,7 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
 
   const svgCoordinates = curvePoints.map((pt, i) => {
     const x = padX + (i / 11) * (curveW - 2 * padX);
-    const y = curveH - padY - (pt.value / maxVal) * (curveH - 2 * padY);
+    const y = maxVal > 0 ? curveH - padY - (pt.value / maxVal) * (curveH - 2 * padY) : curveH - padY;
     return { x, y, pt };
   });
 
@@ -1071,3 +1075,4 @@ export const InstallmentsPortalChart: React.FC<InstallmentsPortalChartProps> = (
   );
 };
 
+export { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
