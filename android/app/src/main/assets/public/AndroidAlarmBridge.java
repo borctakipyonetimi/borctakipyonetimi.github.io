@@ -1,4 +1,4 @@
-package com.butcempro.app;
+package com.butcetakip.app;
 
 import android.app.AlarmManager;
 import android.app.NotificationChannel;
@@ -46,6 +46,7 @@ public class AndroidAlarmBridge {
         this.context = context;
         this.webView = webView;
         createNotificationChannels();
+        scheduleSpecialDaysAlarms();
     }
 
     private void createNotificationChannels() {
@@ -550,8 +551,58 @@ public class AndroidAlarmBridge {
                 }
             }
 
+            // 4. Önemli ve Resmi/Dini Günler Alarmlarını Donanıma (AlarmManager) Kur
+            scheduleSpecialDaysAlarms();
+
         } catch (Throwable e) {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Önemli milli/resmi günlerde (29 Ekim Cumhuriyet Bayramı, 23 Nisan, 30 Ağustos vb.)
+     * otomatik tebrik ve bildirim alarmlarını sistem seviyesinde (Exact Alarm) kurar.
+     */
+    public void scheduleSpecialDaysAlarms() {
+        try {
+            if (context == null) return;
+            Calendar nowCal = Calendar.getInstance();
+            int currentYear = nowCal.get(Calendar.YEAR);
+            int[] years = { currentYear, currentYear + 1 };
+
+            // Sabit Günler: { Ay (1-12), Gün (1-31), ID, Başlık, Mesaj }
+            Object[][] specialDays = new Object[][] {
+                { 10, 29, 700029, "29 Ekim Cumhuriyet Bayramınız Kutlu Olsun! 🇹🇷", "Bütçem Pro ailesi olarak Cumhuriyetimizin kurucusu Gazi Mustafa Kemal Atatürk'ü ve silah arkadaşlarını minnetle anıyoruz. Cumhuriyetimizin 103. yılı kutlu olsun!" },
+                { 11, 10, 700010, "10 Kasım: Sevgi, Saygı ve Özlemle Anıyoruz 🇹🇷", "Cumhuriyetimizin kurucusu Ulu Önder Gazi Mustafa Kemal Atatürk'ü saygı, minnet ve sonsuz özlemle anıyoruz." },
+                { 8, 30, 700030, "30 Ağustos Zafer Bayramınız Kutlu Olsun! 🇹🇷", "Büyük Zafer'in yıl dönümünde Gazi Mustafa Kemal Atatürk ve silah arkadaşlarını, aziz şehitlerimizi saygı ve rahmetle anıyoruz." },
+                { 4, 23, 700023, "23 Nisan Ulusal Egemenlik ve Çocuk Bayramı Kutlu Olsun! 🇹🇷", "Geleceğimizin teminatı tüm çocuklarımızın ve milletimizin bayramını kutluyor; Atatürk'ü minnetle anıyoruz." },
+                { 5, 19, 700019, "19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı Kutlu Olsun! 🇹🇷", "Milli mücadelenin başladığı bu anlamlı günde tüm gençlerimizin bayramını kutluyoruz." },
+                { 7, 15, 700015, "15 Temmuz Demokrasi ve Milli Birlik Günü 🇹🇷", "Vatanımız uğruna can veren tüm aziz şehitlerimizi rahmet ve minnetle anıyoruz." },
+                { 1, 1, 700001, "Mutlu Yıllar! Sağlık, Huzur ve Bereket Dolu Bir Yıl Dileriz 🎊", "Yeni yılın size ve sevdiklerinize sağlık, mutluluk ve finansal başarılar getirmesini dileriz." },
+                { 5, 1, 700005, "1 Mayıs Emek ve Dayanışma Günü Kutlu Olsun! 🛠️", "Alın teriyle çalışan tüm emekçilerimizin 1 Mayıs Emek ve Dayanışma Günü kutlu olsun." }
+            };
+
+            for (int y : years) {
+                for (Object[] sd : specialDays) {
+                    int month = (Integer) sd[0];
+                    int day = (Integer) sd[1];
+                    int baseId = (Integer) sd[2];
+                    String title = (String) sd[3];
+                    String msg = (String) sd[4];
+
+                    Calendar targetCal = Calendar.getInstance();
+                    targetCal.set(y, month - 1, day, 9, 0, 0);
+                    targetCal.set(Calendar.MILLISECOND, 0);
+
+                    long targetMs = targetCal.getTimeInMillis();
+                    if (targetMs > nowCal.getTimeInMillis()) {
+                        int uniqueId = baseId + ((y % 100) * 1000);
+                        setDebtAlarmInternal(uniqueId, title, targetMs, msg, false);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
     }
 

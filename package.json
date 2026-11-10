@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.3.0",
     "@capacitor-firebase/authentication": "^8.5.1",
     "@capacitor/android": "^8.5.2",
     "@capacitor/browser": "^8.0.4",
@@ -59,7 +60,6 @@
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.15",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "typescript": "~5.8.2"
   }
 }

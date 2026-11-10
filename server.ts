@@ -20,7 +20,23 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+let serverPort = 3000;
+const portArgIdx = process.argv.indexOf("--port");
+if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+  serverPort = parseInt(process.argv[portArgIdx + 1], 10) || 3000;
+} else if (process.env.PORT) {
+  serverPort = parseInt(process.env.PORT, 10) || 3000;
+}
+const PORT = serverPort;
+
+let serverHost = "0.0.0.0";
+const hostArgIdx = process.argv.indexOf("--host");
+if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
+  serverHost = process.argv[hostArgIdx + 1];
+} else if (process.env.HOST) {
+  serverHost = process.env.HOST;
+}
 
 // In-app custom SMTP storage configuration
 interface CustomSmtpConfig {

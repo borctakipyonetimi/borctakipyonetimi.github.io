@@ -50,6 +50,11 @@
             android:name="com.google.firebase.messaging.default_notification_color"
             android:value="#10B981" />
 
+        <!-- Google AdMob Application ID (Official Google Test App ID) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <!-- Capacitor Local Notifications Exact Alarm & Boot Restorer -->
         <receiver
             android:name="com.capacitorjs.plugins.localnotifications.TimedNotificationPublisher"

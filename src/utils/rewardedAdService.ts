@@ -3,6 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Capacitor } from "@capacitor/core";
+import {
+  AdMob,
+  BannerAdPosition,
+  BannerAdSize,
+  BannerAdPluginEvents,
+  RewardAdPluginEvents,
+  InterstitialAdPluginEvents,
+  PluginListenerHandle
+} from "@capacitor-community/admob";
+
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
 export const ADMOB_CONFIG = {
   PUBLISHER_ID: "pub-3940256099942544",
@@ -67,7 +78,6 @@ export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | str
 /**
  * Checks if the user currently has active access for a SPECIFIC feature,
  * either because they have permanent PRO status or an active 24-hour pass.
- * Watching an ad for one feature (e.g. AI) only unlocks that specific feature.
  */
 export function isPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
@@ -131,4 +141,235 @@ export function featureRequiresAd(feature: RewardedFeatureType | string): boolea
   if (typeof window === "undefined") return false;
   if (localStorage.getItem("is_premium") === "true") return false;
   return !isPassActive(feature);
+}
+
+// ============================================================================
+// NATIVE CAPACITOR ADMOB INTEGRATION SERVICE (OFFICIAL TEST IDS & RESILIENT SDK)
+// ============================================================================
+
+let isAdMobSdkInitialized = false;
+let initPromise: Promise<boolean> | null = null;
+
+/**
+ * Initializes AdMob SDK cleanly for Capacitor Native platform with test device setup
+ */
+export async function initNativeAdMobSdk(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  if (isAdMobSdkInitialized) {
+    return true;
+  }
+
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = (async () => {
+    try {
+      console.log("[AdMob Native] Initializing Mobile Ads SDK for testing...");
+      await AdMob.initialize({
+        requestTrackingAuthorization: true,
+        initializeForTesting: true,
+      });
+      isAdMobSdkInitialized = true;
+      console.log("[AdMob Native] Mobile Ads SDK initialized successfully.");
+      return true;
+    } catch (err) {
+      console.warn("[AdMob Native] SDK Initialization warning:", err);
+      // Even if warning, set to true to avoid repeated init fails
+      isAdMobSdkInitialized = true;
+      return false;
+    } finally {
+      initPromise = null;
+    }
+  })();
+
+  return initPromise;
+}
+
+/**
+ * Shows native Banner Ad at the bottom of the screen with official test ID
+ */
+export async function showNativeBannerAd(options?: {
+  position?: BannerAdPosition;
+  isTesting?: boolean;
+}): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  if (localStorage.getItem("is_premium") === "true") {
+    return false;
+  }
+
+  try {
+    await initNativeAdMobSdk();
+
+    await AdMob.showBanner({
+      adId: ADMOB_CONFIG.BANNER_ID,
+      adSize: BannerAdSize.ADAPTIVE_BANNER,
+      position: options?.position || BannerAdPosition.BOTTOM_CENTER,
+      margin: 0,
+      isTesting: options?.isTesting !== false, // Always true for test mode
+    });
+
+    console.log("[AdMob Native] Banner ad displayed successfully.");
+    return true;
+  } catch (err) {
+    console.warn("[AdMob Native] showBanner error safely caught:", err);
+    return false;
+  }
+}
+
+/**
+ * Hides/Removes native banner ad
+ */
+export async function hideNativeBannerAd(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await AdMob.hideBanner();
+  } catch (err) {
+    console.warn("[AdMob Native] hideBanner error:", err);
+  }
+}
+
+/**
+ * Prepares and shows official Google Test Interstitial (Geçiş) Ad
+ */
+export async function showNativeInterstitialAd(options?: {
+  isTesting?: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!Capacitor.isNativePlatform()) {
+    console.info("[AdMob Interstitial] Native platform not active (Web environment).");
+    return { success: false, error: "Web ortamında geçiş reklamı desteklenmiyor." };
+  }
+
+  if (localStorage.getItem("is_premium") === "true") {
+    return { success: true };
+  }
+
+  try {
+    await initNativeAdMobSdk();
+
+    console.log("[AdMob Interstitial] Preparing test interstitial ad:", ADMOB_CONFIG.INTERSTITIAL_ID);
+    await AdMob.prepareInterstitial({
+      adId: ADMOB_CONFIG.INTERSTITIAL_ID,
+      isTesting: options?.isTesting !== false,
+    });
+
+    console.log("[AdMob Interstitial] Showing interstitial ad...");
+    await AdMob.showInterstitial();
+    return { success: true };
+  } catch (err: any) {
+    console.warn("[AdMob Interstitial] Failed to show interstitial ad:", err);
+    return {
+      success: false,
+      error: err?.message || "Geçiş reklamı yüklenirken bir hata oluştu."
+    };
+  }
+}
+
+/**
+ * Prepares and shows official Google Test Rewarded (Ödüllü) Video Ad
+ * Calls onRewarded() when the user watches the required video duration.
+ */
+export async function showNativeRewardedAd(callbacks: {
+  onRewarded: () => void;
+  onDismissed?: () => void;
+  onError?: (err: any) => void;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!Capacitor.isNativePlatform()) {
+    console.info("[AdMob Rewarded] Native platform not active (Web environment). Falling back to web handler.");
+    return { success: false, error: "Native platform required" };
+  }
+
+  if (localStorage.getItem("is_premium") === "true") {
+    callbacks.onRewarded();
+    return { success: true };
+  }
+
+  const listenerHandles: PluginListenerHandle[] = [];
+
+  const cleanupListeners = async () => {
+    for (const h of listenerHandles) {
+      try {
+        await h.remove();
+      } catch {
+        // Safe fallback
+      }
+    }
+    listenerHandles.length = 0;
+  };
+
+  try {
+    await initNativeAdMobSdk();
+
+    let userEarnedReward = false;
+
+    // 1. Listen for reward grant event
+    const rewardedHandle = await AdMob.addListener(
+      RewardAdPluginEvents.Rewarded,
+      (reward) => {
+        console.log("[AdMob Rewarded] User earned reward!", reward);
+        userEarnedReward = true;
+        try {
+          callbacks.onRewarded();
+        } catch (cbErr) {
+          console.error("[AdMob Rewarded] Callback onRewarded error:", cbErr);
+        }
+      }
+    );
+    listenerHandles.push(rewardedHandle);
+
+    // 2. Listen for ad dismissal event
+    const dismissedHandle = await AdMob.addListener(
+      RewardAdPluginEvents.Dismissed,
+      async () => {
+        console.log("[AdMob Rewarded] Ad dismissed by user.");
+        await cleanupListeners();
+        if (callbacks.onDismissed) {
+          callbacks.onDismissed();
+        }
+      }
+    );
+    listenerHandles.push(dismissedHandle);
+
+    // 3. Listen for load failure event
+    const failedToLoadHandle = await AdMob.addListener(
+      RewardAdPluginEvents.FailedToLoad,
+      async (err) => {
+        console.warn("[AdMob Rewarded] Ad failed to load:", err);
+        await cleanupListeners();
+        if (callbacks.onError) {
+          callbacks.onError(err);
+        }
+      }
+    );
+    listenerHandles.push(failedToLoadHandle);
+
+    // 4. Prepare Rewarded Video with official Google Test ID
+    console.log("[AdMob Rewarded] Preparing rewarded video with Test ID:", ADMOB_CONFIG.REWARDED_VIDEO_ID);
+    await AdMob.prepareRewardVideoAd({
+      adId: ADMOB_CONFIG.REWARDED_VIDEO_ID,
+      isTesting: true,
+    });
+
+    // 5. Show Rewarded Video
+    console.log("[AdMob Rewarded] Showing rewarded video ad...");
+    await AdMob.showRewardVideoAd();
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn("[AdMob Rewarded] Native rewarded ad preparation/show exception:", err);
+    await cleanupListeners();
+    if (callbacks.onError) {
+      callbacks.onError(err);
+    }
+    return {
+      success: false,
+      error: err?.message || "Ödüllü reklam yüklenemedi."
+    };
+  }
 }

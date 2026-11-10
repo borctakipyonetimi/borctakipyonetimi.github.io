@@ -22,13 +22,19 @@ import {
   Film,
   Award,
   Play,
-  Sparkles
+  Sparkles,
+  Activity,
+  AlertCircle
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import { Capacitor } from "@capacitor/core";
 import {
   grant24HourPass,
   getRemainingPassTimeFormatted,
-  RewardedFeatureType
+  RewardedFeatureType,
+  showNativeRewardedAd,
+  showNativeInterstitialAd,
+  ADMOB_CONFIG
 } from "../utils/rewardedAdService";
 
 interface RewardedAdModalProps {
@@ -59,6 +65,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   isPremium
 }) => {
   const [isPlayingAd, setIsPlayingAd] = useState(false);
+  const [isNativeAdLoading, setIsNativeAdLoading] = useState(false);
+  const [adFeedbackMessage, setAdFeedbackMessage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(REQUIRED_WATCH_SECONDS);
   const [adFinished, setAdFinished] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -87,6 +95,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   useEffect(() => {
     if (isOpen && !effectiveIsPremium && !prevOpenRef.current) {
       setIsPlayingAd(false);
+      setIsNativeAdLoading(false);
+      setAdFeedbackMessage(null);
       setCountdown(REQUIRED_WATCH_SECONDS);
       setAdFinished(false);
       setVideoProgress(0);
@@ -95,6 +105,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       setVideoIndex(Math.floor(Math.random() * VIDEO_AD_SOURCES.length));
     } else if (!isOpen && prevOpenRef.current) {
       setIsPlayingAd(false);
+      setIsNativeAdLoading(false);
+      setAdFeedbackMessage(null);
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -134,20 +146,14 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }
   };
 
-  const handleStartWatchVideo = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    // Switch to fullscreen video player
+  // In-app fallback video runner
+  const startInAppVideo = () => {
     setIsPlayingAd(true);
     setCountdown(REQUIRED_WATCH_SECONDS);
     setAdFinished(false);
     setVideoProgress(0);
     setIsVideoPaused(false);
 
-    // Auto-play the video
     setTimeout(() => {
       if (videoRef.current) {
         try {
@@ -166,7 +172,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       }
     }, 120);
 
-    // Interval countdown
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
@@ -181,6 +186,63 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         return prev - 1;
       });
     }, 1000);
+  };
+
+  // Main Action: Trigger Native Rewarded Ad or Web Video Player
+  const handleStartWatchVideo = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // 1. CAPACITOR ANDROID/IOS NATIVE ADMOB REWARDED AD FLOW
+    if (Capacitor.isNativePlatform()) {
+      setIsNativeAdLoading(true);
+      setAdFeedbackMessage("Google AdMob Test Ödüllü Reklamı Yükleniyor...");
+
+      try {
+        const result = await showNativeRewardedAd({
+          onRewarded: () => {
+            console.log("[RewardedAdModal] Native AdMob reward confirmed by SDK!");
+            setIsNativeAdLoading(false);
+            setAdFeedbackMessage(null);
+            handleClaimReward();
+          },
+          onDismissed: () => {
+            console.log("[RewardedAdModal] Native AdMob ad dismissed.");
+            setIsNativeAdLoading(false);
+            setAdFeedbackMessage(null);
+          },
+          onError: (err) => {
+            console.warn("[RewardedAdModal] Native AdMob failed to load, falling back to simulator:", err);
+            setIsNativeAdLoading(false);
+            setAdFeedbackMessage("Native reklam yüklenemedi. Test simülasyon videosuna aktarılıyor...");
+            setTimeout(() => {
+              setAdFeedbackMessage(null);
+              startInAppVideo();
+            }, 1000);
+          }
+        });
+
+        if (!result.success) {
+          setIsNativeAdLoading(false);
+          setAdFeedbackMessage("Native reklam yüklenemedi. Test simülasyon videosuna aktarılıyor...");
+          setTimeout(() => {
+            setAdFeedbackMessage(null);
+            startInAppVideo();
+          }, 800);
+        }
+        return;
+      } catch (nativeErr: any) {
+        console.warn("[RewardedAdModal] Native showRewardedAd caught exception:", nativeErr);
+        setIsNativeAdLoading(false);
+        startInAppVideo();
+        return;
+      }
+    }
+
+    // 2. WEB / BROWSER FLOW
+    startInAppVideo();
   };
 
   const toggleVideoPlay = (e?: React.MouseEvent) => {
@@ -225,7 +287,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       // Fallback
     }
 
-    // 3. Callback to execute target feature
+    // 3. Callback to execute target feature & close modal
     setTimeout(() => {
       setIsPlayingAd(false);
       onClose();
@@ -348,70 +410,63 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         </div>
 
         {/* Center Video Stage (HTML5 Real Video Element) */}
-        <div className="relative z-10 flex-1 flex items-center justify-center w-full h-full max-h-[85vh] mx-auto overflow-hidden">
+        <div 
+          className="relative flex-1 flex items-center justify-center bg-black cursor-pointer overflow-hidden"
+          onClick={toggleVideoPlay}
+        >
           <video
             ref={videoRef}
             src={VIDEO_AD_SOURCES[videoIndex]}
-            autoPlay
+            className="w-full h-full object-contain"
             playsInline
+            autoPlay
             muted={isMuted}
             onTimeUpdate={handleTimeUpdate}
             onEnded={handleVideoEnded}
-            className="w-full h-full object-contain max-h-[85vh] drop-shadow-2xl cursor-pointer"
-            onClick={toggleVideoPlay}
           />
 
-          {/* Feature Badge Overlay */}
-          <div className="absolute bottom-6 left-4 sm:left-8 pointer-events-none z-20 bg-black/80 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/15 max-w-xs sm:max-w-sm hidden sm:flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${featureInfo.color} flex items-center justify-center shrink-0`}>
-              <FeatureIcon className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">
-                Açılacak Özellik
-              </div>
-              <div className="text-xs font-black text-white line-clamp-1">
-                {featureInfo.title} (24 Saat)
-              </div>
-            </div>
-          </div>
-
-          {/* Play/Pause Overlay indicator when paused */}
+          {/* Pause overlay icon */}
           {isVideoPaused && (
-            <div 
-              onClick={toggleVideoPlay}
-              className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center cursor-pointer z-25"
-            >
-              <div className="p-5 rounded-full bg-amber-500 text-black shadow-2xl animate-scale-up">
-                <Play className="w-10 h-10 fill-current" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+              <div className="w-16 h-16 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-xl animate-scale-up">
+                <Play className="w-8 h-8 fill-current ml-1" />
               </div>
             </div>
           )}
         </div>
 
-        {/* Bottom Control & Claim Bar */}
-        <div className="relative z-30 w-full px-4 sm:px-8 py-4 bg-gradient-to-t from-black via-black/80 to-transparent">
-          <div className="max-w-3xl mx-auto">
+        {/* Bottom Reward Bar */}
+        <div className="relative z-30 p-4 sm:p-6 bg-gradient-to-t from-black via-black/80 to-transparent flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-center sm:text-left">
+            <p className="text-xs sm:text-sm font-black text-amber-300 flex items-center justify-center sm:justify-start gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-400" /> {featureInfo.title}
+            </p>
+            <p className="text-[11px] text-slate-300 font-medium">
+              {adFinished 
+                ? "Tebrikler! Reklam tamamlandı. Ödülünüzü alarak özelliği 24 saatliğine aktif edebilirsiniz." 
+                : "Ödülü kazanmak için videoyu en az 10 saniye boyunca izleyin."}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {adFinished ? (
               <button
                 type="button"
                 onClick={handleClaimReward}
-                className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm sm:text-base rounded-2xl shadow-2xl shadow-emerald-500/40 transition active:scale-95 flex items-center justify-center gap-3 cursor-pointer border border-emerald-300 animate-bounce"
+                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 animate-bounce cursor-pointer"
               >
-                <Award className="w-5 h-5 text-amber-300" />
-                <span>🎉 Video Tamamlandı! {featureInfo.shortName} Özelliğini 24 Saat Aç</span>
-                <ArrowRight className="w-5 h-5" />
+                <Award className="w-5 h-5" />
+                <span>ÖDÜLÜ AL & KİLİDİ AÇ</span>
               </button>
             ) : (
-              <div className="w-full py-3 px-4 bg-black/80 border border-white/10 rounded-2xl text-center text-xs text-slate-300 font-medium flex items-center justify-between gap-2 backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                  <span className="text-amber-300 font-bold">Video Reklamı Oynatılıyor...</span>
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Kalan: <strong className="text-white font-mono">{countdown} saniye</strong>
-                </div>
-              </div>
+              <button
+                type="button"
+                disabled
+                className="w-full sm:w-auto px-5 py-2.5 bg-white/10 text-slate-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-not-allowed border border-white/10"
+              >
+                <Clock className="w-4 h-4 text-slate-400 animate-spin" />
+                <span>Lütfen bekleyin ({countdown}s)...</span>
+              </button>
             )}
           </div>
         </div>
@@ -420,19 +475,15 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   }
 
   // ==========================================
-  // 2. MODAL PREVIEW SCREEN (BEFORE AD STARTS)
+  // 2. OFFER / CONFIRMATION MODAL VIEW
   // ==========================================
   return (
     <div 
-      className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
     >
       <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden relative text-slate-800 dark:text-slate-100 my-auto"
+        className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -467,14 +518,22 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             </div>
           </div>
 
+          {/* Ad Feedback or Status Message */}
+          {adFeedbackMessage && (
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300 font-bold animate-fade-in">
+              <Activity className="w-4 h-4 animate-spin shrink-0 text-indigo-500" />
+              <span>{adFeedbackMessage}</span>
+            </div>
+          )}
+
           {/* Ad Policy / Specific unlock rule notice */}
           <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/70 space-y-2">
             <div className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span>ÖZELLİK BAZLI REKLAM KURALI:</span>
+              <span>GOOGLE ADMOB TEST REKLAM PROTOKOLÜ:</span>
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-              Her kısıtlı özellik için <strong className="text-slate-900 dark:text-slate-200 font-bold">ayrı 1 video reklam</strong> izlenir. Bu video izlendiğinde <u>sadece {featureInfo.shortName}</u> özelliği 24 saatliğine (1 tam gün) açılır.
+              Google Test Ödüllü Video reklamı tamamlandığında <strong className="text-slate-900 dark:text-slate-200 font-bold">sadece {featureInfo.shortName}</strong> özelliği 24 saatliğine (1 tam gün) anında açılır.
             </p>
           </div>
 
@@ -495,12 +554,44 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           <div className="space-y-2.5 pt-1">
             <button
               type="button"
+              disabled={isNativeAdLoading}
               onClick={handleStartWatchVideo}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <PlayCircle className="w-4 h-4 text-slate-950 fill-current" />
-              <span>Video Reklamını Başlat & Aç (24 Saat)</span>
+              {isNativeAdLoading ? (
+                <>
+                  <Activity className="w-4 h-4 text-slate-950 animate-spin" />
+                  <span>Google Test Reklamı Yükleniyor...</span>
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="w-4 h-4 text-slate-950 fill-current" />
+                  <span>Ödüllü Reklamı Başlat & Aç (24 Saat)</span>
+                </>
+              )}
             </button>
+
+            {/* Optional Native Interstitial Ad Test Button */}
+            {Capacitor.isNativePlatform() && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setAdFeedbackMessage("Geçiş reklamı hazırlanıyor...");
+                  const res = await showNativeInterstitialAd();
+                  if (!res.success) {
+                    setAdFeedbackMessage(res.error || "Geçiş reklamı gösterilemedi.");
+                  } else {
+                    setAdFeedbackMessage("Geçiş reklamı başarıyla tetiklendi!");
+                  }
+                  setTimeout(() => setAdFeedbackMessage(null), 3000);
+                }}
+                className="w-full py-2.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 font-bold text-[11px] rounded-2xl border border-indigo-500/25 flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Film className="w-3.5 h-3.5" />
+                <span>Geçiş Reklamını (Interstitial Test) Tetikle</span>
+              </button>
+            )}
 
             {onUpgradeClick && (
               <button
