@@ -39,7 +39,21 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("[Server Process Guard] Unhandled Rejection caught at:", promise, "reason:", reason);
 });
 var app = (0, import_express.default)();
-var PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
+var serverPort = 3e3;
+var portArgIdx = process.argv.indexOf("--port");
+if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+  serverPort = parseInt(process.argv[portArgIdx + 1], 10) || 3e3;
+} else if (process.env.PORT) {
+  serverPort = parseInt(process.env.PORT, 10) || 3e3;
+}
+var PORT = serverPort;
+var serverHost = "0.0.0.0";
+var hostArgIdx = process.argv.indexOf("--host");
+if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
+  serverHost = process.argv[hostArgIdx + 1];
+} else if (process.env.HOST) {
+  serverHost = process.env.HOST;
+}
 var SMTP_CONFIG_FILE = import_path.default.join(process.cwd(), "custom_smtp_config.json");
 var currentCustomSmtp = {};
 if (import_fs.default.existsSync(SMTP_CONFIG_FILE)) {
