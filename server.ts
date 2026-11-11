@@ -21,22 +21,23 @@ process.on("unhandledRejection", (reason, promise) => {
 
 const app = express();
 
-let serverPort = 3000;
-const portArgIdx = process.argv.indexOf("--port");
-if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
-  serverPort = parseInt(process.argv[portArgIdx + 1], 10) || 3000;
-} else if (process.env.PORT) {
-  serverPort = parseInt(process.env.PORT, 10) || 3000;
+function resolvePort(): number {
+  const portIdx = process.argv.indexOf("--port");
+  if (portIdx !== -1 && process.argv[portIdx + 1]) {
+    const parsed = parseInt(process.argv[portIdx + 1], 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  if (process.env.NODE_ENV !== "production") {
+    return 3000;
+  }
+  if (process.env.PORT) {
+    const parsed = parseInt(process.env.PORT, 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 3000;
 }
-const PORT = serverPort;
 
-let serverHost = "0.0.0.0";
-const hostArgIdx = process.argv.indexOf("--host");
-if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
-  serverHost = process.argv[hostArgIdx + 1];
-} else if (process.env.HOST) {
-  serverHost = process.env.HOST;
-}
+const PORT = resolvePort();
 
 // In-app custom SMTP storage configuration
 interface CustomSmtpConfig {
@@ -218,7 +219,7 @@ app.get("/api/trial/status", (req, res) => {
       hasUsedTrial: false,
       isActive: false,
       isExpired: false,
-      daysRemaining: 7,
+      daysRemaining: 8,
       startDate: null,
       endDate: null,
     });
@@ -228,10 +229,10 @@ app.get("/api/trial/status", (req, res) => {
   const now = new Date();
   const diffTime = now.getTime() - startDate.getTime();
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
-  const isExpired = diffDays >= 7;
+  const daysRemaining = Math.max(0, Math.ceil(8 - diffDays));
+  const isExpired = diffDays >= 8;
 
-  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const endDate = new Date(startDate.getTime() + 8 * 24 * 60 * 60 * 1000);
 
   res.json({
     hasTrial: true,
@@ -262,13 +263,13 @@ app.post("/api/trial/activate", (req, res) => {
     const now = new Date();
     const diffTime = now.getTime() - startDate.getTime();
     const diffDays = diffTime / (1000 * 60 * 60 * 24);
-    const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
-    const isExpired = diffDays >= 7;
-    const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const daysRemaining = Math.max(0, Math.ceil(8 - diffDays));
+    const isExpired = diffDays >= 8;
+    const endDate = new Date(startDate.getTime() + 8 * 24 * 60 * 60 * 1000);
 
     return res.status(403).json({
       success: false,
-      error: "Bu e-posta veya cihaz için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.",
+      error: "Bu e-posta veya cihaz için 8 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.",
       hasTrial: true,
       hasUsedTrial: true,
       isActive: !isExpired,
@@ -279,14 +280,14 @@ app.post("/api/trial/activate", (req, res) => {
     });
   }
 
-  // İlk kez deneme başlatılıyor
+  // İlk kez deneme başlatılıyor (8 Günlük Ücretsiz Deneme)
   const nowIso = new Date().toISOString();
   if (cleanEmail) trials[cleanEmail] = nowIso;
   if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
   if (cleanUserId) trials[cleanUserId] = nowIso;
   writeTrials(trials);
 
-  const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const endDate = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
 
   res.json({
     success: true,
@@ -294,7 +295,7 @@ app.post("/api/trial/activate", (req, res) => {
     hasUsedTrial: true,
     isActive: true,
     isExpired: false,
-    daysRemaining: 7,
+    daysRemaining: 8,
     startDate: nowIso,
     endDate: endDate.toISOString(),
   });

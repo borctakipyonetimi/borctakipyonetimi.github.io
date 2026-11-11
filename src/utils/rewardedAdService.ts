@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   AdMob,
   BannerAdPosition,
   BannerAdSize,
   BannerAdPluginEvents,
   RewardAdPluginEvents,
-  InterstitialAdPluginEvents,
-  PluginListenerHandle
+  InterstitialAdPluginEvents
 } from "@capacitor-community/admob";
 
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
@@ -37,13 +36,40 @@ export function getFeaturePassKey(feature: RewardedFeatureType | string = "any")
 }
 
 /**
+ * Helper to check if user should have an ad-free Pro experience
+ * KURAL 2 & 3: if (isPremium || isTrialActive) return true (No ads, Pro features unlocked)
+ * KURAL 1: Guests and expired trial users return false (Must see mandatory ads)
+ */
+export function isUserAdFree(): boolean {
+  if (typeof window === "undefined") return false;
+  const user = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
+  if (user === "info.borcodemetakip@gmail.com") return true;
+  
+  const isGuest = localStorage.getItem("is_guest") === "true";
+  if (isGuest) return false;
+
+  const isPremium = localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial";
+  if (isPremium) return true;
+
+  const isTrialActiveStorage = localStorage.getItem("is_trial_active") === "true";
+  const trialEndDate = localStorage.getItem("trial_end_date");
+  if (trialEndDate) {
+    const endMs = new Date(trialEndDate).getTime();
+    if (!isNaN(endMs) && Date.now() < endMs) {
+      return true;
+    }
+  }
+  return isTrialActiveStorage;
+}
+
+/**
  * Checks strictly if a temporary pass is active from watching a rewarded video ad
  * (independent of permanent premium status).
  */
 export function isTemporaryPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
-  // If the user has a permanent PRO status, they don't have a temporary ad pass
-  if (localStorage.getItem("is_premium") === "true") {
+  // If the user has Pro access (Premium or 8-day trial), they don't have a temporary pass
+  if (isUserAdFree()) {
     return false;
   }
   const cleanFeature = (feature || "any").toLowerCase().trim();
@@ -58,7 +84,7 @@ export function isTemporaryPassActive(feature: RewardedFeatureType | string = "a
  */
 export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | string = "any"): string | null {
   if (typeof window === "undefined") return null;
-  if (localStorage.getItem("is_premium") === "true") return null;
+  if (isUserAdFree()) return null;
 
   const cleanFeature = (feature || "any").toLowerCase().trim();
   const key = getFeaturePassKey(cleanFeature);
@@ -77,13 +103,13 @@ export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | str
 
 /**
  * Checks if the user currently has active access for a SPECIFIC feature,
- * either because they have permanent PRO status or an active 24-hour pass.
+ * either because they have Pro status (Premium or 8-day trial) or an active 24-hour pass.
  */
 export function isPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
   
-  // Premium users have permanent access to all features without ads
-  if (localStorage.getItem("is_premium") === "true") {
+  // Pro users (Premium or active 8-day trial) have full access to all features without ads
+  if (isUserAdFree()) {
     return true;
   }
 
@@ -100,7 +126,7 @@ export function isPassActive(feature: RewardedFeatureType | string = "any"): boo
  */
 export function getRemainingPassTimeFormatted(feature: RewardedFeatureType | string = "any"): string | null {
   if (typeof window === "undefined") return null;
-  if (localStorage.getItem("is_premium") === "true") return "Sınırsız (Premium)";
+  if (isUserAdFree()) return "Sınırsız (Pro)";
 
   const cleanFeature = (feature || "any").toLowerCase().trim();
   const key = getFeaturePassKey(cleanFeature);
@@ -139,7 +165,7 @@ export function grant24HourPass(feature: RewardedFeatureType | string = "any"): 
  */
 export function featureRequiresAd(feature: RewardedFeatureType | string): boolean {
   if (typeof window === "undefined") return false;
-  if (localStorage.getItem("is_premium") === "true") return false;
+  if (isUserAdFree()) return false;
   return !isPassActive(feature);
 }
 
@@ -170,7 +196,6 @@ export async function initNativeAdMobSdk(): Promise<boolean> {
     try {
       console.log("[AdMob Native] Initializing Mobile Ads SDK for testing...");
       await AdMob.initialize({
-        requestTrackingAuthorization: true,
         initializeForTesting: true,
       });
       isAdMobSdkInitialized = true;
@@ -200,7 +225,7 @@ export async function showNativeBannerAd(options?: {
     return false;
   }
 
-  if (localStorage.getItem("is_premium") === "true") {
+  if (isUserAdFree()) {
     return false;
   }
 
@@ -246,7 +271,7 @@ export async function showNativeInterstitialAd(options?: {
     return { success: false, error: "Web ortamında geçiş reklamı desteklenmiyor." };
   }
 
-  if (localStorage.getItem("is_premium") === "true") {
+  if (isUserAdFree()) {
     return { success: true };
   }
 
@@ -285,7 +310,7 @@ export async function showNativeRewardedAd(callbacks: {
     return { success: false, error: "Native platform required" };
   }
 
-  if (localStorage.getItem("is_premium") === "true") {
+  if (isUserAdFree()) {
     callbacks.onRewarded();
     return { success: true };
   }

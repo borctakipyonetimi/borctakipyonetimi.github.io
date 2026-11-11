@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { CurrencyProvider } from './utils/CurrencyContext.tsx';
+import { AuthProvider } from './context/AuthContext.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { initGlobalCrashHandler } from './utils/crashLogger.ts';
 import './index.css';
@@ -12,9 +13,11 @@ initGlobalCrashHandler();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <CurrencyProvider>
-        <App />
-      </CurrencyProvider>
+      <AuthProvider>
+        <CurrencyProvider>
+          <App />
+        </CurrencyProvider>
+      </AuthProvider>
     </ErrorBoundary>
   </StrictMode>,
 );

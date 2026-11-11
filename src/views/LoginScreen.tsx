@@ -210,25 +210,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           createdAt: determinedCreatedAt || undefined
         });
       } else {
-        // Kayıt Ol Modu: Yeni kullanıcıya veritabanında otomatik 7 günlük ücretsiz deneme tanımlanır!
+        // Kayıt Ol Modu: Yeni kayıt olan kullanıcıya 8 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 8 days) otomatik tanımlanır!
         setStatusMessage("Yeni hesabınız oluşturuluyor...");
         const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
 
-        setStatusMessage("🎁 7 Günlük Ücretsiz Deneme Hesabınız tanımlanıyor...");
+        setStatusMessage("🎁 8 Günlük Ücretsiz Pro Deneme Hesabınız tanımlanıyor...");
 
-        // Firebase Realtime Database (users/{uid}) ve Firestore'a 7 günlük deneme (Kayıt Tarihi + 7 Gün) yazılır
+        // Veritabanına 8 günlük deneme (Kayıt Tarihi + 8 Gün) yazılır
         const trialInfo = await provisionUserTrialInDatabases(user.uid, cleanUserEmail, false);
 
-        // Eski kullanıcı profil resmini temizle
+        // Eski kullanıcı profil resmini temizle ve oturumu başlat
         try {
           localStorage.removeItem("user_profile_avatar");
           localStorage.setItem("userLoggedIn", "true");
           localStorage.setItem("hasCompletedOnboarding", "true");
           localStorage.setItem("currentUser", cleanUserEmail);
           localStorage.setItem("is_premium", "false");
-          localStorage.setItem("is_guest", "true");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_trial_active", "true");
           localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
           localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
           localStorage.setItem("user_created_at", trialInfo.trialStartDate);
@@ -243,13 +244,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           sendWelcomeEmail(cleanUserEmail).catch(() => {});
         } catch (_) {}
 
-        setStatusMessage("Hesabınız hazır! 7 Günlük Denemeniz başladı...");
+        setStatusMessage("Hesabınız hazır! 8 Günlük Ücretsiz Pro Denemeniz başladı...");
 
         onLoginSuccess(cleanUserEmail, {
           isPremium: false,
-          isGuest: true,
+          isGuest: false,
           isTrialActive: true,
           isTrialExpired: false,
+          trialMessage: "🎁 8 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! 8 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
           createdAt: trialInfo.trialStartDate
         });
       }
@@ -262,7 +264,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  // Misafir Olarak Devam Et: Firebase Realtime DB users/{uid} üzerine 7 günlük deneme tanımlanır
+  // KURAL 1: Misafir Olarak Devam Edenler (Guest/Anonymous)
+  // - Pro özelliklerin tamamı kilitli/kapalıdır.
+  // - Ücretsiz deneme hakkı kesinlikle tanımlanmaz.
+  // - Banner ve geçiş reklamlarının tamamı zorunlu olarak gösterilir.
   const handleGuestClick = async () => {
     setIsGuestLoading(true);
     try {
@@ -274,22 +279,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         guestUid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       }
 
-      // Veritabanında (RTDB users/{uid}) 7 günlük ücretsiz deneme tanımla
-      const trialInfo = await provisionUserTrialInDatabases(guestUid, "misafir@butcempro.app", true);
+      // Misafir için deneme KESİNLİKLE tanımlanmaz
+      await provisionUserTrialInDatabases(guestUid, "misafir@butcempro.app", true);
 
       try {
         localStorage.setItem("hasCompletedOnboarding", "true");
         localStorage.setItem("userLoggedIn", "false");
         localStorage.setItem("is_guest", "true");
         localStorage.setItem("is_premium", "false");
-        localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
-        localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
-        localStorage.setItem("user_created_at", trialInfo.trialStartDate);
-        localStorage.setItem("has_used_trial", "true");
-        localStorage.setItem("premium_source", "trial");
-        localStorage.setItem("butcem_onboarding_welcome_v7", "true");
-        localStorage.setItem("butcem_onboarding_completed_v7", "true");
+        localStorage.setItem("is_trial_active", "false");
         localStorage.setItem("skip_initial_login", "true");
+        localStorage.removeItem("trial_start_date");
+        localStorage.removeItem("trial_end_date");
+        localStorage.removeItem("premium_source");
+        localStorage.removeItem("has_used_trial");
         localStorage.removeItem("user_profile_name");
         localStorage.removeItem("currentUser");
         localStorage.removeItem("user_profile_avatar");

@@ -5,15 +5,15 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, ShieldCheck, Activity, AlertCircle } from "lucide-react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   AdMob,
   BannerAdPosition,
   BannerAdSize,
-  BannerAdPluginEvents,
-  PluginListenerHandle
+  BannerAdPluginEvents
 } from "@capacitor-community/admob";
 import { ADMOB_CONFIG, initNativeAdMobSdk } from "../utils/rewardedAdService";
+import { useAuth } from "../context/AuthContext";
 
 interface AdMobBannerProps {
   unitType?: "banner" | "native" | "interstitial";
@@ -24,17 +24,34 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   unitType = "banner",
   className = ""
 }) => {
-  const [isPremium, setIsPremium] = useState(false);
+  const auth = useAuth();
+  const [localPrem, setLocalPrem] = useState(() => {
+    return localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial" && localStorage.getItem("is_guest") !== "true";
+  });
+  const [localTrialActive, setLocalTrialActive] = useState(() => {
+    const end = localStorage.getItem("trial_end_date");
+    const endMs = end ? new Date(end).getTime() : 0;
+    const isG = localStorage.getItem("is_guest") === "true";
+    return !isG && !isNaN(endMs) && Date.now() < endMs;
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Check premium status dynamically
+  // Check premium and trial status dynamically
   useEffect(() => {
     const checkStatus = () => {
-      const nextPrem = localStorage.getItem("is_premium") === "true";
-      setIsPremium((prev) => (prev !== nextPrem ? nextPrem : prev));
+      const isSuper = (localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
+      const nextPrem = isSuper || (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial" && localStorage.getItem("is_guest") !== "true");
+      setLocalPrem(nextPrem);
+
+      const end = localStorage.getItem("trial_end_date");
+      const endMs = end ? new Date(end).getTime() : 0;
+      const isG = localStorage.getItem("is_guest") === "true";
+      const nextTrial = !nextPrem && !isG && !isNaN(endMs) && Date.now() < endMs;
+      setLocalTrialActive(nextTrial);
     };
     checkStatus();
 
@@ -47,9 +64,12 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     };
   }, []);
 
+  const isPremium = auth?.isPremium || localPrem;
+  const isTrialActive = auth?.isTrialActive || localTrialActive;
+
   // Initialize AdMob Banner (Native Capacitor + Web AdSense with official test IDs)
   useEffect(() => {
-    if (isPremium) return;
+    if (isPremium || isTrialActive) return;
 
     let isMounted = true;
     const listeners: PluginListenerHandle[] = [];
@@ -174,10 +194,10 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         }
       }
     };
-  }, [isPremium, unitType]);
+  }, [isPremium, isTrialActive, unitType]);
 
-  // Premium users do not see ads
-  if (isPremium) return null;
+  // KESİN KURAL 3: Hiçbir sayfada veya alt kısımda hiçbir reklam (Banner, Interstitial vb.) gösterilmemeli
+  if (isPremium || isTrialActive) return null;
 
   const clientPub = `ca-${ADMOB_CONFIG.PUBLISHER_ID}`;
   const slotId = unitType === "interstitial" ? ADMOB_CONFIG.INTERSTITIAL_SLOT : ADMOB_CONFIG.BANNER_SLOT;

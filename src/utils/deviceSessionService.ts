@@ -472,8 +472,8 @@ export async function checkUserTrialUsedInFirestore(
           return {
             hasUsedTrial: true,
             trialStartDate: u.trialStartDate || u.createdAt,
-            isExpired: diffDays >= 7,
-            daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+            isExpired: diffDays >= 8,
+            daysRemaining: Math.max(0, Math.ceil(8 - diffDays))
           };
         }
       }
@@ -489,8 +489,8 @@ export async function checkUserTrialUsedInFirestore(
           return {
             hasUsedTrial: true,
             trialStartDate: u.trialStartDate || u.createdAt,
-            isExpired: diffDays >= 7,
-            daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+            isExpired: diffDays >= 8,
+            daysRemaining: Math.max(0, Math.ceil(8 - diffDays))
           };
         }
       }
@@ -506,8 +506,8 @@ export async function checkUserTrialUsedInFirestore(
         return {
           hasUsedTrial: true,
           trialStartDate: u.trialStartDate || u.createdAt,
-          isExpired: diffDays >= 7,
-          daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+          isExpired: diffDays >= 8,
+          daysRemaining: Math.max(0, Math.ceil(8 - diffDays))
         };
       }
     }
@@ -523,8 +523,8 @@ export async function checkUserTrialUsedInFirestore(
         return {
           hasUsedTrial: true,
           trialStartDate: val.trialStartDate || val.createdAt,
-          isExpired: diffDays >= 7,
-          daysRemaining: Math.max(0, Math.ceil(7 - diffDays))
+          isExpired: diffDays >= 8,
+          daysRemaining: Math.max(0, Math.ceil(8 - diffDays))
         };
       }
     }
@@ -578,32 +578,62 @@ export async function markTrialUsedInFirestore(
 }
 
 /**
- * Yeni kullanıcı kaydında ve 'Misafir Olarak Devam Et' seçildiğinde
- * Firebase Realtime DB (users/{uid}) ve Firestore (users/{uid}) üzerine
- * 7 günlük ücretsiz deneme süresini (Kayıt Tarihi + 7 Gün) eksiksiz olarak tanımlar.
+ * KURAL 1 & 2:
+ * 1. Misafir / Anonim (isGuest: true): Ücretsiz deneme hakkı KESİNLİKLE tanımlanmaz. Pro kilitli, reklamlar zorunlu.
+ * 2. Kayıt Olan Kullanıcı (isGuest: false): Otomatik 8 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 8 days).
  */
 export async function provisionUserTrialInDatabases(
   userId: string,
   email: string,
   isGuest: boolean = false
 ): Promise<{ trialStartDate: string; trialEndDate: string; daysRemaining: number }> {
+  // KURAL 1: Misafir kullanıcılara ASLA ücretsiz deneme tanımlanmaz!
+  if (isGuest) {
+    try {
+      localStorage.removeItem("trial_start_date");
+      localStorage.removeItem("trial_end_date");
+      localStorage.removeItem("premium_source");
+      localStorage.setItem("has_used_trial", "false");
+      localStorage.setItem("is_trial_active", "false");
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "true");
+    } catch (_) {}
+
+    if (userId) {
+      const guestPayload = {
+        uid: userId,
+        email: email || "misafir@butcempro.app",
+        isGuest: true,
+        isPremium: false,
+        isTrialActive: false,
+        trialDaysRemaining: 0,
+        updatedAt: new Date().toISOString()
+      };
+      setDoc(doc(firestore, "users", userId), guestPayload, { merge: true }).catch(() => {});
+      update(ref(db, `users/${userId}`), guestPayload).catch(() => {});
+    }
+
+    return { trialStartDate: "", trialEndDate: "", daysRemaining: 0 };
+  }
+
+  // KURAL 2: Kayıt olan kullanıcıya 8 günlük ücretsiz Pro deneme süresi tanımlanır
   const now = new Date();
   const nowMs = now.getTime();
   const trialStartDate = now.toISOString();
-  // Kayıt tarihi + tam 7 gün (7 * 24 * 60 * 60 * 1000 ms)
-  const trialEndDate = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Kayıt tarihi + tam 8 gün (8 * 24 * 60 * 60 * 1000 ms)
+  const trialEndDate = new Date(nowMs + 8 * 24 * 60 * 60 * 1000).toISOString();
   const cleanEmail = (email || "").trim().toLowerCase();
 
   const trialPayload: Record<string, any> = {
     uid: userId,
     email: cleanEmail,
-    isGuest,
+    isGuest: false,
     isPremium: false,
     trialStartDate,
     trialEndDate,
     hasUsedTrial: true,
     isTrialActive: true,
-    trialDaysRemaining: 7,
+    trialDaysRemaining: 8,
     createdAt: trialStartDate,
     updatedAt: trialStartDate
   };
@@ -613,8 +643,9 @@ export async function provisionUserTrialInDatabases(
     localStorage.setItem("trial_end_date", trialEndDate);
     localStorage.setItem("user_created_at", trialStartDate);
     localStorage.setItem("has_used_trial", "true");
+    localStorage.setItem("is_trial_active", "true");
     localStorage.setItem("is_premium", "false");
-    localStorage.setItem("is_guest", isGuest ? "true" : "false");
+    localStorage.setItem("is_guest", "false");
     localStorage.setItem("premium_source", "trial");
   } catch (_) {}
 
@@ -627,7 +658,7 @@ export async function provisionUserTrialInDatabases(
         trialEndDate,
         hasUsedTrial: true,
         isTrialActive: true,
-        isGuest
+        isGuest: false
       }).catch(() => {});
     }
   } catch (rtdbErr) {
@@ -647,7 +678,7 @@ export async function provisionUserTrialInDatabases(
     console.warn("[DeviceSession] Firestore users/ trial write uyarısı:", fsErr);
   }
 
-  return { trialStartDate, trialEndDate, daysRemaining: 7 };
+  return { trialStartDate, trialEndDate, daysRemaining: 8 };
 }
 
 

@@ -505,17 +505,17 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
 
-        // 7 günlük süre kontrolü
+        // 8 günlük süre kontrolü
         const createdAtMs = new Date(determinedCreatedAt).getTime();
         const diffDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
-        const isTrialActive = diffDays < 7;
-        const isTrialExpired = diffDays >= 7;
+        const isTrialActive = diffDays < 8;
+        const isTrialExpired = diffDays >= 8;
 
-        // Firestore'daki kullanıcı dokümanına (users/{userId}) "isPremium": false ve "isGuest": true değerleri işlensin
+        // Firestore'daki kullanıcı dokümanına (users/{userId}) bilgileri işle
         setSyncLogs(prev => [
           ...prev,
           `Hesap Bağlandı: ${cleanUserEmail}`,
-          isTrialActive ? "🎁 7 Günlük Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
+          isTrialActive ? "🎁 8 Günlük Pro Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
         ]);
 
         try {
@@ -524,7 +524,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               userId: user.uid,
               email: cleanUserEmail,
               isPremium: false,
-              isGuest: true,
+              isGuest: false,
               hasUsedTrial: true,
               trialStartDate: determinedCreatedAt,
               createdAt: determinedCreatedAt
@@ -532,32 +532,34 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             new Promise(res => setTimeout(res, 1200))
           ]);
         } catch (gErr) {
-          console.warn("[Login] Misafir oturum kaydı uyarısı:", gErr);
+          console.warn("[Login] Kullanıcı oturum kaydı uyarısı:", gErr);
         }
 
-        const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const trialEndDate = new Date(createdAtMs + 8 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("currentUser", cleanUserEmail);
         localStorage.setItem("is_premium", "false");
-        localStorage.setItem("is_guest", "true");
+        localStorage.setItem("is_guest", "false");
         localStorage.setItem("has_used_trial", "true");
         localStorage.setItem("user_created_at", determinedCreatedAt);
 
         if (isTrialActive) {
           localStorage.setItem("trial_end_date", trialEndDate);
           localStorage.setItem("premium_source", "trial");
+          localStorage.setItem("is_trial_active", "true");
         } else {
           localStorage.removeItem("trial_end_date");
           localStorage.removeItem("premium_source");
+          localStorage.setItem("is_trial_active", "false");
         }
 
         // Yeni üye Hoş Geldiniz e-postası (Fail-Safe: E-posta servisi hata verse bile kayıt aksamaz)
         if (guestSubMode === "register") {
           try {
             sendWelcomeEmail(cleanUserEmail).catch(mailErr => {
-              console.warn("[Guest Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+              console.warn("[Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
             });
           } catch (err) {
-            console.warn("[Guest Register] Hoş Geldiniz e-postası fail-safe:", err);
+            console.warn("[Register] Hoş Geldiniz e-postası fail-safe:", err);
           }
         }
 
@@ -567,22 +569,22 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         if (isTrialExpired) {
           onLoginSuccess(cleanUserEmail, {
             isPremium: false,
-            isGuest: true,
+            isGuest: false,
             isTrialExpired: true,
             hasUsedTrial: true,
             createdAt: determinedCreatedAt,
-            trialMessage: "⚠️ 7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen."
+            trialMessage: "⚠️ 8 günlük ücretsiz deneme süreniz bitmiştir. Paket seçerek devam edin lütfen."
           });
         } else {
-          const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
+          const daysLeft = Math.max(1, Math.ceil(8 - diffDays));
           onLoginSuccess(cleanUserEmail, {
             isPremium: false,
-            isGuest: true,
+            isGuest: false,
             isTrialActive: true,
             hasUsedTrial: true,
             trialMessage: guestSubMode === "register" 
-              ? `🎁 7 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz.`
-              : `🎁 7 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık)`,
+              ? `🎁 8 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm Pro özellikler açık ve reklamsızdır.`
+              : `🎁 8 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık ve reklamsız)`,
             createdAt: determinedCreatedAt
           });
         }
@@ -729,10 +731,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 >
                   <div className="flex items-center gap-1.5">
                     <SparklesIcon className="w-4 h-4" />
-                    <span>🎁 7 Günlük Deneme</span>
+                    <span>🎁 8 Günlük Deneme</span>
                   </div>
                   <span className={`text-[10px] font-bold ${activeTab === "guest_trial" ? "text-white/90" : "text-slate-400 dark:text-slate-500"}`}>
-                    Misafir Girişi & Kayıt
+                    Ücretsiz Pro Kayıt & Giriş
                   </span>
                 </button>
               </div>
