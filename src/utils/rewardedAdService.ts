@@ -68,7 +68,7 @@ export function isUserAdFree(): boolean {
  */
 export function isTemporaryPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
-  // If the user has Pro access (Premium or 8-day trial), they don't have a temporary pass
+  // If the user has Pro access (Premium or 7-day trial), they don't have a temporary pass
   if (isUserAdFree()) {
     return false;
   }
@@ -103,12 +103,12 @@ export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | str
 
 /**
  * Checks if the user currently has active access for a SPECIFIC feature,
- * either because they have Pro status (Premium or 8-day trial) or an active 24-hour pass.
+ * either because they have Pro status (Premium or 7-day trial) or an active 24-hour pass.
  */
 export function isPassActive(feature: RewardedFeatureType | string = "any"): boolean {
   if (typeof window === "undefined") return false;
   
-  // Pro users (Premium or active 8-day trial) have full access to all features without ads
+  // Pro users (Premium or active 7-day trial) have full access to all features without ads
   if (isUserAdFree()) {
     return true;
   }

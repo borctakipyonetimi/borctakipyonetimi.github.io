@@ -210,15 +210,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           createdAt: determinedCreatedAt || undefined
         });
       } else {
-        // Kayıt Ol Modu: Yeni kayıt olan kullanıcıya 8 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 8 days) otomatik tanımlanır!
+        // Kayıt Ol Modu: Yeni kayıt olan kullanıcıya 7 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 7 days) otomatik tanımlanır!
         setStatusMessage("Yeni hesabınız oluşturuluyor...");
         const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
 
-        setStatusMessage("🎁 8 Günlük Ücretsiz Pro Deneme Hesabınız tanımlanıyor...");
+        setStatusMessage("🎁 7 Günlük Ücretsiz Pro Deneme Hesabınız tanımlanıyor...");
 
-        // Veritabanına 8 günlük deneme (Kayıt Tarihi + 8 Gün) yazılır
+        // Veritabanına 7 günlük deneme (Kayıt Tarihi + 7 Gün) yazılır
         const trialInfo = await provisionUserTrialInDatabases(user.uid, cleanUserEmail, false);
 
         // Eski kullanıcı profil resmini temizle ve oturumu başlat
@@ -244,14 +244,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           sendWelcomeEmail(cleanUserEmail).catch(() => {});
         } catch (_) {}
 
-        setStatusMessage("Hesabınız hazır! 8 Günlük Ücretsiz Pro Denemeniz başladı...");
+        setStatusMessage("Hesabınız hazır! 7 Günlük Ücretsiz Pro Denemeniz başladı...");
 
         onLoginSuccess(cleanUserEmail, {
           isPremium: false,
           isGuest: false,
           isTrialActive: true,
           isTrialExpired: false,
-          trialMessage: "🎁 8 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! 8 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
+          trialMessage: "🎁 7 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
           createdAt: trialInfo.trialStartDate
         });
       }

@@ -699,7 +699,7 @@ export default function App() {
       return false;
     }
 
-    // 8 Günlük Deneme Süresi Zaman Kontrolü (Kayıt Tarihi + 8 Gün)
+    // 7 Günlük Deneme Süresi Zaman Kontrolü (Kayıt Tarihi + 7 Gün)
     const nowMs = Date.now();
     let trialEndStr: string | null = uData?.trialEndDate || localStorage.getItem("trial_end_date");
     let createdAtStr: string | null = uData?.trialStartDate || uData?.createdAt || localStorage.getItem("user_created_at");
@@ -710,13 +710,13 @@ export default function App() {
 
     if (!trialEndStr && createdAtStr) {
       const startMs = new Date(createdAtStr).getTime();
-      trialEndStr = new Date(startMs + 8 * 24 * 60 * 60 * 1000).toISOString();
+      trialEndStr = new Date(startMs + 7 * 24 * 60 * 60 * 1000).toISOString();
     }
 
-    // Eğer hiçbir deneme bilgisi yoksa (yeni kayıtlı kullanıcı), 8 günlük denemeyi hemen tanımla
+    // Eğer hiçbir deneme bilgisi yoksa (yeni kayıtlı kullanıcı), 7 günlük denemeyi hemen tanımla
     if (!trialEndStr) {
       createdAtStr = new Date(nowMs).toISOString();
-      trialEndStr = new Date(nowMs + 8 * 24 * 60 * 60 * 1000).toISOString();
+      trialEndStr = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
       localStorage.setItem("user_created_at", createdAtStr);
       localStorage.setItem("trial_start_date", createdAtStr);
       localStorage.setItem("trial_end_date", trialEndStr);
@@ -726,7 +726,7 @@ export default function App() {
     const isExpired = !isNaN(endMs) && nowMs >= endMs;
 
     if (isExpired) {
-      // 8 GÜNÜ GEÇMİŞSE -> Deneme bitti, reklamlar aktif, Pro kilitli
+      // 7 GÜNÜ GEÇMİŞSE -> Deneme bitti, reklamlar aktif, Pro kilitli
       setIsPremium(false);
       setIsTrialActive(false);
       setTrialDaysRemaining(0);
@@ -742,7 +742,7 @@ export default function App() {
         isActive: false,
         isExpired: true,
         daysRemaining: 0,
-        startDate: createdAtStr || new Date(endMs - 8 * 86400000).toISOString(),
+        startDate: createdAtStr || new Date(endMs - 7 * 86400000).toISOString(),
         endDate: trialEndStr
       });
 
@@ -754,7 +754,7 @@ export default function App() {
       }
       return true;
     } else {
-      // 8 Günlük Deneme Süresi AKTİF (Kayıt Tarihi + 8 Gün)
+      // 7 Günlük Deneme Süresi AKTİF (Kayıt Tarihi + 7 Gün)
       const daysLeft = Math.max(1, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));
       
       setIsPremium(false);
@@ -995,19 +995,19 @@ export default function App() {
           localStorage.removeItem("premium_source");
           localStorage.removeItem("trial_end_date");
           setIsTrialExpiredLocked(true);
-          triggerToast(data.error || "⚠️ 8 günlük deneme süreniz daha önce tamamlanmıştır. Lütfen bir Premium paket seçin.");
+          triggerToast(data.error || "⚠️ 7 günlük deneme süreniz daha önce tamamlanmıştır. Lütfen bir Premium paket seçin.");
           setIsActivatingTrial(false);
           return;
         }
 
         if (data.isActive) {
           const nowIso = data.startDate || new Date().toISOString();
-          const trialEndDate = data.endDate || new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+          const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
           
           // 4. VERİTABANINA hasUsedTrial = true ve trialStartDate İŞARETLE
           setHasUsedTrial(true);
           setIsTrialActive(true);
-          setTrialDaysRemaining(data.daysRemaining || 8);
+          setTrialDaysRemaining(data.daysRemaining || 7);
           setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
           setIsTrialExpiredLocked(false);
           localStorage.setItem("has_used_trial", "true");
@@ -1023,7 +1023,7 @@ export default function App() {
             await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
           }
 
-          triggerToast("🎉 8 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 8 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
+          triggerToast("🎉 7 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
           setIsActivatingTrial(false);
           return;
         }
@@ -1034,16 +1034,16 @@ export default function App() {
 
     // Local fallback: Sadece ve sadece daha önce deneme HİÇ kullanılmamışsa
     if (localStorage.getItem("has_used_trial") === "true") {
-      triggerToast("⚠️ Bu hesap için 8 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
+      triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
       setIsActivatingTrial(false);
       return;
     }
 
     const nowIso = new Date().toISOString();
-    const trialEndDate = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+    const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     setHasUsedTrial(true);
     setIsTrialActive(true);
-    setTrialDaysRemaining(8);
+    setTrialDaysRemaining(7);
     setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
     setIsTrialExpiredLocked(false);
     localStorage.setItem("has_used_trial", "true");
@@ -1056,7 +1056,7 @@ export default function App() {
       hasTrial: true,
       isActive: true,
       isExpired: false,
-      daysRemaining: 8,
+      daysRemaining: 7,
       startDate: nowIso,
       endDate: trialEndDate
     });
@@ -1066,7 +1066,7 @@ export default function App() {
       await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
     }
 
-    triggerToast("🎉 8 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 8 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
+    triggerToast("🎉 7 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
     setIsActivatingTrial(false);
   };
 
@@ -2870,10 +2870,10 @@ export default function App() {
       return;
     }
 
-    // 2. 8 GÜNLÜK DENEME HESABI ZAMAN HESAPLAMASI (Kayıt Tarihi + 8 Gün)
+    // 2. 7 GÜNLÜK DENEME HESABI ZAMAN HESAPLAMASI (Kayıt Tarihi + 7 Gün)
     const nowMs = Date.now();
     const trialEndStr = localStorage.getItem("trial_end_date");
-    const trialEndMs = trialEndStr ? new Date(trialEndStr).getTime() : nowMs + 8 * 24 * 60 * 60 * 1000;
+    const trialEndMs = trialEndStr ? new Date(trialEndStr).getTime() : nowMs + 7 * 24 * 60 * 60 * 1000;
     const isExpired = meta?.isTrialExpired || (!isNaN(trialEndMs) && nowMs >= trialEndMs);
 
     if (isExpired) {
@@ -2892,7 +2892,7 @@ export default function App() {
       return;
     }
 
-    // 3. 8 Günlük Deneme Aktif: Kayıt tarihi + 8 gün geçerlidir (Tüm PRO özellikler açık, REKLAMLAR KAPALI)
+    // 3. 7 Günlük Deneme Aktif: Kayıt tarihi + 7 gün geçerlidir (Tüm PRO özellikler açık, REKLAMLAR KAPALI)
     const daysLeft = Math.max(1, Math.ceil((trialEndMs - nowMs) / (1000 * 60 * 60 * 24)));
     setIsPremium(false);
     setIsTrialActive(true);
@@ -2907,7 +2907,7 @@ export default function App() {
     setShowPublicView(null);
     setActiveTab("overview");
 
-    const message = meta?.trialMessage || `🎁 8 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! (${daysLeft} gün kaldı - Reklamsız)`;
+    const message = meta?.trialMessage || `🎁 7 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! (${daysLeft} gün kaldı - Reklamsız)`;
     triggerToast(message);
   };
 
@@ -9108,7 +9108,7 @@ export default function App() {
                         <span
                           onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
                           className="px-1.5 py-0.5 bg-gradient-to-tr from-indigo-500 to-purple-600 text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer shadow-xs flex items-center gap-1"
-                          title="8 Günlük Ücretsiz Deneme Hesabı"
+                          title="7 Günlük Ücretsiz Deneme Hesabı"
                         >
                           <span>🎁 DENEME</span>
                           <span className="bg-amber-400 text-slate-950 px-1 rounded-sm text-[7.5px] font-black">{trialDaysRemaining} GÜN</span>
@@ -9117,7 +9117,7 @@ export default function App() {
                         <span
                           onClick={(e) => { e.stopPropagation(); setIsUpgradeModalOpen(true); }}
                           className="px-1.5 py-0.5 bg-rose-500 text-white rounded-md text-[8px] font-black tracking-wider cursor-pointer shadow-xs flex items-center gap-0.5"
-                          title="8 Günlük Süreniz Doldu - Paket Seçin"
+                          title="7 Günlük Süreniz Doldu - Paket Seçin"
                         >
                           ⚠️ DENEME BİTTİ
                         </span>
@@ -9448,14 +9448,14 @@ export default function App() {
       {/* Central View Dashboard Grid content container */}
       <main className="max-w-3xl mx-auto px-4 py-6 pb-32 sm:pb-36">
 
-        {/* 8 Günlük Deneme Sürümü Aktif veya Dolmuş Bilgilendirme Kartı (Kompakt ve Şık) */}
-        {isTrialActive && (
+        {/* 7 Günlük Deneme Sürümü Aktif Bilgilendirme Kartı - KESİNLİKLE Premium hesaplarda gösterilmez */}
+        {!isPaidPremium && isTrialActive && (
           <div className="mb-3 py-1.5 px-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-600/10 border border-indigo-500/25 rounded-xl flex items-center justify-between gap-2 shadow-xs transition-all">
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm shrink-0">🎁</span>
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">
-                  8 Günlük Deneme
+                  7 Günlük Deneme
                 </span>
                 <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded-md uppercase tracking-tight shrink-0">
                   {trialDaysRemaining} Gün Kaldı
@@ -10942,14 +10942,9 @@ export default function App() {
         };
 
         return (
-          <>
-            {/* KURAL 1 & 2: Alt Banner Reklamı - Pro olmayanlara (Guest veya Denemesi Dolmuş) zorunlu gösterilir, Premium veya Aktif Deneme olanlara KESİNLİKLE gösterilmez */}
-            {!hasProAccess && (
-              <div className="fixed bottom-14 left-0 right-0 z-20 px-2 pointer-events-auto bg-slate-900/90 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-700/60 shadow-2xl max-w-xl mx-auto">
-                <AdMobBanner unitType="banner" className="my-1" />
-              </div>
-            )}
-            <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-xl">
+          <div className="fixed bottom-0 left-0 right-0 z-40 max-w-xl mx-auto flex flex-col pointer-events-auto shadow-2xl">
+            {/* 1. ALT MENÜ / NAVİGASYON (ÜSTTE - ASLA REKLAMLAR İLE KAPATILMAZ) */}
+            <footer className="w-full bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-md">
               <button
                 onClick={() => handleNavClick("overview")}
                 className={getBottomTabClass("overview")}
@@ -10993,7 +10988,14 @@ export default function App() {
                 <span className="text-[9px] font-bold">{language === "tr" ? "Asistan" : "AI Advisor"}</span>
               </button>
             </footer>
-          </>
+
+            {/* 2. REKLAM ALANI (ALT MENÜNÜN ALTINA YERLEŞTİRİLİR - SADECE PRO OLMAYANLARA) */}
+            {!hasProAccess && (
+              <div className="w-full bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-700/60 px-2 py-0.5">
+                <AdMobBanner unitType="banner" className="my-0" />
+              </div>
+            )}
+          </div>
         );
       })()}
 
@@ -11917,7 +11919,7 @@ export default function App() {
                         {isPaidPremium 
                           ? "BÜTÇEM PRO PREMİUM ÜYELİK" 
                           : isTrialActive 
-                          ? "8 GÜNLÜK ÜCRETSİZ DENEME HESABI"
+                          ? "7 GÜNLÜK ÜCRETSİZ DENEME HESABI"
                           : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
                           ? "DENEME SÜRESİ DOLDU" 
                           : "BÜTÇEM PRO PREMIUM"}
@@ -11926,18 +11928,18 @@ export default function App() {
                         {isPaidPremium 
                           ? "👑 Premium Üyesiniz" 
                           : isTrialActive 
-                          ? `🎁 8 Günlük Deneme Aktif (${trialDaysRemaining} Gün Kaldı)` 
+                          ? `🎁 7 Günlük Deneme Aktif (${trialDaysRemaining} Gün Kaldı)` 
                           : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
-                          ? "⚠️ 8 Günlük Süreniz Bitmiştir" 
+                          ? "⚠️ 7 Günlük Süreniz Bitmiştir" 
                           : "Sınırları Ortadan Kaldırın 👑"}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-medium px-4 leading-relaxed">
                         {isPaidPremium
                           ? "Tüm profesyonel bütçe yönetimi, yapay zeka koçu ve sınırsız ayrıcalıklarınız aktiftir."
                           : isTrialActive
-                          ? `8 günlük ücretsiz denemenizin bitmesine ${trialDaysRemaining} gün kaldı. Tüm özellikleri ücretsiz kullanıyorsunuz; dilediğiniz zaman avantajlı paketlerimize geçiş yapabilirsiniz.`
+                          ? `7 günlük ücretsiz denemenizin bitmesine ${trialDaysRemaining} gün kaldı. Tüm özellikleri ücretsiz kullanıyorsunuz; dilediğiniz zaman avantajlı paketlerimize geçiş yapabilirsiniz.`
                           : (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired)
-                          ? "8 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur."
+                          ? "7 günlük süreniz bitmiştir. Paket seçerek devam edin lütfen. Deneme süreniz dolduğu için paket seçimi zorunludur."
                           : "Finansal bütçe yönetimini profesyonel seviyeye yükselten gelişmiş özellikleri keşfedin."}
                       </p>
                     </div>
@@ -11946,7 +11948,7 @@ export default function App() {
                     {!isPaidPremium && isTrialActive && (
                       <div className="p-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl text-center space-y-1.5 shadow-xs">
                         <div className="flex items-center justify-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-xs uppercase tracking-wide">
-                          <span>🎁 8 Günlük Ücretsiz Deneme Aktif</span>
+                          <span>🎁 7 Günlük Ücretsiz Deneme Aktif</span>
                         </div>
                         <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
                           Kalan Süreniz: <span className="text-amber-500 font-black text-sm">{trialDaysRemaining} Gün</span> (Tüm PRO Özellikler Açık)
@@ -11960,7 +11962,7 @@ export default function App() {
                     {!isPaidPremium && !isTrialActive && (isTrialExpiredLocked || isGuestTrialExpired || trialStatus?.isExpired) && (
                       <div className="p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl text-center space-y-1.5 shadow-sm">
                         <div className="flex items-center justify-center gap-1.5 text-rose-700 dark:text-rose-400 font-black text-xs uppercase tracking-wide">
-                          <span>⚠️ 8 Günlük Süreniz Bitmiştir</span>
+                          <span>⚠️ 7 Günlük Süreniz Bitmiştir</span>
                         </div>
                         <p className="text-xs font-black text-rose-600 dark:text-rose-400">
                           Paket seçerek devam edin lütfen.
@@ -12016,7 +12018,7 @@ export default function App() {
                         </div>
 
                         <div className={`grid ${canActivateTrial ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-2.5 pt-1`}>
-                          {/* Seçenek 1: 8 Günlük Ücretsiz Deneme Başlat - SADECE Deneme Hakkı Olanlara */}
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - SADECE Deneme Hakkı Olanlara */}
                           {canActivateTrial && (
                             <button
                               type="button"
@@ -12036,10 +12038,10 @@ export default function App() {
                               </div>
                               <div>
                                 <div className="text-xs font-black leading-tight">
-                                  8 Günlük Deneme Başlat
+                                  7 Günlük Deneme Başlat
                                 </div>
                                 <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
-                                  E-posta ile 10 saniyede kaydolun, 8 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                                  E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
                                 </div>
                               </div>
                             </button>

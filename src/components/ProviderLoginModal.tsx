@@ -505,17 +505,17 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
 
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
 
-        // 8 günlük süre kontrolü
+        // 7 günlük süre kontrolü
         const createdAtMs = new Date(determinedCreatedAt).getTime();
         const diffDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
-        const isTrialActive = diffDays < 8;
-        const isTrialExpired = diffDays >= 8;
+        const isTrialActive = diffDays < 7;
+        const isTrialExpired = diffDays >= 7;
 
         // Firestore'daki kullanıcı dokümanına (users/{userId}) bilgileri işle
         setSyncLogs(prev => [
           ...prev,
           `Hesap Bağlandı: ${cleanUserEmail}`,
-          isTrialActive ? "🎁 8 Günlük Pro Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
+          isTrialActive ? "🎁 7 Günlük Pro Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
         ]);
 
         try {
@@ -535,7 +535,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
           console.warn("[Login] Kullanıcı oturum kaydı uyarısı:", gErr);
         }
 
-        const trialEndDate = new Date(createdAtMs + 8 * 24 * 60 * 60 * 1000).toISOString();
+        const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
         localStorage.setItem("currentUser", cleanUserEmail);
         localStorage.setItem("is_premium", "false");
         localStorage.setItem("is_guest", "false");
@@ -573,10 +573,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             isTrialExpired: true,
             hasUsedTrial: true,
             createdAt: determinedCreatedAt,
-            trialMessage: "⚠️ 8 günlük ücretsiz deneme süreniz bitmiştir. Paket seçerek devam edin lütfen."
+            trialMessage: "⚠️ 7 günlük ücretsiz deneme süreniz bitmiştir. Paket seçerek devam edin lütfen."
           });
         } else {
-          const daysLeft = Math.max(1, Math.ceil(8 - diffDays));
+          const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
           onLoginSuccess(cleanUserEmail, {
             isPremium: false,
             isGuest: false,

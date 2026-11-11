@@ -26,7 +26,7 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, firestore, doc, getDoc, setDoc } from "../utils/firebase";
 import { showNativeInterstitialAd, showNativeBannerAd, hideNativeBannerAd } from "../utils/rewardedAdService";
 
-export const TRIAL_DURATION_DAYS = 8;
+export const TRIAL_DURATION_DAYS = 7;
 export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 export interface AuthUserState {
@@ -35,9 +35,9 @@ export interface AuthUserState {
   isLoggedIn: boolean;        // Kayıtlı/oturum açmış kullanıcı
   isGuest: boolean;           // Misafir / anonim kullanıcı
   isPremium: boolean;         // Ücretli Premium abone veya süper yönetici
-  isTrialActive: boolean;     // 8 günlük deneme süresi aktif mi?
+  isTrialActive: boolean;     // 7 günlük deneme süresi aktif mi?
   isTrialExpired: boolean;    // Deneme süresi doldu mu?
-  trialDaysRemaining: number; // Kalan deneme gün sayısı (0-8)
+  trialDaysRemaining: number; // Kalan deneme gün sayısı (0-7)
   trialStartDate: string | null;
   trialEndDate: string | null;
   hasUsedTrial: boolean;
