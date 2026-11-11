@@ -189,7 +189,7 @@ app.get("/api/trial/status", (req, res) => {
       hasUsedTrial: false,
       isActive: false,
       isExpired: false,
-      daysRemaining: 8,
+      daysRemaining: 7,
       startDate: null,
       endDate: null
     });
@@ -198,9 +198,9 @@ app.get("/api/trial/status", (req, res) => {
   const now = /* @__PURE__ */ new Date();
   const diffTime = now.getTime() - startDate.getTime();
   const diffDays = diffTime / (1e3 * 60 * 60 * 24);
-  const daysRemaining = Math.max(0, Math.ceil(8 - diffDays));
-  const isExpired = diffDays >= 8;
-  const endDate = new Date(startDate.getTime() + 8 * 24 * 60 * 60 * 1e3);
+  const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+  const isExpired = diffDays >= 7;
+  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
     hasTrial: true,
     hasUsedTrial: true,
@@ -224,12 +224,12 @@ app.post("/api/trial/activate", (req, res) => {
     const now = /* @__PURE__ */ new Date();
     const diffTime = now.getTime() - startDate.getTime();
     const diffDays = diffTime / (1e3 * 60 * 60 * 24);
-    const daysRemaining = Math.max(0, Math.ceil(8 - diffDays));
-    const isExpired = diffDays >= 8;
-    const endDate2 = new Date(startDate.getTime() + 8 * 24 * 60 * 60 * 1e3);
+    const daysRemaining = Math.max(0, Math.ceil(7 - diffDays));
+    const isExpired = diffDays >= 7;
+    const endDate2 = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1e3);
     return res.status(403).json({
       success: false,
-      error: "Bu e-posta veya cihaz i\xE7in 8 g\xFCnl\xFCk \xFCcretsiz deneme hakk\u0131 daha \xF6nce kullan\u0131lm\u0131\u015Ft\u0131r. L\xFCtfen bir Premium paket se\xE7in.",
+      error: "Bu e-posta veya cihaz i\xE7in 7 g\xFCnl\xFCk \xFCcretsiz deneme hakk\u0131 daha \xF6nce kullan\u0131lm\u0131\u015Ft\u0131r. L\xFCtfen bir Premium paket se\xE7in.",
       hasTrial: true,
       hasUsedTrial: true,
       isActive: !isExpired,
@@ -244,14 +244,14 @@ app.post("/api/trial/activate", (req, res) => {
   if (cleanDeviceId) trials[cleanDeviceId] = nowIso;
   if (cleanUserId) trials[cleanUserId] = nowIso;
   writeTrials(trials);
-  const endDate = new Date(Date.now() + 8 * 24 * 60 * 60 * 1e3);
+  const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
   res.json({
     success: true,
     hasTrial: true,
     hasUsedTrial: true,
     isActive: true,
     isExpired: false,
-    daysRemaining: 8,
+    daysRemaining: 7,
     startDate: nowIso,
     endDate: endDate.toISOString()
   });
