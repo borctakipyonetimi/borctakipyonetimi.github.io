@@ -583,8 +583,8 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             isTrialActive: true,
             hasUsedTrial: true,
             trialMessage: guestSubMode === "register" 
-              ? `🎁 8 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm Pro özellikler açık ve reklamsızdır.`
-              : `🎁 8 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık ve reklamsız)`,
+              ? `🎁 7 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm Pro özellikler açık ve reklamsızdır.`
+              : `🎁 7 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık ve reklamsız)`,
             createdAt: determinedCreatedAt
           });
         }
@@ -731,7 +731,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 >
                   <div className="flex items-center gap-1.5">
                     <SparklesIcon className="w-4 h-4" />
-                    <span>🎁 8 Günlük Deneme</span>
+                    <span>🎁 7 Günlük Deneme</span>
                   </div>
                   <span className={`text-[10px] font-bold ${activeTab === "guest_trial" ? "text-white/90" : "text-slate-400 dark:text-slate-500"}`}>
                     Ücretsiz Pro Kayıt & Giriş

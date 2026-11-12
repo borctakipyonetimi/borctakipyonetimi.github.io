@@ -35,6 +35,7 @@ import { PeriodFilter } from "./PeriodFilter";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { AdMobBanner } from "./AdMobBanner";
+import { useAuth } from "../context/AuthContext";
 
 interface IncomesListProps {
   incomes: Income[];
@@ -78,6 +79,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
 
   // Add/Edit Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -627,7 +630,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
       </div>
 
       {/* Gelir Sayfası Google AdMob Banner Reklamı */}
-      {!isPremium && <AdMobBanner className="mt-6" />}
+      {showAds && <AdMobBanner className="mt-6" />}
 
       {/* Income Add/Edit Modal */}
       {isModalOpen && createPortal(

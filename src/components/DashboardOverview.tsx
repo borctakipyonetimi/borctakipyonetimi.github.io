@@ -10,6 +10,7 @@ import { FinancialStats, Income, Expense, ExpenseCategory } from "../types";
 import { BarChart, DoughnutChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { AdMobBanner } from "./AdMobBanner";
+import { useAuth } from "../context/AuthContext";
 import { t } from "../utils/translations";
 
 interface DashboardOverviewProps {
@@ -105,6 +106,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol, rates, setRates, activeCurrency, isFetching, lastUpdated, updateRatesFromAPI, rateDetails } = useCurrency();
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const hasContent = (incomes && incomes.length > 0) || (expenses && expenses.length > 0) || (stats && stats.totalDebt > 0);
   const [budgetGoal, setBudgetGoal] = useState<number>(() => {
     const email = localStorage.getItem("currentUser") || "anonymous";
@@ -992,7 +995,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
       </div>
 
       {/* Sponsor / Google AdMob Banner section for free tier & visitors - Placed above AI & Alarms section */}
-      {!isPremium && (
+      {showAds && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1329,7 +1332,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
       </div>
 
       {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card */}
-      {!isPremium && (
+      {showAds && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

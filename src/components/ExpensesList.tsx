@@ -34,6 +34,8 @@ import ReceiptScanner from "./ReceiptScanner";
 import { Camera } from "lucide-react";
 import { t } from "../utils/translations";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
+import { AdMobBanner } from "./AdMobBanner";
+import { useAuth } from "../context/AuthContext";
 
 interface ExpensesListProps {
   expenses: Expense[];
@@ -1007,6 +1009,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   
   // Selected Month filter state (defaults to current year & month, e.g. "2026-05")
   const [selectedMonthStr, setSelectedMonthStr] = useState<string>(() => {
@@ -2885,50 +2889,25 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
         document.body
       )}
 
-      {/* Harcama / Gider Sayfası Sponsorlu Reklamı */}
-      {!isPremium && (
+      {/* Harcama / Gider Sayfası Google AdMob Test Reklamı */}
+      {showAds && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="mt-6 p-4 bg-rose-500/5 dark:bg-rose-950/10 border border-rose-500/20 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs"
+          className="mt-6 space-y-2"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-2xl text-xl shrink-0">
-              💳
+          <AdMobBanner unitType="banner" />
+          {onUpgradeClick && (
+            <div className="flex justify-end pr-2">
+              <button
+                type="button"
+                onClick={onUpgradeClick}
+                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
+              >
+                Reklamları Kaldır 💎 Bütçem Pro'ya Geç
+              </button>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="px-1.5 py-0.5 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[8px] font-black uppercase tracking-wider rounded-md border border-rose-500/20">
-                  Harcama Fırsatı
-                </span>
-                <span className="text-[9px] text-slate-400 font-bold">
-                  • QNB Finansbank CardFinans
-                </span>
-              </div>
-              <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                Her Market ve Gıda Alışverişinizde %10 Nakit Para İadesi Kazanın! 🎉
-              </h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-normal">
-                Giderlerinizi avantaja çevirin. CardFinans ile aylık toplam 750 TL'ye varan nakit para (ParaPuan) hesabınıza anında yatırılsın.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
-            <a
-              href="https://www.qnbfinansbank.com"
-              target="_blank"
-              rel="noreferrer referrer"
-              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black rounded-xl transition shadow-xs cursor-pointer uppercase tracking-wider text-center flex-1 sm:flex-none"
-            >
-              Kart Başvurusu
-            </a>
-            <button
-              onClick={onUpgradeClick}
-              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-500 text-[10px] font-black rounded-xl transition shadow-xs cursor-pointer flex items-center justify-center gap-1 uppercase tracking-tight shrink-0 flex-1 sm:flex-none"
-            >
-              Reklamsız
-            </button>
-          </div>
+          )}
         </motion.div>
       )}
 

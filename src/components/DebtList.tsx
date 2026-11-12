@@ -14,6 +14,7 @@ import { useCurrency } from "../utils/CurrencyContext";
 import { parseDateParts } from "../utils/dateUtils";
 import { DoughnutChart, BarChart } from "./BudgetCharts";
 import { AdMobBanner } from "./AdMobBanner";
+import { useAuth } from "../context/AuthContext";
 import ReceiptScanner from "./ReceiptScanner";
 import { DebtTimelineChart } from "./DebtTimelineChart";
 import { AnimatedDebtStatusPanel } from "./AnimatedDebtStatusPanel";
@@ -82,6 +83,8 @@ export const DebtList: React.FC<DebtListProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const [activeTab, setActiveTab] = useState<"unpaid" | "paid">("unpaid");
   const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
   const [searchQuery, setSearchQuery] = useState("");
@@ -2383,7 +2386,7 @@ export const DebtList: React.FC<DebtListProps> = ({
       )}
 
       {/* Borç Takip Sayfası Sponsorlu Reklamı - Google AdMob Banner */}
-      {!isPremium && (
+      {showAds && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}

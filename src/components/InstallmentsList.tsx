@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { InstallmentDebt, PaymentLog } from "../types";
 import { useCurrency } from "../utils/CurrencyContext";
 import { AdMobBanner } from "./AdMobBanner";
+import { useAuth } from "../context/AuthContext";
 import { InstallmentsPortalChart } from "./BudgetCharts";
 import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
@@ -58,6 +59,8 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 }) => {
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format } = useCurrency();
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("Yeni Taksitli Borç Planı");
   const [instId, setInstId] = useState<number | undefined>(undefined);
@@ -795,7 +798,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
       <InstallmentsPortalChart installmentDebts={installmentDebts} />
 
-      {!isPremium && (
+      {showAds && (
         <AdMobBanner unitType="banner" className="opacity-95 py-1" />
       )}
 

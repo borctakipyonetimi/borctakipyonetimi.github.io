@@ -7715,7 +7715,7 @@ export default function App() {
     }
 
     // KURAL 1: Misafir veya denemesi bitmiş kullanıcılara geçiş reklamları zorunlu olarak gösterilir
-    // KURAL 2 & 3: Premium ve aktif 8 günlük deneme kullanıcılarına KESİNLİKLE reklam gösterilmez
+    // KURAL 2 & 3: Premium ve aktif 7 günlük deneme kullanıcılarına KESİNLİKLE reklam gösterilmez
     if (!hasProAccess) {
       guestNavClickCountRef.current += 1;
       if (guestNavClickCountRef.current % 4 === 0) {
@@ -12350,12 +12350,12 @@ export default function App() {
                         {canActivateTrial && (
                           <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 8 GÜNLÜK ÜCRETSİZ DENEME</span>
+                              <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
                               <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
                             </div>
                             <div className="space-y-2">
                               <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                                KREDİ KARTI GEREKMEDEN 8 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
+                                KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
                               </p>
                               <button
                                 type="button"
@@ -12363,7 +12363,7 @@ export default function App() {
                                 onClick={handleActivateTrial}
                                 className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                {isActivatingTrial ? "DOĞRULANIYOR..." : "🚀 8 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT"}
+                                {isActivatingTrial ? "DOĞRULANIYOR..." : "🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT"}
                               </button>
                             </div>
                           </div>
@@ -12373,7 +12373,7 @@ export default function App() {
                         {isTrialActive && (
                           <div className="p-3.5 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl space-y-2 text-center shadow-xs">
                             <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase leading-tight">
-                              🎁 8 GÜNLÜK ÜCRETSİZ DENEMENİZ AKTİF • {trialDaysRemaining} Gün Kaldı
+                              🎁 7 GÜNLÜK ÜCRETSİZ DENEMENİZ AKTİF • {trialDaysRemaining} Gün Kaldı
                             </p>
                             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
                               Tüm PRO özellikleri şu an ücretsiz kullanıyorsunuz. Deneme süreniz bitmeden dilediğiniz an avantajlı paketlerimize geçiş yapabilirsiniz.

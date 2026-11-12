@@ -10,10 +10,10 @@
  *    - Banner ve geçiş (interstitial) reklamlarının tamamı bu kullanıcılara ZORUNLU olarak gösterilir (shouldShowAds = true).
  * 
  * 2. Kayıt Olup Giriş Yapanlar (Register / Login):
- *    - Yeni kayıt olan kullanıcıya 8 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 8 days) otomatik tanımlanır.
- *    - 8 günlük deneme süresi aktif olduğu sürece Pro özellikler açık olmalı (hasProAccess = true) VE
+ *    - Yeni kayıt olan kullanıcıya 7 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 7 days) otomatik tanımlanır.
+ *    - 7 günlük deneme süresi aktif olduğu sürece Pro özellikler açık olmalı (hasProAccess = true) VE
  *      alt banner dahil hiç bir reklam gösterilmemelidir (shouldShowAds = false).
- *    - 8 günlük deneme süresi bittiğinde reklamlar tekrar aktif olur (shouldShowAds = true) ve Pro özellikler kilitlenir (hasProAccess = false).
+ *    - 7 günlük deneme süresi bittiğinde reklamlar tekrar aktif olur (shouldShowAds = true) ve Pro özellikler kilitlenir (hasProAccess = false).
  * 
  * 3. Premium Aboneler:
  *    - Pro özellikler tam açık olmalı (hasProAccess = true).
@@ -48,6 +48,7 @@ export interface AuthUserState {
   
   // Actions
   loginAsGuest: () => Promise<void>;
+  registerWith7DayTrial: (email: string, uid?: string) => Promise<{ trialStartDate: string; trialEndDate: string }>;
   registerWith8DayTrial: (email: string, uid?: string) => Promise<{ trialStartDate: string; trialEndDate: string }>;
   loginUser: (email: string, meta?: { isPremium?: boolean; isGuest?: boolean; createdAt?: string; trialEndDate?: string }) => void;
   logout: () => Promise<void>;
@@ -114,11 +115,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const diffMs = endMs - nowMs;
 
     if (diffMs > 0) {
-      // 8 günlük deneme süresi aktif
+      // 7 günlük deneme süresi aktif
       const daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
       return { isTrialActive: true, isTrialExpired: false, daysRemaining: Math.min(TRIAL_DURATION_DAYS, daysLeft) };
     } else {
-      // 8 günlük deneme süresi doldu!
+      // 7 günlük deneme süresi doldu!
       return { isTrialActive: false, isTrialExpired: true, daysRemaining: 0 };
     }
   }, []);
@@ -132,13 +133,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const trialDaysRemaining = trialStatus.daysRemaining;
 
   // Master Access Check:
-  // Pro özellikler SADECE Premium abonelere VEYA 8 günlük deneme süresi aktif olan kayıtlı kullanıcılara açıktır.
+  // Pro özellikler SADECE Premium abonelere VEYA 7 günlük deneme süresi aktif olan kayıtlı kullanıcılara açıktır.
   // Misafirlere ve denemesi dolanlara kesinlikle KAPALIDIR.
   const hasProAccess = Boolean(isPremium || isTrialActive);
 
   // Master Ad Visibility Check:
   // KURAL 1: Misafirlere banner ve geçiş reklamlarının tamamı ZORUNLU olarak gösterilir.
-  // KURAL 2: 8 günlük deneme aktif olduğu sürece HİÇBİR reklam gösterilmez. Süre dolunca tekrar zorunlu aktif olur.
+  // KURAL 2: 7 günlük deneme aktif olduğu sürece HİÇBİR reklam gösterilmez. Süre dolunca tekrar zorunlu aktif olur.
   // KURAL 3: Premium abonelere HİÇBİR sayfada veya alt kısımda reklam gösterilmez: (if (isPremium || isTrialActive) return null;)
   const shouldShowAds = Boolean(!isPremium && !isTrialActive);
 
@@ -236,13 +237,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (_) {}
   }, [syncToStorageAndDispatch]);
 
-  // KURAL 2: Kayıt Olan Yeni Kullanıcıya 8 Günlük Ücretsiz Pro Deneme Süresi Otomatik Tanımlanır
-  const registerWith8DayTrial = useCallback(async (email: string, uid?: string) => {
+  // KURAL 2: Kayıt Olan Yeni Kullanıcıya 7 Günlük Ücretsiz Pro Deneme Süresi Otomatik Tanımlanır
+  const registerWith7DayTrial = useCallback(async (email: string, uid?: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const now = new Date();
     const nowMs = now.getTime();
     const startIso = now.toISOString();
-    // trialEndDate = now + 8 days (KESİN 8 GÜN)
+    // trialEndDate = now + 7 days (KESİN 7 GÜN)
     const endIso = new Date(nowMs + TRIAL_DURATION_MS).toISOString();
 
     setCurrentUser(cleanEmail);
@@ -269,7 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem("user_created_at", startIso);
     } catch (_) {}
 
-    // Cloud Firestore ve RTDB'ye 8 günlük denemeyi kaydet
+    // Cloud Firestore ve RTDB'ye 7 günlük denemeyi kaydet
     const targetUid = uid || auth.currentUser?.uid;
     if (targetUid) {
       const trialPayload = {
@@ -300,6 +301,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { trialStartDate: startIso, trialEndDate: endIso };
   }, [syncToStorageAndDispatch]);
 
+  // Geriye dönük uyumluluk için alias
+  const registerWith8DayTrial = registerWith7DayTrial;
+
   // Giriş Yapma (Login) Mantığı
   const loginUser = useCallback((
     email: string,
@@ -320,6 +324,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (prem) {
       setIsPremium(true);
       setTrialEndDate(null);
+      hideNativeBannerAd().catch(() => {});
       syncToStorageAndDispatch({
         isPremiumVal: true,
         isGuestVal: false,
@@ -334,7 +339,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Normal kayıtlı kullanıcı girişi: 8 günlük deneme kontrolü
+    // Normal kayıtlı kullanıcı girişi: 7 günlük deneme kontrolü
     const nowMs = Date.now();
     let effectiveEndStr = meta?.trialEndDate || localStorage.getItem("trial_end_date");
 
@@ -343,13 +348,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       effectiveEndStr = new Date(createdMs + TRIAL_DURATION_MS).toISOString();
     }
 
-    // Eğer daha önce hiç deneme süresi tanımlanmamış yeni bir hesap ise, 8 günlük denemeyi hemen tanımla
+    // Eğer daha önce hiç deneme süresi tanımlanmamış yeni bir hesap ise, 7 günlük denemeyi hemen tanımla
     if (!effectiveEndStr) {
       const nowIso = new Date().toISOString();
       effectiveEndStr = new Date(nowMs + TRIAL_DURATION_MS).toISOString();
       setTrialStartDate(nowIso);
       setTrialEndDate(effectiveEndStr);
       setHasUsedTrial(true);
+      hideNativeBannerAd().catch(() => {});
       syncToStorageAndDispatch({
         isPremiumVal: false,
         isGuestVal: false,
@@ -469,6 +475,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setHasUsedTrial(localStorage.getItem("has_used_trial") === "true");
   }, []);
 
+  // Listen to window custom events and storage changes
+  useEffect(() => {
+    window.addEventListener("premium_status_changed", refreshAuthState);
+    window.addEventListener("trial_status_changed", refreshAuthState);
+    window.addEventListener("auth_state_changed", refreshAuthState);
+    window.addEventListener("storage", refreshAuthState);
+    return () => {
+      window.removeEventListener("premium_status_changed", refreshAuthState);
+      window.removeEventListener("trial_status_changed", refreshAuthState);
+      window.removeEventListener("auth_state_changed", refreshAuthState);
+      window.removeEventListener("storage", refreshAuthState);
+    };
+  }, [refreshAuthState]);
+
   // Listen to Firebase Auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -530,6 +550,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hasProAccess,
     shouldShowAds,
     loginAsGuest,
+    registerWith7DayTrial,
     registerWith8DayTrial,
     loginUser,
     logout,
@@ -569,6 +590,7 @@ export const useAuth = (): AuthUserState => {
       hasProAccess,
       shouldShowAds,
       loginAsGuest: async () => {},
+      registerWith7DayTrial: async () => ({ trialStartDate: "", trialEndDate: "" }),
       registerWith8DayTrial: async () => ({ trialStartDate: "", trialEndDate: "" }),
       loginUser: () => {},
       logout: async () => {},
