@@ -996,22 +996,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
 
       {/* Sponsor / Google AdMob Banner section for free tier & visitors - Placed above AI & Alarms section */}
       {showAds && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-2 pt-2.5 pb-1"
-        >
-          <AdMobBanner unitType="banner" />
-          <div className="flex justify-end pr-2">
-            <button
-              type="button"
-              onClick={onUpgradeClick}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
-            >
-              💎 PRO'YA GEÇ
-            </button>
-          </div>
-        </motion.div>
+        <AdMobBanner
+          unitType="banner"
+          onUpgradeClick={onUpgradeClick}
+          upgradeLabel="💎 PRO'YA GEÇ"
+          className="pt-2.5 pb-1"
+        />
       )}
 
       {/* Bütçe Hedefi Belirleme ve Kontrol Paneli */}
@@ -1333,21 +1323,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
 
       {/* İkinci Sponsor Reklamı - Alt Kısmı İçin Google AdMob Native Card */}
       {showAds && (
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-6 space-y-2"
-        >
-          <AdMobBanner unitType="native" />
-          <div className="flex justify-end pr-2">
-            <button
-              onClick={onUpgradeClick}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
-            >
-              Reklamları Kaldır 💎 Bütçem Pro'ya Geç
-            </button>
-          </div>
-        </motion.div>
+        <AdMobBanner
+          unitType="native"
+          onUpgradeClick={onUpgradeClick}
+          className="mt-6"
+        />
       )}
     </div>
   );

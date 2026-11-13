@@ -34,7 +34,8 @@ import {
   RewardedFeatureType,
   showNativeRewardedAd,
   showNativeInterstitialAd,
-  ADMOB_CONFIG
+  lockDarkAdTransitionBackground,
+  releaseDarkAdTransitionBackground
 } from "../utils/rewardedAdService";
 
 interface RewardedAdModalProps {
@@ -66,6 +67,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 }) => {
   const [isPlayingAd, setIsPlayingAd] = useState(false);
   const [isNativeAdLoading, setIsNativeAdLoading] = useState(false);
+  const [isClosingTransition, setIsClosingTransition] = useState(false);
   const [adFeedbackMessage, setAdFeedbackMessage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(REQUIRED_WATCH_SECONDS);
   const [adFinished, setAdFinished] = useState(false);
@@ -77,7 +79,9 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<any>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevOpenRef = useRef(false);
+  const hasDarkLockRef = useRef(false);
 
   const effectiveIsPremium = 
     isPremium || 
@@ -91,9 +95,27 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }
   }, [isOpen, effectiveIsPremium, onRewardGranted, onClose]);
 
+  // Keep WebView background pinned to #0f172a while rewarded ad modal/player is active
+  useEffect(() => {
+    if (isOpen && !effectiveIsPremium) {
+      if (!hasDarkLockRef.current) {
+        lockDarkAdTransitionBackground();
+        hasDarkLockRef.current = true;
+      }
+    } else if (hasDarkLockRef.current) {
+      releaseDarkAdTransitionBackground(420);
+      hasDarkLockRef.current = false;
+    }
+  }, [isOpen, effectiveIsPremium]);
+
   // Initialize ONLY when the modal transitions from closed to open
   useEffect(() => {
     if (isOpen && !effectiveIsPremium && !prevOpenRef.current) {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+      setIsClosingTransition(false);
       setIsPlayingAd(false);
       setIsNativeAdLoading(false);
       setAdFeedbackMessage(null);
@@ -104,6 +126,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       setActivePassTime(getRemainingPassTimeFormatted(targetFeature));
       setVideoIndex(Math.floor(Math.random() * VIDEO_AD_SOURCES.length));
     } else if (!isOpen && prevOpenRef.current) {
+      setIsClosingTransition(false);
       setIsPlayingAd(false);
       setIsNativeAdLoading(false);
       setAdFeedbackMessage(null);
@@ -115,11 +138,18 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     prevOpenRef.current = isOpen;
   }, [isOpen, targetFeature, effectiveIsPremium]);
 
-  // Clean up timer on unmount
+  // Clean up timers & background lock on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      if (hasDarkLockRef.current) {
+        releaseDarkAdTransitionBackground(420);
+        hasDarkLockRef.current = false;
       }
     };
   }, []);
@@ -264,6 +294,23 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     setIsMuted(videoRef.current.muted);
   };
 
+  const handleSmoothClose = (callbackAfterClose?: () => void) => {
+    if (isClosingTransition) return;
+    setIsClosingTransition(true);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
+      closeTimeoutRef.current = null;
+      setIsPlayingAd(false);
+      setIsClosingTransition(false);
+      onClose();
+      if (callbackAfterClose) {
+        callbackAfterClose();
+      }
+    }, 280);
+  };
+
   const handleClaimReward = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -287,14 +334,14 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       // Fallback
     }
 
-    // 3. Callback to execute target feature & close modal
+    // 3. Smooth fade out before returning to main screen (useEffect releases dark lock cleanly after onClose)
     setTimeout(() => {
-      setIsPlayingAd(false);
-      onClose();
-      if (onRewardGranted) {
-        onRewardGranted();
-      }
-    }, 500);
+      handleSmoothClose(() => {
+        if (onRewardGranted) {
+          onRewardGranted();
+        }
+      });
+    }, 260);
   };
 
   if (!isOpen || effectiveIsPremium) return null;
@@ -358,11 +405,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   if (isPlayingAd) {
     return (
       <div 
-        className="fixed inset-0 z-[100000] w-screen h-screen bg-black text-white flex flex-col justify-between select-none overflow-hidden animate-fade-in"
+        className={`fixed inset-0 z-[100000] w-screen h-screen bg-[#0f172a] text-white flex flex-col justify-between select-none overflow-hidden transition-opacity duration-300 ease-out animate-fade-in ${isClosingTransition ? "opacity-0 pointer-events-none" : "opacity-100"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Bar with Badges & Timer */}
-        <div className="relative z-30 flex items-center justify-between w-full px-4 sm:px-6 py-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
+        <div className="relative z-30 flex items-center justify-between w-full px-4 sm:px-6 py-3 bg-gradient-to-b from-[#0f172a] via-[#0f172a]/70 to-transparent">
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="px-2.5 py-1 bg-amber-500 text-black text-[11px] sm:text-xs font-black uppercase rounded-lg tracking-wider flex items-center gap-1.5 shadow-md">
               <Film className="w-3.5 h-3.5 text-black" /> SPONSORLU VİDEO REKLAM
@@ -374,7 +421,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             <button
               type="button"
               onClick={toggleMute}
-              className="p-2 text-white bg-black/70 hover:bg-black/90 rounded-xl border border-white/20 transition cursor-pointer"
+              className="p-2 text-white bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl border border-white/20 transition cursor-pointer"
               title={isMuted ? "Sesi Aç" : "Sesi Kapat"}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-amber-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
@@ -384,7 +431,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             <div className={`px-3.5 py-1.5 rounded-xl font-mono font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg border ${
               adFinished 
                 ? "bg-emerald-600 text-white border-emerald-400 animate-pulse" 
-                : "bg-black/80 text-amber-400 border-amber-500/50"
+                : "bg-[#0f172a]/90 text-amber-400 border-amber-500/50"
             }`}>
               {adFinished ? (
                 <>
@@ -411,7 +458,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 
         {/* Center Video Stage (HTML5 Real Video Element) */}
         <div 
-          className="relative flex-1 flex items-center justify-center bg-black cursor-pointer overflow-hidden"
+          className="relative flex-1 flex items-center justify-center bg-[#0f172a] cursor-pointer overflow-hidden"
           onClick={toggleVideoPlay}
         >
           <video
@@ -479,11 +526,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   // ==========================================
   return (
     <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+      className={`fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-[#0f172a]/90 backdrop-blur-sm transition-opacity duration-300 ease-out animate-fade-in ${isClosingTransition ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+      onClick={() => handleSmoothClose()}
     >
       <div 
-        className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white"
+        className={`relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white transition-all duration-300 ease-out ${isClosingTransition ? "scale-95 opacity-0" : "scale-100 opacity-100"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -491,7 +538,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onClose();
+            handleSmoothClose();
           }}
           className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition z-20 cursor-pointer"
         >
@@ -598,8 +645,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onClose();
-                  onUpgradeClick();
+                  handleSmoothClose(() => onUpgradeClick());
                 }}
                 className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >

@@ -494,5 +494,23 @@ html:not(.dark) .text-slate-500 {
   display: block !important;
 }
 
+/* Reklam geçişleri sırasında WebView beyaz yanıp sönme (flicker) engelleme kilidi */
+html.ad-transition-dark-lock,
+html.ad-transition-dark-lock body,
+html.ad-transition-dark-lock #root {
+  background-color: #0f172a !important;
+  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
 
+@keyframes adSmoothFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
+.animate-fade-in {
+  animation: adSmoothFadeIn 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

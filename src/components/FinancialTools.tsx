@@ -56,6 +56,7 @@ import { Capacitor } from "@capacitor/core";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { parseDateParts } from "../utils/dateUtils";
 import { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
+import { useAuth } from "../context/AuthContext";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -259,6 +260,8 @@ export function FinancialTools({
   onSaveInstallment,
   defaultSubTab
 }: FinancialToolsProps) {
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !auth.isPremium && !auth.isTrialActive && !isPremium;
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const spaceKey = currentUser ? `user_${currentUser.toLowerCase()}` : "user_anonymous";
   const [activeSubTab, setActiveSubTab] = useState<"health" | "calculators" | "savings" | "calendar" | "report" | "charts">(defaultSubTab || "health");
@@ -4008,7 +4011,7 @@ export function FinancialTools({
       </AnimatePresence>
 
       {/* Sponsor / Google AdMob Banner section for visitors and free users */}
-      <AdMobBanner unitType="banner" className="my-4" />
+      {showAds && <AdMobBanner unitType="banner" className="my-4" />}
     </div>
   );
 }

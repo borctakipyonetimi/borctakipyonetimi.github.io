@@ -35,6 +35,7 @@ import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
 import { generateAnnualPdfReport, calculateAnnualData } from "../utils/annualPdfReport";
+import { useAuth } from "../context/AuthContext";
 
 interface FollowUpMonthlyYearlyProps {
   debts: Debt[];
@@ -59,6 +60,8 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
   onDeletePayment,
   onClearPayments,
 }) => {
+  const auth = useAuth();
+  const showAds = auth.shouldShowAds && !auth.isPremium && !auth.isTrialActive;
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format } = useCurrency();
   const currentYear = new Date().getFullYear();
@@ -599,7 +602,7 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
       </div>
 
       {/* Sponsor / Google AdMob Banner section for visitors and free users */}
-      <AdMobBanner unitType="banner" className="my-3" />
+      {showAds && <AdMobBanner unitType="banner" className="my-3" />}
 
       {/* Bottom Summary Call-to-Action Bar */}
       <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">

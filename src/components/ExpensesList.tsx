@@ -2891,24 +2891,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 
       {/* Harcama / Gider Sayfası Google AdMob Test Reklamı */}
       {showAds && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="mt-6 space-y-2"
-        >
-          <AdMobBanner unitType="banner" />
-          {onUpgradeClick && (
-            <div className="flex justify-end pr-2">
-              <button
-                type="button"
-                onClick={onUpgradeClick}
-                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
-              >
-                Reklamları Kaldır 💎 Bütçem Pro'ya Geç
-              </button>
-            </div>
-          )}
-        </motion.div>
+        <AdMobBanner
+          unitType="banner"
+          onUpgradeClick={onUpgradeClick}
+          className="mt-6"
+        />
       )}
 
       {isScannerOpen && (

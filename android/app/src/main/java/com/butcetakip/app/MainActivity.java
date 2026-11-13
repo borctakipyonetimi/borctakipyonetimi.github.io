@@ -7,6 +7,7 @@ import android.view.Window;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.webkit.PermissionRequest;
 import android.webkit.WebView;
 import android.Manifest;
@@ -19,11 +20,13 @@ import com.getcapacitor.BridgeWebChromeClient;
 
 public class MainActivity extends BridgeActivity {
     private static final int RECORD_AUDIO_REQUEST_CODE = 1002;
+    private static final int DARK_WEBVIEW_BG = Color.parseColor("#0f172a");
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         applyStatusBarTheme();
+        applyWebViewDarkBackground();
         requestAudioPermissionsIfNecessary();
         setupAudioWebChromeClient();
     }
@@ -32,6 +35,28 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         applyStatusBarTheme();
+        applyWebViewDarkBackground();
+    }
+
+    private void applyWebViewDarkBackground() {
+        try {
+            Window window = getWindow();
+            if (window != null) {
+                window.setBackgroundDrawable(new ColorDrawable(DARK_WEBVIEW_BG));
+                View decor = window.getDecorView();
+                if (decor != null) {
+                    decor.setBackgroundColor(DARK_WEBVIEW_BG);
+                }
+            }
+            Bridge bridge = this.getBridge();
+            if (bridge != null && bridge.getWebView() != null) {
+                WebView webView = bridge.getWebView();
+                webView.setBackgroundColor(DARK_WEBVIEW_BG);
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void requestAudioPermissionsIfNecessary() {
@@ -58,6 +83,7 @@ public class MainActivity extends BridgeActivity {
             Bridge bridge = this.getBridge();
             if (bridge != null && bridge.getWebView() != null) {
                 WebView webView = bridge.getWebView();
+                webView.setBackgroundColor(DARK_WEBVIEW_BG);
                 webView.setWebChromeClient(new BridgeWebChromeClient(bridge) {
                     @Override
                     public void onPermissionRequest(final PermissionRequest request) {

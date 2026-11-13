@@ -10991,9 +10991,7 @@ export default function App() {
 
             {/* 2. REKLAM ALANI (ALT MENÜNÜN ALTINA YERLEŞTİRİLİR - SADECE PRO OLMAYANLARA) */}
             {!hasProAccess && (
-              <div className="w-full bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-700/60 px-2 py-0.5">
-                <AdMobBanner unitType="banner" className="my-0" />
-              </div>
+              <AdMobBanner unitType="banner" placement="bottom-dock" className="my-0" />
             )}
           </div>
         );

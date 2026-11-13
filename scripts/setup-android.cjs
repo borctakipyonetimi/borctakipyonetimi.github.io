@@ -43,7 +43,7 @@ const stylesXml = `<?xml version="1.0" encoding="utf-8"?>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <item name="android:windowBackground">#020617</item>
+        <item name="android:windowBackground">#0f172a</item>
         <item name="android:statusBarColor">#0b132b</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
@@ -53,6 +53,7 @@ const stylesXml = `<?xml version="1.0" encoding="utf-8"?>
 
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
         <item name="android:background">@android:color/black</item>
+        <item name="android:windowBackground">#0f172a</item>
         <item name="android:statusBarColor">#0b132b</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
@@ -69,7 +70,7 @@ const stylesV31Xml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@android:color/black</item>
-        <item name="windowSplashScreenBackground">#020617</item>
+        <item name="windowSplashScreenBackground">#0f172a</item>
         <item name="android:statusBarColor">#0b132b</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
@@ -144,7 +145,7 @@ if (fs.existsSync(manifestPath)) {
   console.log('✅ Updated AndroidManifest.xml with clean XML syntax');
 }
 
-// 6. Inject Native Dark StatusBar in MainActivity.java
+// 6. Inject Native Dark StatusBar & WebView Dark Background (#0f172a) in MainActivity.java
 const mainActivityPath = path.join(javaAppDir, 'MainActivity.java');
 const mainActivityJava = `package com.butcetakip.app;
 
@@ -155,19 +156,112 @@ import android.view.Window;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.webkit.PermissionRequest;
+import android.webkit.WebView;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 
 public class MainActivity extends BridgeActivity {
+    private static final int RECORD_AUDIO_REQUEST_CODE = 1002;
+    private static final int DARK_WEBVIEW_BG = Color.parseColor("#0f172a");
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         applyStatusBarTheme();
+        applyWebViewDarkBackground();
+        requestAudioPermissionsIfNecessary();
+        setupAudioWebChromeClient();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         applyStatusBarTheme();
+        applyWebViewDarkBackground();
+    }
+
+    private void applyWebViewDarkBackground() {
+        try {
+            Window window = getWindow();
+            if (window != null) {
+                window.setBackgroundDrawable(new ColorDrawable(DARK_WEBVIEW_BG));
+                View decor = window.getDecorView();
+                if (decor != null) {
+                    decor.setBackgroundColor(DARK_WEBVIEW_BG);
+                }
+            }
+            Bridge bridge = this.getBridge();
+            if (bridge != null && bridge.getWebView() != null) {
+                WebView webView = bridge.getWebView();
+                webView.setBackgroundColor(DARK_WEBVIEW_BG);
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void requestAudioPermissionsIfNecessary() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        new String[]{
+                            Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.MODIFY_AUDIO_SETTINGS
+                        },
+                        RECORD_AUDIO_REQUEST_CODE
+                    );
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void setupAudioWebChromeClient() {
+        try {
+            Bridge bridge = this.getBridge();
+            if (bridge != null && bridge.getWebView() != null) {
+                WebView webView = bridge.getWebView();
+                webView.setBackgroundColor(DARK_WEBVIEW_BG);
+                webView.setWebChromeClient(new BridgeWebChromeClient(bridge) {
+                    @Override
+                    public void onPermissionRequest(final PermissionRequest request) {
+                        MainActivity.this.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                            ActivityCompat.requestPermissions(
+                                                MainActivity.this,
+                                                new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS},
+                                                RECORD_AUDIO_REQUEST_CODE
+                                            );
+                                        }
+                                    }
+                                    request.grant(request.getResources());
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    super.onPermissionRequest(request);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void applyStatusBarTheme() {
@@ -197,7 +291,7 @@ public class MainActivity extends BridgeActivity {
 }
 `;
 fs.writeFileSync(mainActivityPath, mainActivityJava, 'utf8');
-console.log('✅ Updated MainActivity.java with dark status bar');
+console.log('✅ Updated MainActivity.java with dark status bar and #0f172a WebView background');
 
 // 7. Configure signingConfigs in android/app/build.gradle and ensure keystore exists
 const appBuildGradlePath = path.resolve('android/app/build.gradle');

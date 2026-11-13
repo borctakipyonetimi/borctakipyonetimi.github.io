@@ -175,6 +175,99 @@ export function featureRequiresAd(feature: RewardedFeatureType | string): boolea
 
 let isAdMobSdkInitialized = false;
 let initPromise: Promise<boolean> | null = null;
+let isNativeBannerActive = false;
+let nativeBannerPromise: Promise<boolean> | null = null;
+
+// ============================================================================
+// WEBVIEW DARK TRANSITION LOCK (#0f172a) - PREVENTS WHITE FLICKER ON AD CLOSE
+// ============================================================================
+let darkLockCount = 0;
+let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+let savedThemeState: {
+  htmlBg: string;
+  bodyBg: string;
+  rootBg: string;
+  metaThemeColor: string | null;
+} | null = null;
+
+export function lockDarkAdTransitionBackground(): void {
+  if (typeof document === "undefined") return;
+  if (releaseTimer) {
+    clearTimeout(releaseTimer);
+    releaseTimer = null;
+  }
+
+  darkLockCount += 1;
+
+  const htmlEl = document.documentElement;
+  const bodyEl = document.body;
+  const rootEl = document.getElementById("root");
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+
+  if (!savedThemeState) {
+    savedThemeState = {
+      htmlBg: htmlEl.style.backgroundColor,
+      bodyBg: bodyEl.style.backgroundColor,
+      rootBg: rootEl ? rootEl.style.backgroundColor : "",
+      metaThemeColor: metaTheme ? metaTheme.getAttribute("content") : null,
+    };
+  }
+
+  htmlEl.classList.add("ad-transition-dark-lock");
+  bodyEl.classList.add("ad-transition-dark-lock");
+  htmlEl.style.backgroundColor = "#0f172a";
+  bodyEl.style.backgroundColor = "#0f172a";
+  if (rootEl) {
+    rootEl.style.backgroundColor = "#0f172a";
+  }
+  if (metaTheme) {
+    metaTheme.setAttribute("content", "#0f172a");
+  }
+}
+
+export function releaseDarkAdTransitionBackground(delayMs = 400): void {
+  if (typeof document === "undefined") return;
+  darkLockCount = Math.max(0, darkLockCount - 1);
+  if (darkLockCount > 0) return;
+
+  if (releaseTimer) {
+    clearTimeout(releaseTimer);
+  }
+
+  releaseTimer = setTimeout(() => {
+    releaseTimer = null;
+    if (darkLockCount > 0) return;
+
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+    const rootEl = document.getElementById("root");
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+
+    const isDark = htmlEl.classList.contains("dark");
+    const targetBg = isDark ? "#0F172A" : "#F4F6F9";
+
+    htmlEl.classList.remove("ad-transition-dark-lock");
+    bodyEl.classList.remove("ad-transition-dark-lock");
+
+    if (savedThemeState) {
+      htmlEl.style.backgroundColor = savedThemeState.htmlBg || targetBg;
+      bodyEl.style.backgroundColor = savedThemeState.bodyBg || targetBg;
+      if (rootEl) {
+        rootEl.style.backgroundColor = savedThemeState.rootBg || "";
+      }
+      if (metaTheme) {
+        metaTheme.setAttribute("content", savedThemeState.metaThemeColor || targetBg);
+      }
+      savedThemeState = null;
+    } else {
+      htmlEl.style.backgroundColor = targetBg;
+      bodyEl.style.backgroundColor = targetBg;
+      if (rootEl) {
+        rootEl.style.backgroundColor = "";
+      }
+    }
+  }, delayMs);
+}
 
 /**
  * Initializes AdMob SDK cleanly for Capacitor Native platform with test device setup
@@ -216,6 +309,7 @@ export async function initNativeAdMobSdk(): Promise<boolean> {
 
 /**
  * Shows native Banner Ad at the bottom of the screen with official test ID
+ * Deduplicated so multiple inline components never stack or flicker the native banner.
  */
 export async function showNativeBannerAd(options?: {
   position?: BannerAdPosition;
@@ -226,26 +320,42 @@ export async function showNativeBannerAd(options?: {
   }
 
   if (isUserAdFree()) {
+    await hideNativeBannerAd();
     return false;
   }
 
-  try {
-    await initNativeAdMobSdk();
-
-    await AdMob.showBanner({
-      adId: ADMOB_CONFIG.BANNER_ID,
-      adSize: BannerAdSize.ADAPTIVE_BANNER,
-      position: options?.position || BannerAdPosition.BOTTOM_CENTER,
-      margin: 0,
-      isTesting: options?.isTesting !== false, // Always true for test mode
-    });
-
-    console.log("[AdMob Native] Banner ad displayed successfully.");
+  if (isNativeBannerActive) {
     return true;
-  } catch (err) {
-    console.warn("[AdMob Native] showBanner error safely caught:", err);
-    return false;
   }
+
+  if (nativeBannerPromise) {
+    return nativeBannerPromise;
+  }
+
+  nativeBannerPromise = (async () => {
+    try {
+      await initNativeAdMobSdk();
+
+      await AdMob.showBanner({
+        adId: ADMOB_CONFIG.BANNER_ID,
+        adSize: BannerAdSize.ADAPTIVE_BANNER,
+        position: options?.position || BannerAdPosition.BOTTOM_CENTER,
+        margin: 0,
+        isTesting: options?.isTesting !== false, // Always true for test mode
+      });
+
+      isNativeBannerActive = true;
+      console.log("[AdMob Native] Banner ad displayed successfully.");
+      return true;
+    } catch (err) {
+      console.warn("[AdMob Native] showBanner error safely caught:", err);
+      return false;
+    } finally {
+      nativeBannerPromise = null;
+    }
+  })();
+
+  return nativeBannerPromise;
 }
 
 /**
@@ -254,6 +364,7 @@ export async function showNativeBannerAd(options?: {
 export async function hideNativeBannerAd(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
+    isNativeBannerActive = false;
     await AdMob.hideBanner();
   } catch (err) {
     console.warn("[AdMob Native] hideBanner error:", err);
@@ -275,8 +386,35 @@ export async function showNativeInterstitialAd(options?: {
     return { success: true };
   }
 
+  lockDarkAdTransitionBackground();
+  const handles: PluginListenerHandle[] = [];
+  const cleanup = async () => {
+    for (const h of handles) {
+      try { await h.remove(); } catch {}
+    }
+    handles.length = 0;
+  };
+
   try {
     await initNativeAdMobSdk();
+
+    const dismissedHandle = await AdMob.addListener(
+      InterstitialAdPluginEvents.Dismissed,
+      async () => {
+        await cleanup();
+        releaseDarkAdTransitionBackground(420);
+      }
+    );
+    handles.push(dismissedHandle);
+
+    const failedHandle = await AdMob.addListener(
+      InterstitialAdPluginEvents.FailedToLoad,
+      async () => {
+        await cleanup();
+        releaseDarkAdTransitionBackground(200);
+      }
+    );
+    handles.push(failedHandle);
 
     console.log("[AdMob Interstitial] Preparing test interstitial ad:", ADMOB_CONFIG.INTERSTITIAL_ID);
     await AdMob.prepareInterstitial({
@@ -289,6 +427,8 @@ export async function showNativeInterstitialAd(options?: {
     return { success: true };
   } catch (err: any) {
     console.warn("[AdMob Interstitial] Failed to show interstitial ad:", err);
+    await cleanup();
+    releaseDarkAdTransitionBackground(200);
     return {
       success: false,
       error: err?.message || "Geçiş reklamı yüklenirken bir hata oluştu."
@@ -299,6 +439,7 @@ export async function showNativeInterstitialAd(options?: {
 /**
  * Prepares and shows official Google Test Rewarded (Ödüllü) Video Ad
  * Calls onRewarded() when the user watches the required video duration.
+ * Locks WebView background to #0f172a during transition to prevent white flicker.
  */
 export async function showNativeRewardedAd(callbacks: {
   onRewarded: () => void;
@@ -315,6 +456,7 @@ export async function showNativeRewardedAd(callbacks: {
     return { success: true };
   }
 
+  lockDarkAdTransitionBackground();
   const listenerHandles: PluginListenerHandle[] = [];
 
   const cleanupListeners = async () => {
@@ -331,14 +473,11 @@ export async function showNativeRewardedAd(callbacks: {
   try {
     await initNativeAdMobSdk();
 
-    let userEarnedReward = false;
-
     // 1. Listen for reward grant event
     const rewardedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Rewarded,
       (reward) => {
         console.log("[AdMob Rewarded] User earned reward!", reward);
-        userEarnedReward = true;
         try {
           callbacks.onRewarded();
         } catch (cbErr) {
@@ -357,6 +496,7 @@ export async function showNativeRewardedAd(callbacks: {
         if (callbacks.onDismissed) {
           callbacks.onDismissed();
         }
+        releaseDarkAdTransitionBackground(450);
       }
     );
     listenerHandles.push(dismissedHandle);
@@ -367,6 +507,7 @@ export async function showNativeRewardedAd(callbacks: {
       async (err) => {
         console.warn("[AdMob Rewarded] Ad failed to load:", err);
         await cleanupListeners();
+        releaseDarkAdTransitionBackground(250);
         if (callbacks.onError) {
           callbacks.onError(err);
         }
@@ -389,6 +530,7 @@ export async function showNativeRewardedAd(callbacks: {
   } catch (err: any) {
     console.warn("[AdMob Rewarded] Native rewarded ad preparation/show exception:", err);
     await cleanupListeners();
+    releaseDarkAdTransitionBackground(250);
     if (callbacks.onError) {
       callbacks.onError(err);
     }
