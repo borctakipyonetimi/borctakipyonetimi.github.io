@@ -87,6 +87,9 @@ public class MainActivity extends BridgeActivity {
                 webView.setWebChromeClient(new BridgeWebChromeClient(bridge) {
                     @Override
                     public void onPermissionRequest(final PermissionRequest request) {
+                        if (request == null) {
+                            return;
+                        }
                         MainActivity.this.runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -104,7 +107,10 @@ public class MainActivity extends BridgeActivity {
                                     request.grant(request.getResources());
                                 } catch (Exception e) {
                                     e.printStackTrace();
-                                    super.onPermissionRequest(request);
+                                    try {
+                                        request.deny();
+                                    } catch (Exception ignored) {
+                                    }
                                 }
                             }
                         });
