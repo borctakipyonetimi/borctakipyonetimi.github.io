@@ -27,6 +27,8 @@ import { getProviderById, detectProviderFromName } from "../data/providers";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { scheduleNotification, cancelDebtNotifications } from "../utils/notificationScheduler";
+import { RewardedFeatureType } from "../utils/rewardedAdService";
+import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
 
 interface DebtListProps {
   debts: Debt[];
@@ -42,6 +44,7 @@ interface DebtListProps {
   installmentDebts?: InstallmentDebt[];
   isPremium?: boolean;
   onUpgradeClick?: () => void;
+  onOpenRewardedModal?: (feature: RewardedFeatureType, onSuccess?: () => void) => void;
 
   // Selected period control props
   selectedMonth: number | null;
@@ -70,6 +73,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   installmentDebts = [],
   isPremium = false,
   onUpgradeClick,
+  onOpenRewardedModal,
   selectedMonth,
   selectedYear,
   setSelectedMonth,
@@ -84,6 +88,13 @@ export const DebtList: React.FC<DebtListProps> = ({
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
   const auth = useAuth();
+  const {
+    hasAccess: hasDebtsProAccess,
+    isPaidPremium,
+    isTrialActive,
+    trialDaysRemaining,
+    has24HourPass
+  } = useFeatureAccess("debts", isPremium);
   const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const [activeTab, setActiveTab] = useState<"unpaid" | "paid">("unpaid");
   const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
@@ -1661,8 +1672,12 @@ export const DebtList: React.FC<DebtListProps> = ({
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasDebtsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("debts", () => handleOpenSaveTemplateModal());
+                } else {
+                  onUpgradeClick?.();
+                }
                 return;
               }
               handleOpenSaveTemplateModal();
@@ -1670,12 +1685,17 @@ export const DebtList: React.FC<DebtListProps> = ({
             title="Bu ayki borç listesini şablon olarak kaydet / konum seçerek indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
-            <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Şablon Sakla
+            <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasDebtsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("debts", () => setIsTemplateModalOpen(true));
+                } else {
+                  onUpgradeClick?.();
+                }
                 return;
               }
               setIsTemplateModalOpen(true);
@@ -1683,7 +1703,8 @@ export const DebtList: React.FC<DebtListProps> = ({
             title="Kayıtlı borç şablonunu veya dosyayı bu aya yükle"
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
-            <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <FolderInput className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Şablondan Yükle
+            <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           {onResetPayments && (
             <button
@@ -1696,39 +1717,54 @@ export const DebtList: React.FC<DebtListProps> = ({
           )}
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasDebtsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("debts", () => setIsPrintModalOpen(true));
+                } else {
+                  onUpgradeClick?.();
+                }
               } else {
                 setIsPrintModalOpen(true);
               }
             }}
             className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 transition cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5" /> Yazdır {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-white px-1.5 py-0.5 rounded-sm font-black">PRO</span>}
+            <Printer className="w-3.5 h-3.5" /> Yazdır
+            <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasDebtsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("debts", () => handlePrint(true));
+                } else {
+                  onUpgradeClick?.();
+                }
               } else {
                 handlePrint(true);
               }
             }}
             className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 transition cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5" /> PDF Al {!isPremium && <span className="ml-1 text-[8px] bg-slate-900 text-slate-100 dark:bg-amber-500 dark:text-slate-950 px-1.5 py-0.5 rounded-sm font-black">PRO</span>}
+            <FileText className="w-3.5 h-3.5" /> PDF Al
+            <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasDebtsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("debts", () => setIsScannerOpen(true));
+                } else {
+                  onUpgradeClick?.();
+                }
               } else {
                 setIsScannerOpen(true);
               }
             }}
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
-            <Camera className="w-3.5 h-3.5" /> Fatura Tara (AI) {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-white px-1.5 py-0.5 rounded-sm font-black">PRO</span>}
+            <Camera className="w-3.5 h-3.5" /> Fatura Tara (AI)
+            <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={handleOpenAdd}
@@ -2316,28 +2352,41 @@ export const DebtList: React.FC<DebtListProps> = ({
                 <div className="space-y-3.5 bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80">
                   <div className="flex items-center justify-between cursor-pointer select-none" 
                     onClick={() => {
-                      if (!isPremium) {
-                        if (onUpgradeClick) onUpgradeClick();
-                        if (triggerToast) triggerToast("⭐ Ödeme Hatırlatıcı Alarmı Bütçem PRO özelliğidir.");
+                      if (!hasDebtsProAccess) {
+                        if (onOpenRewardedModal) {
+                          onOpenRewardedModal("debts", () => setCreateAlarm(true));
+                        } else if (onUpgradeClick) {
+                          onUpgradeClick();
+                        }
                         return;
                       }
                       setCreateAlarm(!createAlarm);
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${!isPremium ? "opacity-50 bg-slate-200 dark:bg-slate-800 border-slate-300" : createAlarm ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
-                        {createAlarm && isPremium && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${!hasDebtsProAccess ? "opacity-50 bg-slate-200 dark:bg-slate-800 border-slate-300" : createAlarm ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
+                        {createAlarm && hasDebtsProAccess && <CheckCircle2 className="w-3.5 h-3.5" />}
                       </div>
                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                         ÖDEME HATIRLATICI ALARMI KUR ⏰
                       </span>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
-                      isPremium
+                      isPaidPremium
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1"
+                        : isTrialActive
+                        ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30"
+                        : has24HourPass
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1"
                     }`}>
-                      {isPremium ? "👑 PRO AKTİF" : "🔒 PRO (KİLİTLİ)"}
+                      {isPaidPremium
+                        ? "👑 PRO AKTİF"
+                        : isTrialActive
+                        ? `🎁 ${trialDaysRemaining} GÜN DENEME`
+                        : has24HourPass
+                        ? "✅ 24S AÇIK"
+                        : "🎬 REKLAM"}
                     </span>
                   </div>
                   

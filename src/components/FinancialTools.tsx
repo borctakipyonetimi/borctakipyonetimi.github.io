@@ -57,6 +57,8 @@ import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownlo
 import { parseDateParts } from "../utils/dateUtils";
 import { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
 import { useAuth } from "../context/AuthContext";
+import { RewardedFeatureType } from "../utils/rewardedAdService";
+import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
 
 interface FinancialToolsProps {
   debts: Debt[];
@@ -69,6 +71,7 @@ interface FinancialToolsProps {
   language?: "tr" | "en";
   isPremium?: boolean;
   onUpgradeClick?: (featureName?: string) => void;
+  onOpenRewardedModal?: (feature: RewardedFeatureType, onSuccess?: () => void) => void;
   onSaveInstallment?: (inst: Partial<InstallmentDebt>) => void;
   defaultSubTab?: "health" | "calculators" | "savings" | "calendar" | "report" | "charts";
 }
@@ -257,10 +260,19 @@ export function FinancialTools({
   language = "tr",
   isPremium = false,
   onUpgradeClick,
+  onOpenRewardedModal,
   onSaveInstallment,
   defaultSubTab
 }: FinancialToolsProps) {
   const auth = useAuth();
+  const {
+    hasAccess: hasReportPassAccess,
+    isPaidPremium,
+    isTrialActive: isTrialActiveStatus,
+    trialDaysRemaining
+  } = useFeatureAccess("report", isPremium);
+  const { hasAccess: hasToolsPassAccess } = useFeatureAccess("tools", isPremium);
+  const hasReportProAccess = Boolean(hasReportPassAccess || hasToolsPassAccess);
   const showAds = auth.shouldShowAds && !auth.isPremium && !auth.isTrialActive && !isPremium;
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const spaceKey = currentUser ? `user_${currentUser.toLowerCase()}` : "user_anonymous";
@@ -1243,10 +1255,22 @@ export function FinancialTools({
               Kredi hesaplama, acil durum fonu, net varlık ve bütçe sağlık simülatörlerini tek noktadan yönetin.
             </p>
           </div>
-          {!isPremium && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-black self-center md:self-auto">
+          {!isPaidPremium && (
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black self-center md:self-auto border ${
+              isTrialActiveStatus
+                ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-300"
+                : hasReportProAccess
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+            }`}>
               <Sparkles className="w-3.5 h-3.5" />
-              <span>PRO Raporlar Kilitli</span>
+              <span>
+                {isTrialActiveStatus
+                  ? `${trialDaysRemaining} Gün Deneme Aktif`
+                  : hasReportProAccess
+                  ? "Raporlar 24 Saat Açık"
+                  : "Raporlar Reklamla Açılabilir"}
+              </span>
             </div>
           )}
         </div>
@@ -1312,7 +1336,7 @@ export function FinancialTools({
             }`}
           >
             <FileText className="w-3.5 h-3.5" /> Rapor Al
-            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded font-black font-mono">PRO</span>}
+            <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
           </button>
         </div>
       </div>
@@ -2807,29 +2831,40 @@ export function FinancialTools({
               </motion.div>
             )}
 
-            {/* PRO Lock Notification Banner for Non-Premium Users */}
-            {!isPremium && (
-              <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-indigo-500/15 border-2 border-amber-500/40 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md print:hidden">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+            {/* Pro Lock Banner for Official Reports (Trial / Rewarded Ad / Upgrade) */}
+            {!hasReportProAccess && (
+              <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-2 border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm text-xs">
                     PRO
                   </div>
                   <div>
                     <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <Lock className="w-4 h-4 text-amber-500" /> Resmi PDF Raporlama & Yazdırma Özellikleri Kilitli
+                      <Lock className="w-4 h-4 text-amber-500" /> Resmi PDF Raporlama & Yazdırma Özellikleri
                     </h4>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                      PDF Denetim Raporu İndirme, Sistemden Yazdırma ve 12 Aylık Yıllık PDF Özeti Premium hesaplara özeldir.
+                      PDF Denetim Raporu İndirme, Sistemden Yazdırma ve 12 Aylık Yıllık PDF Özeti için kısa bir ödüllü reklam izleyerek 24 saat boyunca kilidi açabilirsiniz.
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onUpgradeClick?.("Resmi Denetim Raporu & PDF İndirme")}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl transition shadow-md shrink-0 cursor-pointer active:scale-95"
-                >
-                  Hemen PRO'ya Geç ✨
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {onOpenRewardedModal && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenRewardedModal("report")}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl transition shadow-md cursor-pointer active:scale-95"
+                    >
+                      🎬 Reklam İzle & Aç (24S)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onUpgradeClick?.("Resmi Denetim Raporu & PDF İndirme")}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl transition shadow-md cursor-pointer active:scale-95"
+                  >
+                    PRO'ya Geç ✨
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2854,8 +2889,12 @@ export function FinancialTools({
                 <button
                   disabled={isGeneratingPdf}
                   onClick={async () => {
-                    if (!isPremium) {
-                      onUpgradeClick?.("PDF Denetim Raporu İndirme");
+                    if (!hasReportProAccess) {
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("report");
+                      } else {
+                        onUpgradeClick?.("PDF Denetim Raporu İndirme");
+                      }
                       return;
                     }
                     setIsGeneratingPdf(true);
@@ -3170,18 +3209,18 @@ export function FinancialTools({
                 >
                   <FileText className="w-4 h-4" />
                   {isGeneratingPdf ? "PDF Hazırlanıyor..." : "PDF Olarak İndir 📥"}
-                  {!isPremium && (
-                    <span className="ml-1 text-[8px] bg-slate-950 text-amber-400 px-1.5 py-0.5 rounded font-black font-mono">
-                      PRO
-                    </span>
-                  )}
+                  <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
                 </button>
 
                 {/* 2. Sistemden Yazdır Butonu */}
                 <button
                   onClick={() => {
-                    if (!isPremium) {
-                      onUpgradeClick?.("Finansal Rapor Yazdırma");
+                    if (!hasReportProAccess) {
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("report");
+                      } else {
+                        onUpgradeClick?.("Finansal Rapor Yazdırma");
+                      }
                       return;
                     }
                     setReportStatusMessage({
@@ -3207,18 +3246,18 @@ export function FinancialTools({
                   className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
                 >
                   <Printer className="w-4 h-4 text-emerald-400" /> Sistemden Yazdır 🖨️
-                  {!isPremium && (
-                    <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-black font-mono">
-                      PRO
-                    </span>
-                  )}
+                  <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
                 </button>
 
                 {/* 3. Yıllık PDF Özeti Butonu */}
                 <button
                   onClick={async () => {
-                    if (!isPremium) {
-                      onUpgradeClick?.("12 Aylık Yıllık PDF Özeti");
+                    if (!hasReportProAccess) {
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("report");
+                      } else {
+                        onUpgradeClick?.("12 Aylık Yıllık PDF Özeti");
+                      }
                       return;
                     }
                     try {

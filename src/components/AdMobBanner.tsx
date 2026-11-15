@@ -8,6 +8,8 @@ import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   AdMob,
   BannerAdPluginEvents,
+  BannerAdPosition,
+  BannerAdSize,
   type AdMobBannerSize
 } from "@capacitor-community/admob";
 import {
@@ -18,8 +20,9 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 interface AdMobBannerProps {
-  unitType?: "banner" | "native" | "interstitial";
-  placement?: "inline" | "bottom-dock";
+  unitType?: "banner" | "native" | "interstitial" | "rectangle";
+  placement?: "inline" | "bottom-dock" | "drawer-square";
+  active?: boolean;
   className?: string;
   onUpgradeClick?: () => void;
   upgradeLabel?: string;
@@ -28,6 +31,7 @@ interface AdMobBannerProps {
 export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   unitType = "banner",
   placement = "inline",
+  active = true,
   className = "",
   onUpgradeClick,
   upgradeLabel = "Reklamları Kaldır 💎 Bütçem Pro'ya Geç"
@@ -52,7 +56,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   const [adLoaded, setAdLoaded] = useState(false);
   const [adUnfilled, setAdUnfilled] = useState(false);
-  const [nativeBannerHeight, setNativeBannerHeight] = useState<number>(56);
+  const [nativeBannerHeight, setNativeBannerHeight] = useState<number>(
+    placement === "drawer-square" ? 250 : 56
+  );
 
   // Check premium and trial status dynamically
   useEffect(() => {
@@ -98,6 +104,12 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       return;
     }
 
+    // Drawer square ad activates strictly when drawer is open
+    if (placement === "drawer-square" && !active) {
+      setAdLoaded(false);
+      return;
+    }
+
     let isMounted = true;
     const listeners: PluginListenerHandle[] = [];
 
@@ -139,7 +151,21 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           );
           listeners.push(failedHandle);
 
-          const shown = await showNativeBannerAd();
+          const shown =
+            placement === "drawer-square" || unitType === "rectangle"
+              ? await showNativeBannerAd({
+                  adSize: BannerAdSize.MEDIUM_RECTANGLE,
+                  position: BannerAdPosition.BOTTOM_CENTER,
+                  margin: 8,
+                  isTesting: true
+                })
+              : await showNativeBannerAd({
+                  adSize: BannerAdSize.ADAPTIVE_BANNER,
+                  position: BannerAdPosition.BOTTOM_CENTER,
+                  margin: 0,
+                  isTesting: true
+                });
+
           if (isMounted && shown) {
             setAdLoaded(true);
             setAdUnfilled(false);
@@ -162,6 +188,15 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           } catch {
             // Safe fallback
           }
+        }
+        // When drawer closes, cleanly restore bottom-dock adaptive banner
+        if (placement === "drawer-square" && active && !isUserAdFreeSafe()) {
+          showNativeBannerAd({
+            adSize: BannerAdSize.ADAPTIVE_BANNER,
+            position: BannerAdPosition.BOTTOM_CENTER,
+            margin: 0,
+            isTesting: true
+          }).catch(() => {});
         }
       };
     }
@@ -226,17 +261,31 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       clearTimeout(fallbackTimer);
       if (observer) observer.disconnect();
     };
-  }, [isPremium, isTrialActive, isNative, unitType]);
+  }, [isPremium, isTrialActive, isNative, unitType, placement, active]);
+
+  // Helper inside component for cleanup restoration check
+  const isUserAdFreeSafe = () => isPremium || isTrialActive;
 
   // KESİN KURAL 3: Premium ve aktif 7 günlük deneme kullanıcılarına HİÇBİR reklam gösterilmez
   if (isPremium || isTrialActive) return null;
 
+  if (placement === "drawer-square" && !active) return null;
+
   // Native Android/iOS:
-  // @capacitor-community/admob renders real AdView banner (ca-app-pub-3940256099942544/6300978111) natively at BOTTOM_CENTER.
-  // Inline mid-page slots do NOT render static fake banners on native.
+  // @capacitor-community/admob renders real AdView banner (ca-app-pub-3940256099942544/6300978111) natively.
   if (isNative) {
-    if (placement !== "bottom-dock" || adUnfilled) {
+    if (adUnfilled || (placement !== "bottom-dock" && placement !== "drawer-square")) {
       return null;
+    }
+    if (placement === "drawer-square") {
+      return (
+        <div
+          aria-label="Google AdMob Test Square Banner"
+          data-admob-unit={ADMOB_CONFIG.BANNER_ID}
+          className={`w-full rounded-2xl bg-[#0f172a] border border-slate-800/80 transition-all duration-200 ${className}`}
+          style={{ height: `${Math.max(250, nativeBannerHeight)}px` }}
+        />
+      );
     }
     return (
       <div
@@ -262,6 +311,27 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     unitType === "interstitial"
       ? ADMOB_CONFIG.INTERSTITIAL_SLOT
       : ADMOB_CONFIG.BANNER_SLOT;
+
+  if (placement === "drawer-square" || unitType === "rectangle") {
+    return (
+      <div
+        className={`w-full flex flex-col items-center justify-center rounded-2xl bg-[#0f172a]/95 border border-slate-800 overflow-hidden transition-all duration-300 ${
+          adLoaded ? "p-2 min-h-[258px]" : "h-0 border-0 overflow-hidden opacity-0 pointer-events-none"
+        } ${className}`}
+      >
+        <ins
+          ref={insRef}
+          className="adsbygoogle"
+          style={{ display: "inline-block", width: "288px", height: "250px", maxWidth: "100%" }}
+          data-ad-client={webAdClient}
+          data-ad-slot={slotId}
+          data-ad-unit-id={ADMOB_CONFIG.BANNER_ID}
+          data-adtest="on"
+          data-ad-format="rectangle"
+        />
+      </div>
+    );
+  }
 
   if (placement === "bottom-dock") {
     return (

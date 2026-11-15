@@ -1199,13 +1199,24 @@ export default function App() {
   const [isRewardedModalOpen, setIsRewardedModalOpen] = useState(false);
   const [rewardedFeature, setRewardedFeature] = useState<RewardedFeatureType>("any");
   const [rewardedCallback, setRewardedCallback] = useState<(() => void) | null>(null);
+  const [, setRewardedPassTick] = useState(0);
+
+  useEffect(() => {
+    const syncRewardedPass = () => setRewardedPassTick((t) => t + 1);
+    window.addEventListener("rewarded_pass_updated", syncRewardedPass);
+    window.addEventListener("storage", syncRewardedPass);
+    return () => {
+      window.removeEventListener("rewarded_pass_updated", syncRewardedPass);
+      window.removeEventListener("storage", syncRewardedPass);
+    };
+  }, []);
 
   const openRewardedModal = (
     feature: RewardedFeatureType = "any",
     onSuccess?: () => void
   ) => {
-    // Premium users never watch ads; unlock feature immediately and execute callback
-    if (isPremium || (typeof window !== "undefined" && localStorage.getItem("is_premium") === "true")) {
+    // Paid Premium and active 7-day trial users never watch ads; unlock immediately
+    if (hasProAccess) {
       if (onSuccess) onSuccess();
       return;
     }
@@ -3232,6 +3243,9 @@ export default function App() {
     // Native Capacitor Status Bar Senkronizasyonu (Android / iOS)
     const applyNativeStatusBar = async () => {
       try {
+        if (document.documentElement.classList.contains("ad-transition-dark-lock")) {
+          return;
+        }
         if (Capacitor.isPluginAvailable("StatusBar")) {
           await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
           await StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
@@ -3243,21 +3257,38 @@ export default function App() {
     };
     applyNativeStatusBar().catch(() => {});
 
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-      document.body.classList.add("dark");
-      document.body.classList.add("dark-mode");
-      document.documentElement.style.backgroundColor = "#0F172A";
-      document.body.style.backgroundColor = "#0F172A";
-      localStorage.setItem("darkMode", "1");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.body.classList.remove("dark");
-      document.body.classList.remove("dark-mode");
-      document.documentElement.style.backgroundColor = "#F4F6F9";
-      document.body.style.backgroundColor = "#F4F6F9";
-      localStorage.setItem("darkMode", "0");
+    const handleResumeStatusSync = () => {
+      if (document.visibilityState === "visible") {
+        window.requestAnimationFrame(() => {
+          setTimeout(() => {
+            applyNativeStatusBar().catch(() => {});
+          }, 80);
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleResumeStatusSync);
+
+    if (!document.documentElement.classList.contains("ad-transition-dark-lock")) {
+      if (darkMode) {
+        document.documentElement.classList.add("dark");
+        document.body.classList.add("dark");
+        document.body.classList.add("dark-mode");
+        document.documentElement.style.backgroundColor = "#0F172A";
+        document.body.style.backgroundColor = "#0F172A";
+        localStorage.setItem("darkMode", "1");
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.body.classList.remove("dark");
+        document.body.classList.remove("dark-mode");
+        document.documentElement.style.backgroundColor = "#F4F6F9";
+        document.body.style.backgroundColor = "#F4F6F9";
+        localStorage.setItem("darkMode", "0");
+      }
     }
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleResumeStatusSync);
+    };
   }, [darkMode]);
 
   // Sync color theme overrides on documents
@@ -6688,7 +6719,7 @@ export default function App() {
     customName?: string, 
     action: "share" | "download" | "drive" | "whatsapp" | "picker" | boolean = "download"
   ) => {
-    if (!isPremium && !isPassActive("export")) {
+    if (!hasProAccess && !isPassActive("export")) {
       openRewardedModal("export", () => executeExportBackup(customName, action));
       return;
     }
@@ -6987,7 +7018,7 @@ export default function App() {
   };
 
   const handleExportBackup = (directName?: string) => {
-    if (!isPremium && !isPassActive("export")) {
+    if (!hasProAccess && !isPassActive("export")) {
       openRewardedModal("export", () => handleExportBackup(directName));
       return;
     }
@@ -7550,7 +7581,7 @@ export default function App() {
   };
 
   const handleDownloadCSV = (startDate?: string, endDate?: string) => {
-    if (!isPremium && !isPassActive("report")) {
+    if (!hasProAccess && !isPassActive("report")) {
       openRewardedModal("report", () => handleDownloadCSV(startDate, endDate));
       return;
     }
@@ -7578,7 +7609,7 @@ export default function App() {
   };
 
   const handleImportBackup = () => {
-    if (!isPremium && !isPassActive("import")) {
+    if (!hasProAccess && !isPassActive("import")) {
       openRewardedModal("import", () => handleImportBackup());
       return;
     }
@@ -7748,19 +7779,27 @@ export default function App() {
       return;
     }
 
-    if (tabId === "aiStrategy") {
-      if (!hasProAccess && !isPassActive("ai")) {
-        openRewardedModal("ai", () => {
-          startNavTransition(() => setActiveTab("aiStrategy"));
+    const proRewardedFeatureMap: Record<string, RewardedFeatureType> = {
+      aiStrategy: "ai",
+      contacts: "contacts",
+      financialTools: "tools",
+      notifications: "alarms",
+    };
+
+    const rewardedKey = proRewardedFeatureMap[tabId];
+    if (rewardedKey) {
+      if (!hasProAccess && !isPassActive(rewardedKey)) {
+        openRewardedModal(rewardedKey, () => {
+          startNavTransition(() => setActiveTab(tabId));
         });
         return;
       }
-      startNavTransition(() => setActiveTab("aiStrategy"));
+      startNavTransition(() => setActiveTab(tabId));
       return;
     }
 
     const clickedItem = sidebarItems.find(item => item.id === tabId);
-    if (clickedItem?.isPro && !hasProAccess) {
+    if (clickedItem?.isPro && tabId !== "gplay_enhancements" && !hasProAccess) {
       openUpgradeModal(clickedItem.label);
       if (!isTrialExpiredLocked) {
         triggerToast(`👑 ${clickedItem.label} özelliği Pro üyelere özeldir!`);
@@ -8058,8 +8097,9 @@ export default function App() {
 
       {/* Header Container - Premium Responsive Adaptive Header */}
       <header 
+        data-app-header="true"
         style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
-        className="sticky top-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-all duration-300 relative group"
+        className="sticky top-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-colors duration-200 relative group [transform:translateZ(0)] [backface-visibility:hidden]"
       >
         
         {/* Decorative ambient lighting overlays */}
@@ -9278,29 +9318,44 @@ export default function App() {
                                 </div>
                                 <span className="truncate text-left text-[11.5px]">{item.label}</span>
                               </div>
-                              {isProFeatured && (
-                                <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[7.5px] font-black tracking-wider font-mono shrink-0 ml-1.5 ${
-                                    isPaidPremium
-                                      ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs"
-                                      : isTrialActive
-                                      ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs"
-                                      : item.id === "aiStrategy" && isTemporaryPassActive("ai")
-                                      ? "bg-emerald-500 text-white shadow-xs"
-                                      : isActive
-                                      ? "bg-amber-300 text-slate-950 shadow-xs"
-                                      : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300"
-                                  }`}
-                                >
-                                  {isPaidPremium 
-                                    ? "PRO 👑" 
-                                    : isTrialActive 
-                                    ? `${trialDaysRemaining}G` 
-                                    : item.id === "aiStrategy" && isTemporaryPassActive("ai") 
-                                    ? "24S" 
-                                    : "PRO 🔒"}
-                                </span>
-                              )}
+                              {isProFeatured && (() => {
+                                const rewardKey: RewardedFeatureType | null =
+                                  item.id === "aiStrategy"
+                                    ? "ai"
+                                    : item.id === "contacts"
+                                    ? "contacts"
+                                    : item.id === "financialTools"
+                                    ? "tools"
+                                    : item.id === "notifications"
+                                    ? "alarms"
+                                    : null;
+                                const isPassOpen = Boolean(rewardKey && isTemporaryPassActive(rewardKey));
+                                return (
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[7.5px] font-black tracking-wider font-mono shrink-0 ml-1.5 ${
+                                      isPaidPremium
+                                        ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs"
+                                        : isTrialActive && !isTrialExpiredLocked
+                                        ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs"
+                                        : isPassOpen
+                                        ? "bg-emerald-500 text-white shadow-xs"
+                                        : isActive
+                                        ? "bg-amber-300 text-slate-950 shadow-xs"
+                                        : "bg-linear-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border border-amber-300"
+                                    }`}
+                                  >
+                                    {isPaidPremium
+                                      ? "PRO 👑"
+                                      : isTrialActive && !isTrialExpiredLocked
+                                      ? `${trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN`
+                                      : isPassOpen
+                                      ? "24S"
+                                      : rewardKey
+                                      ? "REKLAM"
+                                      : "PRO ✨"}
+                                  </span>
+                                );
+                              })()}
                             </button>
                           );
                         })}
@@ -9357,7 +9412,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!isPremium && !isPassActive("export")) {
+                          if (!hasProAccess && !isPassActive("export")) {
                             openRewardedModal("export", () => handleExportBackup());
                             return;
                           }
@@ -9367,8 +9422,12 @@ export default function App() {
                       >
                         <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         <span className="truncate">DIŞA AKTAR</span>
-                        {isPremium ? (
+                        {isPaidPremium ? (
                           <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                        ) : isTrialActive && !isTrialExpiredLocked ? (
+                          <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
+                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                          </span>
                         ) : isTemporaryPassActive("export") ? (
                           <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
                         ) : (
@@ -9378,7 +9437,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!isPremium && !isPassActive("import")) {
+                          if (!hasProAccess && !isPassActive("import")) {
                             openRewardedModal("import", () => handleImportBackup());
                             return;
                           }
@@ -9388,8 +9447,12 @@ export default function App() {
                       >
                         <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         <span className="truncate">İÇE AKTAR</span>
-                        {isPremium ? (
+                        {isPaidPremium ? (
                           <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                        ) : isTrialActive && !isTrialExpiredLocked ? (
+                          <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
+                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                          </span>
                         ) : isTemporaryPassActive("import") ? (
                           <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
                         ) : (
@@ -9400,7 +9463,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!isPremium && !isPassActive("report")) {
+                        if (!hasProAccess && !isPassActive("report")) {
                           openRewardedModal("report", () => {
                             setCsvStep("filter");
                             setIsCsvModalOpen(true);
@@ -9414,12 +9477,16 @@ export default function App() {
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">FİNANSAL RAPORU İNDİR (.CSV)</span>
-                      {isPremium ? (
+                      {isPaidPremium ? (
                         <span className="text-[7px] bg-amber-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
+                      ) : isTrialActive && !isTrialExpiredLocked ? (
+                        <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
+                          {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                        </span>
                       ) : isTemporaryPassActive("report") ? (
                         <span className="text-[7px] bg-emerald-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">24S</span>
                       ) : (
-                        <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAMLA</span>
+                        <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
                       )}
                     </button>
                     <button
@@ -9437,11 +9504,23 @@ export default function App() {
           </nav>
 
           {/* Quick Footer inside scroll body */}
-          <div className="pt-2 pb-4 text-center">
+          <div className="pt-2 pb-2 text-center">
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
               Bütçem Pro © {new Date().getFullYear()} • Güvenli & Şifreli
             </p>
           </div>
+
+          {/* Açılır Menü En Alt Boşluk: Gerçek Google AdMob Test Kare (300x250) Reklamı */}
+          {!hasProAccess && (
+            <div className="pb-4 flex justify-center">
+              <AdMobBanner
+                unitType="rectangle"
+                placement="drawer-square"
+                active={isSidebarOpen}
+                className="my-0"
+              />
+            </div>
+          )}
         </div>
       </aside>
 
@@ -9594,6 +9673,7 @@ export default function App() {
             installmentDebts={installmentDebts}
             isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Borç Yönetimi & Gelişmiş Takip")}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             setSelectedMonth={setSelectedMonth}
@@ -9614,7 +9694,7 @@ export default function App() {
             triggerToast={triggerToast}
             onAddAlarm={handleAddAlarm}
             language={language}
-            isPremium={hasProAccess}
+            isPremium={hasProAccess || isPassActive("contacts")}
             onUpgradeClick={() => openUpgradeModal("Kişi Alacak/Verecek Takibi")}
           />
         )}
@@ -9628,6 +9708,7 @@ export default function App() {
             onRestoreIncomes={handleRestoreIncomes}
             isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Gelir & Kasa Takibi")}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             carryOverBalance={statsBag.carryOverBalance}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -9649,6 +9730,7 @@ export default function App() {
             netBalance={statsBag.netIncome}
             isPremium={hasProAccess}
             onUpgradeClick={() => openUpgradeModal("Gider Analizi & Kategori Yönetimi")}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             language={language}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -9671,6 +9753,7 @@ export default function App() {
             isPremium={hasProAccess}
             language={language}
             onUpgradeClick={() => openUpgradeModal("Taksitli Borçlar & Ödeme Planı")}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             focusedInstallmentId={focusedInstallmentId}
             setFocusedInstallmentId={setFocusedInstallmentId}
             onResetPayments={handleResetPayments}
@@ -10437,7 +10520,7 @@ export default function App() {
             language={language}
             currentUser={currentUser}
             onTriggerToast={triggerToast}
-            isPremium={hasProAccess}
+            isPremium={hasProAccess || isPassActive("ai")}
           />
         )}
 
@@ -10453,6 +10536,7 @@ export default function App() {
             language={language}
             isPremium={hasProAccess}
             onUpgradeClick={(feat) => openUpgradeModal(feat || "Finansal Analiz & Raporlama")}
+            onOpenRewardedModal={(feat, cb) => openRewardedModal(feat, cb)}
             onSaveInstallment={handleSaveInstallment}
           />
         )}
@@ -11628,22 +11712,39 @@ export default function App() {
       {/* Google AdMob Rewarded Video Ad Modal (24-Hour Pass Unlock) */}
       <RewardedAdModal
         isOpen={isRewardedModalOpen}
-        onClose={() => setIsRewardedModalOpen(false)}
+        onClose={() => {
+          window.requestAnimationFrame(() => {
+            setTimeout(() => {
+              setIsRewardedModalOpen(false);
+            }, 32);
+          });
+        }}
         targetFeature={rewardedFeature}
-        isPremium={isPremium}
+        isPremium={hasProAccess}
         onRewardGranted={() => {
-          if (rewardedCallback) {
-            rewardedCallback();
-          }
           const featureNames: Record<string, string> = {
             report: "Finansal Rapor & CSV İndirme",
             ai: "Yapay Zeka Analiz Asistanı",
             export: "Veri Dışa Aktarma & Yedekleme",
             import: "Veri İçe Aktarma & Geri Yükleme",
+            debts: "Borç Yönetimi PRO Araçları",
+            expenses: "Gider Yönetimi & Fiş Tarama",
+            installments: "Taksit Planı PRO Araçları",
+            incomes: "Gelir Yönetimi & Şablon Araçları",
+            contacts: "Kişi Alacak/Verecek Takibi",
+            tools: "Finansal Analiz & Hesaplama Araçları",
+            alarms: "Bildirim & Alarm Merkezi",
             any: "Seçili özellik"
           };
           const name = featureNames[rewardedFeature] || "Seçili özellik";
-          triggerToast(`🎉 24 saatlik ${name} erişim hakkınız başarıyla tanımlandı!`);
+          window.requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (rewardedCallback) {
+                rewardedCallback();
+              }
+              triggerToast(`🎉 24 saatlik ${name} erişim hakkınız başarıyla tanımlandı!`);
+            }, 64);
+          });
         }}
         onUpgradeClick={() => {
           openUpgradeModal("Bütçem Pro");

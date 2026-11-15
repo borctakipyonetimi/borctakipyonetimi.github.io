@@ -42,6 +42,7 @@ import {
   Palette
 } from "lucide-react";
 import { isPassActive } from "../utils/rewardedAdService";
+import { useFeatureAccess } from "./FeatureAccessBadge";
 
 interface SecuritySettingsPanelProps {
   language?: string;
@@ -117,6 +118,8 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
   themeMode = "auto",
   onSelectThemeMode,
 }) => {
+  const exportAccess = useFeatureAccess("export", isPremium);
+  const importAccess = useFeatureAccess("import", isPremium);
   const [activeTab, setActiveTab] = useState<"cloud" | "security" | "settings" | "none">(initialTab || "cloud");
 
   // Delete Account State
@@ -555,13 +558,21 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     {language === "tr" ? "Bulut ve Yedekleme (Firebase & Google Drive)" : "Cloud & Backup"}
                   </h3>
                   <div className="flex items-center gap-1.5">
-                    {!isPremium ? (
-                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs shrink-0">
-                        <Lock className="w-2.5 h-2.5 text-slate-950" /> PRO KİLİTLİ
-                      </span>
-                    ) : (
+                    {exportAccess.isPaidPremium ? (
                       <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
                         <span>👑</span> PRO AKTİF
+                      </span>
+                    ) : exportAccess.isTrialActive && exportAccess.trialDaysRemaining > 0 ? (
+                      <span className="px-2 py-0.5 bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
+                        <span>🎁</span> {exportAccess.trialDaysRemaining} GÜN DENEME
+                      </span>
+                    ) : exportAccess.has24HourPass ? (
+                      <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
+                        <span>✅</span> 24S AÇIK
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs shrink-0">
+                        <Lock className="w-2.5 h-2.5 text-slate-950" /> REKLAMLA AÇ
                       </span>
                     )}
                   </div>
@@ -909,13 +920,19 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                         <Folder className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md flex items-center gap-1">
-                        {!isPremium && <Lock className="w-2.5 h-2.5" />} GOOGLE DRIVE (PRO)
+                        {exportAccess.isPaidPremium
+                          ? "PRO 👑"
+                          : exportAccess.isTrialActive && exportAccess.trialDaysRemaining > 0
+                          ? `${exportAccess.trialDaysRemaining} GÜN DENEME`
+                          : exportAccess.has24HourPass
+                          ? "24S AÇIK ✅"
+                          : "🎬 REKLAMLA AÇ"}
                       </span>
                     </div>
                     <div>
                       <h4 className="text-base font-black text-white flex items-center gap-1.5">
                         <span>Google Drive Bulut Depolama</span>
-                        {!isPremium && <span className="text-xs">🔒</span>}
+                        {!exportAccess.hasAccess && <span className="text-xs">🔒</span>}
                       </h4>
                       <p className="text-xs text-sky-100 font-medium mt-1 leading-relaxed">
                         Yedek dosyanızı doğrudan Google Drive bulut klasörünüze aktarır ve güvenle arşivler.
@@ -928,10 +945,10 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     onClick={() => handleTriggerDriveExport("drive")}
                     className="w-full py-3 px-4 bg-white hover:bg-sky-50 text-indigo-900 rounded-2xl font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    {!isPremium ? (
+                    {!exportAccess.hasAccess ? (
                       <>
                         <Lock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>KİLİTLİ 🔒 (PRO'ya Yükselt)</span>
+                        <span>🎬 REKLAMLA AÇ (24 SAAT)</span>
                       </>
                     ) : (
                       <>
@@ -1019,11 +1036,19 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
                       Yedek Dosyasından Geri Yükle (.JSON)
                     </h3>
-                    {!isPremium && (
-                      <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
-                        PRO
+                    {importAccess.isTrialActive && !importAccess.isPaidPremium && importAccess.trialDaysRemaining > 0 ? (
+                      <span className="px-2 py-0.5 bg-indigo-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        {importAccess.trialDaysRemaining} GÜN DENEME
                       </span>
-                    )}
+                    ) : importAccess.has24HourPass ? (
+                      <span className="px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        24S AÇIK
+                      </span>
+                    ) : !importAccess.hasAccess ? (
+                      <span className="px-2 py-0.5 bg-amber-500 text-slate-950 text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        REKLAM
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Daha önce dışa aktardığınız Bütçem Pro yedek dosyasını seçerek tüm verilerinizi eksiksiz geri getirin.
@@ -1033,8 +1058,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
 
               <div
                 onClick={() => {
-                  const hasImportAccess = isPremium || isPassActive("import");
-                  if (!hasImportAccess) {
+                  if (!importAccess.hasAccess) {
                     if (onOpenRewardedModal) {
                       onOpenRewardedModal("import", () => fileInputRef.current?.click());
                       return;
@@ -1048,18 +1072,18 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 rounded-3xl p-8 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-800/30 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 flex flex-col items-center justify-center space-y-3"
               >
                 <div className="w-14 h-14 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                  {!isPremium && !isPassActive("import") ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
+                  {!importAccess.hasAccess ? <Lock className="w-7 h-7 text-amber-500" /> : <Upload className="w-7 h-7" />}
                 </div>
                 <div>
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {!isPremium && !isPassActive("import")
-                      ? "Yedek Geri Yükleme Kilitli 🔒 (PRO veya Reklamla Aç)"
+                    {!importAccess.hasAccess
+                      ? "Yedek Geri Yükleme Kilitli 🔒 (Reklamla 24S Aç)"
                       : isRestoring
                       ? "Dosya Okunuyor ve İşleniyor..."
                       : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    {!isPremium && !isPassActive("import")
+                    {!importAccess.hasAccess
                       ? "Yedeğinizi geri yüklemek için kısa bir video reklam izleyip 24 saat ücretsiz kullanabilirsiniz."
                       : "Telefonunuzdaki veya Google Drive klasörünüzdeki .json dosyasını seçin"}
                   </p>

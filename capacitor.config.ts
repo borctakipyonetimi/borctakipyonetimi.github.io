@@ -1,0 +1,36 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.butcetakip.app',
+  appName: 'Bütçem Pro',
+  webDir: 'www',
+  backgroundColor: '#0f172a',
+  plugins: {
+    CapacitorCookies: {
+      enabled: true,
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_notify',
+      iconColor: '#10B981',
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'DARK',
+      backgroundColor: '#0f172a',
+    },
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: true,
+      splashFullScreen: true,
+      splashImmersive: true,
+      backgroundColor: '#0f172a',
+      showSpinner: false,
+    },
+  },
+  android: {
+    allowMixedContent: true,
+    backgroundColor: '#0f172a',
+  },
+};
+
+export default config;

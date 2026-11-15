@@ -39,25 +39,27 @@ const stylesXml = `<?xml version="1.0" encoding="utf-8"?>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:background">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:colorBackground">#0f172a</item>
         <item name="android:windowBackground">#0f172a</item>
-        <item name="android:statusBarColor">#0b132b</item>
+        <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <item name="android:navigationBarColor">#020617</item>
+        <item name="android:navigationBarColor">#0f172a</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
-        <item name="android:background">@android:color/black</item>
+        <item name="android:background">#0f172a</item>
+        <item name="android:colorBackground">#0f172a</item>
         <item name="android:windowBackground">#0f172a</item>
-        <item name="android:statusBarColor">#0b132b</item>
+        <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <item name="android:navigationBarColor">#020617</item>
+        <item name="android:navigationBarColor">#0f172a</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>
@@ -69,18 +71,41 @@ console.log('✅ Created styles.xml');
 const stylesV31Xml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@android:color/black</item>
+        <item name="android:background">#0f172a</item>
         <item name="windowSplashScreenBackground">#0f172a</item>
-        <item name="android:statusBarColor">#0b132b</item>
+        <item name="android:windowBackground">#0f172a</item>
+        <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <item name="android:navigationBarColor">#020617</item>
+        <item name="android:navigationBarColor">#0f172a</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>
 `;
 fs.writeFileSync(path.join(resValuesV31Dir, 'styles.xml'), stylesV31Xml, 'utf8');
 console.log('✅ Created styles-v31.xml');
+
+// 4b. Lock activity_main.xml CoordinatorLayout and WebView background to #0f172a
+const activityMainLayoutPath = path.resolve('android/app/src/main/res/layout/activity_main.xml');
+if (fs.existsSync(activityMainLayoutPath)) {
+  const darkLayoutXml = `<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0f172a"
+    tools:context=".MainActivity">
+
+    <WebView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0f172a" />
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+`;
+  fs.writeFileSync(activityMainLayoutPath, darkLayoutXml, 'utf8');
+  console.log('✅ Locked activity_main.xml background to #0f172a');
+}
 
 // 5. Inject AndroidManifest permissions and configurations safely
 const manifestPath = path.resolve('android/app/src/main/AndroidManifest.xml');
@@ -187,6 +212,15 @@ public class MainActivity extends BridgeActivity {
         applyWebViewDarkBackground();
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applyStatusBarTheme();
+            applyWebViewDarkBackground();
+        }
+    }
+
     private void applyWebViewDarkBackground() {
         try {
             Window window = getWindow();
@@ -201,7 +235,10 @@ public class MainActivity extends BridgeActivity {
             if (bridge != null && bridge.getWebView() != null) {
                 WebView webView = bridge.getWebView();
                 webView.setBackgroundColor(DARK_WEBVIEW_BG);
-                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                webView.setLayerType(View.LAYER_TYPE_NONE, null);
+                if (webView.getParent() instanceof View) {
+                    ((View) webView.getParent()).setBackgroundColor(DARK_WEBVIEW_BG);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();

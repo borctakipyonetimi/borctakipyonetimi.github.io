@@ -36,6 +36,8 @@ import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { AdMobBanner } from "./AdMobBanner";
 import { useAuth } from "../context/AuthContext";
+import { RewardedFeatureType } from "../utils/rewardedAdService";
+import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
 
 interface IncomesListProps {
   incomes: Income[];
@@ -45,6 +47,7 @@ interface IncomesListProps {
   onRestoreIncomes?: (newIncomes: Income[], mode?: "replace" | "merge", targetMonth?: number | null, targetYear?: number | null) => void;
   isPremium?: boolean;
   onUpgradeClick?: () => void;
+  onOpenRewardedModal?: (feature: RewardedFeatureType, onSuccess?: () => void) => void;
   carryOverBalance?: number;
   language?: "tr" | "en";
   selectedMonth: number | null;
@@ -70,6 +73,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
   onRestoreIncomes,
   isPremium = false,
   onUpgradeClick,
+  onOpenRewardedModal,
   carryOverBalance,
   language = "tr",
   selectedMonth,
@@ -80,6 +84,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
   const auth = useAuth();
+  const { hasAccess: hasIncomesProAccess } = useFeatureAccess("incomes", isPremium);
   const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
 
   // Add/Edit Modal
@@ -186,8 +191,12 @@ export const IncomesList: React.FC<IncomesListProps> = ({
 
   // Execute saving template
   const executeSaveTemplate = async (method: "file_picker" | "download" | "copy" | "in_app") => {
-    if (!isPremium) {
-      onUpgradeClick?.();
+    if (!hasIncomesProAccess) {
+      if (onOpenRewardedModal) {
+        onOpenRewardedModal("incomes", () => executeSaveTemplate(method));
+      } else {
+        onUpgradeClick?.();
+      }
       return;
     }
 
@@ -449,8 +458,12 @@ export const IncomesList: React.FC<IncomesListProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasIncomesProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("incomes", () => handleOpenSaveTemplateModal());
+                } else {
+                  onUpgradeClick?.();
+                }
                 return;
               }
               handleOpenSaveTemplateModal();
@@ -460,14 +473,18 @@ export const IncomesList: React.FC<IncomesListProps> = ({
           >
             <Save className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Gelirleri Kaydet / Şablon Sakla</span>
-            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <FeatureAccessBadge featureKey="incomes" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
 
           <button
             type="button"
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasIncomesProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("incomes", () => setIsLoadTemplateModalOpen(true));
+                } else {
+                  onUpgradeClick?.();
+                }
                 return;
               }
               setIsLoadTemplateModalOpen(true);
@@ -477,7 +494,7 @@ export const IncomesList: React.FC<IncomesListProps> = ({
           >
             <FolderInput className="w-3.5 h-3.5 text-indigo-500" />
             <span>Şablondan / Dosyadan Yükle</span>
-            {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-slate-950 px-1 py-0.5 rounded-sm font-black font-mono">PRO</span>}
+            <FeatureAccessBadge featureKey="incomes" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
         </div>
       </div>
@@ -686,24 +703,33 @@ export const IncomesList: React.FC<IncomesListProps> = ({
                 <input
                   type="checkbox"
                   id="incomeAlarmOpt"
-                  checked={isPremium && incomeAlarm}
+                  checked={hasIncomesProAccess && incomeAlarm}
                   onChange={(e) => {
-                    if (!isPremium) {
-                      onUpgradeClick?.();
+                    if (!hasIncomesProAccess) {
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("incomes", () => setIncomeAlarm(true));
+                      } else {
+                        onUpgradeClick?.();
+                      }
                     } else {
                       setIncomeAlarm(e.target.checked);
                     }
                   }}
                   onClick={(e) => {
-                    if (!isPremium) {
+                    if (!hasIncomesProAccess) {
                       e.preventDefault();
-                      onUpgradeClick?.();
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("incomes", () => setIncomeAlarm(true));
+                      } else {
+                        onUpgradeClick?.();
+                      }
                     }
                   }}
                   className="w-4 h-4 text-indigo-600 border-slate-200 dark:border-slate-700 accent-indigo-500 rounded focus:ring-indigo-500 cursor-pointer"
                 />
                 <label htmlFor="incomeAlarmOpt" className="text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none flex items-center gap-1">
-                  Gelir Tahsilat Alarmı Kur {!isPremium && <span className="text-[7px] bg-amber-500 text-white px-1 py-0.5 rounded-sm font-black">PRO</span>}
+                  Gelir Tahsilat Alarmı Kur
+                  <FeatureAccessBadge featureKey="incomes" isPremiumProp={isPremium} compact hideWhenPaid />
                 </label>
               </div>
             </div>

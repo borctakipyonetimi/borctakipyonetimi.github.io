@@ -35,7 +35,8 @@ import {
   showNativeRewardedAd,
   showNativeInterstitialAd,
   lockDarkAdTransitionBackground,
-  releaseDarkAdTransitionBackground
+  releaseDarkAdTransitionBackground,
+  isUserAdFree
 } from "../utils/rewardedAdService";
 
 interface RewardedAdModalProps {
@@ -83,9 +84,9 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   const prevOpenRef = useRef(false);
   const hasDarkLockRef = useRef(false);
 
-  const effectiveIsPremium = 
-    isPremium || 
-    (typeof window !== "undefined" && localStorage.getItem("is_premium") === "true");
+  const effectiveIsPremium = Boolean(
+    isPremium || isUserAdFree()
+  );
 
   // Premium users NEVER see rewarded ads - immediately grant access and close
   useEffect(() => {
@@ -302,11 +303,20 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }
     closeTimeoutRef.current = setTimeout(() => {
       closeTimeoutRef.current = null;
-      setIsPlayingAd(false);
-      setIsClosingTransition(false);
-      onClose();
-      if (callbackAfterClose) {
-        callbackAfterClose();
+      const finalizeClose = () => {
+        setIsPlayingAd(false);
+        setIsClosingTransition(false);
+        onClose();
+        if (callbackAfterClose) {
+          setTimeout(() => {
+            callbackAfterClose();
+          }, 48);
+        }
+      };
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(finalizeClose);
+      } else {
+        finalizeClose();
       }
     }, 280);
   };
@@ -335,13 +345,20 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     }
 
     // 3. Smooth fade out before returning to main screen (useEffect releases dark lock cleanly after onClose)
-    setTimeout(() => {
-      handleSmoothClose(() => {
-        if (onRewardGranted) {
-          onRewardGranted();
-        }
-      });
-    }, 260);
+    const triggerClose = () => {
+      setTimeout(() => {
+        handleSmoothClose(() => {
+          if (onRewardGranted) {
+            onRewardGranted();
+          }
+        });
+      }, 220);
+    };
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(triggerClose);
+    } else {
+      triggerClose();
+    }
   };
 
   if (!isOpen || effectiveIsPremium) return null;
@@ -385,6 +402,62 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       icon: Upload,
       color: "from-emerald-600 via-teal-600 to-cyan-700",
       badge: "SADECE İÇE AKTARMA KİLİDİ"
+    },
+    debts: {
+      title: "Borç Yönetimi PRO Araçları",
+      shortName: "Borçlar Pro Araçları",
+      desc: "Borç şablonu kaydetme/yükleme, fatura tarama (AI), yazdırma, PDF rapor alma ve ödeme hatırlatıcı alarmı özelliklerini 24 saat boyunca açın.",
+      icon: Zap,
+      color: "from-indigo-600 via-blue-600 to-cyan-600",
+      badge: "BORÇLAR PRO KİLİDİ"
+    },
+    expenses: {
+      title: "Gider & AI Fiş Tarama Araçları",
+      shortName: "Giderler Pro Araçları",
+      desc: "Yapay zeka ile fiş tarama, otomatik doldurma ve gider hatırlatma alarmı özelliklerini 24 saat boyunca kullanın.",
+      icon: Sparkles,
+      color: "from-rose-600 via-pink-600 to-orange-600",
+      badge: "GİDERLER PRO KİLİDİ"
+    },
+    installments: {
+      title: "Taksit Planı PRO Araçları",
+      shortName: "Taksitler Pro Araçları",
+      desc: "Taksit planlarını JSON/CSV dışa aktarma, yedekten geri yükleme, yazdırma ve PDF rapor oluşturma araçlarını 24 saatliğine açın.",
+      icon: FileSpreadsheet,
+      color: "from-violet-600 via-indigo-600 to-blue-700",
+      badge: "TAKSİTLER PRO KİLİDİ"
+    },
+    incomes: {
+      title: "Gelir Şablonları & Tahsilat Alarmları",
+      shortName: "Gelirler Pro Araçları",
+      desc: "Gelir şablonu saklama/yükleme ve gelir tahsilat hatırlatıcı alarmı özelliklerini 24 saat boyunca sınırsız kullanın.",
+      icon: Gift,
+      color: "from-emerald-600 via-green-600 to-teal-700",
+      badge: "GELİRLER PRO KİLİDİ"
+    },
+    contacts: {
+      title: "Kişi Alacak & Verecek Cari Takibi",
+      shortName: "Kişi Cari Takibi",
+      desc: "Kişilere verdiğiniz ve aldığınız borçları kişi bazlı cari hesaplarla takip etme bölümünü 24 saatliğine açın.",
+      icon: ShieldCheck,
+      color: "from-sky-600 via-indigo-600 to-purple-700",
+      badge: "CARİ TAKİP KİLİDİ"
+    },
+    tools: {
+      title: "Finansal Analiz & Hesaplayıcılar",
+      shortName: "Finansal Analiz",
+      desc: "Bütçe sağlığı, interaktif grafikler, mali hesaplayıcılar ve ödeme takvimine 24 saat boyunca sınırsız erişin.",
+      icon: Activity,
+      color: "from-indigo-600 via-purple-600 to-pink-600",
+      badge: "FİNANSAL ANALİZ KİLİDİ"
+    },
+    alarms: {
+      title: "Akıllı Ödeme Alarmları & Bildirimler",
+      shortName: "Bildirimler & Alarmlar",
+      desc: "Vade uyarıları, ödeme hatırlatma alarmları ve bildirim yönetimi panelini 24 saat boyunca kullanın.",
+      icon: AlertCircle,
+      color: "from-amber-500 via-orange-600 to-rose-600",
+      badge: "ALARM & BİLDİRİM KİLİDİ"
     },
     any: {
       title: "Kısıtlı Finansal Özellik",

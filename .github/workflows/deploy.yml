@@ -45,6 +45,7 @@ jobs:
             "appId": "com.butcetakip.app",
             "appName": "Bütçem Pro",
             "webDir": "www",
+            "backgroundColor": "#0f172a",
             "plugins": {
               "LocalNotifications": {
                 "smallIcon": "ic_stat_notify",
@@ -53,14 +54,14 @@ jobs:
               "StatusBar": {
                 "overlaysWebView": false,
                 "style": "DARK",
-                "backgroundColor": "#0b132b"
+                "backgroundColor": "#0f172a"
               },
               "SplashScreen": {
                 "launchShowDuration": 0,
                 "launchAutoHide": true,
                 "splashFullScreen": true,
                 "splashImmersive": true,
-                "backgroundColor": "#020617",
+                "backgroundColor": "#0f172a",
                 "showSpinner": false
               }
             },

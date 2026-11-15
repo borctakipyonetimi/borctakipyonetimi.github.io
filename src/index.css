@@ -495,11 +495,32 @@ html:not(.dark) .text-slate-500 {
 }
 
 /* Reklam geçişleri sırasında WebView beyaz yanıp sönme (flicker) engelleme kilidi */
+header[data-app-header="true"] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
 html.ad-transition-dark-lock,
 html.ad-transition-dark-lock body,
 html.ad-transition-dark-lock #root {
   background-color: #0f172a !important;
   transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+html.ad-transition-dark-lock header[data-app-header="true"],
+html.ad-transition-dark-lock .backdrop-blur-lg,
+html.ad-transition-dark-lock .backdrop-blur-md {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  transition: none !important;
+}
+
+html.ad-transition-dark-lock header[data-app-header="true"] {
+  background-color: #0f172a !important;
+  border-bottom-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 
 @keyframes adSmoothFadeIn {

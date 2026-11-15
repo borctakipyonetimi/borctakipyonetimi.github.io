@@ -4,6 +4,7 @@
  */
 
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { StatusBar, Style } from "@capacitor/status-bar";
 import {
   AdMob,
   BannerAdPosition,
@@ -26,7 +27,19 @@ export const ADMOB_CONFIG = {
   ADS_TXT_ENTRY: "google.com, pub-3940256099942544, DIRECT, f08c47fec0942fa0"
 };
 
-export type RewardedFeatureType = "ai" | "export" | "import" | "report" | "any";
+export type RewardedFeatureType =
+  | "ai"
+  | "export"
+  | "import"
+  | "report"
+  | "debts"
+  | "expenses"
+  | "installments"
+  | "incomes"
+  | "contacts"
+  | "tools"
+  | "alarms"
+  | "any";
 
 const PASS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours (1 gün)
 
@@ -176,6 +189,7 @@ export function featureRequiresAd(feature: RewardedFeatureType | string): boolea
 let isAdMobSdkInitialized = false;
 let initPromise: Promise<boolean> | null = null;
 let isNativeBannerActive = false;
+let currentNativeBannerKey: string | null = null;
 let nativeBannerPromise: Promise<boolean> | null = null;
 
 // ============================================================================
@@ -223,9 +237,15 @@ export function lockDarkAdTransitionBackground(): void {
   if (metaTheme) {
     metaTheme.setAttribute("content", "#0f172a");
   }
+
+  if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("StatusBar")) {
+    StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+    StatusBar.setBackgroundColor({ color: "#0f172a" }).catch(() => {});
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+  }
 }
 
-export function releaseDarkAdTransitionBackground(delayMs = 400): void {
+export function releaseDarkAdTransitionBackground(delayMs = 450): void {
   if (typeof document === "undefined") return;
   darkLockCount = Math.max(0, darkLockCount - 1);
   if (darkLockCount > 0) return;
@@ -238,33 +258,48 @@ export function releaseDarkAdTransitionBackground(delayMs = 400): void {
     releaseTimer = null;
     if (darkLockCount > 0) return;
 
-    const htmlEl = document.documentElement;
-    const bodyEl = document.body;
-    const rootEl = document.getElementById("root");
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    const restoreColors = () => {
+      if (darkLockCount > 0) return;
+      const htmlEl = document.documentElement;
+      const bodyEl = document.body;
+      const rootEl = document.getElementById("root");
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
 
-    const isDark = htmlEl.classList.contains("dark");
-    const targetBg = isDark ? "#0F172A" : "#F4F6F9";
+      const isDark = htmlEl.classList.contains("dark");
+      const targetBg = isDark ? "#0F172A" : "#F4F6F9";
 
-    htmlEl.classList.remove("ad-transition-dark-lock");
-    bodyEl.classList.remove("ad-transition-dark-lock");
+      htmlEl.classList.remove("ad-transition-dark-lock");
+      bodyEl.classList.remove("ad-transition-dark-lock");
 
-    if (savedThemeState) {
-      htmlEl.style.backgroundColor = savedThemeState.htmlBg || targetBg;
-      bodyEl.style.backgroundColor = savedThemeState.bodyBg || targetBg;
-      if (rootEl) {
-        rootEl.style.backgroundColor = savedThemeState.rootBg || "";
+      if (savedThemeState) {
+        htmlEl.style.backgroundColor = savedThemeState.htmlBg || targetBg;
+        bodyEl.style.backgroundColor = savedThemeState.bodyBg || targetBg;
+        if (rootEl) {
+          rootEl.style.backgroundColor = savedThemeState.rootBg || "";
+        }
+        if (metaTheme) {
+          metaTheme.setAttribute("content", savedThemeState.metaThemeColor || targetBg);
+        }
+        savedThemeState = null;
+      } else {
+        htmlEl.style.backgroundColor = targetBg;
+        bodyEl.style.backgroundColor = targetBg;
+        if (rootEl) {
+          rootEl.style.backgroundColor = "";
+        }
       }
-      if (metaTheme) {
-        metaTheme.setAttribute("content", savedThemeState.metaThemeColor || targetBg);
+
+      if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("StatusBar")) {
+        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+        StatusBar.setBackgroundColor({ color: targetBg }).catch(() => {});
+        StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {});
       }
-      savedThemeState = null;
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(restoreColors);
     } else {
-      htmlEl.style.backgroundColor = targetBg;
-      bodyEl.style.backgroundColor = targetBg;
-      if (rootEl) {
-        rootEl.style.backgroundColor = "";
-      }
+      restoreColors();
     }
   }, delayMs);
 }
@@ -313,6 +348,8 @@ export async function initNativeAdMobSdk(): Promise<boolean> {
  */
 export async function showNativeBannerAd(options?: {
   position?: BannerAdPosition;
+  adSize?: BannerAdSize;
+  margin?: number;
   isTesting?: boolean;
 }): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) {
@@ -324,28 +361,47 @@ export async function showNativeBannerAd(options?: {
     return false;
   }
 
-  if (isNativeBannerActive) {
+  const targetSize = options?.adSize || BannerAdSize.ADAPTIVE_BANNER;
+  const targetPosition = options?.position || BannerAdPosition.BOTTOM_CENTER;
+  const targetMargin = options?.margin ?? 0;
+  const targetKey = `${targetSize}_${targetPosition}_${targetMargin}`;
+
+  if (isNativeBannerActive && currentNativeBannerKey === targetKey) {
     return true;
   }
 
   if (nativeBannerPromise) {
-    return nativeBannerPromise;
+    await nativeBannerPromise.catch(() => false);
+    if (isNativeBannerActive && currentNativeBannerKey === targetKey) {
+      return true;
+    }
   }
 
   nativeBannerPromise = (async () => {
     try {
       await initNativeAdMobSdk();
 
+      if (isNativeBannerActive && currentNativeBannerKey !== targetKey) {
+        try {
+          await AdMob.hideBanner();
+        } catch {
+          // Ignore hide before size switch
+        }
+        isNativeBannerActive = false;
+        currentNativeBannerKey = null;
+      }
+
       await AdMob.showBanner({
         adId: ADMOB_CONFIG.BANNER_ID,
-        adSize: BannerAdSize.ADAPTIVE_BANNER,
-        position: options?.position || BannerAdPosition.BOTTOM_CENTER,
-        margin: 0,
+        adSize: targetSize,
+        position: targetPosition,
+        margin: targetMargin,
         isTesting: options?.isTesting !== false, // Always true for test mode
       });
 
       isNativeBannerActive = true;
-      console.log("[AdMob Native] Banner ad displayed successfully.");
+      currentNativeBannerKey = targetKey;
+      console.log(`[AdMob Native] Banner ad displayed (${targetSize}).`);
       return true;
     } catch (err) {
       console.warn("[AdMob Native] showBanner error safely caught:", err);
@@ -365,6 +421,7 @@ export async function hideNativeBannerAd(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
     isNativeBannerActive = false;
+    currentNativeBannerKey = null;
     await AdMob.hideBanner();
   } catch (err) {
     console.warn("[AdMob Native] hideBanner error:", err);
@@ -458,8 +515,15 @@ export async function showNativeRewardedAd(callbacks: {
 
   lockDarkAdTransitionBackground();
   const listenerHandles: PluginListenerHandle[] = [];
+  let rewardEarned = false;
+  let settled = false;
+  let safetyFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   const cleanupListeners = async () => {
+    if (safetyFlushTimer) {
+      clearTimeout(safetyFlushTimer);
+      safetyFlushTimer = null;
+    }
     for (const h of listenerHandles) {
       try {
         await h.remove();
@@ -470,33 +534,61 @@ export async function showNativeRewardedAd(callbacks: {
     listenerHandles.length = 0;
   };
 
+  const settleAfterAdClose = async (triggerDismissedCallback: boolean) => {
+    if (settled) return;
+    settled = true;
+    await cleanupListeners();
+
+    const runDeferredRefresh = () => {
+      setTimeout(() => {
+        if (rewardEarned) {
+          try {
+            callbacks.onRewarded();
+          } catch (cbErr) {
+            console.error("[AdMob Rewarded] Callback onRewarded error:", cbErr);
+          }
+        }
+        if (triggerDismissedCallback && callbacks.onDismissed) {
+          try {
+            callbacks.onDismissed();
+          } catch {
+            // Safe fallback
+          }
+        }
+        releaseDarkAdTransitionBackground(480);
+      }, 120);
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(runDeferredRefresh);
+    } else {
+      runDeferredRefresh();
+    }
+  };
+
   try {
     await initNativeAdMobSdk();
 
-    // 1. Listen for reward grant event
+    // 1. Record reward earned; wait until native AdActivity finishes dismissing so header/WebView never repaints mid-transition
     const rewardedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Rewarded,
       (reward) => {
         console.log("[AdMob Rewarded] User earned reward!", reward);
-        try {
-          callbacks.onRewarded();
-        } catch (cbErr) {
-          console.error("[AdMob Rewarded] Callback onRewarded error:", cbErr);
-        }
+        rewardEarned = true;
+        if (safetyFlushTimer) clearTimeout(safetyFlushTimer);
+        safetyFlushTimer = setTimeout(() => {
+          settleAfterAdClose(false).catch(() => {});
+        }, 2500);
       }
     );
     listenerHandles.push(rewardedHandle);
 
-    // 2. Listen for ad dismissal event
+    // 2. Listen for ad dismissal event and smoothly refresh UI on next animation frame
     const dismissedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Dismissed,
       async () => {
         console.log("[AdMob Rewarded] Ad dismissed by user.");
-        await cleanupListeners();
-        if (callbacks.onDismissed) {
-          callbacks.onDismissed();
-        }
-        releaseDarkAdTransitionBackground(450);
+        await settleAfterAdClose(true);
       }
     );
     listenerHandles.push(dismissedHandle);
@@ -506,6 +598,8 @@ export async function showNativeRewardedAd(callbacks: {
       RewardAdPluginEvents.FailedToLoad,
       async (err) => {
         console.warn("[AdMob Rewarded] Ad failed to load:", err);
+        if (settled) return;
+        settled = true;
         await cleanupListeners();
         releaseDarkAdTransitionBackground(250);
         if (callbacks.onError) {
@@ -529,6 +623,7 @@ export async function showNativeRewardedAd(callbacks: {
     return { success: true };
   } catch (err: any) {
     console.warn("[AdMob Rewarded] Native rewarded ad preparation/show exception:", err);
+    settled = true;
     await cleanupListeners();
     releaseDarkAdTransitionBackground(250);
     if (callbacks.onError) {

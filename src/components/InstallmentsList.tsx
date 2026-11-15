@@ -19,6 +19,8 @@ import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
 import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
+import { RewardedFeatureType } from "../utils/rewardedAdService";
+import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
 
 interface InstallmentsListProps {
   installmentDebts: InstallmentDebt[];
@@ -33,6 +35,7 @@ interface InstallmentsListProps {
   isPremium?: boolean;
   language?: "tr" | "en";
   onUpgradeClick?: () => void;
+  onOpenRewardedModal?: (feature: RewardedFeatureType, onSuccess?: () => void) => void;
   focusedInstallmentId?: number | null;
   setFocusedInstallmentId?: (id: number | null) => void;
   onResetPayments?: (scope: "current_month" | "all") => void;
@@ -52,6 +55,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   isPremium = false,
   language = "tr",
   onUpgradeClick,
+  onOpenRewardedModal,
   focusedInstallmentId,
   setFocusedInstallmentId,
   onResetPayments,
@@ -60,6 +64,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format } = useCurrency();
   const auth = useAuth();
+  const { hasAccess: hasInstallmentsProAccess } = useFeatureAccess("installments", isPremium);
   const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("Yeni Taksitli Borç Planı");
@@ -562,18 +567,40 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       <div className="flex flex-col gap-3 justify-center sm:flex-row sm:items-center">
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <button
-            onClick={handleOpenExportModal}
+            onClick={() => {
+              if (!hasInstallmentsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("installments", () => handleOpenExportModal());
+                } else {
+                  onUpgradeClick?.();
+                }
+                return;
+              }
+              handleOpenExportModal();
+            }}
             title="Taksitli borç planlarını dosya olarak kaydet / indir"
             className="px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-600/20 transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Taksitleri İndir
+            <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
-            onClick={handleOpenImportModal}
+            onClick={() => {
+              if (!hasInstallmentsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("installments", () => handleOpenImportModal());
+                } else {
+                  onUpgradeClick?.();
+                }
+                return;
+              }
+              handleOpenImportModal();
+            }}
             title="Yedek dosyasından taksitli borçları geri yükle"
             className="px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-indigo-600/20 transition cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Geri Yükle
+            <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           {onResetPayments && (
             <button
@@ -585,16 +612,38 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             </button>
           )}
           <button
-            onClick={() => handlePrint(false)}
+            onClick={() => {
+              if (!hasInstallmentsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("installments", () => handlePrint(false));
+                } else {
+                  onUpgradeClick?.();
+                }
+                return;
+              }
+              handlePrint(false);
+            }}
             className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" /> Yazdır
+            <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
-            onClick={() => handlePrint(true)}
+            onClick={() => {
+              if (!hasInstallmentsProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("installments", () => handlePrint(true));
+                } else {
+                  onUpgradeClick?.();
+                }
+                return;
+              }
+              handlePrint(true);
+            }}
             className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 transition cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5" /> PDF Al
+            <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={handleOpenAdd}

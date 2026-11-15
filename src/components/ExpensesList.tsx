@@ -36,6 +36,8 @@ import { t } from "../utils/translations";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import { AdMobBanner } from "./AdMobBanner";
 import { useAuth } from "../context/AuthContext";
+import { RewardedFeatureType } from "../utils/rewardedAdService";
+import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
 
 interface ExpensesListProps {
   expenses: Expense[];
@@ -48,6 +50,7 @@ interface ExpensesListProps {
   netBalance?: number;
   isPremium?: boolean;
   onUpgradeClick?: () => void;
+  onOpenRewardedModal?: (feature: RewardedFeatureType, onSuccess?: () => void) => void;
   language?: "tr" | "en";
   selectedMonth?: number | null;
   selectedYear?: number | null;
@@ -1001,6 +1004,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   netBalance,
   isPremium = false,
   onUpgradeClick,
+  onOpenRewardedModal,
   language = "tr",
   selectedMonth,
   selectedYear,
@@ -1010,6 +1014,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   const { format, currencySymbol } = useCurrency();
   const auth = useAuth();
+  const { hasAccess: hasExpensesProAccess } = useFeatureAccess("expenses", isPremium);
   const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   
   // Selected Month filter state (defaults to current year & month, e.g. "2026-05")
@@ -1547,15 +1552,20 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
           </button>
           <button
             onClick={() => {
-              if (!isPremium) {
-                onUpgradeClick?.();
+              if (!hasExpensesProAccess) {
+                if (onOpenRewardedModal) {
+                  onOpenRewardedModal("expenses", () => setIsScannerOpen(true));
+                } else {
+                  onUpgradeClick?.();
+                }
               } else {
                 setIsScannerOpen(true);
               }
             }}
             className="px-3.5 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition active:scale-95 shadow-sm cursor-pointer"
           >
-            <Camera className="w-4 h-4" /> AI ile Fiş Tara {!isPremium && <span className="text-[8px] bg-amber-500 text-white px-1 py-0.5 rounded-sm font-black">PRO</span>}
+            <Camera className="w-4 h-4" /> AI ile Fiş Tara
+            <FeatureAccessBadge featureKey="expenses" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
             onClick={handleOpenAddExpense}
@@ -2356,8 +2366,15 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
             {/* Quick scanning action */}
             <button
                onClick={() => {
-                 if (!isPremium) {
-                   onUpgradeClick?.();
+                 if (!hasExpensesProAccess) {
+                   if (onOpenRewardedModal) {
+                     onOpenRewardedModal("expenses", () => {
+                       setIsExpModalOpen(false);
+                       setTimeout(() => setIsScannerOpen(true), 150);
+                     });
+                   } else {
+                     onUpgradeClick?.();
+                   }
                  } else {
                    setIsExpModalOpen(false); // Close to avoid overlay collision
                    setTimeout(() => setIsScannerOpen(true), 150);
@@ -2365,7 +2382,8 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                }}
               className="w-full py-2 sm:py-2.5 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl border border-dashed border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-3xs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse animate-duration-1000" /> Fiş Fotoğrafı ile Otomatik Doldur {!isPremium && <span className="ml-1 text-[8px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-black">PRO</span>}
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse animate-duration-1000" /> Fiş Fotoğrafı ile Otomatik Doldur
+              <FeatureAccessBadge featureKey="expenses" isPremiumProp={isPremium} compact hideWhenPaid />
             </button>
 
             <div className="space-y-3">
@@ -2550,18 +2568,23 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
               <div className="bg-slate-50/50 dark:bg-slate-900/40 p-2.5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80">
                 <div className="flex items-center gap-2 cursor-pointer select-none" 
                   onClick={() => {
-                    if (!isPremium) {
-                      onUpgradeClick?.();
+                    if (!hasExpensesProAccess) {
+                      if (onOpenRewardedModal) {
+                        onOpenRewardedModal("expenses", () => setExpenseAlarm(true));
+                      } else {
+                        onUpgradeClick?.();
+                      }
                     } else {
                       setExpenseAlarm(!expenseAlarm);
                     }
                   }}
                 >
-                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${expenseAlarm ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
-                    {expenseAlarm && <Check className="w-3.5 h-3.5 text-white" />}
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${expenseAlarm && hasExpensesProAccess ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"}`}>
+                    {expenseAlarm && hasExpensesProAccess && <Check className="w-3.5 h-3.5 text-white" />}
                   </div>
                   <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                    GİDER HATIRLATMA ALARMI KUR {!isPremium && <span className="text-[8px] bg-amber-500 text-white px-1 py-0.5 rounded-sm font-black">PRO</span>}
+                    GİDER HATIRLATMA ALARMI KUR
+                    <FeatureAccessBadge featureKey="expenses" isPremiumProp={isPremium} compact hideWhenPaid />
                   </span>
                 </div>
               </div>

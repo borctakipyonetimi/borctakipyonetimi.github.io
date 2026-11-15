@@ -38,6 +38,15 @@ public class MainActivity extends BridgeActivity {
         applyWebViewDarkBackground();
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applyStatusBarTheme();
+            applyWebViewDarkBackground();
+        }
+    }
+
     private void applyWebViewDarkBackground() {
         try {
             Window window = getWindow();
@@ -52,7 +61,10 @@ public class MainActivity extends BridgeActivity {
             if (bridge != null && bridge.getWebView() != null) {
                 WebView webView = bridge.getWebView();
                 webView.setBackgroundColor(DARK_WEBVIEW_BG);
-                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                webView.setLayerType(View.LAYER_TYPE_NONE, null);
+                if (webView.getParent() instanceof View) {
+                    ((View) webView.getParent()).setBackgroundColor(DARK_WEBVIEW_BG);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
