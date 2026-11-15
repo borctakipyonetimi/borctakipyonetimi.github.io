@@ -139,7 +139,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd } from "./utils/rewardedAdService";
+import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd } from "./utils/rewardedAdService";
 import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -9048,7 +9048,7 @@ export default function App() {
 
       {/* Side drawer panel - Açılır Akordiyon Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-76 sm:w-80 max-w-[85vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden overflow-y-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
+        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[92vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden overflow-y-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -9535,9 +9535,9 @@ export default function App() {
                                     {isPaidPremium
                                       ? "PRO 👑"
                                       : isTrialActive && !isTrialExpiredLocked
-                                      ? `${trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN`
-                                      : isPassOpen
-                                      ? "24S"
+                                      ? `${trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN KALDI`
+                                      : isPassOpen && rewardKey
+                                      ? `${Math.max(1, getTemporaryPassDaysRemaining(rewardKey))} GÜN KALDI`
                                       : rewardKey
                                       ? "REKLAM"
                                       : "PRO ✨"}
@@ -9614,10 +9614,12 @@ export default function App() {
                           <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
                         ) : isTrialActive && !isTrialExpiredLocked ? (
                           <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
-                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN KALDI
                           </span>
                         ) : isTemporaryPassActive("export") ? (
-                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
+                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">
+                            {Math.max(1, getTemporaryPassDaysRemaining("export"))} GÜN KALDI
+                          </span>
                         ) : (
                           <span className="text-[7px] bg-amber-500 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
                         )}
@@ -9639,10 +9641,12 @@ export default function App() {
                           <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
                         ) : isTrialActive && !isTrialExpiredLocked ? (
                           <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
-                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                            {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN KALDI
                           </span>
                         ) : isTemporaryPassActive("import") ? (
-                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">24S</span>
+                          <span className="text-[7px] bg-emerald-500 text-white px-1 rounded font-black font-mono shrink-0">
+                            {Math.max(1, getTemporaryPassDaysRemaining("import"))} GÜN KALDI
+                          </span>
                         ) : (
                           <span className="text-[7px] bg-amber-500 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
                         )}
@@ -9669,10 +9673,12 @@ export default function App() {
                         <span className="text-[7px] bg-amber-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">PRO</span>
                       ) : isTrialActive && !isTrialExpiredLocked ? (
                         <span className="text-[7px] bg-indigo-500 text-white px-1 rounded font-black font-mono shrink-0">
-                          {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN
+                          {trialDaysRemaining > 0 ? trialDaysRemaining : 1} GÜN KALDI
                         </span>
                       ) : isTemporaryPassActive("report") ? (
-                        <span className="text-[7px] bg-emerald-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">24S</span>
+                        <span className="text-[7px] bg-emerald-300 text-slate-950 px-1 rounded font-black font-mono shrink-0">
+                          {Math.max(1, getTemporaryPassDaysRemaining("report"))} GÜN KALDI
+                        </span>
                       ) : (
                         <span className="text-[7px] bg-amber-400 text-slate-950 px-1 rounded font-black font-mono shrink-0">REKLAM</span>
                       )}
@@ -9698,9 +9704,9 @@ export default function App() {
             </p>
           </div>
 
-          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Kare (250x250) Reklam */}
+          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Reklam */}
           {!hasProAccess && (
-            <div className="pb-4 w-full max-w-full overflow-hidden flex justify-center">
+            <div className="pb-4 -mx-1 w-[calc(100%+0.5rem)] overflow-hidden flex justify-center">
               <AdMobBanner
                 unitType="rectangle"
                 placement="drawer-square"
@@ -10766,7 +10772,9 @@ export default function App() {
             language={language}
             currentUser={currentUser}
             onTriggerToast={triggerToast}
-            isPremium={hasProAccess || isPassActive("ai")}
+            isPremium={isPaidPremium}
+            isTrialActive={!isPaidPremium && isTrialActive && !isTrialExpiredLocked}
+            trialDaysRemaining={trialDaysRemaining}
           />
         )}
 

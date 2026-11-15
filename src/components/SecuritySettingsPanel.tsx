@@ -564,11 +564,11 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                       </span>
                     ) : exportAccess.isTrialActive && exportAccess.trialDaysRemaining > 0 ? (
                       <span className="px-2 py-0.5 bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
-                        <span>🎁</span> {exportAccess.trialDaysRemaining} GÜN DENEME
+                        <span>🎁</span> {exportAccess.trialDaysRemaining} GÜN KALDI
                       </span>
                     ) : exportAccess.has24HourPass ? (
                       <span className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shrink-0">
-                        <span>✅</span> 24S AÇIK
+                        <span>✅</span> {Math.max(1, exportAccess.passDaysRemaining)} GÜN KALDI
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs shrink-0">
@@ -923,9 +923,9 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                         {exportAccess.isPaidPremium
                           ? "PRO 👑"
                           : exportAccess.isTrialActive && exportAccess.trialDaysRemaining > 0
-                          ? `${exportAccess.trialDaysRemaining} GÜN DENEME`
+                          ? `${exportAccess.trialDaysRemaining} GÜN KALDI`
                           : exportAccess.has24HourPass
-                          ? "24S AÇIK ✅"
+                          ? `${Math.max(1, exportAccess.passDaysRemaining)} GÜN KALDI ✅`
                           : "🎬 REKLAMLA AÇ"}
                       </span>
                     </div>
@@ -948,7 +948,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     {!exportAccess.hasAccess ? (
                       <>
                         <Lock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>🎬 REKLAMLA AÇ (24 SAAT)</span>
+                        <span>🎬 REKLAMLA AÇ (1 GÜN)</span>
                       </>
                     ) : (
                       <>
@@ -1036,13 +1036,17 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
                       Yedek Dosyasından Geri Yükle (.JSON)
                     </h3>
-                    {importAccess.isTrialActive && !importAccess.isPaidPremium && importAccess.trialDaysRemaining > 0 ? (
+                    {importAccess.isPaidPremium ? (
+                      <span className="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-lg uppercase tracking-wider">
+                        PRO
+                      </span>
+                    ) : importAccess.isTrialActive && importAccess.trialDaysRemaining > 0 ? (
                       <span className="px-2 py-0.5 bg-indigo-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
-                        {importAccess.trialDaysRemaining} GÜN DENEME
+                        {importAccess.trialDaysRemaining} GÜN KALDI
                       </span>
                     ) : importAccess.has24HourPass ? (
                       <span className="px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-black rounded-lg uppercase tracking-wider">
-                        24S AÇIK
+                        {Math.max(1, importAccess.passDaysRemaining)} GÜN KALDI
                       </span>
                     ) : !importAccess.hasAccess ? (
                       <span className="px-2 py-0.5 bg-amber-500 text-slate-950 text-[9px] font-black rounded-lg uppercase tracking-wider">
@@ -1077,7 +1081,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
                 <div>
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
                     {!importAccess.hasAccess
-                      ? "Yedek Geri Yükleme Kilitli 🔒 (Reklamla 24S Aç)"
+                      ? "Yedek Geri Yükleme Kilitli 🔒 (Reklamla 1 Gün Aç)"
                       : isRestoring
                       ? "Dosya Okunuyor ve İşleniyor..."
                       : "JSON Yedek Dosyasını Seçmek İçin Tıklayın"}

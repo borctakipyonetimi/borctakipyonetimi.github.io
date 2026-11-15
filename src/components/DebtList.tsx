@@ -2383,9 +2383,9 @@ export const DebtList: React.FC<DebtListProps> = ({
                       {isPaidPremium
                         ? "👑 PRO AKTİF"
                         : isTrialActive
-                        ? `🎁 ${trialDaysRemaining} GÜN DENEME`
+                        ? `🎁 ${trialDaysRemaining} GÜN KALDI`
                         : has24HourPass
-                        ? "✅ 24S AÇIK"
+                        ? "✅ 1 GÜN KALDI"
                         : "🎬 REKLAM"}
                     </span>
                   </div>

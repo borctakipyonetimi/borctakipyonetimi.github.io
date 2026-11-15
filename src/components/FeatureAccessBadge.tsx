@@ -8,6 +8,8 @@ import { useAuth } from "../context/AuthContext";
 import {
   isPassActive,
   isTemporaryPassActive,
+  getTemporaryPassDaysRemaining,
+  getTemporaryPassDurationLabel,
   RewardedFeatureType
 } from "../utils/rewardedAdService";
 
@@ -35,15 +37,20 @@ export function useFeatureAccess(
   const isPaidPremium = Boolean(auth.isPremium);
   const isTrialActive = Boolean(!isPaidPremium && auth.isTrialActive && auth.trialDaysRemaining > 0);
   const trialDaysRemaining = auth.trialDaysRemaining;
-  const hasPermanentOrTrialPro = Boolean(isPaidPremium || isTrialActive || isPremiumProp);
-  const has24HourPass = Boolean(!hasPermanentOrTrialPro && isTemporaryPassActive(featureKey));
-  const hasAccess = Boolean(hasPermanentOrTrialPro || isPassActive(featureKey));
+  const has24HourPass = Boolean(!isPaidPremium && !isTrialActive && isTemporaryPassActive(featureKey));
+  const passDaysRemaining = has24HourPass ? getTemporaryPassDaysRemaining(featureKey) : 0;
+  const passDurationLabel = has24HourPass ? getTemporaryPassDurationLabel(featureKey) : null;
+  const hasAccess = Boolean(
+    isPaidPremium || isTrialActive || has24HourPass || isPassActive(featureKey) || isPremiumProp
+  );
 
   return {
     isPaidPremium,
     isTrialActive,
     trialDaysRemaining,
     has24HourPass,
+    passDaysRemaining,
+    passDurationLabel,
     hasAccess,
     needsAd: !hasAccess
   };
@@ -68,7 +75,8 @@ export const FeatureAccessBadge: React.FC<FeatureAccessBadgeProps> = ({
     isPaidPremium,
     isTrialActive,
     trialDaysRemaining,
-    has24HourPass
+    has24HourPass,
+    passDaysRemaining
   } = useFeatureAccess(featureKey, isPremiumProp);
 
   if (isPaidPremium) {
@@ -87,7 +95,7 @@ export const FeatureAccessBadge: React.FC<FeatureAccessBadgeProps> = ({
       <span
         className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black font-mono uppercase tracking-tight bg-indigo-600 text-white shrink-0 ${className}`}
       >
-        {compact ? `${trialDaysRemaining}G DENEME` : `${trialDaysRemaining} GÜN DENEME`}
+        {trialDaysRemaining} GÜN KALDI
       </span>
     );
   }
@@ -97,7 +105,7 @@ export const FeatureAccessBadge: React.FC<FeatureAccessBadgeProps> = ({
       <span
         className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black font-mono uppercase tracking-tight bg-emerald-500 text-white shrink-0 ${className}`}
       >
-        {compact ? "24S" : "24S AÇIK"}
+        {Math.max(1, passDaysRemaining)} GÜN KALDI
       </span>
     );
   }

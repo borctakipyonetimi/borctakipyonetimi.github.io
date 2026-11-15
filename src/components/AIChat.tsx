@@ -26,11 +26,10 @@ import { t } from "../utils/translations";
 import { parseDateParts } from "../utils/dateUtils";
 import { useCurrency } from "../utils/CurrencyContext";
 import { LiveMarketCenterWidget } from "./LiveMarketCenterWidget";
+import { useAuth } from "../context/AuthContext";
 import { 
-  getRemainingPassTimeFormatted, 
-  isPassActive, 
-  isTemporaryPassActive, 
-  getTemporaryPassTimeRemaining 
+  getTemporaryPassTimeRemaining,
+  getTemporaryPassDaysRemaining
 } from "../utils/rewardedAdService";
 
 interface ChatMessage {
@@ -52,6 +51,8 @@ interface AIChatProps {
   currentUser?: string | null;
   onTriggerToast?: (msg: string) => void;
   isPremium?: boolean;
+  isTrialActive?: boolean;
+  trialDaysRemaining?: number;
 }
 
 const TURKISH_MONTHS = [
@@ -250,7 +251,10 @@ export const AIChat: React.FC<AIChatProps> = ({
   currentUser,
   onTriggerToast,
   isPremium,
+  isTrialActive: isTrialActiveProp,
+  trialDaysRemaining: trialDaysRemainingProp,
 }) => {
+  const auth = useAuth();
   const translate = (txt: string) => t(txt, language as "tr" | "en");
   
   const { rates, isFetching: isRatesFetching, lastUpdated: ratesLastUpdated, updateRatesFromAPI } = useCurrency();
@@ -312,42 +316,67 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [isApiKeySaved, setIsApiKeySaved] = useState(() => !!localStorage.getItem("user_gemini_api_key"));
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [effectiveIsPremium, setEffectiveIsPremium] = useState<boolean>(() => {
-    if (typeof isPremium === "boolean") return isPremium;
+    if (typeof isPremium === "boolean") return isPremium && Boolean(auth?.isPremium ?? true);
     if (typeof window !== "undefined") {
-      return localStorage.getItem("is_premium") === "true";
+      const isGuestFlag = localStorage.getItem("is_guest") === "true";
+      const pSource = localStorage.getItem("premium_source");
+      return !isGuestFlag && pSource !== "trial" && localStorage.getItem("is_premium") === "true";
     }
     return false;
   });
   const [passRemaining, setPassRemaining] = useState<string | null>(null);
+  const [passDaysRemaining, setPassDaysRemaining] = useState<number>(0);
+
+  const effectiveTrialDays =
+    typeof trialDaysRemainingProp === "number" ? trialDaysRemainingProp : auth.trialDaysRemaining;
+  const effectiveTrialActive = Boolean(
+    !effectiveIsPremium &&
+      (typeof isTrialActiveProp === "boolean" ? isTrialActiveProp : auth.isTrialActive) &&
+      effectiveTrialDays > 0
+  );
 
   useEffect(() => {
+    const isPaidFromAuth = Boolean(auth.isPremium);
     if (typeof isPremium === "boolean") {
-      setEffectiveIsPremium(isPremium);
+      setEffectiveIsPremium(isPremium && isPaidFromAuth);
+    } else {
+      setEffectiveIsPremium(isPaidFromAuth);
     }
-  }, [isPremium]);
+  }, [isPremium, auth.isPremium]);
 
   useEffect(() => {
     const updatePass = () => {
-      const storedPremium = localStorage.getItem("is_premium") === "true";
-      setEffectiveIsPremium((prev) => (typeof isPremium === "boolean" ? isPremium : storedPremium));
-      
-      // If user is premium, passRemaining is not needed (they have permanent unlimited access)
-      if (isPremium || storedPremium) {
+      const isGuestFlag = localStorage.getItem("is_guest") === "true";
+      const pSource = localStorage.getItem("premium_source");
+      const storedPaidPremium =
+        !isGuestFlag && pSource !== "trial" && localStorage.getItem("is_premium") === "true";
+      const paidFlag =
+        typeof isPremium === "boolean"
+          ? isPremium && (auth.isPremium || storedPaidPremium)
+          : auth.isPremium || storedPaidPremium;
+
+      setEffectiveIsPremium(paidFlag);
+
+      if (paidFlag || effectiveTrialActive) {
         setPassRemaining(null);
+        setPassDaysRemaining(0);
       } else {
         setPassRemaining(getTemporaryPassTimeRemaining("ai"));
+        setPassDaysRemaining(getTemporaryPassDaysRemaining("ai"));
       }
     };
     updatePass();
     window.addEventListener("rewarded_pass_updated", updatePass);
     window.addEventListener("storage", updatePass);
     window.addEventListener("premium_status_changed", updatePass);
+    window.addEventListener("auth_state_changed", updatePass);
     return () => {
       window.removeEventListener("rewarded_pass_updated", updatePass);
       window.removeEventListener("storage", updatePass);
       window.removeEventListener("premium_status_changed", updatePass);
+      window.removeEventListener("auth_state_changed", updatePass);
     };
-  }, [isPremium]);
+  }, [isPremium, auth.isPremium, effectiveTrialActive]);
   
   // Custom scroll refs to target ONLY the scrollable chat container
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -1328,7 +1357,7 @@ ${installmentDetailsStr}`;
           </div>
         </div>
 
-        {/* Status Section: Clean Premium Badge OR 24-Hour Temporary Pass Warning */}
+        {/* Status Section: Strictly shows Premium ONLY for paid subscribers, otherwise trial/ad remaining days */}
         {effectiveIsPremium ? (
           <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -1345,17 +1374,37 @@ ${installmentDetailsStr}`;
               Sınırsız Premium
             </span>
           </div>
-        ) : passRemaining ? (
-          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1.5 font-bold text-emerald-300">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
-              ✨ 24 Saatlik Ücretsiz AI Erişiminiz Aktif
+        ) : effectiveTrialActive ? (
+          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between gap-2 text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-indigo-200">
+              <span>🎁</span>
+              <span>7 Günlük Deneme Aktif</span>
             </span>
-            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30">
-              {passRemaining}
+            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30 shrink-0">
+              {effectiveTrialDays} Gün Kaldı
             </span>
           </div>
-        ) : null}
+        ) : passRemaining ? (
+          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between gap-2 text-xs flex-wrap">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-300">
+              <span>🎬</span>
+              <span>Reklam İzlenerek Açıldı</span>
+            </span>
+            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30 shrink-0">
+              {Math.max(1, passDaysRemaining)} Gün Kaldı ({passRemaining})
+            </span>
+          </div>
+        ) : (
+          <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between gap-2 text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-slate-300">
+              <span>🆓</span>
+              <span>Ücretsiz / Misafir Modu</span>
+            </span>
+            <span className="font-mono font-black text-amber-300 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-400/30 shrink-0">
+              Reklamla Açılabilir
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}

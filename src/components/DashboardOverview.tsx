@@ -260,7 +260,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           className="flex flex-col items-center text-center relative z-10"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <div className="p-0.5 px-1.5 bg-indigo-500 text-white text-[8px] font-black rounded shadow-xs uppercase tracking-widest">PRO AKTİF</div>
+            {auth.isPremium ? (
+              <div className="p-0.5 px-1.5 bg-indigo-500 text-white text-[8px] font-black rounded shadow-xs uppercase tracking-widest">👑 PREMİUM AKTİF</div>
+            ) : auth.isTrialActive && auth.trialDaysRemaining > 0 ? (
+              <div className="p-0.5 px-1.5 bg-indigo-500 text-white text-[8px] font-black rounded shadow-xs uppercase tracking-widest">🎁 DENEME • {auth.trialDaysRemaining} GÜN KALDI</div>
+            ) : (
+              <div className="p-0.5 px-1.5 bg-slate-600 text-white text-[8px] font-black rounded shadow-xs uppercase tracking-widest">🆓 ÜCRETSİZ MOD</div>
+            )}
             <div className="p-0.5 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[8px] font-black rounded border border-emerald-500/20 uppercase tracking-widest">AI DESTEKLİ</div>
           </div>
           <p className="text-[11px] sm:text-xs text-slate-800 dark:text-slate-100 font-extrabold max-w-md leading-relaxed">

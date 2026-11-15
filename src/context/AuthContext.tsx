@@ -24,7 +24,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, firestore, doc, getDoc, setDoc } from "../utils/firebase";
-import { showNativeInterstitialAd, showNativeBannerAd, hideNativeBannerAd } from "../utils/rewardedAdService";
+import {
+  showNativeInterstitialAd,
+  hideNativeBannerAd,
+  destroyAllNativeFeeds
+} from "../utils/rewardedAdService";
 
 export const TRIAL_DURATION_DAYS = 7;
 export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
@@ -231,12 +235,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isPremium, isTrialActive]);
 
-  // Synchronize with Native AdMob Banner: Show if shouldShowAds, Hide if hasProAccess
+  // Synchronize with Native AdMob Banner & Feeds: Destroy/Hide if hasProAccess, notify bottom-dock to show if shouldShowAds
   useEffect(() => {
-    if (shouldShowAds) {
-      showNativeBannerAd().catch(() => {});
-    } else {
+    if (!shouldShowAds) {
       hideNativeBannerAd().catch(() => {});
+      destroyAllNativeFeeds().catch(() => {});
+    } else if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } }));
     }
   }, [shouldShowAds]);
 

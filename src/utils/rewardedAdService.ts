@@ -11,7 +11,9 @@ import {
   BannerAdSize,
   BannerAdPluginEvents,
   RewardAdPluginEvents,
-  InterstitialAdPluginEvents
+  InterstitialAdPluginEvents,
+  NativeAdFeed,
+  NativeAdTemplate
 } from "@capacitor-community/admob";
 
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
@@ -19,9 +21,11 @@ export const ADMOB_CONFIG = {
   PUBLISHER_ID: "pub-3940256099942544",
   APP_ID: "ca-app-pub-3940256099942544~3347511713",
   BANNER_ID: "ca-app-pub-3940256099942544/6300978111",
+  NATIVE_ID: "ca-app-pub-3940256099942544/2247696110",
   INTERSTITIAL_ID: "ca-app-pub-3940256099942544/1033173712",
   REWARDED_VIDEO_ID: "ca-app-pub-3940256099942544/5224354917",
   BANNER_SLOT: "6300978111",
+  NATIVE_SLOT: "2247696110",
   INTERSTITIAL_SLOT: "1033173712",
   REWARDED_SLOT: "5224354917",
   ADS_TXT_ENTRY: "google.com, pub-3940256099942544, DIRECT, f08c47fec0942fa0"
@@ -131,6 +135,31 @@ export function getTemporaryPassTimeRemaining(feature: RewardedFeatureType | str
     return `${hours} saat ${minutes > 0 ? `${minutes} dk ` : ""}kaldı`;
   }
   return `${minutes} dakika kaldı`;
+}
+
+/**
+ * Returns remaining days (>= 1 when active) strictly for a temporary rewarded ad pass.
+ */
+export function getTemporaryPassDaysRemaining(feature: RewardedFeatureType | string = "any"): number {
+  if (typeof window === "undefined") return 0;
+  if (isUserAdFree()) return 0;
+
+  const cleanFeature = (feature || "any").toLowerCase().trim();
+  const key = getFeaturePassKey(cleanFeature);
+  const expiry = Number(localStorage.getItem(key) || 0);
+  const diff = expiry - Date.now();
+  if (diff <= 0) return 0;
+  return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+/**
+ * Returns day-first label for temporary rewarded passes, e.g. "1 Gün Kaldı (23 saat 45 dk kaldı)".
+ */
+export function getTemporaryPassDurationLabel(feature: RewardedFeatureType | string = "any"): string | null {
+  const days = getTemporaryPassDaysRemaining(feature);
+  if (days <= 0) return null;
+  const detail = getTemporaryPassTimeRemaining(feature);
+  return detail ? `${days} Gün Kaldı (${detail})` : `${days} Gün Kaldı`;
 }
 
 /**
@@ -362,14 +391,15 @@ export async function initNativeAdMobSdk(): Promise<boolean> {
 }
 
 /**
- * Shows native Banner Ad at the bottom of the screen with official test ID
- * Deduplicated so multiple inline components never stack or flicker the native banner.
+ * Shows native Banner Ad at the bottom of the screen with official test ID.
+ * Supports `force: true` when an already-mounted AdMobBanner attaches fresh listeners.
  */
 export async function showNativeBannerAd(options?: {
   position?: BannerAdPosition;
   adSize?: BannerAdSize;
   margin?: number;
   isTesting?: boolean;
+  force?: boolean;
 }): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) {
     return false;
@@ -385,13 +415,13 @@ export async function showNativeBannerAd(options?: {
   const targetMargin = options?.margin ?? 0;
   const targetKey = `${targetSize}_${targetPosition}_${targetMargin}`;
 
-  if (isNativeBannerActive && currentNativeBannerKey === targetKey) {
+  if (!options?.force && isNativeBannerActive && currentNativeBannerKey === targetKey) {
     return true;
   }
 
   if (nativeBannerPromise) {
     await nativeBannerPromise.catch(() => false);
-    if (isNativeBannerActive && currentNativeBannerKey === targetKey) {
+    if (!options?.force && isNativeBannerActive && currentNativeBannerKey === targetKey) {
       return true;
     }
   }
@@ -400,11 +430,11 @@ export async function showNativeBannerAd(options?: {
     try {
       await initNativeAdMobSdk();
 
-      if (isNativeBannerActive && currentNativeBannerKey !== targetKey) {
+      if (isNativeBannerActive && (currentNativeBannerKey !== targetKey || options?.force)) {
         try {
           await AdMob.removeBanner().catch(() => AdMob.hideBanner());
         } catch {
-          // Ignore remove before size switch
+          // Ignore remove before reload/switch
         }
         isNativeBannerActive = false;
         currentNativeBannerKey = null;
@@ -415,7 +445,7 @@ export async function showNativeBannerAd(options?: {
         adSize: targetSize,
         position: targetPosition,
         margin: targetMargin,
-        isTesting: options?.isTesting !== false, // Always true for test mode
+        isTesting: options?.isTesting !== false,
       });
 
       isNativeBannerActive = true;
@@ -423,6 +453,8 @@ export async function showNativeBannerAd(options?: {
       console.log(`[AdMob Native] Banner ad displayed (${targetSize}).`);
       return true;
     } catch (err) {
+      isNativeBannerActive = false;
+      currentNativeBannerKey = null;
       console.warn("[AdMob Native] showBanner error safely caught:", err);
       return false;
     } finally {
@@ -444,6 +476,121 @@ export async function hideNativeBannerAd(): Promise<void> {
     await AdMob.removeBanner().catch(() => AdMob.hideBanner());
   } catch (err) {
     console.warn("[AdMob Native] removeBanner/hideBanner error:", err);
+  }
+}
+
+// ============================================================================
+// NATIVE ADMOB FEED MANAGERS (Real Google AdMob Native Test Ads for Inline & Drawer)
+// @capacitor-community/admob supports up to 2 concurrent NativeAdFeed instances.
+// ============================================================================
+
+const NATIVE_AD_THEME_STYLE = {
+  backgroundColor: "#0f172a",
+  borderColor: "#1e293b",
+  borderWidth: 1,
+  cornerRadius: 16,
+  headlineColor: "#f8fafc",
+  headlineFontSize: 15,
+  bodyColor: "#cbd5e1",
+  bodyFontSize: 12,
+  callToActionBackgroundColor: "#f59e0b",
+  callToActionTextColor: "#0f172a",
+  callToActionFontSize: 13,
+};
+
+let drawerNativeFeed: NativeAdFeed | null = null;
+let inlineNativeFeed: NativeAdFeed | null = null;
+let drawerFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
+let inlineFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
+
+export async function acquireDrawerNativeFeed(): Promise<NativeAdFeed | null> {
+  if (!Capacitor.isNativePlatform() || isUserAdFree()) return null;
+  if (drawerNativeFeed) return drawerNativeFeed;
+  if (drawerFeedCreatePromise) return drawerFeedCreatePromise;
+
+  drawerFeedCreatePromise = (async () => {
+    try {
+      await initNativeAdMobSdk();
+      const feed = await NativeAdFeed.create({
+        feedId: "butcem_drawer_feed",
+        template: NativeAdTemplate.Medium,
+        isTesting: true,
+        adId: ADMOB_CONFIG.NATIVE_ID,
+        style: NATIVE_AD_THEME_STYLE,
+        androidScrollSnapshot: Capacitor.getPlatform() === "android",
+      });
+      drawerNativeFeed = feed;
+      return feed;
+    } catch (err) {
+      console.warn("[AdMob NativeFeed] Drawer feed init warning:", err);
+      return null;
+    } finally {
+      drawerFeedCreatePromise = null;
+    }
+  })();
+
+  return drawerFeedCreatePromise;
+}
+
+export async function acquireInlineNativeFeed(): Promise<NativeAdFeed | null> {
+  if (!Capacitor.isNativePlatform() || isUserAdFree()) return null;
+  if (inlineNativeFeed) return inlineNativeFeed;
+  if (inlineFeedCreatePromise) return inlineFeedCreatePromise;
+
+  inlineFeedCreatePromise = (async () => {
+    try {
+      await initNativeAdMobSdk();
+      const feed = await NativeAdFeed.create({
+        feedId: "butcem_inline_feed",
+        template: NativeAdTemplate.Medium,
+        isTesting: true,
+        adId: ADMOB_CONFIG.NATIVE_ID,
+        style: NATIVE_AD_THEME_STYLE,
+        androidScrollSnapshot: Capacitor.getPlatform() === "android",
+      });
+      inlineNativeFeed = feed;
+      return feed;
+    } catch (err) {
+      console.warn("[AdMob NativeFeed] Inline feed init warning:", err);
+      return null;
+    } finally {
+      inlineFeedCreatePromise = null;
+    }
+  })();
+
+  return inlineFeedCreatePromise;
+}
+
+export async function pauseInlineNativeFeed(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || !inlineNativeFeed) return;
+  try {
+    await inlineNativeFeed.pause();
+  } catch {
+    // Safe ignore if feed already paused or destroyed
+  }
+}
+
+export function resumeInlineNativeFeed(): void {
+  if (!Capacitor.isNativePlatform() || !inlineNativeFeed || isUserAdFree()) return;
+  try {
+    inlineNativeFeed.resume();
+  } catch {
+    // Safe ignore
+  }
+}
+
+export async function destroyAllNativeFeeds(): Promise<void> {
+  const feedsToDestroy = [drawerNativeFeed, inlineNativeFeed];
+  drawerNativeFeed = null;
+  inlineNativeFeed = null;
+  for (const feed of feedsToDestroy) {
+    if (feed) {
+      try {
+        await feed.destroy();
+      } catch {
+        // Ignore cleanup warning
+      }
+    }
   }
 }
 

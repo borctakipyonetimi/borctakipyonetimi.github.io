@@ -1266,9 +1266,9 @@ export function FinancialTools({
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {isTrialActiveStatus
-                  ? `${trialDaysRemaining} Gün Deneme Aktif`
+                  ? `${trialDaysRemaining} Gün Kaldı`
                   : hasReportProAccess
-                  ? "Raporlar 24 Saat Açık"
+                  ? "1 Gün Kaldı (Reklamla Açık)"
                   : "Raporlar Reklamla Açılabilir"}
               </span>
             </div>
@@ -1336,7 +1336,7 @@ export function FinancialTools({
             }`}
           >
             <FileText className="w-3.5 h-3.5" /> Rapor Al
-            <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
+            <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
         </div>
       </div>
@@ -2854,7 +2854,7 @@ export function FinancialTools({
                       onClick={() => onOpenRewardedModal("report")}
                       className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl transition shadow-md cursor-pointer active:scale-95"
                     >
-                      🎬 Reklam İzle & Aç (24S)
+                      🎬 Reklam İzle & Aç (1 Gün)
                     </button>
                   )}
                   <button
@@ -3209,7 +3209,7 @@ export function FinancialTools({
                 >
                   <FileText className="w-4 h-4" />
                   {isGeneratingPdf ? "PDF Hazırlanıyor..." : "PDF Olarak İndir 📥"}
-                  <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
+                  <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />
                 </button>
 
                 {/* 2. Sistemden Yazdır Butonu */}
@@ -3246,7 +3246,7 @@ export function FinancialTools({
                   className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
                 >
                   <Printer className="w-4 h-4 text-emerald-400" /> Sistemden Yazdır 🖨️
-                  <FeatureAccessBadge featureKey="report" isPremiumProp={hasReportProAccess || isPremium} compact hideWhenPaid />
+                  <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />
                 </button>
 
                 {/* 3. Yıllık PDF Özeti Butonu */}
@@ -3290,11 +3290,7 @@ export function FinancialTools({
                   className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
-                  {!isPremium && (
-                    <span className="ml-1 text-[8px] bg-slate-950 text-amber-400 px-1.5 py-0.5 rounded font-black font-mono">
-                      PRO
-                    </span>
-                  )}
+                  <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />
                 </button>
               </div>
             </div>
