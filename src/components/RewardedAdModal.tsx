@@ -33,7 +33,6 @@ import {
   getRemainingPassTimeFormatted,
   RewardedFeatureType,
   showNativeRewardedAd,
-  showNativeInterstitialAd,
   lockDarkAdTransitionBackground,
   releaseDarkAdTransitionBackground,
   isUserAdFree
@@ -721,28 +720,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                 </>
               )}
             </button>
-
-            {/* Optional Native Interstitial Ad Test Button */}
-            {Capacitor.isNativePlatform() && (
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setAdFeedbackMessage("Geçiş reklamı hazırlanıyor...");
-                  const res = await showNativeInterstitialAd();
-                  if (!res.success) {
-                    setAdFeedbackMessage(res.error || "Geçiş reklamı gösterilemedi.");
-                  } else {
-                    setAdFeedbackMessage("Geçiş reklamı başarıyla tetiklendi!");
-                  }
-                  setTimeout(() => setAdFeedbackMessage(null), 3000);
-                }}
-                className="w-full py-2.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 font-bold text-[11px] rounded-2xl border border-indigo-500/25 flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <Film className="w-3.5 h-3.5" />
-                <span>Geçiş Reklamını (Interstitial Test) Tetikle</span>
-              </button>
-            )}
 
             {onUpgradeClick && (
               <button

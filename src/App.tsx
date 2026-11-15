@@ -139,7 +139,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd } from "./utils/rewardedAdService";
+import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, hideNativeBannerAd } from "./utils/rewardedAdService";
 import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -7932,20 +7932,9 @@ export default function App() {
     }
   }, [activeTab, sidebarCategories]);
 
-  const guestNavClickCountRef = useRef(0);
-
   const handleNavClick = (tabId: string) => {
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
-    }
-
-    // KURAL 1: Misafir veya denemesi bitmiş kullanıcılara geçiş reklamları zorunlu olarak gösterilir
-    // KURAL 2 & 3: Premium ve aktif 7 günlük deneme kullanıcılarına KESİNLİKLE reklam gösterilmez
-    if (!hasProAccess) {
-      guestNavClickCountRef.current += 1;
-      if (guestNavClickCountRef.current % 4 === 0) {
-        showNativeInterstitialAd().catch(() => {});
-      }
     }
 
     if (tabId === "faq" || tabId === "help" || tabId === "guide") {
@@ -9704,9 +9693,9 @@ export default function App() {
             </p>
           </div>
 
-          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Reklam */}
+          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Kare Sabit Reklam */}
           {!hasProAccess && (
-            <div className="pb-4 -mx-1 w-[calc(100%+0.5rem)] overflow-hidden flex justify-center">
+            <div className="pb-4 -mx-2 w-[calc(100%+1rem)] overflow-hidden flex justify-center">
               <AdMobBanner
                 unitType="rectangle"
                 placement="drawer-square"

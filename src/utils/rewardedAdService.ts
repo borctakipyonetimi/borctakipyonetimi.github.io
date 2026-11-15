@@ -11,9 +11,7 @@ import {
   BannerAdSize,
   BannerAdPluginEvents,
   RewardAdPluginEvents,
-  InterstitialAdPluginEvents,
-  NativeAdFeed,
-  NativeAdTemplate
+  InterstitialAdPluginEvents
 } from "@capacitor-community/admob";
 
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
@@ -476,121 +474,6 @@ export async function hideNativeBannerAd(): Promise<void> {
     await AdMob.removeBanner().catch(() => AdMob.hideBanner());
   } catch (err) {
     console.warn("[AdMob Native] removeBanner/hideBanner error:", err);
-  }
-}
-
-// ============================================================================
-// NATIVE ADMOB FEED MANAGERS (Real Google AdMob Native Test Ads for Inline & Drawer)
-// @capacitor-community/admob supports up to 2 concurrent NativeAdFeed instances.
-// ============================================================================
-
-const NATIVE_AD_THEME_STYLE = {
-  backgroundColor: "#0f172a",
-  borderColor: "#1e293b",
-  borderWidth: 1,
-  cornerRadius: 16,
-  headlineColor: "#f8fafc",
-  headlineFontSize: 15,
-  bodyColor: "#cbd5e1",
-  bodyFontSize: 12,
-  callToActionBackgroundColor: "#f59e0b",
-  callToActionTextColor: "#0f172a",
-  callToActionFontSize: 13,
-};
-
-let drawerNativeFeed: NativeAdFeed | null = null;
-let inlineNativeFeed: NativeAdFeed | null = null;
-let drawerFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
-let inlineFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
-
-export async function acquireDrawerNativeFeed(): Promise<NativeAdFeed | null> {
-  if (!Capacitor.isNativePlatform() || isUserAdFree()) return null;
-  if (drawerNativeFeed) return drawerNativeFeed;
-  if (drawerFeedCreatePromise) return drawerFeedCreatePromise;
-
-  drawerFeedCreatePromise = (async () => {
-    try {
-      await initNativeAdMobSdk();
-      const feed = await NativeAdFeed.create({
-        feedId: "butcem_drawer_feed",
-        template: NativeAdTemplate.Medium,
-        isTesting: true,
-        adId: ADMOB_CONFIG.NATIVE_ID,
-        style: NATIVE_AD_THEME_STYLE,
-        androidScrollSnapshot: Capacitor.getPlatform() === "android",
-      });
-      drawerNativeFeed = feed;
-      return feed;
-    } catch (err) {
-      console.warn("[AdMob NativeFeed] Drawer feed init warning:", err);
-      return null;
-    } finally {
-      drawerFeedCreatePromise = null;
-    }
-  })();
-
-  return drawerFeedCreatePromise;
-}
-
-export async function acquireInlineNativeFeed(): Promise<NativeAdFeed | null> {
-  if (!Capacitor.isNativePlatform() || isUserAdFree()) return null;
-  if (inlineNativeFeed) return inlineNativeFeed;
-  if (inlineFeedCreatePromise) return inlineFeedCreatePromise;
-
-  inlineFeedCreatePromise = (async () => {
-    try {
-      await initNativeAdMobSdk();
-      const feed = await NativeAdFeed.create({
-        feedId: "butcem_inline_feed",
-        template: NativeAdTemplate.Medium,
-        isTesting: true,
-        adId: ADMOB_CONFIG.NATIVE_ID,
-        style: NATIVE_AD_THEME_STYLE,
-        androidScrollSnapshot: Capacitor.getPlatform() === "android",
-      });
-      inlineNativeFeed = feed;
-      return feed;
-    } catch (err) {
-      console.warn("[AdMob NativeFeed] Inline feed init warning:", err);
-      return null;
-    } finally {
-      inlineFeedCreatePromise = null;
-    }
-  })();
-
-  return inlineFeedCreatePromise;
-}
-
-export async function pauseInlineNativeFeed(): Promise<void> {
-  if (!Capacitor.isNativePlatform() || !inlineNativeFeed) return;
-  try {
-    await inlineNativeFeed.pause();
-  } catch {
-    // Safe ignore if feed already paused or destroyed
-  }
-}
-
-export function resumeInlineNativeFeed(): void {
-  if (!Capacitor.isNativePlatform() || !inlineNativeFeed || isUserAdFree()) return;
-  try {
-    inlineNativeFeed.resume();
-  } catch {
-    // Safe ignore
-  }
-}
-
-export async function destroyAllNativeFeeds(): Promise<void> {
-  const feedsToDestroy = [drawerNativeFeed, inlineNativeFeed];
-  drawerNativeFeed = null;
-  inlineNativeFeed = null;
-  for (const feed of feedsToDestroy) {
-    if (feed) {
-      try {
-        await feed.destroy();
-      } catch {
-        // Ignore cleanup warning
-      }
-    }
   }
 }
 

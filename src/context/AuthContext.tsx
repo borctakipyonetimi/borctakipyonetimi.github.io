@@ -26,8 +26,7 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, firestore, doc, getDoc, setDoc } from "../utils/firebase";
 import {
   showNativeInterstitialAd,
-  hideNativeBannerAd,
-  destroyAllNativeFeeds
+  hideNativeBannerAd
 } from "../utils/rewardedAdService";
 
 export const TRIAL_DURATION_DAYS = 7;
@@ -239,7 +238,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!shouldShowAds) {
       hideNativeBannerAd().catch(() => {});
-      destroyAllNativeFeeds().catch(() => {});
     } else if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } }));
     }
