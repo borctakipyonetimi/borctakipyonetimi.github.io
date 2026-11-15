@@ -128,15 +128,6 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
     onClose();
   };
 
-  const handleContinueWithoutAccount = () => {
-    resetForm();
-    if (onContinueGuest) {
-      onContinueGuest();
-    } else {
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   const formatAuthError = (errCode: string, defaultMsg: string): string => {
@@ -642,7 +633,7 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                     ? "Şifre Sıfırlama"
                     : activeTab === "premium"
                     ? (premiumSubMode === "register" ? "Yeni Premium Hesap Oluştur" : "Premium Üye Girişi")
-                    : (guestSubMode === "register" ? "7 Günlük Ücretsiz Deneme Kaydı" : "Misafir Girişi")}
+                    : (guestSubMode === "register" ? "Misafir Kaydı (7 Gün Deneme)" : "Misafir Girişi")}
                 </h2>
               </div>
             </div>
@@ -731,10 +722,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                 >
                   <div className="flex items-center gap-1.5">
                     <SparklesIcon className="w-4 h-4" />
-                    <span>🎁 7 Günlük Deneme</span>
+                    <span>🎁 Misafir (7 Gün Deneme)</span>
                   </div>
                   <span className={`text-[10px] font-bold ${activeTab === "guest_trial" ? "text-white/90" : "text-slate-400 dark:text-slate-500"}`}>
-                    Ücretsiz Pro Kayıt & Giriş
+                    Ücretsiz Deneme Kayıt & Giriş
                   </span>
                 </button>
               </div>
@@ -1111,24 +1102,6 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   </div>
                 )}
               </form>
-            )}
-
-            {/* ------------------------------------------------------------- */}
-            {/* 3. KAYIT OLMADAN KEŞFET / ZİYARETÇİ MODU BUTONU */}
-            {/* ------------------------------------------------------------- */}
-            {!isForgotMode && (
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  id="btn-explore-without-login"
-                  type="button"
-                  onClick={handleContinueWithoutAccount}
-                  className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-                >
-                  <SparklesIcon className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Kayıt Olmadan Devam Et / Keşfet (Ziyaretçi Modu)</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5 text-slate-400" />
-                </button>
-              </div>
             )}
           </div>
         </motion.div>

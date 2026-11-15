@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useId, useRef } from "react";
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   AdMob,
@@ -15,7 +15,8 @@ import {
 import {
   ADMOB_CONFIG,
   showNativeBannerAd,
-  hideNativeBannerAd
+  hideNativeBannerAd,
+  isUserAdFree
 } from "../utils/rewardedAdService";
 import { useAuth } from "../context/AuthContext";
 
@@ -28,6 +29,12 @@ interface AdMobBannerProps {
   upgradeLabel?: string;
 }
 
+declare global {
+  interface Window {
+    googletag?: any;
+  }
+}
+
 export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   unitType = "banner",
   placement = "inline",
@@ -38,66 +45,45 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 }) => {
   const auth = useAuth();
   const isNative = Capacitor.isNativePlatform();
-  const insRef = useRef<HTMLModElement | null>(null);
+  const rawReactId = useId();
+  const slotDivId = `butcem-gpt-${rawReactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const slotContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const [localPrem, setLocalPrem] = useState(() => {
-    return (
-      localStorage.getItem("is_premium") === "true" &&
-      localStorage.getItem("premium_source") !== "trial" &&
-      localStorage.getItem("is_guest") !== "true"
-    );
-  });
-  const [localTrialActive, setLocalTrialActive] = useState(() => {
-    const end = localStorage.getItem("trial_end_date");
-    const endMs = end ? new Date(end).getTime() : 0;
-    const isG = localStorage.getItem("is_guest") === "true";
-    return !isG && !isNaN(endMs) && Date.now() < endMs;
-  });
-
+  const [localAdFree, setLocalAdFree] = useState(() => isUserAdFree());
   const [adLoaded, setAdLoaded] = useState(false);
   const [adUnfilled, setAdUnfilled] = useState(false);
   const [nativeBannerHeight, setNativeBannerHeight] = useState<number>(
-    placement === "drawer-square" ? 250 : 56
+    placement === "drawer-square" || unitType === "rectangle" ? 250 : 56
   );
 
-  // Check premium and trial status dynamically
+  // Sync ad-free state (Paid Premium or Active 7-Day Trial)
   useEffect(() => {
     const checkStatus = () => {
-      const isSuper =
-        (localStorage.getItem("currentUser") || "").toLowerCase().trim() ===
-        "info.borcodemetakip@gmail.com";
-      const nextPrem =
-        isSuper ||
-        (localStorage.getItem("is_premium") === "true" &&
-          localStorage.getItem("premium_source") !== "trial" &&
-          localStorage.getItem("is_guest") !== "true");
-      setLocalPrem(nextPrem);
-
-      const end = localStorage.getItem("trial_end_date");
-      const endMs = end ? new Date(end).getTime() : 0;
-      const isG = localStorage.getItem("is_guest") === "true";
-      const nextTrial = !nextPrem && !isG && !isNaN(endMs) && Date.now() < endMs;
-      setLocalTrialActive(nextTrial);
+      setLocalAdFree(isUserAdFree());
     };
     checkStatus();
 
     window.addEventListener("storage", checkStatus);
     window.addEventListener("premium_status_changed", checkStatus);
+    window.addEventListener("trial_status_changed", checkStatus);
     window.addEventListener("auth_state_changed", checkStatus);
 
     return () => {
       window.removeEventListener("storage", checkStatus);
       window.removeEventListener("premium_status_changed", checkStatus);
+      window.removeEventListener("trial_status_changed", checkStatus);
       window.removeEventListener("auth_state_changed", checkStatus);
     };
   }, []);
 
-  const isPremium = auth?.isPremium || localPrem;
-  const isTrialActive = auth?.isTrialActive || localTrialActive;
+  const isPremium = Boolean(auth?.isPremium);
+  const isTrialActive = Boolean(auth?.isTrialActive);
+  const shouldHideAds = isPremium || isTrialActive || localAdFree;
+  const isRectangle = placement === "drawer-square" || unitType === "rectangle";
 
-  // Initialize Real Google AdMob Banner (Native Android/iOS) or Live Web AdSense Unit
   useEffect(() => {
-    if (isPremium || isTrialActive) {
+    if (shouldHideAds) {
+      setAdLoaded(false);
       if (isNative) {
         hideNativeBannerAd().catch(() => {});
       }
@@ -107,14 +93,23 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     // Drawer square ad activates strictly when drawer is open
     if (placement === "drawer-square" && !active) {
       setAdLoaded(false);
+      setAdUnfilled(false);
+      return;
+    }
+
+    // Native only renders bottom-dock (and drawer-square while drawer is open); skip inline duplicates
+    if (isNative && placement !== "bottom-dock" && placement !== "drawer-square") {
       return;
     }
 
     let isMounted = true;
-    const listeners: PluginListenerHandle[] = [];
+    setAdLoaded(false);
+    setAdUnfilled(false);
 
-    // 1. CAPACITOR NATIVE ANDROID/IOS RUNTIME (Genuine Google AdMob Test Banner)
+    // 1. CAPACITOR NATIVE ANDROID / IOS RUNTIME (Genuine Google AdMob Test Banner)
     if (isNative) {
+      const listeners: PluginListenerHandle[] = [];
+
       const setupNativeBanner = async () => {
         try {
           const loadedHandle = await AdMob.addListener(
@@ -131,7 +126,8 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           const sizeHandle = await AdMob.addListener(
             BannerAdPluginEvents.SizeChanged,
             (size: AdMobBannerSize) => {
-              if (isMounted && size?.height > 0) {
+              if (!isMounted) return;
+              if (size?.height > 0) {
                 setNativeBannerHeight(size.height);
                 setAdLoaded(true);
                 setAdUnfilled(false);
@@ -151,28 +147,28 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           );
           listeners.push(failedHandle);
 
-          const shown =
-            placement === "drawer-square" || unitType === "rectangle"
-              ? await showNativeBannerAd({
-                  adSize: BannerAdSize.MEDIUM_RECTANGLE,
-                  position: BannerAdPosition.BOTTOM_CENTER,
-                  margin: 8,
-                  isTesting: true
-                })
-              : await showNativeBannerAd({
-                  adSize: BannerAdSize.ADAPTIVE_BANNER,
-                  position: BannerAdPosition.BOTTOM_CENTER,
-                  margin: 0,
-                  isTesting: true
-                });
+          const shown = isRectangle
+            ? await showNativeBannerAd({
+                adSize: BannerAdSize.MEDIUM_RECTANGLE,
+                position: BannerAdPosition.BOTTOM_CENTER,
+                margin: 8,
+                isTesting: true
+              })
+            : await showNativeBannerAd({
+                adSize: BannerAdSize.ADAPTIVE_BANNER,
+                position: BannerAdPosition.BOTTOM_CENTER,
+                margin: 0,
+                isTesting: true
+              });
 
-          if (isMounted && shown) {
-            setAdLoaded(true);
-            setAdUnfilled(false);
+          if (isMounted && !shown) {
+            setAdLoaded(false);
+            setAdUnfilled(true);
           }
         } catch (nativeErr) {
           console.warn("[AdMob Native Banner] setup error:", nativeErr);
           if (isMounted) {
+            setAdLoaded(false);
             setAdUnfilled(true);
           }
         }
@@ -186,11 +182,11 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           try {
             handle.remove();
           } catch {
-            // Safe fallback
+            // Ignore listener cleanup errors
           }
         }
-        // When drawer closes, cleanly restore bottom-dock adaptive banner
-        if (placement === "drawer-square" && active && !isUserAdFreeSafe()) {
+        // When drawer closes, restore bottom-dock adaptive banner cleanly
+        if (placement === "drawer-square" && active && !isUserAdFree()) {
           showNativeBannerAd({
             adSize: BannerAdSize.ADAPTIVE_BANNER,
             position: BannerAdPosition.BOTTOM_CENTER,
@@ -201,80 +197,122 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       };
     }
 
-    // 2. WEB / BROWSER ENVIRONMENT (Strict live Google AdSense / AdMob Web element, NO fake static placeholders)
-    const insEl = insRef.current;
-    if (!insEl) return;
+    // 2. WEB / PREVIEW RUNTIME: Genuine Google Publisher Tag Test Ad Unit (/6355419/Travel)
+    // Only expands container when GPT slotRenderEnded confirms !event.isEmpty (zero empty dark boxes)
+    let activeSlot: any = null;
+    let renderHandlerRef: ((event: any) => void) | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
-    let observer: MutationObserver | null = null;
-    setAdUnfilled(false);
+    const adSizes: [number, number][] = isRectangle ? [[300, 250]] : [[320, 50]];
 
-    const evaluateInsState = () => {
-      if (!isMounted || !insEl) return;
-      const status = insEl.getAttribute("data-ad-status");
-      const hasIframe = Boolean(insEl.querySelector("iframe"));
-      if (status === "filled" || (hasIframe && insEl.offsetHeight > 10)) {
-        setAdLoaded(true);
-        setAdUnfilled(false);
-      } else if (status === "unfilled") {
-        setAdLoaded(false);
-        setAdUnfilled(true);
-      }
+    const initGptSlot = () => {
+      if (!isMounted || typeof window === "undefined") return;
+      const googletag = (window.googletag = window.googletag || { cmd: [] });
+
+      googletag.cmd.push(() => {
+        if (!isMounted) return;
+        const containerEl = document.getElementById(slotDivId);
+        if (!containerEl) return;
+
+        try {
+          const pubads = googletag.pubads();
+
+          const handleSlotRenderEnded = (event: any) => {
+            if (!isMounted || !activeSlot || event?.slot !== activeSlot) return;
+            if (timeoutHandle) {
+              clearTimeout(timeoutHandle);
+              timeoutHandle = null;
+            }
+            if (event.isEmpty) {
+              setAdLoaded(false);
+              setAdUnfilled(true);
+            } else {
+              setAdLoaded(true);
+              setAdUnfilled(false);
+            }
+          };
+
+          renderHandlerRef = handleSlotRenderEnded;
+          pubads.addEventListener("slotRenderEnded", handleSlotRenderEnded);
+
+          // Destroy any stale slot that might share the same DOM id
+          try {
+            const existing = pubads
+              .getSlots?.()
+              ?.find((s: any) => s?.getSlotElementId?.() === slotDivId);
+            if (existing) {
+              googletag.destroySlots([existing]);
+            }
+          } catch {}
+
+          activeSlot = googletag
+            .defineSlot("/6355419/Travel", adSizes, slotDivId)
+            ?.addService(pubads);
+
+          if (!activeSlot) {
+            setAdLoaded(false);
+            setAdUnfilled(true);
+            return;
+          }
+
+          pubads.setCentering(true);
+          googletag.enableServices();
+          googletag.display(slotDivId);
+        } catch (err) {
+          console.warn("[GPT Test Ad] render warning:", err);
+          if (isMounted) {
+            setAdLoaded(false);
+            setAdUnfilled(true);
+          }
+        }
+      });
     };
 
-    observer = new MutationObserver(() => {
-      evaluateInsState();
-    });
-    observer.observe(insEl, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-      attributeFilter: ["data-ad-status", "data-adsbygoogle-status"]
-    });
+    const startTimer = setTimeout(initGptSlot, 80);
 
-    const pushTimer = setTimeout(() => {
-      try {
-        if (insEl.getAttribute("data-adsbygoogle-status") !== "done") {
-          ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-        }
-        evaluateInsState();
-      } catch {
-        if (isMounted) {
-          setAdUnfilled(true);
-        }
-      }
-    }, 350);
-
-    // If no genuine ad iframe fills within timeout, collapse cleanly instead of showing a fake placeholder
-    const fallbackTimer = setTimeout(() => {
+    // Collapse cleanly if network/adblocker blocks Google test ads
+    timeoutHandle = setTimeout(() => {
       if (!isMounted) return;
-      const status = insEl.getAttribute("data-ad-status");
-      const hasIframe = Boolean(insEl.querySelector("iframe"));
-      if (status !== "filled" && (!hasIframe || insEl.offsetHeight <= 10)) {
+      const el = slotContainerRef.current;
+      const hasIframe = Boolean(el?.querySelector("iframe"));
+      if (!hasIframe) {
         setAdLoaded(false);
         setAdUnfilled(true);
       }
-    }, 2600);
+    }, 5000);
 
     return () => {
       isMounted = false;
-      clearTimeout(pushTimer);
-      clearTimeout(fallbackTimer);
-      if (observer) observer.disconnect();
+      clearTimeout(startTimer);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+
+      try {
+        const googletag = window.googletag;
+        if (googletag && Array.isArray(googletag.cmd)) {
+          googletag.cmd.push(() => {
+            try {
+              if (renderHandlerRef && typeof googletag.pubads?.().removeEventListener === "function") {
+                googletag.pubads().removeEventListener("slotRenderEnded", renderHandlerRef);
+              }
+              if (activeSlot) {
+                googletag.destroySlots([activeSlot]);
+                activeSlot = null;
+              }
+            } catch {}
+          });
+        }
+      } catch {}
     };
-  }, [isPremium, isTrialActive, isNative, unitType, placement, active]);
+  }, [shouldHideAds, isNative, unitType, placement, active, isRectangle, slotDivId]);
 
-  // Helper inside component for cleanup restoration check
-  const isUserAdFreeSafe = () => isPremium || isTrialActive;
-
-  // KESİN KURAL 3: Premium ve aktif 7 günlük deneme kullanıcılarına HİÇBİR reklam gösterilmez
-  if (isPremium || isTrialActive) return null;
+  // KESİN KURAL: Premium ve aktif 7 günlük deneme kullanıcılarına HİÇBİR reklam gösterilmez
+  if (shouldHideAds) return null;
 
   if (placement === "drawer-square" && !active) return null;
 
-  // Native Android/iOS:
-  // @capacitor-community/admob renders real AdView banner (ca-app-pub-3940256099942544/6300978111) natively.
+  // Native Android/iOS: Only allocate spacer when BannerAdPluginEvents.Loaded confirms an actual banner rendered
   if (isNative) {
-    if (adUnfilled || (placement !== "bottom-dock" && placement !== "drawer-square")) {
+    if (!adLoaded || adUnfilled || (placement !== "bottom-dock" && placement !== "drawer-square")) {
       return null;
     }
     if (placement === "drawer-square") {
@@ -297,37 +335,22 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Web: If no real ad was filled (e.g. local preview or blocked), return null so zero fake banners or blank boxes render
+  // Web: Collapse completely when unfilled/blocked so empty reserved areas never appear
   if (adUnfilled) return null;
 
-  const adsenseMetaClient =
-    typeof document !== "undefined"
-      ? document
-          .querySelector('meta[name="google-adsense-account"]')
-          ?.getAttribute("content")
-      : null;
-  const webAdClient = adsenseMetaClient || `ca-${ADMOB_CONFIG.PUBLISHER_ID}`;
-  const slotId =
-    unitType === "interstitial"
-      ? ADMOB_CONFIG.INTERSTITIAL_SLOT
-      : ADMOB_CONFIG.BANNER_SLOT;
-
-  if (placement === "drawer-square" || unitType === "rectangle") {
+  if (isRectangle) {
     return (
       <div
         className={`w-full flex flex-col items-center justify-center rounded-2xl bg-[#0f172a]/95 border border-slate-800 overflow-hidden transition-all duration-300 ${
-          adLoaded ? "p-2 min-h-[258px]" : "h-0 border-0 overflow-hidden opacity-0 pointer-events-none"
+          adLoaded ? "p-1.5 min-h-[262px]" : "h-0 border-0 opacity-0 pointer-events-none"
         } ${className}`}
       >
-        <ins
-          ref={insRef}
-          className="adsbygoogle"
-          style={{ display: "inline-block", width: "288px", height: "250px", maxWidth: "100%" }}
-          data-ad-client={webAdClient}
-          data-ad-slot={slotId}
-          data-ad-unit-id={ADMOB_CONFIG.BANNER_ID}
-          data-adtest="on"
-          data-ad-format="rectangle"
+        <div
+          ref={slotContainerRef}
+          id={slotDivId}
+          data-admob-unit={ADMOB_CONFIG.BANNER_ID}
+          style={{ width: "300px", height: "250px", maxWidth: "100%" }}
+          className="flex items-center justify-center overflow-hidden rounded-xl"
         />
       </div>
     );
@@ -336,20 +359,16 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   if (placement === "bottom-dock") {
     return (
       <div
-        className={`w-full bg-[#0f172a]/95 backdrop-blur-md border-t border-slate-700/60 overflow-hidden transition-all duration-300 ${
-          adLoaded ? "px-2 py-1 min-h-[54px]" : "h-0 overflow-hidden opacity-0 pointer-events-none"
+        className={`w-full flex items-center justify-center bg-[#0f172a]/95 backdrop-blur-md border-t border-slate-700/60 overflow-hidden transition-all duration-300 ${
+          adLoaded ? "px-2 py-1 min-h-[58px]" : "h-0 border-t-0 opacity-0 pointer-events-none"
         } ${className}`}
       >
-        <ins
-          ref={insRef}
-          className="adsbygoogle"
-          style={{ display: "block", width: "100%", minHeight: "50px" }}
-          data-ad-client={webAdClient}
-          data-ad-slot={slotId}
-          data-ad-unit-id={ADMOB_CONFIG.BANNER_ID}
-          data-adtest="on"
-          data-ad-format="auto"
-          data-full-width-responsive="true"
+        <div
+          ref={slotContainerRef}
+          id={slotDivId}
+          data-admob-unit={ADMOB_CONFIG.BANNER_ID}
+          style={{ width: "320px", height: "50px" }}
+          className="flex items-center justify-center overflow-hidden"
         />
       </div>
     );
@@ -357,23 +376,19 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   return (
     <div
-      className={`w-full overflow-hidden transition-all duration-300 ${
-        adLoaded ? "my-2 space-y-1.5" : "h-0 overflow-hidden opacity-0 pointer-events-none"
+      className={`w-full flex flex-col items-center overflow-hidden transition-all duration-300 ${
+        adLoaded ? "my-2 space-y-1.5" : "h-0 opacity-0 pointer-events-none"
       } ${className}`}
     >
-      <ins
-        ref={insRef}
-        className="adsbygoogle"
-        style={{ display: "block", width: "100%", minHeight: "50px" }}
-        data-ad-client={webAdClient}
-        data-ad-slot={slotId}
-        data-ad-unit-id={ADMOB_CONFIG.BANNER_ID}
-        data-adtest="on"
-        data-ad-format="auto"
-        data-full-width-responsive="true"
+      <div
+        ref={slotContainerRef}
+        id={slotDivId}
+        data-admob-unit={ADMOB_CONFIG.BANNER_ID}
+        style={{ width: "320px", height: "50px" }}
+        className="flex items-center justify-center overflow-hidden rounded-xl"
       />
       {adLoaded && onUpgradeClick && (
-        <div className="flex justify-end pr-2">
+        <div className="flex justify-end w-full pr-2">
           <button
             type="button"
             onClick={onUpgradeClick}

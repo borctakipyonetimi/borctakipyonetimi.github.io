@@ -578,76 +578,130 @@ export async function markTrialUsedInFirestore(
 }
 
 /**
- * KURAL 1 & 2:
- * 1. Misafir / Anonim (isGuest: true): Ücretsiz deneme hakkı KESİNLİKLE tanımlanmaz. Pro kilitli, reklamlar zorunlu.
- * 2. Kayıt Olan Kullanıcı (isGuest: false): Otomatik 7 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 7 days).
+ * Misafir (7 Günlük Ücretsiz Deneme) ve Kayıtlı Kullanıcı Deneme Yönetimi:
+ * - Cihaz/UID için ilk girişte 7 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 7 days) kalıcı olarak başlatılır.
+ * - Daha önce bu cihaz/UID için deneme başlatılmışsa kalan süreyi devam ettirir (sayfa yenilemede asla silinmez).
  */
 export async function provisionUserTrialInDatabases(
   userId: string,
   email: string,
-  isGuest: boolean = false
-): Promise<{ trialStartDate: string; trialEndDate: string; daysRemaining: number }> {
-  // KURAL 1: Misafir kullanıcılara ASLA ücretsiz deneme tanımlanmaz!
-  if (isGuest) {
+  isGuestTrial: boolean = false
+): Promise<{
+  trialStartDate: string;
+  trialEndDate: string;
+  daysRemaining: number;
+  isActive: boolean;
+  isExpired: boolean;
+}> {
+  const cleanEmail = (email || (isGuestTrial ? "misafir@butcempro.app" : "")).trim().toLowerCase();
+  const deviceUuid = await getDeviceUuid().catch(() => "dev_default");
+  const deviceTrialCacheKey = `butcem_device_trial_${deviceUuid}`;
+
+  // 1. Önce mevcut deneme kaydını kontrol et (LocalStorage -> Cihaz cache -> Firestore -> RTDB)
+  let existingStart: string | null = null;
+  let existingEnd: string | null = null;
+
+  try {
+    const cachedRaw = localStorage.getItem(deviceTrialCacheKey);
+    if (cachedRaw) {
+      const parsed = JSON.parse(cachedRaw);
+      if (parsed?.trialStartDate && parsed?.trialEndDate) {
+        existingStart = parsed.trialStartDate;
+        existingEnd = parsed.trialEndDate;
+      }
+    }
+  } catch (_) {}
+
+  if (!existingStart && isGuestTrial) {
+    // Sunucu /api/trial/status ve Firestore kontrolü
     try {
-      localStorage.removeItem("trial_start_date");
-      localStorage.removeItem("trial_end_date");
-      localStorage.removeItem("premium_source");
-      localStorage.setItem("has_used_trial", "false");
-      localStorage.setItem("is_trial_active", "false");
-      localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_guest", "true");
+      const uidDocSnap = userId ? await getDoc(doc(firestore, "users", userId)).catch(() => null) : null;
+      if (uidDocSnap && uidDocSnap.exists()) {
+        const uData = uidDocSnap.data();
+        if (uData?.trialStartDate) {
+          existingStart = uData.trialStartDate;
+          existingEnd =
+            uData.trialEndDate ||
+            new Date(new Date(uData.trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        }
+      }
     } catch (_) {}
 
-    if (userId) {
-      const guestPayload = {
-        uid: userId,
-        email: email || "misafir@butcempro.app",
-        isGuest: true,
-        isPremium: false,
-        isTrialActive: false,
-        trialDaysRemaining: 0,
-        updatedAt: new Date().toISOString()
-      };
-      setDoc(doc(firestore, "users", userId), guestPayload, { merge: true }).catch(() => {});
-      update(ref(db, `users/${userId}`), guestPayload).catch(() => {});
+    if (!existingStart) {
+      try {
+        const res = await fetch(
+          `/api/trial/status?userId=${encodeURIComponent(userId || "")}&deviceId=${encodeURIComponent(deviceUuid)}&email=`
+        );
+        if (res.ok) {
+          const st = await res.json();
+          if (st?.hasTrial && st?.startDate) {
+            existingStart = st.startDate;
+            existingEnd =
+              st.endDate ||
+              new Date(new Date(st.startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        }
+      } catch (_) {}
     }
-
-    return { trialStartDate: "", trialEndDate: "", daysRemaining: 0 };
   }
 
-  // KURAL 2: Kayıt olan kullanıcıya 7 günlük ücretsiz Pro deneme süresi tanımlanır
-  const now = new Date();
-  const nowMs = now.getTime();
-  const trialStartDate = now.toISOString();
-  // Kayıt tarihi + tam 7 gün (7 * 24 * 60 * 60 * 1000 ms)
-  const trialEndDate = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const cleanEmail = (email || "").trim().toLowerCase();
+  const nowMs = Date.now();
+  const trialStartDate = existingStart || new Date(nowMs).toISOString();
+  const trialEndDate =
+    existingEnd || new Date(new Date(trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const endMs = new Date(trialEndDate).getTime();
+  const diffMs = endMs - nowMs;
+  const isActive = !isNaN(endMs) && diffMs > 0;
+  const isExpired = !isActive;
+  const daysRemaining = isActive ? Math.max(1, Math.min(7, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))) : 0;
+
+  try {
+    localStorage.setItem(deviceTrialCacheKey, JSON.stringify({ trialStartDate, trialEndDate }));
+    localStorage.setItem("trial_start_date", trialStartDate);
+    localStorage.setItem("trial_end_date", trialEndDate);
+    localStorage.setItem("user_created_at", trialStartDate);
+    localStorage.setItem("has_used_trial", "true");
+    localStorage.setItem("is_trial_active", isActive ? "true" : "false");
+    localStorage.setItem("is_premium", "false");
+    localStorage.setItem("is_guest", "false");
+    localStorage.setItem("is_guest_trial", isGuestTrial ? "true" : "false");
+    if (isActive) {
+      localStorage.setItem("premium_source", "trial");
+    } else {
+      localStorage.removeItem("premium_source");
+    }
+  } catch (_) {}
+
+  // Eğer ilk kez başlatılıyorsa sunucu /api/trial/activate'e de işle
+  if (!existingStart) {
+    try {
+      await fetch("/api/trial/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId || deviceUuid,
+          deviceId: deviceUuid,
+          email: isGuestTrial ? "" : cleanEmail
+        })
+      }).catch(() => {});
+    } catch (_) {}
+  }
 
   const trialPayload: Record<string, any> = {
     uid: userId,
     email: cleanEmail,
     isGuest: false,
+    isGuestTrial: Boolean(isGuestTrial),
     isPremium: false,
     trialStartDate,
     trialEndDate,
     hasUsedTrial: true,
-    isTrialActive: true,
-    trialDaysRemaining: 7,
+    isTrialActive: isActive,
+    trialDaysRemaining: daysRemaining,
     createdAt: trialStartDate,
-    updatedAt: trialStartDate
+    updatedAt: new Date(nowMs).toISOString()
   };
-
-  try {
-    localStorage.setItem("trial_start_date", trialStartDate);
-    localStorage.setItem("trial_end_date", trialEndDate);
-    localStorage.setItem("user_created_at", trialStartDate);
-    localStorage.setItem("has_used_trial", "true");
-    localStorage.setItem("is_trial_active", "true");
-    localStorage.setItem("is_premium", "false");
-    localStorage.setItem("is_guest", "false");
-    localStorage.setItem("premium_source", "trial");
-  } catch (_) {}
 
   // 1. Firebase Realtime Database: users/{userId}
   try {
@@ -657,8 +711,9 @@ export async function provisionUserTrialInDatabases(
         trialStartDate,
         trialEndDate,
         hasUsedTrial: true,
-        isTrialActive: true,
-        isGuest: false
+        isTrialActive: isActive,
+        isGuest: false,
+        isGuestTrial: Boolean(isGuestTrial)
       }).catch(() => {});
     }
   } catch (rtdbErr) {
@@ -670,7 +725,7 @@ export async function provisionUserTrialInDatabases(
     if (userId) {
       await setDoc(doc(firestore, "users", userId), trialPayload, { merge: true });
     }
-    if (cleanEmail && cleanEmail.includes("@")) {
+    if (!isGuestTrial && cleanEmail && cleanEmail.includes("@")) {
       const emailDocId = "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
       await setDoc(doc(firestore, "users", emailDocId), trialPayload, { merge: true }).catch(() => {});
     }
@@ -678,8 +733,6 @@ export async function provisionUserTrialInDatabases(
     console.warn("[DeviceSession] Firestore users/ trial write uyarısı:", fsErr);
   }
 
-  return { trialStartDate, trialEndDate, daysRemaining: 7 };
+  return { trialStartDate, trialEndDate, daysRemaining, isActive, isExpired };
 }
-
-
 

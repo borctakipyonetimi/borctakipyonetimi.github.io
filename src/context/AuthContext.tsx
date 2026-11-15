@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [isGuest, setIsGuest] = useState<boolean>(() => {
-    return localStorage.getItem("is_guest") === "true" || localStorage.getItem("userLoggedIn") !== "true";
+    return localStorage.getItem("is_guest") === "true";
   });
 
   const [isPremium, setIsPremium] = useState<boolean>(() => {
@@ -79,34 +79,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [trialStartDate, setTrialStartDate] = useState<string | null>(() => {
-    return localStorage.getItem("trial_start_date") || null;
+    return localStorage.getItem("trial_start_date") || localStorage.getItem("user_created_at") || null;
   });
 
   const [trialEndDate, setTrialEndDate] = useState<string | null>(() => {
-    return localStorage.getItem("trial_end_date") || null;
+    const storedEnd = localStorage.getItem("trial_end_date");
+    if (storedEnd) return storedEnd;
+    const createdStr = localStorage.getItem("user_created_at");
+    if (createdStr) {
+      const startMs = new Date(createdStr).getTime();
+      if (!isNaN(startMs)) return new Date(startMs + TRIAL_DURATION_MS).toISOString();
+    }
+    return null;
   });
 
   const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(() => {
     return localStorage.getItem("has_used_trial") === "true";
   });
 
-  // Calculate dynamic trial state strictly according to the 8-day rule
+  // Calculate dynamic trial state strictly according to the 7-day rule (persisted across reloads)
   const calculateTrialStatus = useCallback((endStr: string | null, guestFlag: boolean, premFlag: boolean) => {
-    // KURAL 1: Misafir veya anonim kullanıcılara ASLA ücretsiz deneme tanımlanamaz!
-    if (guestFlag || !localStorage.getItem("currentUser") || localStorage.getItem("userLoggedIn") !== "true") {
-      return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
-    }
-
     // KURAL 3: Premium abonelerin denemeye ihtiyacı yoktur, zaten tam açıktır
     if (premFlag) {
       return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
     }
 
-    if (!endStr) {
+    if (guestFlag) {
       return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
     }
 
-    const endMs = new Date(endStr).getTime();
+    let resolvedEndStr = endStr || localStorage.getItem("trial_end_date");
+    if (!resolvedEndStr) {
+      const createdStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
+      if (createdStr) {
+        const startMs = new Date(createdStr).getTime();
+        if (!isNaN(startMs)) {
+          resolvedEndStr = new Date(startMs + TRIAL_DURATION_MS).toISOString();
+        }
+      }
+    }
+
+    if (!resolvedEndStr) {
+      return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
+    }
+
+    const endMs = new Date(resolvedEndStr).getTime();
     if (isNaN(endMs)) {
       return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
     }
@@ -463,6 +480,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isSuper = (localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
     if (isSuper) {
       setIsPremium(true);
+      setIsGuest(false);
       return;
     }
     const prem = localStorage.getItem("is_premium") === "true";
@@ -471,8 +489,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsPremium(prem && pSource !== "trial" && !guest);
     setIsGuest(guest);
     setTrialEndDate(localStorage.getItem("trial_end_date"));
-    setTrialStartDate(localStorage.getItem("trial_start_date"));
+    setTrialStartDate(localStorage.getItem("trial_start_date") || localStorage.getItem("user_created_at"));
     setHasUsedTrial(localStorage.getItem("has_used_trial") === "true");
+    setCurrentUser(localStorage.getItem("currentUser"));
   }, []);
 
   // Listen to window custom events and storage changes
@@ -570,7 +589,7 @@ export const useAuth = (): AuthUserState => {
     const isPrem = isSuper || (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial" && localStorage.getItem("is_guest") !== "true");
     const trialEnd = localStorage.getItem("trial_end_date");
     const endMs = trialEnd ? new Date(trialEnd).getTime() : 0;
-    const isGuest = localStorage.getItem("is_guest") === "true" || !localStorage.getItem("currentUser");
+    const isGuest = localStorage.getItem("is_guest") === "true";
     const isTrialActive = !isPrem && !isGuest && !isNaN(endMs) && Date.now() < endMs;
     const hasProAccess = isPrem || isTrialActive;
     const shouldShowAds = !isPrem && !isTrialActive;
@@ -578,12 +597,12 @@ export const useAuth = (): AuthUserState => {
     return {
       user: null,
       currentUser: localStorage.getItem("currentUser") || null,
-      isLoggedIn: !isGuest && Boolean(localStorage.getItem("currentUser")),
+      isLoggedIn: !isGuest && (localStorage.getItem("userLoggedIn") === "true" || Boolean(localStorage.getItem("currentUser"))),
       isGuest,
       isPremium: isPrem,
       isTrialActive,
       isTrialExpired: !isPrem && !isGuest && !isNaN(endMs) && Date.now() >= endMs,
-      trialDaysRemaining: isTrialActive ? Math.max(1, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24))) : 0,
+      trialDaysRemaining: isTrialActive ? Math.max(1, Math.min(TRIAL_DURATION_DAYS, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24)))) : 0,
       trialStartDate: localStorage.getItem("trial_start_date"),
       trialEndDate: trialEnd,
       hasUsedTrial: localStorage.getItem("has_used_trial") === "true",

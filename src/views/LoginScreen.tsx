@@ -1,9 +1,10 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * Bütçem Pro - Modern & Animasyonlu Tek Sayfalık Giriş ve Kayıt Ekranı (AuthScreen)
- * Uygulama açılışında doğrudan bu ekran açılır. En üst orta kısımda büyük harflerle,
- * dikkat çekici canlı renklerle ve dinamik animasyonla 'BÜTÇEM PRO' başlığı yer alır.
+ * Bütçem Pro - Tek Sayfalık Giriş ve Kayıt Ekranı
+ * Sadece iki net giriş seçeneği sunar:
+ * 1) Misafir Girişi (7 Günlük Ücretsiz Deneme)
+ * 2) Premium Üye Girişi
  */
 
 import React, { useState } from "react";
@@ -38,6 +39,7 @@ import {
   getDeviceUuid,
   saveUserSessionToFirestore,
   checkIsPremiumEmailInFirestore,
+  checkUserTrialUsedInFirestore,
   provisionUserTrialInDatabases
 } from "../utils/deviceSessionService";
 import { sendWelcomeEmail } from "../utils/newsletterService";
@@ -51,12 +53,24 @@ export interface LoginSuccessMeta {
   isTrialExpired?: boolean;
   trialMessage?: string;
   createdAt?: string;
+  trialStartDate?: string;
+  trialEndDate?: string;
+  daysRemaining?: number;
   hasUsedTrial?: boolean;
+}
+
+export interface GuestTrialContinueMeta {
+  uid: string;
+  trialStartDate: string;
+  trialEndDate: string;
+  daysRemaining: number;
+  isActive: boolean;
+  isExpired: boolean;
 }
 
 export interface LoginScreenProps {
   onLoginSuccess: (email: string, meta?: LoginSuccessMeta) => void;
-  onGuestContinue: (guestUid?: string) => void;
+  onGuestContinue: (meta?: GuestTrialContinueMeta) => void;
   onOpenUpgradeModal?: (featureName?: string) => void;
 }
 
@@ -65,7 +79,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onGuestContinue,
   onOpenUpgradeModal
 }) => {
-  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
+  const [portalTab, setPortalTab] = useState<"guest_trial" | "premium">("guest_trial");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("register");
+  const [premiumSubMode, setPremiumSubMode] = useState<"login" | "register">("login");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -115,7 +132,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setStatusMessage("Şifre sıfırlama bağlantısı gönderiliyor...");
       try {
         await sendPasswordResetEmail(auth, targetEmail);
-        setSuccessMessage(`Şifre sıfırlama bağlantısı ${targetEmail} adresine gönderildi. Gelen kutunuzu ve spam klasörünüzü kontrol edin.`);
+        setSuccessMessage(
+          `Şifre sıfırlama bağlantısı ${targetEmail} adresine gönderildi. Gelen kutunuzu ve spam klasörünüzü kontrol edin.`
+        );
         setStatusMessage("");
       } catch (err: any) {
         setErrorMessage(formatAuthError(err?.code, err?.message));
@@ -130,7 +149,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return;
     }
 
-    if (authMode === "register" && password !== confirmPassword) {
+    const isRegistering =
+      (portalTab === "guest_trial" && authMode === "register") ||
+      (portalTab === "premium" && premiumSubMode === "register");
+
+    if (isRegistering && password !== confirmPassword) {
       setErrorMessage("Girdiğiniz şifreler eşleşmiyor. Lütfen her iki alana da aynı şifreyi yazın.");
       return;
     }
@@ -138,8 +161,62 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setIsLoading(true);
 
     try {
-      if (authMode === "login") {
-        setStatusMessage("Kimlik bilgileri doğrulanıyor...");
+      // ============================================================
+      // 1) PREMİUM ÜYE GİRİŞİ / KAYDI
+      // ============================================================
+      if (portalTab === "premium") {
+        if (premiumSubMode === "register") {
+          setStatusMessage("Premium üye hesabınız oluşturuluyor...");
+          const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
+          const user = credential.user;
+          const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+          const nowIso = new Date().toISOString();
+          const deviceUuid = await Promise.race([
+            getDeviceUuid(),
+            new Promise<string>((res) => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+          ]);
+
+          await saveUserSessionToFirestore({
+            userId: user.uid,
+            email: cleanUserEmail,
+            isPremium: false,
+            isGuest: false,
+            deviceId: deviceUuid,
+            createdAt: nowIso
+          }).catch(() => {});
+
+          try {
+            localStorage.setItem("userLoggedIn", "true");
+            localStorage.setItem("hasCompletedOnboarding", "true");
+            localStorage.setItem("currentUser", cleanUserEmail);
+            localStorage.setItem("is_premium", "false");
+            localStorage.setItem("is_guest", "false");
+            localStorage.setItem("user_created_at", nowIso);
+            localStorage.removeItem("premium_source");
+            localStorage.removeItem("trial_end_date");
+            localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+            localStorage.setItem("butcem_onboarding_completed_v7", "true");
+            if (deviceUuid) localStorage.setItem("active_device_id", deviceUuid);
+          } catch (_) {}
+
+          sendWelcomeEmail(cleanUserEmail).catch(() => {});
+
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: false,
+            isPendingPayment: true,
+            trialMessage: "Hesabınız oluşturuldu! Aboneliğinizi tamamlamak için lütfen bir Premium paket seçin.",
+            createdAt: nowIso
+          });
+
+          if (onOpenUpgradeModal) {
+            onOpenUpgradeModal("premium_signup");
+          }
+          return;
+        }
+
+        // Premium Giriş Yap
+        setStatusMessage("Premium üyelik doğrulanıyor...");
         const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
@@ -147,9 +224,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         let isUserPremium = isSuperTestEmail;
         let determinedCreatedAt: string | null = null;
-        let isGuestUser = false;
-
-        setStatusMessage("Hesap durumu ve yetkiler kontrol ediliyor...");
 
         if (!isSuperTestEmail) {
           try {
@@ -162,17 +236,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             if (uSnap && uSnap.exists()) {
               const uData = uSnap.data();
               if (uData?.createdAt) determinedCreatedAt = uData.createdAt;
-              if (uData?.isGuest === true) isGuestUser = true;
-
               if (uData?.isGuest !== true && (uData?.isPremium === true || uData?.activeSubscription === true)) {
                 if (uData?.subscriptionExpiry) {
-                  const expMs = new Date(uData.subscriptionExpiry).getTime();
-                  isUserPremium = expMs > Date.now();
+                  isUserPremium = new Date(uData.subscriptionExpiry).getTime() > Date.now();
                 } else {
                   isUserPremium = true;
                 }
               }
-            } else {
+            }
+            if (!isUserPremium) {
               const checkRes = await checkIsPremiumEmailInFirestore(cleanUserEmail);
               if (checkRes.isPremium) isUserPremium = true;
             }
@@ -190,38 +262,86 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
         }
 
-        // Cihaz hafızasına kalıcı oturum durumunu kaydet (Auto-Login aktif)
+        if (!isUserPremium) {
+          try {
+            localStorage.setItem("userLoggedIn", "true");
+            localStorage.setItem("hasCompletedOnboarding", "true");
+            localStorage.setItem("currentUser", cleanUserEmail);
+            localStorage.setItem("is_premium", "false");
+            localStorage.setItem("is_guest", "false");
+            localStorage.removeItem("premium_source");
+            localStorage.removeItem("trial_end_date");
+            if (determinedCreatedAt) localStorage.setItem("user_created_at", determinedCreatedAt);
+            if (deviceUuid) localStorage.setItem("active_device_id", deviceUuid);
+          } catch (_) {}
+
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: false,
+            isPendingPayment: true,
+            trialMessage: "⚠️ Bu hesap için aktif bir Premium abonelik bulunamadı. Devam etmek için lütfen bir paket seçin.",
+            createdAt: determinedCreatedAt || undefined
+          });
+          if (onOpenUpgradeModal) {
+            onOpenUpgradeModal("unpaid_premium_login");
+          }
+          return;
+        }
+
+        await saveUserSessionToFirestore({
+          userId: user.uid,
+          email: cleanUserEmail,
+          isPremium: true,
+          isGuest: false,
+          deviceId: deviceUuid,
+          createdAt: determinedCreatedAt || undefined
+        }).catch(() => {});
+
         try {
           localStorage.setItem("userLoggedIn", "true");
           localStorage.setItem("hasCompletedOnboarding", "true");
           localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", "true");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_guest_trial", "false");
+          localStorage.setItem("is_trial_active", "false");
+          localStorage.setItem("premium_source", "login");
+          localStorage.removeItem("trial_end_date");
           localStorage.setItem("butcem_onboarding_welcome_v7", "true");
           localStorage.setItem("butcem_onboarding_completed_v7", "true");
-          // Eski kullanıcı resmi kalıntısını temizle
           localStorage.removeItem("user_profile_avatar");
           if (deviceUuid) localStorage.setItem("active_device_id", deviceUuid);
         } catch (_) {}
 
-        setStatusMessage("Giriş başarılı! Yönlendiriliyorsunuz...");
-
         onLoginSuccess(cleanUserEmail, {
-          isPremium: isUserPremium,
-          isGuest: isGuestUser,
+          isPremium: true,
+          isGuest: false,
           createdAt: determinedCreatedAt || undefined
         });
-      } else {
-        // Kayıt Ol Modu: Yeni kayıt olan kullanıcıya 7 günlük ücretsiz Pro deneme süresi (trialEndDate = now + 7 days) otomatik tanımlanır!
-        setStatusMessage("Yeni hesabınız oluşturuluyor...");
+        return;
+      }
+
+      // ============================================================
+      // 2) MİSAFİR E-POSTA KAYIT / GİRİŞ (7 GÜNLÜK ÜCRETSİZ DENEME)
+      // ============================================================
+      if (authMode === "register") {
+        setStatusMessage("7 Günlük Ücretsiz Deneme hakkı kontrol ediliyor...");
+        const trialCheck = await checkUserTrialUsedInFirestore(targetEmail);
+        if (trialCheck.hasUsedTrial) {
+          setIsLoading(false);
+          setErrorMessage(
+            "Bu e-posta adresi için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen 'Giriş Yap' sekmesinden giriş yapın."
+          );
+          return;
+        }
+
+        setStatusMessage("Misafir deneme hesabınız oluşturuluyor...");
         const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
 
-        setStatusMessage("🎁 7 Günlük Ücretsiz Pro Deneme Hesabınız tanımlanıyor...");
-
-        // Veritabanına 7 günlük deneme (Kayıt Tarihi + 7 Gün) yazılır
         const trialInfo = await provisionUserTrialInDatabases(user.uid, cleanUserEmail, false);
 
-        // Eski kullanıcı profil resmini temizle ve oturumu başlat
         try {
           localStorage.removeItem("user_profile_avatar");
           localStorage.setItem("userLoggedIn", "true");
@@ -229,6 +349,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           localStorage.setItem("currentUser", cleanUserEmail);
           localStorage.setItem("is_premium", "false");
           localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_guest_trial", "false");
           localStorage.setItem("is_trial_active", "true");
           localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
           localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
@@ -239,20 +360,107 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           localStorage.setItem("butcem_onboarding_completed_v7", "true");
         } catch (_) {}
 
-        // Yeni kullanıcı hoş geldiniz e-postası (arka planda)
-        try {
-          sendWelcomeEmail(cleanUserEmail).catch(() => {});
-        } catch (_) {}
-
-        setStatusMessage("Hesabınız hazır! 7 Günlük Ücretsiz Pro Denemeniz başladı...");
+        sendWelcomeEmail(cleanUserEmail).catch(() => {});
 
         onLoginSuccess(cleanUserEmail, {
           isPremium: false,
           isGuest: false,
           isTrialActive: true,
           isTrialExpired: false,
-          trialMessage: "🎁 7 Günlük Ücretsiz Pro Deneme Hesabınız Aktif! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
+          hasUsedTrial: true,
+          trialStartDate: trialInfo.trialStartDate,
+          trialEndDate: trialInfo.trialEndDate,
+          daysRemaining: trialInfo.daysRemaining,
+          trialMessage: "🎁 7 Günlük Ücretsiz Deneme Hesabınız Aktif! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
           createdAt: trialInfo.trialStartDate
+        });
+      } else {
+        setStatusMessage("Misafir hesabınız doğrulanıyor...");
+        const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
+        const user = credential.user;
+        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const isSuperTestEmail = cleanUserEmail === "info.borcodemetakip@gmail.com";
+
+        let isUserPremium = isSuperTestEmail;
+        let determinedCreatedAt: string | null = null;
+        let storedTrialEnd: string | null = null;
+
+        if (!isSuperTestEmail) {
+          try {
+            const uSnap = await withTimeout(
+              getDoc(doc(firestore, "users", user.uid)),
+              3500,
+              "Firestore kullanıcı sorgusu zaman aşımı"
+            ).catch(() => null);
+
+            if (uSnap && uSnap.exists()) {
+              const uData = uSnap.data();
+              if (uData?.trialStartDate || uData?.createdAt) {
+                determinedCreatedAt = uData.trialStartDate || uData.createdAt;
+              }
+              if (uData?.trialEndDate) {
+                storedTrialEnd = uData.trialEndDate;
+              }
+              if (uData?.isGuest !== true && (uData?.isPremium === true || uData?.activeSubscription === true)) {
+                isUserPremium = uData?.subscriptionExpiry
+                  ? new Date(uData.subscriptionExpiry).getTime() > Date.now()
+                  : true;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (!determinedCreatedAt && user.metadata?.creationTime) {
+          determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
+        }
+        if (!determinedCreatedAt) {
+          determinedCreatedAt = new Date().toISOString();
+        }
+        if (!storedTrialEnd) {
+          storedTrialEnd = new Date(new Date(determinedCreatedAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        }
+
+        const endMs = new Date(storedTrialEnd).getTime();
+        const isTrialActiveNow = !isUserPremium && !isNaN(endMs) && Date.now() < endMs;
+        const isTrialExpiredNow = !isUserPremium && !isNaN(endMs) && Date.now() >= endMs;
+        const daysLeft = isTrialActiveNow
+          ? Math.max(1, Math.min(7, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24))))
+          : 0;
+
+        try {
+          localStorage.setItem("userLoggedIn", "true");
+          localStorage.setItem("hasCompletedOnboarding", "true");
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", isUserPremium ? "true" : "false");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_guest_trial", "false");
+          localStorage.setItem("user_created_at", determinedCreatedAt);
+          localStorage.setItem("trial_start_date", determinedCreatedAt);
+          localStorage.setItem("trial_end_date", storedTrialEnd);
+          localStorage.setItem("has_used_trial", "true");
+          localStorage.setItem("is_trial_active", isTrialActiveNow ? "true" : "false");
+          if (isUserPremium) {
+            localStorage.setItem("premium_source", "login");
+          } else if (isTrialActiveNow) {
+            localStorage.setItem("premium_source", "trial");
+          } else {
+            localStorage.removeItem("premium_source");
+          }
+          localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+          localStorage.setItem("butcem_onboarding_completed_v7", "true");
+          localStorage.removeItem("user_profile_avatar");
+        } catch (_) {}
+
+        onLoginSuccess(cleanUserEmail, {
+          isPremium: isUserPremium,
+          isGuest: false,
+          isTrialActive: isTrialActiveNow,
+          isTrialExpired: isTrialExpiredNow,
+          hasUsedTrial: true,
+          trialStartDate: determinedCreatedAt,
+          trialEndDate: storedTrialEnd,
+          daysRemaining: daysLeft,
+          createdAt: determinedCreatedAt
         });
       }
     } catch (err: any) {
@@ -264,44 +472,67 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  // KURAL 1: Misafir Olarak Devam Edenler (Guest/Anonymous)
-  // - Pro özelliklerin tamamı kilitli/kapalıdır.
-  // - Ücretsiz deneme hakkı kesinlikle tanımlanmaz.
-  // - Banner ve geçiş reklamlarının tamamı zorunlu olarak gösterilir.
-  const handleGuestClick = async () => {
+  // Tek Tıkla Misafir Girişi -> 7 Günlük Ücretsiz Denemeyi Başlatır veya Kalan Günleri Sürdürür
+  const handleQuickGuestTrialClick = async () => {
     setIsGuestLoading(true);
+    setErrorMessage("");
     try {
-      let guestUid = "";
-      try {
-        const anonCred = await signInAnonymously(auth);
-        guestUid = anonCred.user.uid;
-      } catch (_) {
-        guestUid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      let guestUid = auth.currentUser?.uid || "";
+      if (!guestUid) {
+        try {
+          const anonCred = await signInAnonymously(auth);
+          guestUid = anonCred.user.uid;
+        } catch (_) {
+          const devUuid = await getDeviceUuid().catch(() => `guest_${Date.now()}`);
+          guestUid = `guest_${devUuid}`;
+        }
       }
 
-      // Misafir için deneme KESİNLİKLE tanımlanmaz
-      await provisionUserTrialInDatabases(guestUid, "misafir@butcempro.app", true);
+      const trialInfo = await provisionUserTrialInDatabases(guestUid, "misafir@butcempro.app", true);
 
       try {
         localStorage.setItem("hasCompletedOnboarding", "true");
-        localStorage.setItem("userLoggedIn", "false");
-        localStorage.setItem("is_guest", "true");
+        localStorage.setItem("userLoggedIn", "true");
+        localStorage.setItem("is_guest", "false");
+        localStorage.setItem("is_guest_trial", "true");
         localStorage.setItem("is_premium", "false");
-        localStorage.setItem("is_trial_active", "false");
-        localStorage.setItem("skip_initial_login", "true");
-        localStorage.removeItem("trial_start_date");
-        localStorage.removeItem("trial_end_date");
-        localStorage.removeItem("premium_source");
-        localStorage.removeItem("has_used_trial");
+        localStorage.setItem("is_trial_active", trialInfo.isActive ? "true" : "false");
+        localStorage.setItem("has_used_trial", "true");
+        localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
+        localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
+        localStorage.setItem("user_created_at", trialInfo.trialStartDate);
+        localStorage.setItem("currentUser", "misafir@butcempro.app");
+        localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+        localStorage.setItem("butcem_onboarding_completed_v7", "true");
+        if (trialInfo.isActive) {
+          localStorage.setItem("premium_source", "trial");
+        } else {
+          localStorage.removeItem("premium_source");
+        }
         localStorage.removeItem("user_profile_name");
-        localStorage.removeItem("currentUser");
         localStorage.removeItem("user_profile_avatar");
       } catch (_) {}
 
-      onGuestContinue(guestUid);
+      onGuestContinue({
+        uid: guestUid,
+        trialStartDate: trialInfo.trialStartDate,
+        trialEndDate: trialInfo.trialEndDate,
+        daysRemaining: trialInfo.daysRemaining,
+        isActive: trialInfo.isActive,
+        isExpired: trialInfo.isExpired
+      });
     } catch (err) {
-      console.warn("Guest login fallback:", err);
-      onGuestContinue();
+      console.warn("Guest 7-day trial fallback:", err);
+      const nowIso = new Date().toISOString();
+      const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      onGuestContinue({
+        uid: `guest_${Date.now()}`,
+        trialStartDate: nowIso,
+        trialEndDate: endIso,
+        daysRemaining: 7,
+        isActive: true,
+        isExpired: false
+      });
     } finally {
       setIsGuestLoading(false);
     }
@@ -312,7 +543,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       id="login-screen-root"
       className="fixed inset-0 z-[999990] flex flex-col items-center justify-center bg-[#040714] text-white select-none overflow-y-auto px-4 py-6 sm:py-10 font-sans"
     >
-      {/* Dynamic Ambient Neon Lighting in Background */}
+      {/* Dynamic Ambient Neon Lighting */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ contain: "strict" }}>
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[34rem] h-[34rem] bg-indigo-600/25 rounded-full blur-[140px]" />
         <div className="absolute top-1/3 -right-24 w-96 h-96 bg-cyan-500/20 rounded-full blur-[140px]" />
@@ -321,12 +552,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       </div>
 
       <div className="relative z-10 w-full max-w-md my-auto space-y-4">
-        
-        {/* ============================================================ */}
-        {/* EN ÜST ORTA KISIM: BÜTÇEM PRO BAŞLIĞI VE DİNAMİK ANİMASYON */}
-        {/* ============================================================ */}
+        {/* EN ÜST ORTA KISIM: BÜTÇEM PRO BAŞLIĞI */}
         <div className="flex flex-col items-center text-center space-y-2.5">
-          {/* Glowing Animated App Icon */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -345,7 +572,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </div>
           </motion.div>
 
-          {/* Sayfanın EN ÜST ORTA kısmında 'BÜTÇEM PRO' başlığı büyük harflerle, dikkat çekici canlı renklerle ve dinamik animasyonla */}
           <div className="space-y-1">
             <motion.h1
               animate={{
@@ -357,11 +583,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   "drop-shadow(0 0 15px rgba(99,102,241,0.5))"
                 ]
               }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               className="text-3xl sm:text-4xl font-black tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 via-indigo-300 to-emerald-300 select-none"
             >
               BÜTÇEM PRO
@@ -373,17 +595,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
             </p>
 
-            {/* 7 Günlük Deneme Hediye Rozeti */}
             <div className="pt-0.5">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs shadow-emerald-500/20">
                 <Crown className="w-3 h-3 text-amber-300" />
-                <span>Yeni Kayıt & Misafirlere 7 Gün Ücretsiz Hediye 🎁</span>
+                <span>Misafir Girişine Özel 7 Gün Ücretsiz Deneme 🎁</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Feature highlight mini badges */}
+        {/* Mini feature badges */}
         <div className="grid grid-cols-3 gap-1.5 pt-1">
           <div className="p-2 rounded-xl bg-slate-900/60 border border-white/5 text-center flex flex-col items-center justify-center gap-1">
             <CreditCard className="w-4 h-4 text-indigo-400" />
@@ -400,55 +621,178 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
 
         {/* Auth Card */}
-        <div className="p-[1.5px] rounded-3xl bg-gradient-to-r from-indigo-500/40 via-purple-500/40 to-emerald-500/40 shadow-2xl shadow-indigo-950/70">
-          <div className="bg-slate-950/95 backdrop-blur-2xl rounded-[23px] p-5 sm:p-7 border border-white/10 space-y-4">
-            
-            {/* Mode Switch Tabs: Giriş Yap / Kayıt Ol */}
-            <div className="flex p-1 rounded-2xl bg-slate-900/90 border border-white/10">
+        <div className="p-[1.5px] rounded-3xl bg-gradient-to-r from-emerald-500/40 via-indigo-500/40 to-amber-500/40 shadow-2xl shadow-indigo-950/70">
+          <div className="bg-slate-950/95 backdrop-blur-2xl rounded-[23px] p-5 sm:p-6 border border-white/10 space-y-4">
+            {/* ANA SEÇİM: Sadece 2 Giriş Modu -> 1) Misafir (7 Günlük Deneme) | 2) Premium Üye Girişi */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-900/90 border border-white/10">
               <button
                 type="button"
-                id="login-tab-login"
+                id="login-portal-guest-trial"
                 onClick={() => {
-                  setAuthMode("login");
-                  setErrorMessage("");
-                  setSuccessMessage("");
-                }}
-                className={`flex-1 py-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  authMode === "login"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-900/40"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Giriş Yap</span>
-              </button>
-
-              <button
-                type="button"
-                id="login-tab-register"
-                onClick={() => {
+                  setPortalTab("guest_trial");
                   setAuthMode("register");
                   setErrorMessage("");
                   setSuccessMessage("");
                 }}
-                className={`flex-1 py-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer relative ${
-                  authMode === "register"
+                className={`py-2.5 px-2 rounded-xl font-black text-[11px] transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  portalTab === "guest_trial"
                     ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-900/40"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Kayıt Ol</span>
-                <span className="ml-1 px-1 py-0.2 rounded-md bg-amber-400 text-slate-950 text-[8px] font-black uppercase">
-                  7 GÜN
+                <span className="flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Misafir Girişi</span>
+                </span>
+                <span className={`text-[9px] font-bold ${portalTab === "guest_trial" ? "text-slate-950/80" : "text-emerald-400"}`}>
+                  7 Gün Ücretsiz Deneme
+                </span>
+              </button>
+
+              <button
+                type="button"
+                id="login-portal-premium"
+                onClick={() => {
+                  setPortalTab("premium");
+                  setAuthMode("login");
+                  setErrorMessage("");
+                  setSuccessMessage("");
+                }}
+                className={`py-2.5 px-2 rounded-xl font-black text-[11px] transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  portalTab === "premium"
+                    ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md shadow-amber-900/40"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Premium Giriş</span>
+                </span>
+                <span className={`text-[9px] font-bold ${portalTab === "premium" ? "text-slate-950/80" : "text-amber-400"}`}>
+                  Lisanslı Üye Girişi
                 </span>
               </button>
             </div>
 
+            {/* MİSAFİR 7 GÜNLÜK ÜCRETSİZ DENEME HIZLI GİRİŞ BUTONU */}
+            {portalTab === "guest_trial" && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  id="login-guest-btn"
+                  disabled={isGuestLoading}
+                  onClick={handleQuickGuestTrialClick}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-[0.98] shadow-lg shadow-emerald-500/25"
+                >
+                  {isGuestLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>7 Günlük Misafir Denemesi Başlatılıyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-slate-950" />
+                      <span>Hemen Misafir Girişi Yap (7 Gün Ücretsiz)</span>
+                      <ArrowRight className="w-4 h-4 text-slate-950 group-hover:translate-x-1 transition-all" />
+                    </>
+                  )}
+                </button>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="border-t border-white/10 w-full" />
+                  <span className="bg-slate-950 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                    VEYA E-POSTA İLE 7 GÜN DENEME
+                  </span>
+                </div>
+
+                {/* Alt Mod Seçici: Kayıt Ol / Giriş Yap */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-900/90 border border-white/10">
+                  <button
+                    type="button"
+                    id="login-tab-register"
+                    onClick={() => {
+                      setAuthMode("register");
+                      setErrorMessage("");
+                      setSuccessMessage("");
+                    }}
+                    className={`py-2 rounded-lg font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      authMode === "register"
+                        ? "bg-slate-800 text-emerald-300 shadow-xs"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Kayıt Ol (7 Gün)</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="login-tab-login"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setErrorMessage("");
+                      setSuccessMessage("");
+                    }}
+                    className={`py-2 rounded-lg font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      authMode === "login"
+                        ? "bg-slate-800 text-indigo-300 shadow-xs"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Giriş Yap</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PREMİUM ALT MOD SEÇİCİ */}
+            {portalTab === "premium" && authMode !== "forgot" && (
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-900/90 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPremiumSubMode("login");
+                    setErrorMessage("");
+                    setSuccessMessage("");
+                  }}
+                  className={`py-2 rounded-lg font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    premiumSubMode === "login"
+                      ? "bg-slate-800 text-amber-300 shadow-xs"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Premium Giriş</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPremiumSubMode("register");
+                    setErrorMessage("");
+                    setSuccessMessage("");
+                  }}
+                  className={`py-2 rounded-lg font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    premiumSubMode === "register"
+                      ? "bg-slate-800 text-amber-300 shadow-xs"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Yeni Premium Hesap</span>
+                </button>
+              </div>
+            )}
+
             <p className="text-center text-xs text-slate-300 font-medium">
-              {authMode === "login" && "E-posta ve şifrenizle giriş yaparak bütçenizi yönetin."}
-              {authMode === "register" && "Kayıt olun, otomatik 7 günlük ücretsiz denemeniz hemen başlasın."}
-              {authMode === "forgot" && "Kayıtlı e-posta adresinize şifre sıfırlama linki gönderin."}
+              {authMode === "forgot"
+                ? "Kayıtlı e-posta adresinize şifre sıfırlama bağlantısı gönderin."
+                : portalTab === "premium"
+                ? premiumSubMode === "register"
+                  ? "Hesabınızı oluşturun, ardından doğrudan Premium paket seçimine geçin."
+                  : "Lisanslı Premium hesabınızla giriş yaparak tüm özellikleri sınırsız kullanın."
+                : authMode === "register"
+                ? "E-posta ile kaydolun, 7 günlük ücretsiz denemeniz bulutta da korunsun."
+                : "Mevcut misafir hesabınıza giriş yaparak kaldığınız günden devam edin."}
             </p>
 
             {/* Error & Success Banners */}
@@ -479,8 +823,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </AnimatePresence>
 
             {/* Auth Form */}
-            <form onSubmit={handleAuthSubmit} className="space-y-3 pt-1">
-              {/* E-posta Input */}
+            <form onSubmit={handleAuthSubmit} className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
                   E-Posta Adresi
@@ -500,14 +843,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               </div>
 
-              {/* Şifre Input */}
               {authMode !== "forgot" && (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
                       Şifre
                     </label>
-                    {authMode === "login" && (
+                    {((portalTab === "guest_trial" && authMode === "login") ||
+                      (portalTab === "premium" && premiumSubMode === "login")) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -530,7 +873,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                      autoComplete={
+                        (portalTab === "guest_trial" && authMode === "register") ||
+                        (portalTab === "premium" && premiumSubMode === "register")
+                          ? "new-password"
+                          : "current-password"
+                      }
                       className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-slate-900 border border-slate-700/80 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 text-white text-xs placeholder:text-slate-600 transition outline-hidden"
                     />
                     <button
@@ -544,36 +892,38 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               )}
 
-              {/* Şifre Tekrar Input (Sadece Kayıt Olurken) */}
-              {authMode === "register" && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                    Şifre Tekrarı
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      id="login-confirm-password-input"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-700/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 text-white text-xs placeholder:text-slate-600 transition outline-hidden"
-                    />
+              {authMode !== "forgot" &&
+                ((portalTab === "guest_trial" && authMode === "register") ||
+                  (portalTab === "premium" && premiumSubMode === "register")) && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                      Şifre Tekrarı
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        id="login-confirm-password-input"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-700/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 text-white text-xs placeholder:text-slate-600 transition outline-hidden"
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
                 id="login-submit-btn"
                 className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm tracking-wide shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60 active:scale-[0.98] ${
-                  authMode === "register"
-                    ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 hover:from-emerald-400 hover:to-cyan-400 shadow-emerald-500/25"
+                  portalTab === "premium"
+                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-slate-950 hover:from-amber-300 hover:to-yellow-400 shadow-amber-500/25"
+                    : authMode === "register"
+                    ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white hover:from-indigo-500 hover:to-purple-600 shadow-indigo-600/30"
                     : "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white hover:from-indigo-500 hover:to-purple-600 shadow-indigo-600/30"
                 }`}
               >
@@ -582,22 +932,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>{statusMessage || "Lütfen bekleyin..."}</span>
                   </>
-                ) : authMode === "login" ? (
+                ) : authMode === "forgot" ? (
                   <>
-                    <UserCheck className="w-4 h-4" />
-                    <span>Giriş Yap</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                    <Mail className="w-4 h-4" />
+                    <span>Sıfırlama Bağlantısı Gönder</span>
                   </>
+                ) : portalTab === "premium" ? (
+                  premiumSubMode === "register" ? (
+                    <>
+                      <Crown className="w-4 h-4" />
+                      <span>Premium Hesap Aç & Plan Seç</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="w-4 h-4" />
+                      <span>Premium Üye Girişi Yap</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </>
+                  )
                 ) : authMode === "register" ? (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>Kayıt Ol & 7 Gün Ücretsiz Başla</span>
+                    <span>E-posta ile 7 Gün Ücretsiz Başla</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 ) : (
                   <>
-                    <Mail className="w-4 h-4" />
-                    <span>Sıfırlama Bağlantısı Gönder</span>
+                    <UserCheck className="w-4 h-4" />
+                    <span>Misafir Hesabına Giriş Yap</span>
+                    <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 )}
               </button>
@@ -616,40 +980,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </button>
               )}
             </form>
-
-            {/* Divider */}
-            <div className="relative flex items-center justify-center my-1.5">
-              <div className="border-t border-white/10 w-full" />
-              <span className="bg-slate-950 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                VEYA
-              </span>
-            </div>
-
-            {/* Guest Continue (7 Günlük Ücretsiz Deneme Tanımlanır) */}
-            <button
-              type="button"
-              id="login-guest-btn"
-              disabled={isGuestLoading}
-              onClick={handleGuestClick}
-              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-850 hover:from-slate-850 hover:to-slate-800 border border-emerald-500/40 hover:border-emerald-400 text-emerald-300 hover:text-white font-extrabold text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-[0.98] shadow-md shadow-emerald-950/40"
-            >
-              {isGuestLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Misafir Denemesi Hazırlanıyor...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                  <span>Misafir Olarak Devam Et (7 Gün Ücretsiz Deneme)</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-1 transition-all" />
-                </>
-              )}
-            </button>
           </div>
         </div>
 
-        {/* Security & Cloud Sync Badges */}
         <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400 text-center select-none">
           <div className="flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />

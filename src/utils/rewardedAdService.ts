@@ -57,22 +57,33 @@ export function isUserAdFree(): boolean {
   if (typeof window === "undefined") return false;
   const user = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
   if (user === "info.borcodemetakip@gmail.com") return true;
-  
-  const isGuest = localStorage.getItem("is_guest") === "true";
-  if (isGuest) return false;
 
-  const isPremium = localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial";
+  const isGuestOnly = localStorage.getItem("is_guest") === "true";
+  const pSource = localStorage.getItem("premium_source");
+  const isPremium =
+    !isGuestOnly &&
+    localStorage.getItem("is_premium") === "true" &&
+    pSource !== "trial";
   if (isPremium) return true;
 
-  const isTrialActiveStorage = localStorage.getItem("is_trial_active") === "true";
+  // Aktif 7 günlük deneme süresi varsa (Misafir 7 günlük deneme dahil) REKLAMSIZDIR
   const trialEndDate = localStorage.getItem("trial_end_date");
   if (trialEndDate) {
     const endMs = new Date(trialEndDate).getTime();
-    if (!isNaN(endMs) && Date.now() < endMs) {
-      return true;
+    if (!isNaN(endMs)) {
+      return Date.now() < endMs;
     }
   }
-  return isTrialActiveStorage;
+
+  const createdAtStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
+  if (createdAtStr && pSource === "trial") {
+    const startMs = new Date(createdAtStr).getTime();
+    if (!isNaN(startMs)) {
+      return Date.now() < startMs + 7 * 24 * 60 * 60 * 1000;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -383,9 +394,9 @@ export async function showNativeBannerAd(options?: {
 
       if (isNativeBannerActive && currentNativeBannerKey !== targetKey) {
         try {
-          await AdMob.hideBanner();
+          await AdMob.removeBanner().catch(() => AdMob.hideBanner());
         } catch {
-          // Ignore hide before size switch
+          // Ignore remove before size switch
         }
         isNativeBannerActive = false;
         currentNativeBannerKey = null;
@@ -415,16 +426,16 @@ export async function showNativeBannerAd(options?: {
 }
 
 /**
- * Hides/Removes native banner ad
+ * Hides/Removes native banner ad cleanly so next showBanner creates a visible AdView
  */
 export async function hideNativeBannerAd(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
     isNativeBannerActive = false;
     currentNativeBannerKey = null;
-    await AdMob.hideBanner();
+    await AdMob.removeBanner().catch(() => AdMob.hideBanner());
   } catch (err) {
-    console.warn("[AdMob Native] hideBanner error:", err);
+    console.warn("[AdMob Native] removeBanner/hideBanner error:", err);
   }
 }
 
