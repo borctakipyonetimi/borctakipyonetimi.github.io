@@ -97,17 +97,23 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       return;
     }
 
-    // Native only renders bottom-dock (and drawer-square while drawer is open); skip inline duplicates
-    if (isNative && placement !== "bottom-dock" && placement !== "drawer-square") {
+    // Native bottom-dock only handles native ADAPTIVE_BANNER; skip inline duplicates.
+    // For drawer-square on native: temporarily hide the bottom-dock native banner while drawer is open
+    // (because Capacitor AdMob overlays screen-wide BOTTOM_CENTER outside <aside>) and render the 250x250 slot strictly inside <aside>.
+    if (isNative && placement === "inline") {
       return;
+    }
+
+    if (isNative && placement === "drawer-square") {
+      hideNativeBannerAd().catch(() => {});
     }
 
     let isMounted = true;
     setAdLoaded(false);
     setAdUnfilled(false);
 
-    // 1. CAPACITOR NATIVE ANDROID / IOS RUNTIME (Genuine Google AdMob Test Banner)
-    if (isNative) {
+    // 1. CAPACITOR NATIVE ANDROID / IOS RUNTIME FOR BOTTOM-DOCK (Genuine Google AdMob Test Banner)
+    if (isNative && placement === "bottom-dock") {
       const listeners: PluginListenerHandle[] = [];
 
       const setupNativeBanner = async () => {
@@ -147,19 +153,12 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           );
           listeners.push(failedHandle);
 
-          const shown = isRectangle
-            ? await showNativeBannerAd({
-                adSize: BannerAdSize.MEDIUM_RECTANGLE,
-                position: BannerAdPosition.BOTTOM_CENTER,
-                margin: 8,
-                isTesting: true
-              })
-            : await showNativeBannerAd({
-                adSize: BannerAdSize.ADAPTIVE_BANNER,
-                position: BannerAdPosition.BOTTOM_CENTER,
-                margin: 0,
-                isTesting: true
-              });
+          const shown = await showNativeBannerAd({
+            adSize: BannerAdSize.ADAPTIVE_BANNER,
+            position: BannerAdPosition.BOTTOM_CENTER,
+            margin: 0,
+            isTesting: true
+          });
 
           if (isMounted && !shown) {
             setAdLoaded(false);
@@ -185,25 +184,16 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             // Ignore listener cleanup errors
           }
         }
-        // When drawer closes, restore bottom-dock adaptive banner cleanly
-        if (placement === "drawer-square" && active && !isUserAdFree()) {
-          showNativeBannerAd({
-            adSize: BannerAdSize.ADAPTIVE_BANNER,
-            position: BannerAdPosition.BOTTOM_CENTER,
-            margin: 0,
-            isTesting: true
-          }).catch(() => {});
-        }
       };
     }
 
-    // 2. WEB / PREVIEW RUNTIME: Genuine Google Publisher Tag Test Ad Unit (/6355419/Travel)
-    // Only expands container when GPT slotRenderEnded confirms !event.isEmpty (zero empty dark boxes)
+    // 2. DOM-CONTAINED GOOGLE PUBLISHER TAG TEST AD UNIT (/6355419/Travel)
+    // Used for Web/PWA slots AND drawer-square (so the drawer square ad stays 100% inside <aside> bounds!)
     let activeSlot: any = null;
     let renderHandlerRef: ((event: any) => void) | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
-    const adSizes: [number, number][] = isRectangle ? [[300, 250]] : [[320, 50]];
+    const adSizes: [number, number][] = isRectangle ? [[250, 250]] : [[320, 50]];
 
     const initGptSlot = () => {
       if (!isMounted || typeof window === "undefined") return;
@@ -302,6 +292,15 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           });
         }
       } catch {}
+
+      if (isNative && placement === "drawer-square" && active && !isUserAdFree()) {
+        showNativeBannerAd({
+          adSize: BannerAdSize.ADAPTIVE_BANNER,
+          position: BannerAdPosition.BOTTOM_CENTER,
+          margin: 0,
+          isTesting: true
+        }).catch(() => {});
+      }
     };
   }, [shouldHideAds, isNative, unitType, placement, active, isRectangle, slotDivId]);
 
@@ -310,20 +309,10 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   if (placement === "drawer-square" && !active) return null;
 
-  // Native Android/iOS: Only allocate spacer when BannerAdPluginEvents.Loaded confirms an actual banner rendered
-  if (isNative) {
-    if (!adLoaded || adUnfilled || (placement !== "bottom-dock" && placement !== "drawer-square")) {
+  // Native Android/iOS bottom-dock: Only allocate spacer when BannerAdPluginEvents.Loaded confirms an actual banner rendered
+  if (isNative && placement !== "drawer-square") {
+    if (!adLoaded || adUnfilled || placement !== "bottom-dock") {
       return null;
-    }
-    if (placement === "drawer-square") {
-      return (
-        <div
-          aria-label="Google AdMob Test Square Banner"
-          data-admob-unit={ADMOB_CONFIG.BANNER_ID}
-          className={`w-full rounded-2xl bg-[#0f172a] border border-slate-800/80 transition-all duration-200 ${className}`}
-          style={{ height: `${Math.max(250, nativeBannerHeight)}px` }}
-        />
-      );
     }
     return (
       <div
@@ -335,13 +324,13 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Web: Collapse completely when unfilled/blocked so empty reserved areas never appear
+  // Collapse completely when unfilled/blocked so empty reserved areas never appear
   if (adUnfilled) return null;
 
   if (isRectangle) {
     return (
       <div
-        className={`w-full flex flex-col items-center justify-center rounded-2xl bg-[#0f172a]/95 border border-slate-800 overflow-hidden transition-all duration-300 ${
+        className={`w-full max-w-[264px] mx-auto flex flex-col items-center justify-center rounded-2xl bg-[#0f172a]/95 border border-slate-800 overflow-hidden transition-all duration-300 ${
           adLoaded ? "p-1.5 min-h-[262px]" : "h-0 border-0 opacity-0 pointer-events-none"
         } ${className}`}
       >
@@ -349,7 +338,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           ref={slotContainerRef}
           id={slotDivId}
           data-admob-unit={ADMOB_CONFIG.BANNER_ID}
-          style={{ width: "300px", height: "250px", maxWidth: "100%" }}
+          style={{ width: "250px", height: "250px", maxWidth: "100%" }}
           className="flex items-center justify-center overflow-hidden rounded-xl"
         />
       </div>

@@ -327,8 +327,10 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       e.stopPropagation();
     }
 
-    // 1. Grant 24-hour pass ONLY to the target feature
-    grant24HourPass(targetFeature);
+    // 1. If unlocking a 24h feature pass (for non-trial7days), grant 24-hour pass ONLY to the target feature
+    if (targetFeature !== "trial7days") {
+      grant24HourPass(targetFeature);
+    }
 
     // 2. Celebratory confetti
     try {
@@ -371,6 +373,14 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     color: string;
     badge: string;
   }> = {
+    trial7days: {
+      title: "7 Gün Reklamsız & Sınırsız PRO Kullanım",
+      shortName: "7 Günlük Reklamsız Deneme",
+      desc: "E-posta hesabınızla giriş yaptınız! Tek seferlik 1 ödüllü video izleyerek 7 gün boyunca tüm reklamları kaldırın ve tüm PRO özelliklerin kilidini açın.",
+      icon: Sparkles,
+      color: "from-emerald-500 via-teal-500 to-cyan-600",
+      badge: "1 VİDEO İLE 7 GÜN REKLAMSIZ"
+    },
     report: {
       title: "Finansal Rapor & CSV İndirme",
       shortName: "Finansal Rapor",
@@ -563,7 +573,9 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             </p>
             <p className="text-[11px] text-slate-300 font-medium">
               {adFinished 
-                ? "Tebrikler! Reklam tamamlandı. Ödülünüzü alarak özelliği 24 saatliğine aktif edebilirsiniz." 
+                ? targetFeature === "trial7days"
+                  ? "Tebrikler! Video tamamlandı. Ödülünüzü alarak 7 gün boyunca reklamsız & sınırsız PRO kullanıma geçebilirsiniz."
+                  : "Tebrikler! Reklam tamamlandı. Ödülünüzü alarak özelliği 24 saatliğine aktif edebilirsiniz." 
                 : "Ödülü kazanmak için videoyu en az 10 saniye boyunca izleyin."}
             </p>
           </div>
@@ -576,7 +588,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                 className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 animate-bounce cursor-pointer"
               >
                 <Award className="w-5 h-5" />
-                <span>ÖDÜLÜ AL & KİLİDİ AÇ</span>
+                <span>{targetFeature === "trial7days" ? "7 GÜN REKLAMSIZ BAŞLAT" : "ÖDÜLÜ AL & KİLİDİ AÇ"}</span>
               </button>
             ) : (
               <button
@@ -627,7 +639,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             </div>
             <div>
               <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase rounded-full tracking-wider border border-amber-500/20 inline-flex items-center gap-1">
-                <Zap className="w-3 h-3" /> {featureInfo.badge} (1 GÜN)
+                <Zap className="w-3 h-3" /> {targetFeature === "trial7days" ? featureInfo.badge : `${featureInfo.badge} (1 GÜN)`}
               </span>
               <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1.5">
                 {featureInfo.title}
@@ -653,12 +665,27 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               <span>GOOGLE ADMOB TEST REKLAM PROTOKOLÜ:</span>
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-              Google Test Ödüllü Video reklamı tamamlandığında <strong className="text-slate-900 dark:text-slate-200 font-bold">sadece {featureInfo.shortName}</strong> özelliği 24 saatliğine (1 tam gün) anında açılır.
+              {targetFeature === "trial7days" ? (
+                <>
+                  Google Test Ödüllü Video reklamı tamamlandığında hesabınız için{" "}
+                  <strong className="text-slate-900 dark:text-slate-200 font-bold">
+                    7 gün boyunca tüm reklamlar kapanır ve tüm PRO özellikler sınırsız açılır.
+                  </strong>
+                </>
+              ) : (
+                <>
+                  Google Test Ödüllü Video reklamı tamamlandığında{" "}
+                  <strong className="text-slate-900 dark:text-slate-200 font-bold">
+                    sadece {featureInfo.shortName}
+                  </strong>{" "}
+                  özelliği 24 saatliğine (1 tam gün) anında açılır.
+                </>
+              )}
             </p>
           </div>
 
           {/* Active pass status indicator if already unlocked */}
-          {activePassTime && (
+          {activePassTime && targetFeature !== "trial7days" && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold">
                 <CheckCircle2 className="w-4 h-4" />
@@ -686,7 +713,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               ) : (
                 <>
                   <PlayCircle className="w-4 h-4 text-slate-950 fill-current" />
-                  <span>Ödüllü Reklamı Başlat & Aç (24 Saat)</span>
+                  <span>
+                    {targetFeature === "trial7days"
+                      ? "1 Video İzle & 7 Gün Reklamsız Aç"
+                      : "Ödüllü Reklamı Başlat & Aç (24 Saat)"}
+                  </span>
                 </>
               )}
             </button>

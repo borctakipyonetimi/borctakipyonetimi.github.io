@@ -59,6 +59,8 @@ export interface SaveSessionParams {
   createdAt?: string;
   hasUsedTrial?: boolean;
   trialStartDate?: string;
+  trialEndDate?: string;
+  isTrialActive?: boolean;
 }
 
 /**
@@ -127,6 +129,12 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
   if (params.trialStartDate !== undefined) {
     userDocData.trialStartDate = params.trialStartDate;
   }
+  if (params.trialEndDate !== undefined) {
+    userDocData.trialEndDate = params.trialEndDate;
+  }
+  if (params.isTrialActive !== undefined) {
+    userDocData.isTrialActive = params.isTrialActive;
+  }
 
   if (effectivePremium) {
     if (premiumType) userDocData.premiumType = premiumType;
@@ -169,6 +177,8 @@ export async function saveUserSessionToFirestore(params: SaveSessionParams): Pro
       updatedAt: now,
       ...(params.hasUsedTrial !== undefined ? { hasUsedTrial: params.hasUsedTrial } : {}),
       ...(params.trialStartDate !== undefined ? { trialStartDate: params.trialStartDate } : {}),
+      ...(params.trialEndDate !== undefined ? { trialEndDate: params.trialEndDate } : {}),
+      ...(params.isTrialActive !== undefined ? { isTrialActive: params.isTrialActive } : {}),
       ...(effectivePremium && deviceId ? { activeDeviceId: deviceId } : {}),
       ...(effectivePremium && premiumType ? { premiumType, premiumPlan: premiumType } : {}),
       ...(effectivePremium && premiumExpiryDate ? { premiumExpiryDate } : {}),
@@ -593,57 +603,57 @@ export async function provisionUserTrialInDatabases(
   isActive: boolean;
   isExpired: boolean;
 }> {
-  const cleanEmail = (email || (isGuestTrial ? "misafir@butcempro.app" : "")).trim().toLowerCase();
+  const cleanEmail = (email || "").trim().toLowerCase();
   const deviceUuid = await getDeviceUuid().catch(() => "dev_default");
   const deviceTrialCacheKey = `butcem_device_trial_${deviceUuid}`;
 
-  // 1. Önce mevcut deneme kaydını kontrol et (LocalStorage -> Cihaz cache -> Firestore -> RTDB)
+  // 1. Mevcut deneme kaydını yalnızca bu UID veya E-posta için kontrol et (Cihaz cache sadece email yoksa değil, doğrudan hesap bazlı)
   let existingStart: string | null = null;
   let existingEnd: string | null = null;
 
   try {
-    const cachedRaw = localStorage.getItem(deviceTrialCacheKey);
-    if (cachedRaw) {
-      const parsed = JSON.parse(cachedRaw);
-      if (parsed?.trialStartDate && parsed?.trialEndDate) {
-        existingStart = parsed.trialStartDate;
-        existingEnd = parsed.trialEndDate;
-      }
-    }
-  } catch (_) {}
-
-  if (!existingStart && isGuestTrial) {
-    // Sunucu /api/trial/status ve Firestore kontrolü
-    try {
-      const uidDocSnap = userId ? await getDoc(doc(firestore, "users", userId)).catch(() => null) : null;
+    if (userId) {
+      const uidDocSnap = await getDoc(doc(firestore, "users", userId)).catch(() => null);
       if (uidDocSnap && uidDocSnap.exists()) {
         const uData = uidDocSnap.data();
-        if (uData?.trialStartDate) {
+        if (uData?.hasUsedTrial === true && uData?.trialStartDate) {
           existingStart = uData.trialStartDate;
           existingEnd =
             uData.trialEndDate ||
             new Date(new Date(uData.trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         }
       }
-    } catch (_) {}
+    }
+
+    if (!existingStart && cleanEmail && cleanEmail.includes("@")) {
+      const emailDocId = "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_");
+      const emailSnap = await getDoc(doc(firestore, "users", emailDocId)).catch(() => null);
+      if (emailSnap && emailSnap.exists()) {
+        const eData = emailSnap.data();
+        if (eData?.hasUsedTrial === true && eData?.trialStartDate) {
+          existingStart = eData.trialStartDate;
+          existingEnd =
+            eData.trialEndDate ||
+            new Date(new Date(eData.trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        }
+      }
+    }
 
     if (!existingStart) {
-      try {
-        const res = await fetch(
-          `/api/trial/status?userId=${encodeURIComponent(userId || "")}&deviceId=${encodeURIComponent(deviceUuid)}&email=`
-        );
-        if (res.ok) {
-          const st = await res.json();
-          if (st?.hasTrial && st?.startDate) {
-            existingStart = st.startDate;
-            existingEnd =
-              st.endDate ||
-              new Date(new Date(st.startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-          }
+      const res = await fetch(
+        `/api/trial/status?userId=${encodeURIComponent(userId || "")}&deviceId=${encodeURIComponent(deviceUuid)}&email=${encodeURIComponent(cleanEmail)}`
+      );
+      if (res.ok) {
+        const st = await res.json();
+        if ((st?.hasTrial || st?.hasUsedTrial) && st?.startDate) {
+          existingStart = st.startDate;
+          existingEnd =
+            st.endDate ||
+            new Date(new Date(st.startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         }
-      } catch (_) {}
+      }
     }
-  }
+  } catch (_) {}
 
   const nowMs = Date.now();
   const trialStartDate = existingStart || new Date(nowMs).toISOString();

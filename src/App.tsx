@@ -131,7 +131,7 @@ import { AIChat } from "./components/AIChat";
 import { HelpAndGuides } from "./components/HelpAndGuides";
 import { ProviderLoginModal } from "./components/ProviderLoginModal";
 import { GuestCheckoutAuthModal } from "./components/GuestCheckoutAuthModal";
-import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid, checkUserTrialUsedInFirestore, markTrialUsedInFirestore } from "./utils/deviceSessionService";
+import { startDeviceSessionWatcher, saveUserSessionToFirestore, getDeviceUuid, checkUserTrialUsedInFirestore, markTrialUsedInFirestore, provisionUserTrialInDatabases } from "./utils/deviceSessionService";
 import { SecurityLockOverlay } from "./components/SecurityLockOverlay";
 import { SecuritySettingsPanel } from "./components/SecuritySettingsPanel";
 import { LoginScreen, type GuestTrialContinueMeta } from "./views/LoginScreen";
@@ -139,7 +139,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd } from "./utils/rewardedAdService";
+import { isPassActive, isTemporaryPassActive, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd } from "./utils/rewardedAdService";
 import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -598,7 +598,14 @@ export default function App() {
   const [isTrialExpiredLocked, setIsTrialExpiredLocked] = useState<boolean>(() => {
     const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
     if (savedUser === "info.borcodemetakip@gmail.com") return false;
+    if (localStorage.getItem("is_guest") === "true") return false;
     if (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial") return false;
+
+    const trialActivated =
+      localStorage.getItem("has_used_trial") === "true" ||
+      localStorage.getItem("premium_source") === "trial" ||
+      Boolean(localStorage.getItem("trial_end_date"));
+    if (!trialActivated) return false;
 
     const trialEndStr = localStorage.getItem("trial_end_date");
     if (trialEndStr) {
@@ -606,10 +613,10 @@ export default function App() {
       if (!isNaN(endMs)) return Date.now() >= endMs;
     }
 
-    const createdAtStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
-    if (createdAtStr) {
-      const createdAtMs = new Date(createdAtStr).getTime();
-      if (!isNaN(createdAtMs) && (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24) >= 7) {
+    const startStr = localStorage.getItem("trial_start_date");
+    if (startStr) {
+      const startMs = new Date(startStr).getTime();
+      if (!isNaN(startMs) && (Date.now() - startMs) / (1000 * 60 * 60 * 24) >= 7) {
         return true;
       }
     }
@@ -619,7 +626,13 @@ export default function App() {
   const [isTrialActive, setIsTrialActive] = useState<boolean>(() => {
     const savedUser = (localStorage.getItem("currentUser") || "").toLowerCase().trim();
     if (savedUser === "info.borcodemetakip@gmail.com") return false;
+    if (localStorage.getItem("is_guest") === "true") return false;
     if (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial") return false;
+
+    const trialActivated =
+      localStorage.getItem("has_used_trial") === "true" ||
+      localStorage.getItem("premium_source") === "trial";
+    if (!trialActivated) return false;
 
     const trialEndStr = localStorage.getItem("trial_end_date");
     if (trialEndStr) {
@@ -627,15 +640,21 @@ export default function App() {
       if (!isNaN(endMs)) return Date.now() < endMs;
     }
 
-    const createdAtStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
-    if (createdAtStr) {
-      const startMs = new Date(createdAtStr).getTime();
+    const startStr = localStorage.getItem("trial_start_date");
+    if (startStr) {
+      const startMs = new Date(startStr).getTime();
       if (!isNaN(startMs)) return (Date.now() - startMs) / (1000 * 60 * 60 * 24) < 7;
     }
     return false;
   });
 
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(() => {
+    if (localStorage.getItem("is_guest") === "true") return 0;
+    const trialActivated =
+      localStorage.getItem("has_used_trial") === "true" ||
+      localStorage.getItem("premium_source") === "trial";
+    if (!trialActivated) return 0;
+
     const trialEndStr = localStorage.getItem("trial_end_date");
     if (trialEndStr) {
       const endMs = new Date(trialEndStr).getTime();
@@ -644,15 +663,15 @@ export default function App() {
         return Math.max(0, Math.min(7, Math.ceil(diffDays)));
       }
     }
-    const createdAtStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
-    if (createdAtStr) {
-      const startMs = new Date(createdAtStr).getTime();
+    const startStr = localStorage.getItem("trial_start_date");
+    if (startStr) {
+      const startMs = new Date(startStr).getTime();
       if (!isNaN(startMs)) {
         const diffDays = (Date.now() - startMs) / (1000 * 60 * 60 * 24);
         return Math.max(0, Math.min(7, Math.ceil(7 - diffDays)));
       }
     }
-    return 7;
+    return 0;
   });
 
   const [isActivatingTrial, setIsActivatingTrial] = useState<boolean>(false);
@@ -682,9 +701,22 @@ export default function App() {
       return false;
     }
 
-    if (uData?.hasUsedTrial === true || uData?.trialStartDate) {
-      setHasUsedTrial(true);
-      localStorage.setItem("has_used_trial", "true");
+    // Kayıt olmadan giren misafir kullanıcıda 7 günlük deneme ASLA tanımlanmaz, reklamlar açık kalır
+    if (localStorage.getItem("is_guest") === "true" || uData?.isGuest === true) {
+      setIsPremium(false);
+      setIsTrialActive(false);
+      setIsTrialExpiredLocked(false);
+      setHasUsedTrial(false);
+      setTrialDaysRemaining(0);
+      setIsGuestMode(true);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "true");
+      localStorage.setItem("is_trial_active", "false");
+      localStorage.removeItem("trial_start_date");
+      localStorage.removeItem("trial_end_date");
+      localStorage.removeItem("premium_source");
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      return false;
     }
 
     if (uData?.isPremium === true && uData?.isGuest !== true) {
@@ -699,33 +731,44 @@ export default function App() {
       return false;
     }
 
-    // 7 Günlük Deneme Süresi Zaman Kontrolü (Misafir Deneme & E-posta Deneme dahil, sayfa yenilemede korunur)
+    const dbHasUsedTrial =
+      uData?.hasUsedTrial === true ||
+      Boolean(uData?.trialEndDate) ||
+      Boolean(uData?.trialStartDate);
+    const localHasUsedTrial =
+      localStorage.getItem("has_used_trial") === "true" ||
+      localStorage.getItem("premium_source") === "trial" ||
+      Boolean(localStorage.getItem("trial_end_date"));
+
+    if (!dbHasUsedTrial && !localHasUsedTrial) {
+      // Kullanıcı e-posta ile kayıt oldu ama henüz 1 ödüllü video izlemedi -> Reklamlar açık bekler
+      setIsPremium(false);
+      setIsTrialActive(false);
+      setIsTrialExpiredLocked(false);
+      setHasUsedTrial(false);
+      setTrialDaysRemaining(0);
+      localStorage.setItem("has_used_trial", "false");
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_trial_active", "false");
+      localStorage.removeItem("premium_source");
+      localStorage.removeItem("trial_start_date");
+      localStorage.removeItem("trial_end_date");
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      return false;
+    }
+
+    if (dbHasUsedTrial) {
+      setHasUsedTrial(true);
+      localStorage.setItem("has_used_trial", "true");
+    }
+
+    // 7 Günlük Deneme Süresi Zaman Kontrolü (1 video izledikten sonra başlayan deneme sayfa yenilemede korunur)
     const nowMs = Date.now();
     let trialEndStr: string | null = uData?.trialEndDate || localStorage.getItem("trial_end_date");
-    let createdAtStr: string | null =
+    const createdAtStr: string | null =
       uData?.trialStartDate ||
-      uData?.createdAt ||
-      localStorage.getItem("trial_start_date") ||
-      localStorage.getItem("user_created_at");
-
-    // Yerel cihaz önbelleğinden deneme tarihini kontrol et
-    if (!trialEndStr) {
-      try {
-        const devUuid = localStorage.getItem("butcem_device_uuid");
-        if (devUuid) {
-          const cached = localStorage.getItem(`butcem_device_trial_${devUuid}`);
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed?.trialStartDate) createdAtStr = createdAtStr || parsed.trialStartDate;
-            if (parsed?.trialEndDate) trialEndStr = parsed.trialEndDate;
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (!createdAtStr && userObj?.metadata?.creationTime) {
-      createdAtStr = new Date(userObj.metadata.creationTime).toISOString();
-    }
+      localStorage.getItem("trial_start_date");
 
     if (!trialEndStr && createdAtStr) {
       const startMs = new Date(createdAtStr).getTime();
@@ -734,20 +777,22 @@ export default function App() {
       }
     }
 
-    // Eğer hâlâ deneme bilgisi yoksa (ör. ilk kez misafir/kayıt girişi), 7 günlük denemeyi hemen tanımla
     if (!trialEndStr) {
-      createdAtStr = new Date(nowMs).toISOString();
-      trialEndStr = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
-      localStorage.setItem("user_created_at", createdAtStr);
-      localStorage.setItem("trial_start_date", createdAtStr);
-      localStorage.setItem("trial_end_date", trialEndStr);
+      setIsPremium(false);
+      setIsTrialActive(false);
+      setIsTrialExpiredLocked(false);
+      setTrialDaysRemaining(0);
+      localStorage.setItem("is_trial_active", "false");
+      localStorage.removeItem("premium_source");
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      return false;
     }
 
     const endMs = new Date(trialEndStr).getTime();
     const isExpired = !isNaN(endMs) && nowMs >= endMs;
 
     if (isExpired) {
-      // 7 GÜN DOLDU -> Reklamlı ve Ödüllü Video destekli Misafir Moduna geç (tarihleri silme, yenilemede hatırlansın)
+      // 7 GÜN DOLDU -> Reklamlı ve Ödüllü Video destekli Moda geç (tarihleri silme, yenilemede hatırlansın)
       setIsPremium(false);
       setIsTrialActive(false);
       setTrialDaysRemaining(0);
@@ -760,7 +805,6 @@ export default function App() {
       localStorage.setItem("trial_end_date", trialEndStr);
       if (createdAtStr) {
         localStorage.setItem("trial_start_date", createdAtStr);
-        localStorage.setItem("user_created_at", createdAtStr);
       }
       localStorage.removeItem("premium_source");
       setTrialStatus({
@@ -774,7 +818,7 @@ export default function App() {
       window.dispatchEvent(new CustomEvent("trial_status_changed"));
       return true;
     } else {
-      // 7 Günlük Deneme Süresi AKTİF (Kayıt/Başlangıç Tarihi + 7 Gün -> Sayfa yenilemede kalıcı!)
+      // 7 Günlük Deneme Süresi AKTİF (1 video sonrası + 7 Gün -> Sayfa yenilemede kalıcı!)
       const daysLeft = Math.max(1, Math.min(7, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24))));
 
       setIsPremium(false);
@@ -790,7 +834,6 @@ export default function App() {
       localStorage.setItem("trial_end_date", trialEndStr);
       if (createdAtStr) {
         localStorage.setItem("trial_start_date", createdAtStr);
-        localStorage.setItem("user_created_at", createdAtStr);
       }
       localStorage.setItem("premium_source", "trial");
       setTrialStatus({
@@ -807,6 +850,13 @@ export default function App() {
   };
 
   const checkTrialStatus = async () => {
+    if (localStorage.getItem("is_guest") === "true") {
+      setIsTrialActive(false);
+      setIsTrialExpiredLocked(false);
+      setTrialDaysRemaining(0);
+      return;
+    }
+
     let deviceId = localStorage.getItem("butcem_device_id");
     if (!deviceId) {
       deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
@@ -816,7 +866,7 @@ export default function App() {
     const cleanUser = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
 
     // 1. Veritabanı (Firestore) Sorgusu: 1 E-posta = 1 Deneme Hakkı
-    if (cleanUser && cleanUser !== "info.borcodemetakip@gmail.com") {
+    if (cleanUser && cleanUser !== "info.borcodemetakip@gmail.com" && cleanUser !== "misafir@butcempro.app") {
       checkUserTrialUsedInFirestore(cleanUser).then((dbRes) => {
         if (dbRes.hasUsedTrial) {
           setHasUsedTrial(true);
@@ -918,12 +968,22 @@ export default function App() {
     }
 
     // Fallback / Local & Device Cache Check (Never wipes valid 7-day trial on refresh)
+    if (localStorage.getItem("is_guest") === "true") {
+      return;
+    }
     const pSource = localStorage.getItem("premium_source");
     if (localStorage.getItem("is_premium") === "true" && pSource !== "trial") {
       return;
     }
+    const isTrialActivated =
+      localStorage.getItem("has_used_trial") === "true" ||
+      pSource === "trial" ||
+      Boolean(localStorage.getItem("trial_end_date"));
+    if (!isTrialActivated) {
+      return;
+    }
 
-    let localStartDate = localStorage.getItem("trial_start_date") || localStorage.getItem("user_created_at");
+    const localStartDate = localStorage.getItem("trial_start_date");
     let localEndDate = localStorage.getItem("trial_end_date");
     if (!localEndDate && localStartDate) {
       const startMs = new Date(localStartDate).getTime();
@@ -973,10 +1033,99 @@ export default function App() {
     }
   };
 
+  // E-posta ile kayıtlı kullanıcı 1 ödüllü video izlediğinde 7 gün reklamsız & sınırsız Pro denemesini başlatır
+  const activate7DayTrialAfterVideo = async () => {
+    const cleanEmail = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    const isGuestSession = localStorage.getItem("is_guest") === "true" || !cleanEmail || !cleanEmail.includes("@") || cleanEmail === "misafir@butcempro.app";
+    if (isGuestSession) {
+      triggerToast("⚠️ 7 günlük reklamsız deneme için önce e-posta ile kayıt olup giriş yapmalısınız.");
+      return;
+    }
+
+    const uid = auth.currentUser?.uid || ("email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_"));
+    try {
+      const trialInfo = await provisionUserTrialInDatabases(uid, cleanEmail, false);
+      await markTrialUsedInFirestore(uid, cleanEmail, trialInfo.trialStartDate).catch(() => {});
+
+      setHasUsedTrial(true);
+      setIsTrialActive(trialInfo.isActive);
+      setIsTrialExpiredLocked(trialInfo.isExpired);
+      setTrialDaysRemaining(trialInfo.daysRemaining);
+      setIsPremium(false);
+      setIsGuestMode(false);
+      setTrialStatus({
+        hasTrial: true,
+        isActive: trialInfo.isActive,
+        isExpired: trialInfo.isExpired,
+        daysRemaining: trialInfo.daysRemaining,
+        startDate: trialInfo.trialStartDate,
+        endDate: trialInfo.trialEndDate
+      });
+
+      localStorage.setItem("has_used_trial", "true");
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_guest_trial", "false");
+      localStorage.setItem("is_trial_active", trialInfo.isActive ? "true" : "false");
+      localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
+      localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
+      if (trialInfo.isActive) {
+        localStorage.setItem("premium_source", "trial");
+      } else {
+        localStorage.removeItem("premium_source");
+      }
+
+      hideNativeBannerAd().catch(() => {});
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
+
+      if (trialInfo.isActive) {
+        triggerToast(`🎉 Tebrikler! 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı (${trialInfo.daysRemaining} gün kaldı)!`);
+      } else {
+        triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce tamamlanmıştır.");
+      }
+    } catch (err) {
+      console.warn("activate7DayTrialAfterVideo fallback:", err);
+      const nowIso = new Date().toISOString();
+      const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      setHasUsedTrial(true);
+      setIsTrialActive(true);
+      setIsTrialExpiredLocked(false);
+      setTrialDaysRemaining(7);
+      setIsPremium(false);
+      localStorage.setItem("has_used_trial", "true");
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_trial_active", "true");
+      localStorage.setItem("premium_source", "trial");
+      localStorage.setItem("trial_start_date", nowIso);
+      localStorage.setItem("trial_end_date", endIso);
+      hideNativeBannerAd().catch(() => {});
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
+      triggerToast("🎉 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı!");
+    }
+  };
+
   const handleActivateTrial = async () => {
     const cleanEmail = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+    const isGuestSession =
+      localStorage.getItem("is_guest") === "true" ||
+      !cleanEmail ||
+      !cleanEmail.includes("@") ||
+      cleanEmail === "misafir@butcempro.app";
 
-    // 1. ÖNCELİKLİ DOĞRULAMA: Daha önce deneme hakkı kullanılmış mı?
+    // 1. Kayıt olmadan giren misafirler önce e-posta ile kayıt olmalıdır
+    if (isGuestSession) {
+      setIsUpgradeModalOpen(false);
+      setProviderLoginInitialTab("guest_trial");
+      setProviderLoginInitialSubMode("register");
+      setProviderLoginOpen(true);
+      triggerToast("🎁 7 günlük reklamsız & sınırsız deneme için önce e-posta ile kayıt olup 1 ödüllü video izleyin.");
+      return;
+    }
+
+    // 2. ÖNCELİKLİ DOĞRULAMA: Daha önce deneme hakkı kullanılmış mı?
     if (hasUsedTrial || localStorage.getItem("has_used_trial") === "true" || isTrialExpiredLocked) {
       triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
       setHasUsedTrial(true);
@@ -985,14 +1134,8 @@ export default function App() {
     }
 
     setIsActivatingTrial(true);
-    let deviceId = localStorage.getItem("butcem_device_id");
-    if (!deviceId) {
-      deviceId = "dev_" + Math.random().toString(36).slice(2, 12);
-      localStorage.setItem("butcem_device_id", deviceId);
-    }
-
     try {
-      // 2. VERİTABANI (FIRESTORE & RTDB) KONTROLÜ
+      // 3. VERİTABANI (FIRESTORE) KONTROLÜ
       if (cleanEmail && cleanEmail !== "info.borcodemetakip@gmail.com") {
         const dbCheck = await checkUserTrialUsedInFirestore(cleanEmail);
         if (dbCheck.hasUsedTrial) {
@@ -1008,111 +1151,16 @@ export default function App() {
           return;
         }
       }
-
-      // 3. SUNUCU TARAFI DOĞRULAMA (/api/trial/activate)
-      const data = await safeFetchJson<{
-        success?: boolean;
-        error?: string;
-        hasTrial: boolean;
-        hasUsedTrial?: boolean;
-        isActive: boolean;
-        isExpired: boolean;
-        daysRemaining: number;
-        startDate: string | null;
-        endDate: string | null;
-      }>("/api/trial/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUser || auth.currentUser?.uid || "",
-          deviceId,
-          email: cleanEmail
-        })
-      });
-
-      if (data) {
-        if (!data.success && (data.isExpired || data.hasUsedTrial || data.error)) {
-          setHasUsedTrial(true);
-          localStorage.setItem("has_used_trial", "true");
-          setIsPremium(false);
-          localStorage.setItem("is_premium", "false");
-          localStorage.setItem("is_trial_active", "false");
-          localStorage.removeItem("premium_source");
-          localStorage.removeItem("trial_end_date");
-          setIsTrialExpiredLocked(true);
-          triggerToast(data.error || "⚠️ 7 günlük deneme süreniz daha önce tamamlanmıştır. Lütfen bir Premium paket seçin.");
-          setIsActivatingTrial(false);
-          return;
-        }
-
-        if (data.isActive) {
-          const nowIso = data.startDate || new Date().toISOString();
-          const trialEndDate = data.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-          
-          // 4. VERİTABANINA hasUsedTrial = true ve trialStartDate İŞARETLE
-          setHasUsedTrial(true);
-          setIsTrialActive(true);
-          setTrialDaysRemaining(data.daysRemaining || 7);
-          setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
-          setIsTrialExpiredLocked(false);
-          localStorage.setItem("has_used_trial", "true");
-          localStorage.setItem("is_premium", "false");
-          localStorage.setItem("is_guest", "false");
-          localStorage.setItem("is_trial_active", "true");
-          localStorage.setItem("premium_source", "trial");
-          localStorage.setItem("trial_end_date", trialEndDate);
-          setTrialStatus(data);
-
-          const effectiveUid = auth.currentUser?.uid || (cleanEmail ? "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
-          if (effectiveUid) {
-            await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
-          }
-
-          triggerToast("🎉 7 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
-          setIsActivatingTrial(false);
-          return;
-        }
-      }
     } catch (e) {
-      console.warn("Trial activation server request failed, evaluating local fallbacks:", e);
-    }
-
-    // Local fallback: Sadece ve sadece daha önce deneme HİÇ kullanılmamışsa
-    if (localStorage.getItem("has_used_trial") === "true") {
-      triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen bir Premium paket seçin.");
+      console.warn("Trial check warning:", e);
+    } finally {
       setIsActivatingTrial(false);
-      return;
     }
 
-    const nowIso = new Date().toISOString();
-    const trialEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    setHasUsedTrial(true);
-    setIsTrialActive(true);
-    setTrialDaysRemaining(7);
-    setIsPremium(false); // <--- KESİNLİKLE FALSE (PREMIUM OLMAYACAK)
-    setIsTrialExpiredLocked(false);
-    localStorage.setItem("has_used_trial", "true");
-    localStorage.setItem("is_premium", "false");
-    localStorage.setItem("is_guest", "false");
-    localStorage.setItem("is_trial_active", "true");
-    localStorage.setItem("premium_source", "trial");
-    localStorage.setItem("trial_end_date", trialEndDate);
-    setTrialStatus({
-      hasTrial: true,
-      isActive: true,
-      isExpired: false,
-      daysRemaining: 7,
-      startDate: nowIso,
-      endDate: trialEndDate
-    });
-
-    const effectiveUid = auth.currentUser?.uid || (cleanEmail ? "email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_") : null);
-    if (effectiveUid) {
-      await markTrialUsedInFirestore(effectiveUid, cleanEmail, nowIso);
-    }
-
-    triggerToast("🎉 7 Günlük Ücretsiz Pro Deneme Hesabınız Başlatıldı! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.");
-    setIsActivatingTrial(false);
+    // 4. 7 günlük reklamsız & sınırsız erişimi başlatmak için 1 ödüllü video izlet
+    setIsUpgradeModalOpen(false);
+    setRewardedFeature("trial7days");
+    setIsRewardedModalOpen(true);
   };
 
   const handleCancelTrial = async () => {
@@ -2777,71 +2825,73 @@ export default function App() {
   const [selectedProvider, setSelectedProvider] = useState<"google" | "email" | null>(null);
 
   const handleCompleteOnboarding = async (meta?: GuestTrialContinueMeta) => {
+    // Kayıt olmadan devam eden kullanıcıya ASLA 7 gün ücretsiz/reklamsız deneme verilmez; reklamlar açık başlar
+    if (!meta || meta.isUnregisteredGuest || !meta.isActive) {
+      try {
+        localStorage.setItem("hasCompletedOnboarding", "true");
+        localStorage.setItem("userLoggedIn", "true");
+        localStorage.setItem("is_guest", "true");
+        localStorage.setItem("is_guest_trial", "false");
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_trial_active", "false");
+        localStorage.setItem("has_used_trial", "false");
+        localStorage.removeItem("trial_start_date");
+        localStorage.removeItem("trial_end_date");
+        localStorage.removeItem("user_created_at");
+        localStorage.removeItem("premium_source");
+        localStorage.setItem("currentUser", "misafir@butcempro.app");
+        localStorage.setItem("butcem_onboarding_welcome_v7", "true");
+        localStorage.setItem("butcem_onboarding_completed_v7", "true");
+        localStorage.removeItem("user_profile_name");
+        localStorage.removeItem("user_profile_avatar");
+      } catch (e) {
+        console.warn("Could not write guest status to localStorage:", e);
+      }
+
+      setHasCompletedOnboarding(true);
+      setUserLoggedIn(true);
+      setIsGuestMode(true);
+      setIsPremium(false);
+      setCurrentUser("misafir@butcempro.app");
+      setUserProfileName("Misafir Kullanıcı");
+      setUserAvatar("");
+      setHasUsedTrial(false);
+      setIsTrialActive(false);
+      setTrialDaysRemaining(0);
+      setIsTrialExpiredLocked(false);
+      setTrialStatus(null);
+      setProviderLoginOpen(false);
+      setShowOnboarding(false);
+      setActiveTab("overview");
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
+
+      triggerToast("📢 Kayıt olmadan misafir girişi yapıldı. Reklamlar açıktır; 7 gün reklamsız kullanım için e-posta ile kayıt olup 1 video izleyebilirsiniz.");
+      return;
+    }
+
     const nowIso = new Date().toISOString();
     const defaultEndIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const trialStartDate = meta?.trialStartDate || localStorage.getItem("trial_start_date") || nowIso;
     const trialEndDate = meta?.trialEndDate || localStorage.getItem("trial_end_date") || defaultEndIso;
     const endMs = new Date(trialEndDate).getTime();
-    const isActiveNow = meta ? meta.isActive : (!isNaN(endMs) && Date.now() < endMs);
-    const isExpiredNow = !isActiveNow;
+    const isActiveNow = !isNaN(endMs) && Date.now() < endMs;
     const daysLeft = isActiveNow
       ? (meta?.daysRemaining ?? Math.max(1, Math.min(7, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24)))))
       : 0;
-
-    try {
-      localStorage.setItem("hasCompletedOnboarding", "true");
-      localStorage.setItem("userLoggedIn", "true");
-      localStorage.setItem("is_guest", "false");
-      localStorage.setItem("is_guest_trial", "true");
-      localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_trial_active", isActiveNow ? "true" : "false");
-      localStorage.setItem("has_used_trial", "true");
-      localStorage.setItem("trial_start_date", trialStartDate);
-      localStorage.setItem("trial_end_date", trialEndDate);
-      localStorage.setItem("user_created_at", trialStartDate);
-      localStorage.setItem("currentUser", "misafir@butcempro.app");
-      localStorage.setItem("butcem_onboarding_welcome_v7", "true");
-      localStorage.setItem("butcem_onboarding_completed_v7", "true");
-      if (isActiveNow) {
-        localStorage.setItem("premium_source", "trial");
-      } else {
-        localStorage.removeItem("premium_source");
-      }
-      localStorage.removeItem("user_profile_name");
-      localStorage.removeItem("user_profile_avatar");
-    } catch (e) {
-      console.warn("Could not write onboarding status to localStorage:", e);
-    }
 
     setHasCompletedOnboarding(true);
     setUserLoggedIn(true);
     setIsGuestMode(false);
     setIsPremium(false);
-    setCurrentUser("misafir@butcempro.app");
-    setUserProfileName("Misafir Kullanıcı");
-    setUserAvatar("");
     setHasUsedTrial(true);
     setIsTrialActive(isActiveNow);
     setTrialDaysRemaining(daysLeft);
-    setIsTrialExpiredLocked(isExpiredNow);
-    setTrialStatus({
-      hasTrial: true,
-      isActive: isActiveNow,
-      isExpired: isExpiredNow,
-      daysRemaining: daysLeft,
-      startDate: trialStartDate,
-      endDate: trialEndDate
-    });
+    setIsTrialExpiredLocked(!isActiveNow);
     setProviderLoginOpen(false);
     setShowOnboarding(false);
     setActiveTab("overview");
     window.dispatchEvent(new CustomEvent("trial_status_changed"));
-
-    if (isActiveNow) {
-      triggerToast(`🎁 7 Günlük Ücretsiz Misafir Denemesi Aktif! (${daysLeft} gün boyunca tüm Pro özellikler açık ve reklamsız)`);
-    } else {
-      triggerToast("⏳ 7 günlük ücretsiz deneme süreniz dolmuştur. Ödüllü video izleyerek veya paket seçerek devam edebilirsiniz.");
-    }
   };
 
   const handleOnboardingDirectLogin = () => {
@@ -2879,6 +2929,7 @@ export default function App() {
       isPendingPayment?: boolean;
       isTrialActive?: boolean;
       isTrialExpired?: boolean;
+      requiresTrialVideo?: boolean;
       trialMessage?: string;
       createdAt?: string;
       trialStartDate?: string;
@@ -2899,10 +2950,11 @@ export default function App() {
       localStorage.setItem("has_used_trial", "true");
     }
 
-    if (meta?.trialStartDate || meta?.createdAt) {
-      const startIso = meta.trialStartDate || meta.createdAt!;
-      localStorage.setItem("user_created_at", startIso);
-      localStorage.setItem("trial_start_date", startIso);
+    if (meta?.createdAt) {
+      localStorage.setItem("user_created_at", meta.createdAt);
+    }
+    if (meta?.trialStartDate) {
+      localStorage.setItem("trial_start_date", meta.trialStartDate);
     }
 
     // Modal'ları ve pencereleri anında kapat
@@ -2934,6 +2986,7 @@ export default function App() {
       localStorage.setItem("premium_source", "login");
       localStorage.removeItem("trial_end_date");
       window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
 
       setIsUpgradeModalOpen(false);
       setShowPublicView(null);
@@ -2960,14 +3013,44 @@ export default function App() {
       return;
     }
 
-    // 2. 7 GÜNLÜK DENEME HESABI ZAMAN HESAPLAMASI (Kayıt Tarihi + 7 Gün)
+    // 2. E-POSTA KAYDI/GİRİŞİ SONRASI 1 ÖDÜLLÜ VİDEO BEKLEYEN HESAP
+    // Video izlenene kadar reklamlar açık kalır; 1 video izlendiğinde 7 gün reklamsız & sınırsız başlar
+    if (meta?.requiresTrialVideo || (!meta?.isTrialActive && !meta?.isTrialExpired && !meta?.trialEndDate && !meta?.hasUsedTrial)) {
+      setIsPremium(false);
+      setIsTrialActive(false);
+      setIsTrialExpiredLocked(false);
+      setHasUsedTrial(false);
+      setTrialDaysRemaining(0);
+      setTrialStatus(null);
+      localStorage.setItem("is_premium", "false");
+      localStorage.setItem("is_guest", "false");
+      localStorage.setItem("is_trial_active", "false");
+      localStorage.setItem("has_used_trial", "false");
+      localStorage.removeItem("trial_start_date");
+      localStorage.removeItem("trial_end_date");
+      localStorage.removeItem("premium_source");
+      window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
+
+      setIsUpgradeModalOpen(false);
+      setShowPublicView(null);
+      setActiveTab("overview");
+      triggerToast(meta?.trialMessage || "🎬 7 gün boyunca reklamsız & sınırsız kullanım için şimdi 1 ödüllü video izleyin!");
+      setTimeout(() => {
+        setRewardedFeature("trial7days");
+        setRewardedCallback(() => () => {
+          activate7DayTrialAfterVideo();
+        });
+        setIsRewardedModalOpen(true);
+      }, 280);
+      return;
+    }
+
+    // 3. DAHA ÖNCE 1 VİDEO İZLEMIŞ HESAP -> KALAN DENEME SÜRESİNİ HESAPLA
     const nowMs = Date.now();
-    const trialEndStr =
-      meta?.trialEndDate ||
-      localStorage.getItem("trial_end_date") ||
-      new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const trialEndMs = new Date(trialEndStr).getTime();
-    const isExpired = meta?.isTrialExpired || (!isNaN(trialEndMs) && nowMs >= trialEndMs);
+    const trialEndStr = meta?.trialEndDate || localStorage.getItem("trial_end_date") || "";
+    const trialEndMs = trialEndStr ? new Date(trialEndStr).getTime() : 0;
+    const isExpired = meta?.isTrialExpired || (!isNaN(trialEndMs) && trialEndMs > 0 && nowMs >= trialEndMs);
 
     if (isExpired) {
       setIsPremium(false);
@@ -2977,9 +3060,10 @@ export default function App() {
       localStorage.setItem("is_premium", "false");
       localStorage.setItem("is_guest", "false");
       localStorage.setItem("is_trial_active", "false");
-      localStorage.setItem("trial_end_date", trialEndStr);
+      if (trialEndStr) localStorage.setItem("trial_end_date", trialEndStr);
       localStorage.removeItem("premium_source");
       window.dispatchEvent(new CustomEvent("trial_status_changed"));
+      window.dispatchEvent(new CustomEvent("premium_status_changed"));
 
       setShowPublicView(null);
       setActiveTab("overview");
@@ -2987,7 +3071,7 @@ export default function App() {
       return;
     }
 
-    // 3. 7 Günlük Deneme Aktif: Tüm PRO özellikler açık, REKLAMLAR KAPALI
+    // 4. 7 Günlük Deneme Aktif: Tüm PRO özellikler açık, REKLAMLAR KAPALI
     const daysLeft = meta?.daysRemaining ?? Math.max(1, Math.min(7, Math.ceil((trialEndMs - nowMs) / (1000 * 60 * 60 * 24))));
     setIsPremium(false);
     setIsTrialActive(true);
@@ -2996,7 +3080,7 @@ export default function App() {
     localStorage.setItem("is_premium", "false");
     localStorage.setItem("is_guest", "false");
     localStorage.setItem("is_trial_active", "true");
-    localStorage.setItem("trial_end_date", trialEndStr);
+    if (trialEndStr) localStorage.setItem("trial_end_date", trialEndStr);
     localStorage.setItem("premium_source", "trial");
     setTrialStatus({
       hasTrial: true,
@@ -3006,7 +3090,9 @@ export default function App() {
       startDate: meta?.trialStartDate || localStorage.getItem("trial_start_date"),
       endDate: trialEndStr
     });
+    hideNativeBannerAd().catch(() => {});
     window.dispatchEvent(new CustomEvent("trial_status_changed"));
+    window.dispatchEvent(new CustomEvent("premium_status_changed"));
 
     setIsUpgradeModalOpen(false);
     setShowPublicView(null);
@@ -3057,6 +3143,7 @@ export default function App() {
 
       const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
       const isGuestTrialSession = localStorage.getItem("is_guest_trial") === "true";
+      const isUnregisteredGuestSession = localStorage.getItem("is_guest") === "true" && isLocallyLoggedIn;
 
       if (!isLocallyLoggedIn && !isGuestTrialSession) {
         setCurrentUser(null);
@@ -3068,7 +3155,7 @@ export default function App() {
         setShowOnboarding(false);
         setUserLoggedIn(true);
         setHasCompletedOnboarding(true);
-        setIsGuestMode(false);
+        setIsGuestMode(isUnregisteredGuestSession);
         // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
         sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
           setSessionTerminatedReason(reason);
@@ -3078,7 +3165,7 @@ export default function App() {
         });
 
         const rawEmail = user.email ? user.email.toLowerCase() : null;
-        const emailOrUid = rawEmail || (isGuestTrialSession ? "misafir@butcempro.app" : user.uid);
+        const emailOrUid = rawEmail || ((isGuestTrialSession || isUnregisteredGuestSession) ? "misafir@butcempro.app" : user.uid);
         const displayName = emailOrUid.endsWith("@borctakip.app")
             ? emailOrUid.replace("@borctakip.app", "")
             : emailOrUid;
@@ -3098,16 +3185,14 @@ export default function App() {
           localStorage.setItem("is_trial_active", "false");
           localStorage.setItem("premium_source", "login");
           window.dispatchEvent(new CustomEvent("trial_status_changed"));
+        } else if (isUnregisteredGuestSession) {
+          checkUserTrialExpiration(user, { isGuest: true });
         } else {
           if (auth.currentUser) {
             getDoc(doc(firestore, "users", user.uid))
               .then((docSnap) => {
                 if (docSnap.exists()) {
                   const uData = docSnap.data();
-                  if (uData.hasUsedTrial === true || uData.trialStartDate) {
-                    setHasUsedTrial(true);
-                    localStorage.setItem("has_used_trial", "true");
-                  }
                   if (uData.isPremium === true && uData.isGuest !== true) {
                     setIsPremium(true);
                     setIsTrialActive(false);
@@ -3235,12 +3320,14 @@ export default function App() {
       } else {
         const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
         const isGuestTrialSession = localStorage.getItem("is_guest_trial") === "true";
-        const savedUser = localStorage.getItem("currentUser") || (isGuestTrialSession ? "misafir@butcempro.app" : null);
+        const isUnregisteredGuestSession = localStorage.getItem("is_guest") === "true" && isLocallyLoggedIn;
+        const savedUser = localStorage.getItem("currentUser") || ((isGuestTrialSession || isUnregisteredGuestSession) ? "misafir@butcempro.app" : null);
         if (savedUser && (isLocallyLoggedIn || isGuestTrialSession)) {
-          // Keep the local/hybrid session & 7-day trial active during page reloads or offline states
+          // Keep the local/hybrid session & trial state during page reloads or offline states
           setCurrentUser(savedUser);
           setUserLoggedIn(true);
-          checkUserTrialExpiration(null, null);
+          setIsGuestMode(isUnregisteredGuestSession);
+          checkUserTrialExpiration(null, isUnregisteredGuestSession ? { isGuest: true } : null);
           const savedProfileName = localStorage.getItem("user_profile_name");
           if (savedProfileName) {
             setUserProfileName(savedProfileName);
@@ -5025,6 +5112,7 @@ export default function App() {
         localStorage.removeItem("is_guest");
         localStorage.removeItem("is_guest_trial");
         localStorage.removeItem("is_trial_active");
+        localStorage.removeItem("has_used_trial");
         localStorage.removeItem("skip_initial_login");
         localStorage.removeItem("user_profile_name");
         localStorage.removeItem("user_profile_avatar");
@@ -5050,7 +5138,9 @@ export default function App() {
         setHasCompletedOnboarding(true);
         setShowOnboarding(false);
         setIsPremium(false);
+        setHasUsedTrial(false);
         setIsTrialActive(false);
+        setTrialDaysRemaining(0);
         setIsTrialExpiredLocked(false);
         setIsUpgradeModalOpen(false);
         setTrialStatus(null);
@@ -8958,7 +9048,7 @@ export default function App() {
 
       {/* Side drawer panel - Açılır Akordiyon Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
+        className={`fixed left-0 top-0 bottom-0 w-76 sm:w-80 max-w-[85vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden overflow-y-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -9608,14 +9698,14 @@ export default function App() {
             </p>
           </div>
 
-          {/* Açılır Menü En Alt Boşluk: Gerçek Google AdMob Test Kare (300x250) Reklamı */}
+          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Kare (250x250) Reklam */}
           {!hasProAccess && (
-            <div className="pb-4 flex justify-center">
+            <div className="pb-4 w-full max-w-full overflow-hidden flex justify-center">
               <AdMobBanner
                 unitType="rectangle"
                 placement="drawer-square"
                 active={isSidebarOpen}
-                className="my-0"
+                className="my-0 max-w-full"
               />
             </div>
           )}
@@ -9649,6 +9739,64 @@ export default function App() {
             >
               <span>👑</span>
               <span>Paket Seç</span>
+            </button>
+          </div>
+        )}
+
+        {/* E-posta ile giriş yapmış ancak henüz 1 ödüllü video izlememiş kullanıcı kartı */}
+        {!isPaidPremium && !isTrialActive && !isTrialExpiredLocked && !hasUsedTrial && !isGuestMode && localStorage.getItem("is_guest") !== "true" && (currentUser || "").includes("@") && currentUser !== "misafir@butcempro.app" && (
+          <div className="mb-3 py-2 px-3 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-cyan-500/15 border border-emerald-500/35 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0">🎬</span>
+              <div className="min-w-0">
+                <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 block leading-tight">
+                  1 Video İzle → 7 Gün Reklamsız & Sınırsız PRO Kullan!
+                </span>
+                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium block truncate">
+                  Şu an reklamlar açıktır. Tek video ile 7 günlük denemeyi hemen başlatabilirsiniz.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRewardedFeature("trial7days");
+                setRewardedCallback(() => () => {
+                  activate7DayTrialAfterVideo();
+                });
+                setIsRewardedModalOpen(true);
+              }}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+            >
+              Video İzle (7 Gün Aç)
+            </button>
+          </div>
+        )}
+
+        {/* Kayıt olmadan giriş yapan kullanıcı için reklamlı mod bilgilendirmesi */}
+        {!isPaidPremium && !isTrialActive && (isGuestMode || localStorage.getItem("is_guest") === "true") && (
+          <div className="mb-3 py-2 px-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0">📢</span>
+              <div className="min-w-0">
+                <span className="text-[11px] font-black text-amber-700 dark:text-amber-300 block leading-tight">
+                  Kayıt Olmadan Giriş (Reklamlı Mod)
+                </span>
+                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium block truncate">
+                  E-posta ile kayıt olup 1 video izleyerek 7 gün reklamsız kullanabilirsiniz.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setProviderLoginInitialTab("guest_trial");
+                setProviderLoginInitialSubMode("register");
+                setProviderLoginOpen(true);
+              }}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+            >
+              Kayıt Ol
             </button>
           </div>
         )}
@@ -11820,6 +11968,18 @@ export default function App() {
         targetFeature={rewardedFeature}
         isPremium={hasProAccess}
         onRewardGranted={() => {
+          if (rewardedFeature === "trial7days") {
+            window.requestAnimationFrame(() => {
+              setTimeout(() => {
+                if (rewardedCallback) {
+                  rewardedCallback();
+                } else {
+                  activate7DayTrialAfterVideo();
+                }
+              }, 64);
+            });
+            return;
+          }
           const featureNames: Record<string, string> = {
             report: "Finansal Rapor & CSV İndirme",
             ai: "Yapay Zeka Analiz Asistanı",
@@ -12215,30 +12375,25 @@ export default function App() {
                         </div>
 
                         <div className={`grid ${canActivateTrial ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-2.5 pt-1`}>
-                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - SADECE Deneme Hakkı Olanlara */}
+                          {/* Seçenek 1: 7 Günlük Ücretsiz Deneme Başlat - E-posta + 1 Ödüllü Video */}
                           {canActivateTrial && (
                             <button
                               type="button"
-                              onClick={() => {
-                                setIsUpgradeModalOpen(false);
-                                setProviderLoginInitialTab("guest_trial");
-                                setProviderLoginInitialSubMode("register");
-                                setProviderLoginOpen(true);
-                              }}
+                              onClick={handleActivateTrial}
                               className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl shadow-md shadow-emerald-500/20 text-left transition active:scale-[0.98] cursor-pointer flex flex-col justify-between gap-2 border border-emerald-400/30"
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-xl">🎁</span>
                                 <span className="text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                  Ücretsiz
+                                  1 Video
                                 </span>
                               </div>
                               <div>
                                 <div className="text-xs font-black leading-tight">
-                                  7 Günlük Deneme Başlat
+                                  7 Gün Reklamsız Deneme Aç
                                 </div>
                                 <div className="text-[10px] text-emerald-100 font-medium mt-0.5 leading-snug">
-                                  E-posta ile 10 saniyede kaydolun, 7 gün boyunca tüm PRO özellikleri ücretsiz kullanın!
+                                  E-posta ile kaydolup 1 video izleyin; 7 gün boyunca reklamsız ve sınırsız kullanın!
                                 </div>
                               </div>
                             </button>
@@ -12543,16 +12698,16 @@ export default function App() {
                     ) : (
                       /* MİSAFİR VE ÜCRETSİZ (FREE) KULLANICILAR İÇİN SATIN ALMA VE DENEME BUTONLARI */
                       <div className="space-y-3 pt-1">
-                        {/* 7 Günlük Ücretsiz Deneme (Trial Activation / Status Block) - SADECE Deneme Hakkı Olanlara */}
+                        {/* 7 Günlük Ücretsiz Deneme (E-posta + 1 Video) - SADECE Deneme Hakkı Olanlara */}
                         {canActivateTrial && (
                           <div className="p-4 bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2.5 shadow-xs">
                             <div className="flex justify-between items-center">
                               <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">🎁 7 GÜNLÜK ÜCRETSİZ DENEME</span>
-                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">PRO SÜRÜM</span>
+                              <span className="text-[8px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">1 VİDEO = 7 GÜN</span>
                             </div>
                             <div className="space-y-2">
                               <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed uppercase">
-                                KREDİ KARTI GEREKMEDEN 7 GÜN BOYUNCA BÜTÇEM PRO PREMİUM'UN TÜM AYRICALIKLI ÖZELLİKLERİNİ ÜCRETSİZ KULLANABİLİRSİNİZ.
+                                E-POSTA İLE KAYIT OLUP 1 ÖDÜLLÜ VİDEO İZLEYEREK 7 GÜN BOYUNCA REKLAMSIZ VE SINIRSIZ PRO KULLANIMI BAŞLATABİLİRSİNİZ.
                               </p>
                               <button
                                 type="button"
@@ -12560,7 +12715,7 @@ export default function App() {
                                 onClick={handleActivateTrial}
                                 className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-95 text-white font-black text-[11px] uppercase tracking-wider rounded-xl transition text-center select-none cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 active:scale-97 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                {isActivatingTrial ? "DOĞRULANIYOR..." : "🚀 7 GÜNLÜK ÜCRETSİZ DENEMEYİ BAŞLAT"}
+                                {isActivatingTrial ? "DOĞRULANIYOR..." : "🎬 1 VİDEO İZLE & 7 GÜN REKLAMSIZ AÇ"}
                               </button>
                             </div>
                           </div>

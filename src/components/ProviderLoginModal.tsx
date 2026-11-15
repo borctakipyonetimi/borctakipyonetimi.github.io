@@ -48,8 +48,12 @@ export interface LoginSuccessMeta {
   isPendingPayment?: boolean;
   isTrialActive?: boolean;
   isTrialExpired?: boolean;
+  requiresTrialVideo?: boolean;
   trialMessage?: string;
   createdAt?: string;
+  trialStartDate?: string;
+  trialEndDate?: string;
+  daysRemaining?: number;
   hasUsedTrial?: boolean;
 }
 
@@ -454,10 +458,9 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
         return;
       } 
       // -------------------------------------------------------------
-      // DURUM 2: "7 Günlük Ücretsiz Deneme (Misafir) Girişi / Kaydı"
+      // DURUM 2: "E-posta ile Kayıt / Giriş (1 Video -> 7 Gün Reklamsız)"
       // -------------------------------------------------------------
       else {
-        let user;
         const now = new Date();
         let determinedCreatedAt = now.toISOString();
 
@@ -468,16 +471,70 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
             setError("Bu e-posta adresi için 7 günlük ücretsiz deneme hakkı daha önce kullanılmıştır. Lütfen mevcut şifrenizle giriş yapın veya bir Premium plan seçin.");
             return;
           }
-          setSyncLogs(prev => [...prev, "Yeni 7 Günlük Deneme hesabı oluşturuluyor..."]);
+          setSyncLogs(prev => [...prev, "E-posta hesabınız oluşturuluyor..."]);
           const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
-          user = credential.user;
+          const user = credential.user;
           if (user.metadata?.creationTime) {
             determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
           }
+          const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+
+          try {
+            await Promise.race([
+              saveUserSessionToFirestore({
+                userId: user.uid,
+                email: cleanUserEmail,
+                isPremium: false,
+                isGuest: false,
+                hasUsedTrial: false,
+                isTrialActive: false,
+                createdAt: determinedCreatedAt
+              }),
+              new Promise(res => setTimeout(res, 1200))
+            ]);
+          } catch (gErr) {
+            console.warn("[Login] Kullanıcı oturum kaydı uyarısı:", gErr);
+          }
+
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", "false");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_guest_trial", "false");
+          localStorage.setItem("has_used_trial", "false");
+          localStorage.setItem("is_trial_active", "false");
+          localStorage.setItem("user_created_at", determinedCreatedAt);
+          localStorage.removeItem("trial_start_date");
+          localStorage.removeItem("trial_end_date");
+          localStorage.removeItem("premium_source");
+
+          try {
+            sendWelcomeEmail(cleanUserEmail).catch(mailErr => {
+              console.warn("[Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+            });
+          } catch {}
+
+          setIsLoading(false);
+          handleClose();
+
+          onLoginSuccess(cleanUserEmail, {
+            isPremium: false,
+            isGuest: false,
+            isTrialActive: false,
+            isTrialExpired: false,
+            hasUsedTrial: false,
+            requiresTrialVideo: true,
+            createdAt: determinedCreatedAt,
+            trialMessage: "🎬 Hesabınız oluşturuldu! 7 gün reklamsız & sınırsız kullanım için şimdi 1 ödüllü video izleyin."
+          });
         } else {
-          setSyncLogs(prev => [...prev, "Misafir hesabı doğrulanıyor..."]);
+          setSyncLogs(prev => [...prev, "Hesabınız doğrulanıyor..."]);
           const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
-          user = credential.user;
+          const user = credential.user;
+          const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+          let userHasUsedTrial = false;
+          let storedTrialStart: string | null = null;
+          let storedTrialEnd: string | null = null;
+
           try {
             const userDocSnap = await getDoc(doc(firestore, "users", user.uid));
             if (userDocSnap.exists()) {
@@ -485,99 +542,106 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
               if (uData.createdAt) {
                 determinedCreatedAt = uData.createdAt;
               }
+              if (uData.hasUsedTrial === true) userHasUsedTrial = true;
+              if (uData.trialStartDate) {
+                storedTrialStart = uData.trialStartDate;
+                userHasUsedTrial = true;
+              }
+              if (uData.trialEndDate) {
+                storedTrialEnd = uData.trialEndDate;
+                userHasUsedTrial = true;
+              }
             }
-          } catch {
-            // Devam et
+          } catch {}
+
+          if (!userHasUsedTrial) {
+            const checkTrial = await checkUserTrialUsedInFirestore(cleanUserEmail).catch(() => ({ hasUsedTrial: false, trialStartDate: undefined }));
+            if (checkTrial.hasUsedTrial && checkTrial.trialStartDate) {
+              userHasUsedTrial = true;
+              storedTrialStart = checkTrial.trialStartDate;
+              storedTrialEnd = new Date(new Date(checkTrial.trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            }
           }
+
           if (!determinedCreatedAt && user.metadata?.creationTime) {
             determinedCreatedAt = new Date(user.metadata.creationTime).toISOString();
           }
-        }
 
-        const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+          if (!storedTrialEnd && userHasUsedTrial && storedTrialStart) {
+            storedTrialEnd = new Date(new Date(storedTrialStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          }
 
-        // 7 günlük süre kontrolü
-        const createdAtMs = new Date(determinedCreatedAt).getTime();
-        const diffDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
-        const isTrialActive = diffDays < 7;
-        const isTrialExpired = diffDays >= 7;
+          const endMs = storedTrialEnd ? new Date(storedTrialEnd).getTime() : 0;
+          const isTrialActive = userHasUsedTrial && !isNaN(endMs) && endMs > 0 && Date.now() < endMs;
+          const isTrialExpired = userHasUsedTrial && !isNaN(endMs) && endMs > 0 && Date.now() >= endMs;
+          const requiresTrialVideo = !userHasUsedTrial;
 
-        // Firestore'daki kullanıcı dokümanına (users/{userId}) bilgileri işle
-        setSyncLogs(prev => [
-          ...prev,
-          `Hesap Bağlandı: ${cleanUserEmail}`,
-          isTrialActive ? "🎁 7 Günlük Pro Deneme hesabı tanımlanıyor..." : "⏳ Deneme süresi doldu"
-        ]);
+          localStorage.setItem("currentUser", cleanUserEmail);
+          localStorage.setItem("is_premium", "false");
+          localStorage.setItem("is_guest", "false");
+          localStorage.setItem("is_guest_trial", "false");
+          localStorage.setItem("has_used_trial", userHasUsedTrial ? "true" : "false");
+          localStorage.setItem("user_created_at", determinedCreatedAt);
 
-        try {
-          await Promise.race([
-            saveUserSessionToFirestore({
-              userId: user.uid,
-              email: cleanUserEmail,
+          if (storedTrialStart && userHasUsedTrial) {
+            localStorage.setItem("trial_start_date", storedTrialStart);
+          } else {
+            localStorage.removeItem("trial_start_date");
+          }
+
+          if (isTrialActive && storedTrialEnd) {
+            localStorage.setItem("trial_end_date", storedTrialEnd);
+            localStorage.setItem("premium_source", "trial");
+            localStorage.setItem("is_trial_active", "true");
+          } else if (isTrialExpired && storedTrialEnd) {
+            localStorage.setItem("trial_end_date", storedTrialEnd);
+            localStorage.removeItem("premium_source");
+            localStorage.setItem("is_trial_active", "false");
+          } else {
+            localStorage.removeItem("trial_end_date");
+            localStorage.removeItem("premium_source");
+            localStorage.setItem("is_trial_active", "false");
+          }
+
+          setIsLoading(false);
+          handleClose();
+
+          if (requiresTrialVideo) {
+            onLoginSuccess(cleanUserEmail, {
               isPremium: false,
               isGuest: false,
-              hasUsedTrial: true,
-              trialStartDate: determinedCreatedAt,
-              createdAt: determinedCreatedAt
-            }),
-            new Promise(res => setTimeout(res, 1200))
-          ]);
-        } catch (gErr) {
-          console.warn("[Login] Kullanıcı oturum kaydı uyarısı:", gErr);
-        }
-
-        const trialEndDate = new Date(createdAtMs + 7 * 24 * 60 * 60 * 1000).toISOString();
-        localStorage.setItem("currentUser", cleanUserEmail);
-        localStorage.setItem("is_premium", "false");
-        localStorage.setItem("is_guest", "false");
-        localStorage.setItem("has_used_trial", "true");
-        localStorage.setItem("user_created_at", determinedCreatedAt);
-
-        if (isTrialActive) {
-          localStorage.setItem("trial_end_date", trialEndDate);
-          localStorage.setItem("premium_source", "trial");
-          localStorage.setItem("is_trial_active", "true");
-        } else {
-          localStorage.removeItem("trial_end_date");
-          localStorage.removeItem("premium_source");
-          localStorage.setItem("is_trial_active", "false");
-        }
-
-        // Yeni üye Hoş Geldiniz e-postası (Fail-Safe: E-posta servisi hata verse bile kayıt aksamaz)
-        if (guestSubMode === "register") {
-          try {
-            sendWelcomeEmail(cleanUserEmail).catch(mailErr => {
-              console.warn("[Register] Hoş Geldiniz e-postası arka plan uyarısı:", mailErr);
+              isTrialActive: false,
+              isTrialExpired: false,
+              hasUsedTrial: false,
+              requiresTrialVideo: true,
+              createdAt: determinedCreatedAt,
+              trialMessage: "🎬 7 gün boyunca reklamsız & sınırsız kullanım için 1 ödüllü video izleyin."
             });
-          } catch (err) {
-            console.warn("[Register] Hoş Geldiniz e-postası fail-safe:", err);
+          } else if (isTrialExpired) {
+            onLoginSuccess(cleanUserEmail, {
+              isPremium: false,
+              isGuest: false,
+              isTrialExpired: true,
+              hasUsedTrial: true,
+              trialStartDate: storedTrialStart || undefined,
+              trialEndDate: storedTrialEnd || undefined,
+              createdAt: determinedCreatedAt,
+              trialMessage: "⚠️ 7 günlük ücretsiz deneme süreniz bitmiştir. Reklamlı/ödüllü modda veya paket seçerek devam edebilirsiniz."
+            });
+          } else {
+            const daysLeft = Math.max(1, Math.min(7, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24))));
+            onLoginSuccess(cleanUserEmail, {
+              isPremium: false,
+              isGuest: false,
+              isTrialActive: true,
+              hasUsedTrial: true,
+              trialStartDate: storedTrialStart || undefined,
+              trialEndDate: storedTrialEnd || undefined,
+              daysRemaining: daysLeft,
+              trialMessage: `🎁 7 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık ve reklamsız)`,
+              createdAt: determinedCreatedAt
+            });
           }
-        }
-
-        setIsLoading(false);
-        handleClose();
-
-        if (isTrialExpired) {
-          onLoginSuccess(cleanUserEmail, {
-            isPremium: false,
-            isGuest: false,
-            isTrialExpired: true,
-            hasUsedTrial: true,
-            createdAt: determinedCreatedAt,
-            trialMessage: "⚠️ 7 günlük ücretsiz deneme süreniz bitmiştir. Paket seçerek devam edin lütfen."
-          });
-        } else {
-          const daysLeft = Math.max(1, Math.ceil(7 - diffDays));
-          onLoginSuccess(cleanUserEmail, {
-            isPremium: false,
-            isGuest: false,
-            isTrialActive: true,
-            hasUsedTrial: true,
-            trialMessage: guestSubMode === "register" 
-              ? `🎁 7 Günlük Ücretsiz Deneme Hesabınız Açıldı! ${daysLeft} gün boyunca tüm Pro özellikler açık ve reklamsızdır.`
-              : `🎁 7 Günlük Ücretsiz Denemeniz Aktif! (${daysLeft} gün kaldı - Tüm PRO özellikler açık ve reklamsız)`,
-            createdAt: determinedCreatedAt
-          });
         }
       }
     } catch (err: any) {
@@ -832,10 +896,10 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                   <SparklesIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div className="text-left space-y-0.5">
                     <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">
-                      7 Günlük Ücretsiz Deneme (Misafir Modu)
+                      E-Posta Kaydı + 1 Video → 7 Gün Reklamsız Deneme
                     </div>
                     <p className="text-[11px] text-emerald-900/80 dark:text-emerald-200/80 font-medium leading-relaxed">
-                      E-posta ve şifrenizi belirleyerek kaydolun veya mevcut misafir hesabınıza girin. 7 gün boyunca tüm özellikleri ücretsiz kullanabilirsiniz. Bu modda tek cihaz kısıtlaması uygulanmaz.
+                      E-posta ve şifrenizle kayıt olup giriş yaptıktan sonra 1 ödüllü video izleyerek 7 gün boyunca tüm reklamları kapatabilir ve PRO özellikleri sınırsız kullanabilirsiniz.
                     </p>
                   </div>
                 </div>
@@ -1028,12 +1092,12 @@ export const ProviderLoginModal: React.FC<ProviderLoginModalProps> = ({
                     ) : guestSubMode === "register" ? (
                       <>
                         <SparklesIcon className="w-4 h-4" />
-                        <span>🚀 7 Günlük Denemeyi Başlat (Kayıt Ol)</span>
+                        <span>🚀 Kaydol & 1 Video ile 7 Gün Aç</span>
                       </>
                     ) : (
                       <>
                         <LogInIcon className="w-4 h-4" />
-                        <span>🚀 Misafir Hesabına Giriş Yap</span>
+                        <span>🚀 Hesaba Giriş Yap</span>
                       </>
                     )}
                   </button>

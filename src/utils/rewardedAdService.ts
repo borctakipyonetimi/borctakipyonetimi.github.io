@@ -28,6 +28,7 @@ export const ADMOB_CONFIG = {
 };
 
 export type RewardedFeatureType =
+  | "trial7days"
   | "ai"
   | "export"
   | "import"
@@ -50,8 +51,9 @@ export function getFeaturePassKey(feature: RewardedFeatureType | string = "any")
 
 /**
  * Helper to check if user should have an ad-free Pro experience
- * KURAL 2 & 3: if (isPremium || isTrialActive) return true (No ads, Pro features unlocked)
- * KURAL 1: Guests and expired trial users return false (Must see mandatory ads)
+ * KURAL 1: Kayıt olmadan girenler (is_guest === "true") ve 1 video izlememiş / süresi dolmuş kullanıcılar REKLAM GÖRÜR (false).
+ * KURAL 2: E-posta ile kaydolup 1 ödüllü video izleyerek 7 günlük denemeyi başlatanlar süre boyunca REKLAMSIZDIR (true).
+ * KURAL 3: Ücretli Premium üyeler her zaman REKLAMSIZDIR (true).
  */
 export function isUserAdFree(): boolean {
   if (typeof window === "undefined") return false;
@@ -59,14 +61,20 @@ export function isUserAdFree(): boolean {
   if (user === "info.borcodemetakip@gmail.com") return true;
 
   const isGuestOnly = localStorage.getItem("is_guest") === "true";
+  if (isGuestOnly) return false;
+
   const pSource = localStorage.getItem("premium_source");
   const isPremium =
-    !isGuestOnly &&
     localStorage.getItem("is_premium") === "true" &&
     pSource !== "trial";
   if (isPremium) return true;
 
-  // Aktif 7 günlük deneme süresi varsa (Misafir 7 günlük deneme dahil) REKLAMSIZDIR
+  const hasTrialActivated =
+    localStorage.getItem("has_used_trial") === "true" ||
+    localStorage.getItem("is_trial_active") === "true" ||
+    pSource === "trial";
+  if (!hasTrialActivated) return false;
+
   const trialEndDate = localStorage.getItem("trial_end_date");
   if (trialEndDate) {
     const endMs = new Date(trialEndDate).getTime();
@@ -75,9 +83,9 @@ export function isUserAdFree(): boolean {
     }
   }
 
-  const createdAtStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
-  if (createdAtStr && pSource === "trial") {
-    const startMs = new Date(createdAtStr).getTime();
+  const startStr = localStorage.getItem("trial_start_date");
+  if (startStr && (pSource === "trial" || localStorage.getItem("has_used_trial") === "true")) {
+    const startMs = new Date(startStr).getTime();
     if (!isNaN(startMs)) {
       return Date.now() < startMs + 7 * 24 * 60 * 60 * 1000;
     }

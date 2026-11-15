@@ -79,15 +79,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [trialStartDate, setTrialStartDate] = useState<string | null>(() => {
-    return localStorage.getItem("trial_start_date") || localStorage.getItem("user_created_at") || null;
+    if (localStorage.getItem("is_guest") === "true") return null;
+    if (localStorage.getItem("has_used_trial") !== "true" && localStorage.getItem("premium_source") !== "trial") return null;
+    return localStorage.getItem("trial_start_date") || null;
   });
 
   const [trialEndDate, setTrialEndDate] = useState<string | null>(() => {
+    if (localStorage.getItem("is_guest") === "true") return null;
+    if (localStorage.getItem("has_used_trial") !== "true" && localStorage.getItem("premium_source") !== "trial") return null;
     const storedEnd = localStorage.getItem("trial_end_date");
     if (storedEnd) return storedEnd;
-    const createdStr = localStorage.getItem("user_created_at");
-    if (createdStr) {
-      const startMs = new Date(createdStr).getTime();
+    const startStr = localStorage.getItem("trial_start_date");
+    if (startStr) {
+      const startMs = new Date(startStr).getTime();
       if (!isNaN(startMs)) return new Date(startMs + TRIAL_DURATION_MS).toISOString();
     }
     return null;
@@ -98,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   // Calculate dynamic trial state strictly according to the 7-day rule (persisted across reloads)
-  const calculateTrialStatus = useCallback((endStr: string | null, guestFlag: boolean, premFlag: boolean) => {
+  const calculateTrialStatus = useCallback((endStr: string | null, guestFlag: boolean, premFlag: boolean, usedTrialFlag: boolean) => {
     // KURAL 3: Premium abonelerin denemeye ihtiyacı yoktur, zaten tam açıktır
     if (premFlag) {
       return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
@@ -108,11 +112,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
     }
 
+    const activated =
+      usedTrialFlag ||
+      localStorage.getItem("has_used_trial") === "true" ||
+      localStorage.getItem("premium_source") === "trial";
+    if (!activated) {
+      return { isTrialActive: false, isTrialExpired: false, daysRemaining: 0 };
+    }
+
     let resolvedEndStr = endStr || localStorage.getItem("trial_end_date");
     if (!resolvedEndStr) {
-      const createdStr = localStorage.getItem("user_created_at") || localStorage.getItem("trial_start_date");
-      if (createdStr) {
-        const startMs = new Date(createdStr).getTime();
+      const startStr = localStorage.getItem("trial_start_date");
+      if (startStr) {
+        const startMs = new Date(startStr).getTime();
         if (!isNaN(startMs)) {
           resolvedEndStr = new Date(startMs + TRIAL_DURATION_MS).toISOString();
         }
@@ -142,8 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const trialStatus = useMemo(() => {
-    return calculateTrialStatus(trialEndDate, isGuest, isPremium);
-  }, [calculateTrialStatus, trialEndDate, isGuest, isPremium]);
+    return calculateTrialStatus(trialEndDate, isGuest, isPremium, hasUsedTrial);
+  }, [calculateTrialStatus, trialEndDate, isGuest, isPremium, hasUsedTrial]);
 
   const isTrialActive = trialStatus.isTrialActive;
   const isTrialExpired = trialStatus.isTrialExpired;
@@ -356,32 +368,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Normal kayıtlı kullanıcı girişi: 7 günlük deneme kontrolü
+    // Normal kayıtlı kullanıcı girişi: Sadece 1 video izlenerek 7 gün başlatılmışsa deneme kontrolü yap
+    const usedTrial = localStorage.getItem("has_used_trial") === "true";
     const nowMs = Date.now();
-    let effectiveEndStr = meta?.trialEndDate || localStorage.getItem("trial_end_date");
+    const effectiveEndStr = meta?.trialEndDate || localStorage.getItem("trial_end_date");
 
-    if (!effectiveEndStr && meta?.createdAt) {
-      const createdMs = new Date(meta.createdAt).getTime();
-      effectiveEndStr = new Date(createdMs + TRIAL_DURATION_MS).toISOString();
-    }
-
-    // Eğer daha önce hiç deneme süresi tanımlanmamış yeni bir hesap ise, 7 günlük denemeyi hemen tanımla
-    if (!effectiveEndStr) {
-      const nowIso = new Date().toISOString();
-      effectiveEndStr = new Date(nowMs + TRIAL_DURATION_MS).toISOString();
-      setTrialStartDate(nowIso);
-      setTrialEndDate(effectiveEndStr);
-      setHasUsedTrial(true);
-      hideNativeBannerAd().catch(() => {});
+    if (!effectiveEndStr || (!usedTrial && !meta?.trialEndDate)) {
+      setTrialStartDate(null);
+      setTrialEndDate(null);
+      setIsPremium(false);
+      setHasUsedTrial(false);
       syncToStorageAndDispatch({
         isPremiumVal: false,
         isGuestVal: false,
-        isTrialActiveVal: true,
-        trialEndDateVal: effectiveEndStr,
-        trialStartDateVal: nowIso,
-        hasUsedTrialVal: true,
+        isTrialActiveVal: false,
+        trialEndDateVal: null,
+        trialStartDateVal: null,
+        hasUsedTrialVal: false,
         currentUserVal: cleanEmail
       });
+      try {
+        localStorage.setItem("userLoggedIn", "true");
+        localStorage.removeItem("premium_source");
+      } catch (_) {}
       return;
     }
 
@@ -397,7 +406,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isPremiumVal: false,
         isGuestVal: false,
         isTrialActiveVal: false,
-        trialEndDateVal: null,
+        trialEndDateVal: effectiveEndStr,
         hasUsedTrialVal: true,
         currentUserVal: cleanEmail
       });
@@ -584,24 +593,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = (): AuthUserState => {
   const context = useContext(AuthContext);
   if (!context) {
-    // Fail-safe default object reading directly from localStorage if called outside AuthProvider
+  // Fail-safe default object reading directly from localStorage if called outside AuthProvider
     const isSuper = (localStorage.getItem("currentUser") || "").toLowerCase().trim() === "info.borcodemetakip@gmail.com";
-    const isPrem = isSuper || (localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial" && localStorage.getItem("is_guest") !== "true");
-    const trialEnd = localStorage.getItem("trial_end_date");
+    const isGuestFlag = localStorage.getItem("is_guest") === "true";
+    const isPrem = isSuper || (!isGuestFlag && localStorage.getItem("is_premium") === "true" && localStorage.getItem("premium_source") !== "trial");
+    const hasUsed = localStorage.getItem("has_used_trial") === "true";
+    const trialEnd = (hasUsed || localStorage.getItem("premium_source") === "trial") ? localStorage.getItem("trial_end_date") : null;
     const endMs = trialEnd ? new Date(trialEnd).getTime() : 0;
-    const isGuest = localStorage.getItem("is_guest") === "true";
-    const isTrialActive = !isPrem && !isGuest && !isNaN(endMs) && Date.now() < endMs;
+    const isTrialActive = !isPrem && !isGuestFlag && hasUsed && !isNaN(endMs) && endMs > 0 && Date.now() < endMs;
     const hasProAccess = isPrem || isTrialActive;
     const shouldShowAds = !isPrem && !isTrialActive;
 
     return {
       user: null,
       currentUser: localStorage.getItem("currentUser") || null,
-      isLoggedIn: !isGuest && (localStorage.getItem("userLoggedIn") === "true" || Boolean(localStorage.getItem("currentUser"))),
-      isGuest,
+      isLoggedIn: !isGuestFlag && (localStorage.getItem("userLoggedIn") === "true" || Boolean(localStorage.getItem("currentUser"))),
+      isGuest: isGuestFlag,
       isPremium: isPrem,
       isTrialActive,
-      isTrialExpired: !isPrem && !isGuest && !isNaN(endMs) && Date.now() >= endMs,
+      isTrialExpired: !isPrem && !isGuestFlag && hasUsed && !isNaN(endMs) && endMs > 0 && Date.now() >= endMs,
       trialDaysRemaining: isTrialActive ? Math.max(1, Math.min(TRIAL_DURATION_DAYS, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24)))) : 0,
       trialStartDate: localStorage.getItem("trial_start_date"),
       trialEndDate: trialEnd,

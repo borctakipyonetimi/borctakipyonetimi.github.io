@@ -51,6 +51,7 @@ export interface LoginSuccessMeta {
   isPendingPayment?: boolean;
   isTrialActive?: boolean;
   isTrialExpired?: boolean;
+  requiresTrialVideo?: boolean;
   trialMessage?: string;
   createdAt?: string;
   trialStartDate?: string;
@@ -66,6 +67,7 @@ export interface GuestTrialContinueMeta {
   daysRemaining: number;
   isActive: boolean;
   isExpired: boolean;
+  isUnregisteredGuest?: boolean;
 }
 
 export interface LoginScreenProps {
@@ -90,6 +92,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [showUnregisteredGuestConfirm, setShowUnregisteredGuestConfirm] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -322,10 +325,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
 
       // ============================================================
-      // 2) MİSAFİR E-POSTA KAYIT / GİRİŞ (7 GÜNLÜK ÜCRETSİZ DENEME)
+      // 2) MİSAFİR E-POSTA KAYIT / GİRİŞ (KAYIT + 1 VİDEO -> 7 GÜN REKLAMSIZ)
       // ============================================================
       if (authMode === "register") {
-        setStatusMessage("7 Günlük Ücretsiz Deneme hakkı kontrol ediliyor...");
+        setStatusMessage("E-posta deneme hakkı kontrol ediliyor...");
         const trialCheck = await checkUserTrialUsedInFirestore(targetEmail);
         if (trialCheck.hasUsedTrial) {
           setIsLoading(false);
@@ -335,12 +338,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           return;
         }
 
-        setStatusMessage("Misafir deneme hesabınız oluşturuluyor...");
+        setStatusMessage("Hesabınız oluşturuluyor...");
         const credential = await createUserWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
+        const nowIso = new Date().toISOString();
+        const deviceUuid = await Promise.race([
+          getDeviceUuid(),
+          new Promise<string>((res) => setTimeout(() => res("uuid_" + Math.random().toString(36).substring(2, 10)), 800))
+        ]);
 
-        const trialInfo = await provisionUserTrialInDatabases(user.uid, cleanUserEmail, false);
+        // Kayıt anında henüz video izlenmediği için 7 gün deneme BAŞLATILMAZ (reklamlar açık başlar; 1 video sonrası aktifleşir)
+        await saveUserSessionToFirestore({
+          userId: user.uid,
+          email: cleanUserEmail,
+          isPremium: false,
+          isGuest: false,
+          hasUsedTrial: false,
+          isTrialActive: false,
+          deviceId: deviceUuid,
+          createdAt: nowIso
+        }).catch(() => {});
 
         try {
           localStorage.removeItem("user_profile_avatar");
@@ -350,12 +368,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           localStorage.setItem("is_premium", "false");
           localStorage.setItem("is_guest", "false");
           localStorage.setItem("is_guest_trial", "false");
-          localStorage.setItem("is_trial_active", "true");
-          localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
-          localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
-          localStorage.setItem("user_created_at", trialInfo.trialStartDate);
-          localStorage.setItem("has_used_trial", "true");
-          localStorage.setItem("premium_source", "trial");
+          localStorage.setItem("is_trial_active", "false");
+          localStorage.setItem("has_used_trial", "false");
+          localStorage.setItem("user_created_at", nowIso);
+          localStorage.removeItem("trial_start_date");
+          localStorage.removeItem("trial_end_date");
+          localStorage.removeItem("premium_source");
           localStorage.setItem("butcem_onboarding_welcome_v7", "true");
           localStorage.setItem("butcem_onboarding_completed_v7", "true");
         } catch (_) {}
@@ -365,17 +383,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         onLoginSuccess(cleanUserEmail, {
           isPremium: false,
           isGuest: false,
-          isTrialActive: true,
+          isTrialActive: false,
           isTrialExpired: false,
-          hasUsedTrial: true,
-          trialStartDate: trialInfo.trialStartDate,
-          trialEndDate: trialInfo.trialEndDate,
-          daysRemaining: trialInfo.daysRemaining,
-          trialMessage: "🎁 7 Günlük Ücretsiz Deneme Hesabınız Aktif! 7 gün boyunca tüm Pro özellikler açık ve reklamsızdır.",
-          createdAt: trialInfo.trialStartDate
+          hasUsedTrial: false,
+          requiresTrialVideo: true,
+          trialMessage: "🎬 Hesabınız oluşturuldu! 7 gün reklamsız & sınırsız kullanım için şimdi 1 ödüllü video izleyin.",
+          createdAt: nowIso
         });
       } else {
-        setStatusMessage("Misafir hesabınız doğrulanıyor...");
+        setStatusMessage("Hesabınız doğrulanıyor...");
         const credential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const user = credential.user;
         const cleanUserEmail = (user.email || targetEmail).trim().toLowerCase();
@@ -383,7 +399,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         let isUserPremium = isSuperTestEmail;
         let determinedCreatedAt: string | null = null;
+        let storedTrialStart: string | null = null;
         let storedTrialEnd: string | null = null;
+        let userHasUsedTrial = false;
 
         if (!isSuperTestEmail) {
           try {
@@ -395,16 +413,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
             if (uSnap && uSnap.exists()) {
               const uData = uSnap.data();
-              if (uData?.trialStartDate || uData?.createdAt) {
-                determinedCreatedAt = uData.trialStartDate || uData.createdAt;
+              if (uData?.createdAt) determinedCreatedAt = uData.createdAt;
+              if (uData?.hasUsedTrial === true) userHasUsedTrial = true;
+              if (uData?.trialStartDate) {
+                storedTrialStart = uData.trialStartDate;
+                userHasUsedTrial = true;
               }
               if (uData?.trialEndDate) {
                 storedTrialEnd = uData.trialEndDate;
+                userHasUsedTrial = true;
               }
               if (uData?.isGuest !== true && (uData?.isPremium === true || uData?.activeSubscription === true)) {
                 isUserPremium = uData?.subscriptionExpiry
                   ? new Date(uData.subscriptionExpiry).getTime() > Date.now()
                   : true;
+              }
+            }
+
+            if (!userHasUsedTrial && !isUserPremium) {
+              const trialCheck = await checkUserTrialUsedInFirestore(cleanUserEmail);
+              if (trialCheck.hasUsedTrial && trialCheck.trialStartDate) {
+                userHasUsedTrial = true;
+                storedTrialStart = trialCheck.trialStartDate;
+                storedTrialEnd = new Date(
+                  new Date(trialCheck.trialStartDate).getTime() + 7 * 24 * 60 * 60 * 1000
+                ).toISOString();
               }
             }
           } catch (_) {}
@@ -416,13 +449,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         if (!determinedCreatedAt) {
           determinedCreatedAt = new Date().toISOString();
         }
-        if (!storedTrialEnd) {
-          storedTrialEnd = new Date(new Date(determinedCreatedAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        if (!storedTrialEnd && userHasUsedTrial && storedTrialStart) {
+          storedTrialEnd = new Date(new Date(storedTrialStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         }
 
-        const endMs = new Date(storedTrialEnd).getTime();
-        const isTrialActiveNow = !isUserPremium && !isNaN(endMs) && Date.now() < endMs;
-        const isTrialExpiredNow = !isUserPremium && !isNaN(endMs) && Date.now() >= endMs;
+        const endMs = storedTrialEnd ? new Date(storedTrialEnd).getTime() : 0;
+        const isTrialActiveNow = !isUserPremium && userHasUsedTrial && !isNaN(endMs) && endMs > 0 && Date.now() < endMs;
+        const isTrialExpiredNow = !isUserPremium && userHasUsedTrial && !isNaN(endMs) && endMs > 0 && Date.now() >= endMs;
+        const needsTrialVideo = !isUserPremium && !userHasUsedTrial;
         const daysLeft = isTrialActiveNow
           ? Math.max(1, Math.min(7, Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24))))
           : 0;
@@ -435,10 +470,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           localStorage.setItem("is_guest", "false");
           localStorage.setItem("is_guest_trial", "false");
           localStorage.setItem("user_created_at", determinedCreatedAt);
-          localStorage.setItem("trial_start_date", determinedCreatedAt);
-          localStorage.setItem("trial_end_date", storedTrialEnd);
-          localStorage.setItem("has_used_trial", "true");
+          localStorage.setItem("has_used_trial", userHasUsedTrial ? "true" : "false");
           localStorage.setItem("is_trial_active", isTrialActiveNow ? "true" : "false");
+
+          if (storedTrialStart && userHasUsedTrial) {
+            localStorage.setItem("trial_start_date", storedTrialStart);
+          } else {
+            localStorage.removeItem("trial_start_date");
+          }
+
+          if (storedTrialEnd && userHasUsedTrial) {
+            localStorage.setItem("trial_end_date", storedTrialEnd);
+          } else {
+            localStorage.removeItem("trial_end_date");
+          }
+
           if (isUserPremium) {
             localStorage.setItem("premium_source", "login");
           } else if (isTrialActiveNow) {
@@ -456,10 +502,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           isGuest: false,
           isTrialActive: isTrialActiveNow,
           isTrialExpired: isTrialExpiredNow,
-          hasUsedTrial: true,
-          trialStartDate: determinedCreatedAt,
-          trialEndDate: storedTrialEnd,
+          hasUsedTrial: userHasUsedTrial,
+          requiresTrialVideo: needsTrialVideo,
+          trialStartDate: storedTrialStart || undefined,
+          trialEndDate: storedTrialEnd || undefined,
           daysRemaining: daysLeft,
+          trialMessage: needsTrialVideo
+            ? "🎬 7 gün boyunca reklamsız & sınırsız kullanım için 1 ödüllü video izleyin."
+            : undefined,
           createdAt: determinedCreatedAt
         });
       }
@@ -472,8 +522,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  // Tek Tıkla Misafir Girişi -> 7 Günlük Ücretsiz Denemeyi Başlatır veya Kalan Günleri Sürdürür
-  const handleQuickGuestTrialClick = async () => {
+  // Adım 1: "Kayıt Olmadan Giriş" tıklandığında direkt uygulamaya GİRMEZ, açık uyarı & seçim penceresini açar
+  const handleQuickGuestTrialClick = () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setShowUnregisteredGuestConfirm((prev) => !prev);
+  };
+
+  // Adım 2: Kullanıcı açıkça "Kayıt Olmadan Devam Et (Reklamlar Açık)" seçerse reklamlı kısıtlı modda girer (7 gün deneme VERİLMEZ)
+  const handleProceedUnregisteredGuest = async () => {
     setIsGuestLoading(true);
     setErrorMessage("");
     try {
@@ -488,50 +545,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      const trialInfo = await provisionUserTrialInDatabases(guestUid, "misafir@butcempro.app", true);
-
       try {
         localStorage.setItem("hasCompletedOnboarding", "true");
         localStorage.setItem("userLoggedIn", "true");
-        localStorage.setItem("is_guest", "false");
-        localStorage.setItem("is_guest_trial", "true");
+        localStorage.setItem("is_guest", "true");
+        localStorage.setItem("is_guest_trial", "false");
         localStorage.setItem("is_premium", "false");
-        localStorage.setItem("is_trial_active", trialInfo.isActive ? "true" : "false");
-        localStorage.setItem("has_used_trial", "true");
-        localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
-        localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
-        localStorage.setItem("user_created_at", trialInfo.trialStartDate);
+        localStorage.setItem("is_trial_active", "false");
+        localStorage.setItem("has_used_trial", "false");
+        localStorage.removeItem("trial_start_date");
+        localStorage.removeItem("trial_end_date");
+        localStorage.removeItem("user_created_at");
+        localStorage.removeItem("premium_source");
         localStorage.setItem("currentUser", "misafir@butcempro.app");
         localStorage.setItem("butcem_onboarding_welcome_v7", "true");
         localStorage.setItem("butcem_onboarding_completed_v7", "true");
-        if (trialInfo.isActive) {
-          localStorage.setItem("premium_source", "trial");
-        } else {
-          localStorage.removeItem("premium_source");
-        }
         localStorage.removeItem("user_profile_name");
         localStorage.removeItem("user_profile_avatar");
       } catch (_) {}
 
       onGuestContinue({
         uid: guestUid,
-        trialStartDate: trialInfo.trialStartDate,
-        trialEndDate: trialInfo.trialEndDate,
-        daysRemaining: trialInfo.daysRemaining,
-        isActive: trialInfo.isActive,
-        isExpired: trialInfo.isExpired
+        trialStartDate: "",
+        trialEndDate: "",
+        daysRemaining: 0,
+        isActive: false,
+        isExpired: false,
+        isUnregisteredGuest: true
       });
     } catch (err) {
-      console.warn("Guest 7-day trial fallback:", err);
-      const nowIso = new Date().toISOString();
-      const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      console.warn("Unregistered guest fallback:", err);
       onGuestContinue({
         uid: `guest_${Date.now()}`,
-        trialStartDate: nowIso,
-        trialEndDate: endIso,
-        daysRemaining: 7,
-        isActive: true,
-        isExpired: false
+        trialStartDate: "",
+        trialEndDate: "",
+        daysRemaining: 0,
+        isActive: false,
+        isExpired: false,
+        isUnregisteredGuest: true
       });
     } finally {
       setIsGuestLoading(false);
@@ -674,7 +725,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </button>
             </div>
 
-            {/* MİSAFİR 7 GÜNLÜK ÜCRETSİZ DENEME HIZLI GİRİŞ BUTONU */}
+            {/* MİSAFİR GİRİŞİ: KAYIT OLMADAN GİRİŞ SEÇİMİ + E-POSTA İLE 1 VİDEO SONRASI 7 GÜN REKLAMSIZ */}
             {portalTab === "guest_trial" && (
               <div className="space-y-3">
                 <button
@@ -682,26 +733,83 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   id="login-guest-btn"
                   disabled={isGuestLoading}
                   onClick={handleQuickGuestTrialClick}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-[0.98] shadow-lg shadow-emerald-500/25"
+                  className="w-full py-3 px-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-emerald-500/40 text-white font-black text-xs tracking-wide transition-all flex items-center justify-between gap-2 cursor-pointer group active:scale-[0.98]"
                 >
-                  {isGuestLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                      <span>7 Günlük Misafir Denemesi Başlatılıyor...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-slate-950" />
-                      <span>Hemen Misafir Girişi Yap (7 Gün Ücretsiz)</span>
-                      <ArrowRight className="w-4 h-4 text-slate-950 group-hover:translate-x-1 transition-all" />
-                    </>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Hemen Misafir Girişi Yap</span>
+                  </div>
+                  <span className="text-[9.5px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    {showUnregisteredGuestConfirm ? "Kapat ▲" : "Seçenekler ▼"}
+                  </span>
                 </button>
+
+                {/* Doğrudan giriş engeli: Açık bilgilendirme & onay kartı */}
+                <AnimatePresence>
+                  {showUnregisteredGuestConfirm && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-3.5 rounded-2xl bg-slate-900/95 border border-amber-500/40 space-y-2.5 text-left">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-1 text-[11px] text-slate-300 leading-relaxed">
+                            <p className="font-black text-amber-300">
+                              Kayıt Olmadan Girişlerde Reklamlar Açık Kalır!
+                            </p>
+                            <p>
+                              7 gün boyunca reklamsız ve sınırsız kullanım için aşağıdaki formdan{" "}
+                              <strong className="text-emerald-300">e-posta ile kayıt olup giriş yaptıktan sonra 1 ödüllü video</strong>{" "}
+                              izlemeniz gerekir.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowUnregisteredGuestConfirm(false);
+                              setAuthMode("register");
+                              setTimeout(() => {
+                                document.getElementById("login-email-input")?.focus();
+                              }, 80);
+                            }}
+                            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-[0.98]"
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                            <span>E-posta ile Kayıt Ol (1 Video → 7 Gün Reklamsız)</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isGuestLoading}
+                            onClick={handleProceedUnregisteredGuest}
+                            className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-[0.98]"
+                          >
+                            {isGuestLoading ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Reklamlı Misafir Modu Açılıyor...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Kayıt Olmadan Devam Et (Reklamlar Açık)</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <div className="relative flex items-center justify-center">
                   <div className="border-t border-white/10 w-full" />
                   <span className="bg-slate-950 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                    VEYA E-POSTA İLE 7 GÜN DENEME
+                    E-POSTA + 1 VİDEO İLE 7 GÜN REKLAMSIZ
                   </span>
                 </div>
 
@@ -712,6 +820,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     id="login-tab-register"
                     onClick={() => {
                       setAuthMode("register");
+                      setShowUnregisteredGuestConfirm(false);
                       setErrorMessage("");
                       setSuccessMessage("");
                     }}
@@ -722,13 +831,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     }`}
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>Kayıt Ol (7 Gün)</span>
+                    <span>E-posta Kayıt Ol</span>
                   </button>
                   <button
                     type="button"
                     id="login-tab-login"
                     onClick={() => {
                       setAuthMode("login");
+                      setShowUnregisteredGuestConfirm(false);
                       setErrorMessage("");
                       setSuccessMessage("");
                     }}
@@ -791,8 +901,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   ? "Hesabınızı oluşturun, ardından doğrudan Premium paket seçimine geçin."
                   : "Lisanslı Premium hesabınızla giriş yaparak tüm özellikleri sınırsız kullanın."
                 : authMode === "register"
-                ? "E-posta ile kaydolun, 7 günlük ücretsiz denemeniz bulutta da korunsun."
-                : "Mevcut misafir hesabınıza giriş yaparak kaldığınız günden devam edin."}
+                ? "E-posta ile kayıt olup giriş yaptıktan sonra 1 video izleyerek 7 gün reklamsız & sınırsız kullanın."
+                : "Mevcut hesabınıza giriş yaparak kaldığınız yerden devam edin."}
             </p>
 
             {/* Error & Success Banners */}
@@ -954,13 +1064,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 ) : authMode === "register" ? (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>E-posta ile 7 Gün Ücretsiz Başla</span>
+                    <span>Kayıt Ol & 1 Video ile 7 Gün Aç</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 ) : (
                   <>
                     <UserCheck className="w-4 h-4" />
-                    <span>Misafir Hesabına Giriş Yap</span>
+                    <span>Hesabına Giriş Yap</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 )}
