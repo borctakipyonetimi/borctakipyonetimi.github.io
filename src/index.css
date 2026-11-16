@@ -494,26 +494,12 @@ html:not(.dark) .text-slate-500 {
   display: block !important;
 }
 
-/* Reklam geçişleri sırasında WebView beyaz yanıp sönme / GPU kare bozulmasını engelleme kilidi */
-[data-app-root="true"],
+/* Reklam geçişleri sırasında WebView beyaz yanıp sönme (flicker) engelleme kilidi */
 header[data-app-header="true"] {
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
-  will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-}
-
-header[data-app-header="true"] {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-
-html.dark header[data-app-header="true"],
-html.dark [data-app-root="true"] footer {
-  background-color: rgba(15, 23, 42, 0.95) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
 }
 
 html.ad-transition-dark-lock,
@@ -525,15 +511,14 @@ html.ad-transition-dark-lock #root {
 
 html.ad-transition-dark-lock header[data-app-header="true"],
 html.ad-transition-dark-lock .backdrop-blur-lg,
-html.ad-transition-dark-lock .backdrop-blur-md,
-html.ad-transition-dark-lock .backdrop-blur-2xl {
+html.ad-transition-dark-lock .backdrop-blur-md {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   transition: none !important;
 }
 
 html.ad-transition-dark-lock header[data-app-header="true"] {
-  background-color: rgba(15, 23, 42, 0.95) !important;
+  background-color: #0f172a !important;
   border-bottom-color: #1e293b !important;
   color: #f1f5f9 !important;
 }

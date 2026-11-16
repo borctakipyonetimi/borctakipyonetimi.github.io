@@ -49,31 +49,22 @@ public class MainActivity extends BridgeActivity {
 
     private void applyWebViewDarkBackground() {
         try {
-            final int bgColor = Color.parseColor("#0f172a");
             Window window = getWindow();
             if (window != null) {
-                window.setBackgroundDrawable(new ColorDrawable(bgColor));
+                window.setBackgroundDrawable(new ColorDrawable(DARK_WEBVIEW_BG));
                 View decor = window.getDecorView();
                 if (decor != null) {
-                    decor.setBackgroundColor(bgColor);
+                    decor.setBackgroundColor(DARK_WEBVIEW_BG);
                 }
             }
             Bridge bridge = this.getBridge();
             if (bridge != null && bridge.getWebView() != null) {
-                final WebView webView = bridge.getWebView();
-                webView.setBackgroundColor(Color.parseColor("#0f172a"));
+                WebView webView = bridge.getWebView();
+                webView.setBackgroundColor(DARK_WEBVIEW_BG);
                 webView.setLayerType(View.LAYER_TYPE_NONE, null);
                 if (webView.getParent() instanceof View) {
-                    ((View) webView.getParent()).setBackgroundColor(bgColor);
+                    ((View) webView.getParent()).setBackgroundColor(DARK_WEBVIEW_BG);
                 }
-                webView.invalidate();
-                webView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        webView.setBackgroundColor(Color.parseColor("#0f172a"));
-                        webView.invalidate();
-                    }
-                });
             }
         } catch (Exception e) {
             e.printStackTrace();

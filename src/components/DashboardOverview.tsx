@@ -360,7 +360,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             whileHover={{ scale: 1.005 }}
-            className={`py-2 px-2.5 sm:py-2.5 sm:px-3.5 rounded-xl border ${themeCardBg} ${themeBorder} shadow-md shadow-indigo-200/50 dark:shadow-black/30 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 text-xs transition-all duration-300 relative overflow-hidden [transform:translateZ(0)]`}
+            className={`py-2 px-2.5 sm:py-2.5 sm:px-3.5 rounded-xl border ${themeCardBg} ${themeBorder} shadow-md shadow-indigo-200/50 dark:shadow-black/30 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 text-xs transition-all duration-300 relative overflow-hidden backdrop-blur-md`}
           >
             {/* Decorative subtle ambient backing */}
             <div className="absolute inset-0 bg-gradient-to-r from-white/30 via-transparent to-white/20 pointer-events-none" />
@@ -755,7 +755,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
 
           {/* 2 Primary Stats Blocks: Bu Ayki Toplam & Bu Ay Kalan */}
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-2.5 relative z-10">
-            <div className="p-2.5 sm:p-3 bg-white/15 dark:bg-[rgba(15,23,42,0.65)] rounded-xl border border-white/25 shadow-inner flex flex-col items-center justify-center text-center">
+            <div className="p-2.5 sm:p-3 bg-white/15 dark:bg-white/10 backdrop-blur-md rounded-xl border border-white/25 shadow-inner flex flex-col items-center justify-center text-center">
               <span className="text-[9.5px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-wide">
                 {language === "tr" ? "Bu Ayki Toplam Borç" : "Monthly Total Debt"}
               </span>
@@ -764,7 +764,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               </p>
             </div>
 
-            <div className="p-2.5 sm:p-3 bg-rose-500/30 dark:bg-[rgba(15,23,42,0.72)] rounded-xl border-2 border-rose-300/50 dark:border-rose-400/40 flex flex-col items-center justify-center text-center shadow-inner">
+            <div className="p-2.5 sm:p-3 bg-rose-500/30 dark:bg-rose-500/25 backdrop-blur-md rounded-xl border-2 border-rose-300/50 dark:border-rose-400/40 flex flex-col items-center justify-center text-center shadow-inner">
               <span className="text-[9.5px] sm:text-[10px] font-black text-rose-200 uppercase tracking-wide">
                 {language === "tr" ? "Bu Ay Kalan Borç" : "Month Remaining"}
               </span>
