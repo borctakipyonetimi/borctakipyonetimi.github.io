@@ -250,6 +250,51 @@ let savedThemeState: {
   metaThemeColor: string | null;
 } | null = null;
 
+export function forceAndroidWebViewGpuRepaint(): void {
+  if (typeof document === "undefined" || !document.body) return;
+  try {
+    const body = document.body;
+    const root = document.getElementById("root");
+    const header = document.querySelector('header[data-app-header="true"]') as HTMLElement | null;
+
+    // Anlık opacity 0.99 -> 1 ve zorunlu layout okuma ile Android GPU/WebView tile önbelleğini temizle
+    body.style.opacity = "0.99";
+    if (root) {
+      root.style.transform = "translateZ(0.01px)";
+    }
+    if (header) {
+      header.style.transform = "translateZ(0.01px)";
+    }
+    void body.offsetHeight;
+
+    const restoreLayer = () => {
+      body.style.opacity = "1";
+      if (root) {
+        root.style.transform = "translateZ(0)";
+      }
+      if (header) {
+        header.style.transform = "translateZ(0)";
+      }
+      void body.offsetHeight;
+      setTimeout(() => {
+        if (body.style.opacity === "1") {
+          body.style.opacity = "";
+        }
+      }, 180);
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(restoreLayer);
+      });
+    } else {
+      setTimeout(restoreLayer, 32);
+    }
+  } catch {
+    // Safe fallback
+  }
+}
+
 export function lockDarkAdTransitionBackground(): void {
   if (typeof document === "undefined") return;
   if (releaseTimer) {
@@ -507,6 +552,7 @@ export async function showNativeInterstitialAd(options?: {
     const dismissedHandle = await AdMob.addListener(
       InterstitialAdPluginEvents.Dismissed,
       async () => {
+        forceAndroidWebViewGpuRepaint();
         await cleanup();
         releaseDarkAdTransitionBackground(420);
       }
@@ -590,6 +636,7 @@ export async function showNativeRewardedAd(callbacks: {
 
     const runDeferredRefresh = () => {
       setTimeout(() => {
+        forceAndroidWebViewGpuRepaint();
         if (rewardEarned) {
           try {
             callbacks.onRewarded();
@@ -632,11 +679,12 @@ export async function showNativeRewardedAd(callbacks: {
     );
     listenerHandles.push(rewardedHandle);
 
-    // 2. Listen for ad dismissal event and smoothly refresh UI on next animation frame
+    // 2. Listen for ad dismissal event and force Android GPU/WebView repaint immediately
     const dismissedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Dismissed,
       async () => {
         console.log("[AdMob Rewarded] Ad dismissed by user.");
+        forceAndroidWebViewGpuRepaint();
         await settleAfterAdClose(true);
       }
     );

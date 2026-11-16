@@ -372,7 +372,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   if (placement === "bottom-dock") {
     return (
       <div
-        className={`w-full flex items-center justify-center bg-[#0f172a]/95 backdrop-blur-md transition-all duration-300 ${
+        className={`w-full flex items-center justify-center bg-[rgba(15,23,42,0.95)] transition-all duration-300 ${
           adLoaded
             ? "border-t border-slate-700/60 px-2 py-1 min-h-[58px] overflow-hidden"
             : "h-0 border-t-0 overflow-visible pointer-events-none"

@@ -192,7 +192,7 @@ function DebtItemCardComponent({
         WebkitBackfaceVisibility: "hidden",
         backfaceVisibility: "hidden",
       }}
-      className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 backdrop-blur-md bg-gradient-to-br ${cardTheme.gradient}`}
+      className={`p-4 sm:p-5 rounded-3xl border ${cardTheme.border} ${cardTheme.glow} relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 bg-gradient-to-br ${cardTheme.gradient}`}
     >
       {/* Ambient background decoration */}
       <div className="absolute inset-0 bg-gradient-to-r from-white/25 via-transparent to-white/15 pointer-events-none" />
