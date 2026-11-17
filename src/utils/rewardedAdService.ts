@@ -583,6 +583,17 @@ export async function showNativeRewardedAd(callbacks: {
     listenerHandles.length = 0;
   };
 
+  const forceWebViewRepaint = () => {
+    if (typeof document === "undefined" || !document.body) return;
+    const prevScrollY = typeof window !== "undefined" ? window.scrollY : 0;
+    document.body.style.display = "none";
+    void document.body.offsetHeight; // reflow tetikle
+    document.body.style.display = "";
+    if (prevScrollY > 0 && typeof window !== "undefined") {
+      window.scrollTo(0, prevScrollY);
+    }
+  };
+
   const settleAfterAdClose = async (triggerDismissedCallback: boolean) => {
     if (settled) return;
     settled = true;
@@ -604,6 +615,7 @@ export async function showNativeRewardedAd(callbacks: {
             // Safe fallback
           }
         }
+        forceWebViewRepaint();
         releaseDarkAdTransitionBackground(480);
       }, 120);
     };
@@ -632,11 +644,12 @@ export async function showNativeRewardedAd(callbacks: {
     );
     listenerHandles.push(rewardedHandle);
 
-    // 2. Listen for ad dismissal event and smoothly refresh UI on next animation frame
+    // 2. Listen for ad dismissal event and force immediate WebView reflow + smooth UI refresh
     const dismissedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Dismissed,
       async () => {
         console.log("[AdMob Rewarded] Ad dismissed by user.");
+        forceWebViewRepaint();
         await settleAfterAdClose(true);
       }
     );

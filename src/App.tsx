@@ -8061,7 +8061,10 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen pb-16 md:pb-6 font-sans transition-all duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] theme-${colorTheme}`}>
+    <div
+      data-app-root="true"
+      className={`min-h-screen pb-16 md:pb-6 font-sans transition-colors duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] [transform:translateZ(0)] [will-change:transform] [backface-visibility:hidden] theme-${colorTheme}`}
+    >
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
       {confirmModal.isOpen && (
@@ -8109,7 +8112,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-2xl border-2 border-indigo-500/50 text-white rounded-2xl p-3 sm:p-4 shadow-2xl shadow-indigo-950/70 max-w-lg w-full transition-all duration-200"
+              className="pointer-events-auto bg-[rgba(15,23,42,0.95)] dark:bg-[rgba(15,23,42,0.95)] border-2 border-indigo-500/50 text-white rounded-2xl p-3 sm:p-4 shadow-2xl shadow-indigo-950/70 max-w-lg w-full transition-all duration-200"
             >
               <div className="flex items-start gap-3">
                 {/* Sol İkon Rozeti */}
@@ -8276,14 +8279,12 @@ export default function App() {
       <header 
         data-app-header="true"
         style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
-        className="sticky top-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-colors duration-200 relative group [transform:translateZ(0)] [backface-visibility:hidden]"
+        className="sticky top-0 z-30 bg-white dark:bg-[rgba(15,23,42,0.95)] border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 transition-colors duration-200 relative group [transform:translateZ(0)] [will-change:transform] [backface-visibility:hidden]"
       >
         
-        {/* Decorative ambient lighting overlays */}
+        {/* Subtle top accent stripe (GPU-safe, zero heavy CSS blur) */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80 animate-pulse duration-[3000ms]" />
-          <div className="absolute top-[-40%] right-[10%] w-72 h-24 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-[-20%] left-[2%] w-56 h-16 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80" />
         </div>
         
         {/* Row 1: Top row with Logo/Title on left and Welcome Button on right */}
@@ -8392,7 +8393,7 @@ export default function App() {
                       ? (registeredName ? `${registeredName} (${userEmail})` : userEmail)
                       : "Giriş Yap"
                   }
-                  className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
+                  className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
                 >
                   <div className={`p-1 ${themeStyles.iconContainerBg} rounded-lg flex items-center justify-center shrink-0`}>
                     {isUserAuthenticated ? (
@@ -8607,7 +8608,7 @@ export default function App() {
 
       {/* Firestore Connection / Sync Error Banner with full error text and retry */}
       {firestoreErrorMessage && (
-        <div className="bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md animate-in fade-in z-20 relative">
+        <div className="bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in z-20 relative">
           <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
             <div className="p-1.5 bg-rose-500/20 text-rose-300 rounded-lg shrink-0 mt-0.5 sm:mt-0">
               <AlertTriangle className="w-4 h-4 text-rose-300 animate-pulse" />
@@ -8850,7 +8851,7 @@ export default function App() {
           : [];
 
         return (
-          <div className={`relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-md ${themeStyles.barBg}`}>
+          <div className={`relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs ${themeStyles.barBg}`}>
             {/* Left Status Badge with Compact Responsive Label and Play/Pause Controller */}
             <div className={`absolute left-0 top-0 bottom-0 px-2 sm:px-3 text-white font-black text-[8.5px] sm:text-[9.5px] uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 shrink-0 select-none ${themeStyles.badgeBg}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
@@ -9042,7 +9043,7 @@ export default function App() {
         }`}
       >
         {/* Workspace Title & Close Header (Fixed/Sticky at Top) */}
-        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[rgba(15,23,42,0.95)] shrink-0 flex items-center justify-between z-20">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
               <img
@@ -11271,7 +11272,7 @@ export default function App() {
         return (
           <div className="fixed bottom-0 left-0 right-0 z-40 max-w-xl mx-auto flex flex-col pointer-events-auto shadow-2xl">
             {/* 1. ALT MENÜ / NAVİGASYON (ÜSTTE - ASLA REKLAMLAR İLE KAPATILMAZ) */}
-            <footer className="w-full bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-md">
+            <footer className="w-full bg-white dark:bg-[rgba(15,23,42,0.95)] border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-md">
               <button
                 onClick={() => handleNavClick("overview")}
                 className={getBottomTabClass("overview")}
