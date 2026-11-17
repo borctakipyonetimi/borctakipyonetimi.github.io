@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -4369,12 +4370,34 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Vite middleware flow
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
+    let viteInstance: Awaited<ReturnType<typeof createViteServer>> | null = null;
+    const vitePromise = createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === "true" ? false : { server: httpServer },
+      },
       appType: "spa",
+    }).then((vite) => {
+      viteInstance = vite;
+      return vite;
     });
-    app.use(vite.middlewares);
+
+    // Prevent unhandled rejection warning during background initialization
+    vitePromise.catch((err) => {
+      console.error("[Vite Init Error]", err);
+    });
+
+    app.use(async (req, res, next) => {
+      try {
+        const vite = viteInstance ?? (await vitePromise);
+        vite.middlewares(req, res, next);
+      } catch (err) {
+        next(err);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
@@ -4383,16 +4406,17 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-
-  server.on("error", (err: any) => {
+  httpServer.on("error", (err: any) => {
     if (err && err.code === "EADDRINUSE") {
       console.error(`[Server Port Conflict] Port ${PORT} is already in use.`);
+      process.exit(1);
     } else {
       console.error("[Server Error]", err);
     }
+  });
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
