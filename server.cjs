@@ -23,6 +23,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // server.ts
 var import_express = __toESM(require("express"), 1);
+var import_http = __toESM(require("http"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_vite = require("vite");
@@ -3825,12 +3826,30 @@ app.use((err, req, res, next) => {
   next(err);
 });
 async function startServer() {
+  const httpServer = import_http.default.createServer(app);
   if (process.env.NODE_ENV !== "production") {
-    const vite = await (0, import_vite.createServer)({
-      server: { middlewareMode: true },
+    let viteInstance = null;
+    const vitePromise = (0, import_vite.createServer)({
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === "true" ? false : { server: httpServer }
+      },
       appType: "spa"
+    }).then((vite) => {
+      viteInstance = vite;
+      return vite;
     });
-    app.use(vite.middlewares);
+    vitePromise.catch((err) => {
+      console.error("[Vite Init Error]", err);
+    });
+    app.use(async (req, res, next) => {
+      try {
+        const vite = viteInstance ?? await vitePromise;
+        vite.middlewares(req, res, next);
+      } catch (err) {
+        next(err);
+      }
+    });
   } else {
     const distPath = import_path.default.join(process.cwd(), "dist");
     app.use(import_express.default.static(distPath));
@@ -3838,15 +3857,16 @@ async function startServer() {
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-  server.on("error", (err) => {
+  httpServer.on("error", (err) => {
     if (err && err.code === "EADDRINUSE") {
       console.error(`[Server Port Conflict] Port ${PORT} is already in use.`);
+      process.exit(1);
     } else {
       console.error("[Server Error]", err);
     }
+  });
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 startServer();
