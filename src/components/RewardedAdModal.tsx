@@ -26,15 +26,12 @@ import {
   Activity,
   AlertCircle
 } from "lucide-react";
-import confetti from "canvas-confetti";
 import { Capacitor } from "@capacitor/core";
 import {
   grant24HourPass,
   getRemainingPassTimeFormatted,
   RewardedFeatureType,
   showNativeRewardedAd,
-  lockDarkAdTransitionBackground,
-  releaseDarkAdTransitionBackground,
   isUserAdFree
 } from "../utils/rewardedAdService";
 
@@ -67,7 +64,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 }) => {
   const [isPlayingAd, setIsPlayingAd] = useState(false);
   const [isNativeAdLoading, setIsNativeAdLoading] = useState(false);
-  const [isClosingTransition, setIsClosingTransition] = useState(false);
   const [adFeedbackMessage, setAdFeedbackMessage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(REQUIRED_WATCH_SECONDS);
   const [adFinished, setAdFinished] = useState(false);
@@ -79,43 +75,44 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<any>(null);
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevOpenRef = useRef(false);
-  const hasDarkLockRef = useRef(false);
+  const rewardClaimedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onRewardGrantedRef = useRef(onRewardGranted);
+  onRewardGrantedRef.current = onRewardGranted;
 
   const effectiveIsPremium = Boolean(
     isPremium || isUserAdFree()
   );
 
-  // Premium users NEVER see rewarded ads - immediately grant access and close
+  // Premium users NEVER see rewarded ads - grant once and close immediately without re-render loops
   useEffect(() => {
-    if (isOpen && effectiveIsPremium) {
-      if (onRewardGranted) onRewardGranted();
-      onClose();
-    }
-  }, [isOpen, effectiveIsPremium, onRewardGranted, onClose]);
-
-  // Keep WebView background pinned to #0f172a while rewarded ad modal/player is active
-  useEffect(() => {
-    if (isOpen && !effectiveIsPremium) {
-      if (!hasDarkLockRef.current) {
-        lockDarkAdTransitionBackground();
-        hasDarkLockRef.current = true;
+    if (isOpen && effectiveIsPremium && !rewardClaimedRef.current) {
+      rewardClaimedRef.current = true;
+      onCloseRef.current();
+      if (onRewardGrantedRef.current) {
+        onRewardGrantedRef.current();
       }
-    } else if (hasDarkLockRef.current) {
-      releaseDarkAdTransitionBackground(420);
-      hasDarkLockRef.current = false;
     }
   }, [isOpen, effectiveIsPremium]);
 
   // Initialize ONLY when the modal transitions from closed to open
   useEffect(() => {
     if (isOpen && !effectiveIsPremium && !prevOpenRef.current) {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
+      rewardClaimedRef.current = false;
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
       }
-      setIsClosingTransition(false);
+      if (videoStartTimeoutRef.current) {
+        clearTimeout(videoStartTimeoutRef.current);
+        videoStartTimeoutRef.current = null;
+      }
       setIsPlayingAd(false);
       setIsNativeAdLoading(false);
       setAdFeedbackMessage(null);
@@ -126,7 +123,6 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       setActivePassTime(getRemainingPassTimeFormatted(targetFeature));
       setVideoIndex(Math.floor(Math.random() * VIDEO_AD_SOURCES.length));
     } else if (!isOpen && prevOpenRef.current) {
-      setIsClosingTransition(false);
       setIsPlayingAd(false);
       setIsNativeAdLoading(false);
       setAdFeedbackMessage(null);
@@ -134,22 +130,34 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
+      }
+      if (videoStartTimeoutRef.current) {
+        clearTimeout(videoStartTimeoutRef.current);
+        videoStartTimeoutRef.current = null;
+      }
     }
     prevOpenRef.current = isOpen;
   }, [isOpen, targetFeature, effectiveIsPremium]);
 
-  // Clean up timers & background lock on unmount
+  // Clean up timers on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
       }
-      if (hasDarkLockRef.current) {
-        releaseDarkAdTransitionBackground(420);
-        hasDarkLockRef.current = false;
+      if (videoStartTimeoutRef.current) {
+        clearTimeout(videoStartTimeoutRef.current);
+        videoStartTimeoutRef.current = null;
       }
     };
   }, []);
@@ -184,7 +192,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     setVideoProgress(0);
     setIsVideoPaused(false);
 
-    setTimeout(() => {
+    if (videoStartTimeoutRef.current) {
+      clearTimeout(videoStartTimeoutRef.current);
+    }
+    videoStartTimeoutRef.current = setTimeout(() => {
+      videoStartTimeoutRef.current = null;
       if (videoRef.current) {
         try {
           videoRef.current.currentTime = 0;
@@ -200,7 +212,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           console.info("[RewardedAd] Play attempt handled:", playErr);
         }
       }
-    }, 120);
+    }, 80);
 
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -224,6 +236,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       e.preventDefault();
       e.stopPropagation();
     }
+    if (isNativeAdLoading || rewardClaimedRef.current) return;
 
     // 1. CAPACITOR ANDROID/IOS NATIVE ADMOB REWARDED AD FLOW
     if (Capacitor.isNativePlatform()) {
@@ -234,39 +247,52 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         const result = await showNativeRewardedAd({
           onRewarded: () => {
             console.log("[RewardedAdModal] Native AdMob reward confirmed by SDK!");
-            setIsNativeAdLoading(false);
-            setAdFeedbackMessage(null);
+            if (isMountedRef.current) {
+              setIsNativeAdLoading(false);
+              setAdFeedbackMessage(null);
+            }
             handleClaimReward();
           },
           onDismissed: () => {
             console.log("[RewardedAdModal] Native AdMob ad dismissed.");
-            setIsNativeAdLoading(false);
-            setAdFeedbackMessage(null);
+            if (isMountedRef.current) {
+              setIsNativeAdLoading(false);
+              setAdFeedbackMessage(null);
+            }
           },
           onError: (err) => {
             console.warn("[RewardedAdModal] Native AdMob failed to load, falling back to simulator:", err);
+            if (!isMountedRef.current || !prevOpenRef.current) return;
             setIsNativeAdLoading(false);
             setAdFeedbackMessage("Native reklam yüklenemedi. Test simülasyon videosuna aktarılıyor...");
-            setTimeout(() => {
+            if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+            fallbackTimeoutRef.current = setTimeout(() => {
+              fallbackTimeoutRef.current = null;
+              if (!isMountedRef.current || !prevOpenRef.current) return;
               setAdFeedbackMessage(null);
               startInAppVideo();
-            }, 1000);
+            }, 600);
           }
         });
 
-        if (!result.success) {
+        if (!result.success && isMountedRef.current && prevOpenRef.current && !rewardClaimedRef.current) {
           setIsNativeAdLoading(false);
           setAdFeedbackMessage("Native reklam yüklenemedi. Test simülasyon videosuna aktarılıyor...");
-          setTimeout(() => {
+          if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = setTimeout(() => {
+            fallbackTimeoutRef.current = null;
+            if (!isMountedRef.current || !prevOpenRef.current) return;
             setAdFeedbackMessage(null);
             startInAppVideo();
-          }, 800);
+          }, 500);
         }
         return;
       } catch (nativeErr: any) {
         console.warn("[RewardedAdModal] Native showRewardedAd caught exception:", nativeErr);
-        setIsNativeAdLoading(false);
-        startInAppVideo();
+        if (isMountedRef.current) {
+          setIsNativeAdLoading(false);
+          startInAppVideo();
+        }
         return;
       }
     }
@@ -294,30 +320,28 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
     setIsMuted(videoRef.current.muted);
   };
 
-  const handleSmoothClose = (callbackAfterClose?: () => void) => {
-    if (isClosingTransition) return;
-    setIsClosingTransition(true);
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
+  const closeImmediately = (callbackAfterClose?: () => void) => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-    closeTimeoutRef.current = setTimeout(() => {
-      closeTimeoutRef.current = null;
-      const finalizeClose = () => {
-        setIsPlayingAd(false);
-        setIsClosingTransition(false);
-        onClose();
-        if (callbackAfterClose) {
-          setTimeout(() => {
-            callbackAfterClose();
-          }, 48);
-        }
-      };
-      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-        window.requestAnimationFrame(finalizeClose);
-      } else {
-        finalizeClose();
-      }
-    }, 280);
+    if (fallbackTimeoutRef.current) {
+      clearTimeout(fallbackTimeoutRef.current);
+      fallbackTimeoutRef.current = null;
+    }
+    if (videoStartTimeoutRef.current) {
+      clearTimeout(videoStartTimeoutRef.current);
+      videoStartTimeoutRef.current = null;
+    }
+    if (isMountedRef.current) {
+      setIsPlayingAd(false);
+      setIsNativeAdLoading(false);
+      setAdFeedbackMessage(null);
+    }
+    onCloseRef.current();
+    if (callbackAfterClose) {
+      callbackAfterClose();
+    }
   };
 
   const handleClaimReward = (e?: React.MouseEvent) => {
@@ -325,41 +349,20 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       e.preventDefault();
       e.stopPropagation();
     }
+    if (rewardClaimedRef.current) return;
+    rewardClaimedRef.current = true;
 
-    // 1. If unlocking a 24h feature pass (for non-trial7days), grant 24-hour pass ONLY to the target feature
+    // 1. Grant 24-hour pass ONLY for non-trial7days features
     if (targetFeature !== "trial7days") {
       grant24HourPass(targetFeature);
     }
 
-    // 2. Celebratory confetti
-    try {
-      confetti({
-        particleCount: 120,
-        spread: 90,
-        origin: { y: 0.6 },
-        gravity: 1.1,
-        decay: 0.92,
-        ticks: 140
-      });
-    } catch {
-      // Fallback
-    }
-
-    // 3. Smooth fade out before returning to main screen (useEffect releases dark lock cleanly after onClose)
-    const triggerClose = () => {
-      setTimeout(() => {
-        handleSmoothClose(() => {
-          if (onRewardGranted) {
-            onRewardGranted();
-          }
-        });
-      }, 220);
-    };
-    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(triggerClose);
-    } else {
-      triggerClose();
-    }
+    // 2. Return directly to the main screen without extra transition curtains or delays
+    closeImmediately(() => {
+      if (onRewardGrantedRef.current) {
+        onRewardGrantedRef.current();
+      }
+    });
   };
 
   if (!isOpen || effectiveIsPremium) return null;
@@ -487,7 +490,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   if (isPlayingAd) {
     return (
       <div 
-        className={`fixed inset-0 z-[100000] w-screen h-screen bg-[#0f172a] text-white flex flex-col justify-between select-none overflow-hidden transition-opacity duration-300 ease-out animate-fade-in ${isClosingTransition ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        className="fixed inset-0 z-[100000] w-screen h-screen bg-[#0f172a] text-white flex flex-col justify-between select-none overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Bar with Badges & Timer */}
@@ -610,11 +613,11 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   // ==========================================
   return (
     <div 
-      className={`fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-[#0f172a]/90 backdrop-blur-sm transition-opacity duration-300 ease-out animate-fade-in ${isClosingTransition ? "opacity-0 pointer-events-none" : "opacity-100"}`}
-      onClick={() => handleSmoothClose()}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-[#0f172a]/90"
+      onClick={() => closeImmediately()}
     >
       <div 
-        className={`relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white transition-all duration-300 ease-out ${isClosingTransition ? "scale-95 opacity-0" : "scale-100 opacity-100"}`}
+        className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -622,7 +625,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            handleSmoothClose();
+            closeImmediately();
           }}
           className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition z-20 cursor-pointer"
         >
@@ -726,7 +729,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleSmoothClose(() => onUpgradeClick());
+                  closeImmediately(() => onUpgradeClick());
                 }}
                 className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >

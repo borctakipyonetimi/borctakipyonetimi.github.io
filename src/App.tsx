@@ -1034,76 +1034,83 @@ export default function App() {
   };
 
   // E-posta ile kayıtlı kullanıcı 1 ödüllü video izlediğinde 7 gün reklamsız & sınırsız Pro denemesini başlatır
+  const isActivatingTrialRef = useRef(false);
   const activate7DayTrialAfterVideo = async () => {
-    const cleanEmail = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
-    const isGuestSession = localStorage.getItem("is_guest") === "true" || !cleanEmail || !cleanEmail.includes("@") || cleanEmail === "misafir@butcempro.app";
-    if (isGuestSession) {
-      triggerToast("⚠️ 7 günlük reklamsız deneme için önce e-posta ile kayıt olup giriş yapmalısınız.");
-      return;
-    }
-
-    const uid = auth.currentUser?.uid || ("email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_"));
+    if (isActivatingTrialRef.current) return;
+    isActivatingTrialRef.current = true;
     try {
-      const trialInfo = await provisionUserTrialInDatabases(uid, cleanEmail, false);
-      await markTrialUsedInFirestore(uid, cleanEmail, trialInfo.trialStartDate).catch(() => {});
+      const cleanEmail = (currentUser || auth.currentUser?.email || localStorage.getItem("currentUser") || "").toLowerCase().trim();
+      const isGuestSession = localStorage.getItem("is_guest") === "true" || !cleanEmail || !cleanEmail.includes("@") || cleanEmail === "misafir@butcempro.app";
+      if (isGuestSession) {
+        triggerToast("⚠️ 7 günlük reklamsız deneme için önce e-posta ile kayıt olup giriş yapmalısınız.");
+        return;
+      }
 
-      setHasUsedTrial(true);
-      setIsTrialActive(trialInfo.isActive);
-      setIsTrialExpiredLocked(trialInfo.isExpired);
-      setTrialDaysRemaining(trialInfo.daysRemaining);
-      setIsPremium(false);
-      setIsGuestMode(false);
-      setTrialStatus({
-        hasTrial: true,
-        isActive: trialInfo.isActive,
-        isExpired: trialInfo.isExpired,
-        daysRemaining: trialInfo.daysRemaining,
-        startDate: trialInfo.trialStartDate,
-        endDate: trialInfo.trialEndDate
-      });
+      const uid = auth.currentUser?.uid || ("email_" + cleanEmail.replace(/[^a-zA-Z0-9_]/g, "_"));
+      try {
+        const trialInfo = await provisionUserTrialInDatabases(uid, cleanEmail, false);
+        await markTrialUsedInFirestore(uid, cleanEmail, trialInfo.trialStartDate).catch(() => {});
 
-      localStorage.setItem("has_used_trial", "true");
-      localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_guest", "false");
-      localStorage.setItem("is_guest_trial", "false");
-      localStorage.setItem("is_trial_active", trialInfo.isActive ? "true" : "false");
-      localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
-      localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
-      if (trialInfo.isActive) {
+        setHasUsedTrial(true);
+        setIsTrialActive(trialInfo.isActive);
+        setIsTrialExpiredLocked(trialInfo.isExpired);
+        setTrialDaysRemaining(trialInfo.daysRemaining);
+        setIsPremium(false);
+        setIsGuestMode(false);
+        setTrialStatus({
+          hasTrial: true,
+          isActive: trialInfo.isActive,
+          isExpired: trialInfo.isExpired,
+          daysRemaining: trialInfo.daysRemaining,
+          startDate: trialInfo.trialStartDate,
+          endDate: trialInfo.trialEndDate
+        });
+
+        localStorage.setItem("has_used_trial", "true");
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "false");
+        localStorage.setItem("is_guest_trial", "false");
+        localStorage.setItem("is_trial_active", trialInfo.isActive ? "true" : "false");
+        localStorage.setItem("trial_start_date", trialInfo.trialStartDate);
+        localStorage.setItem("trial_end_date", trialInfo.trialEndDate);
+        if (trialInfo.isActive) {
+          localStorage.setItem("premium_source", "trial");
+        } else {
+          localStorage.removeItem("premium_source");
+        }
+
+        hideNativeBannerAd().catch(() => {});
+        window.dispatchEvent(new CustomEvent("trial_status_changed"));
+        window.dispatchEvent(new CustomEvent("premium_status_changed"));
+
+        if (trialInfo.isActive) {
+          triggerToast(`🎉 Tebrikler! 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı (${trialInfo.daysRemaining} gün kaldı)!`);
+        } else {
+          triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce tamamlanmıştır.");
+        }
+      } catch (err) {
+        console.warn("activate7DayTrialAfterVideo fallback:", err);
+        const nowIso = new Date().toISOString();
+        const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        setHasUsedTrial(true);
+        setIsTrialActive(true);
+        setIsTrialExpiredLocked(false);
+        setTrialDaysRemaining(7);
+        setIsPremium(false);
+        localStorage.setItem("has_used_trial", "true");
+        localStorage.setItem("is_premium", "false");
+        localStorage.setItem("is_guest", "false");
+        localStorage.setItem("is_trial_active", "true");
         localStorage.setItem("premium_source", "trial");
-      } else {
-        localStorage.removeItem("premium_source");
+        localStorage.setItem("trial_start_date", nowIso);
+        localStorage.setItem("trial_end_date", endIso);
+        hideNativeBannerAd().catch(() => {});
+        window.dispatchEvent(new CustomEvent("trial_status_changed"));
+        window.dispatchEvent(new CustomEvent("premium_status_changed"));
+        triggerToast("🎉 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı!");
       }
-
-      hideNativeBannerAd().catch(() => {});
-      window.dispatchEvent(new CustomEvent("trial_status_changed"));
-      window.dispatchEvent(new CustomEvent("premium_status_changed"));
-
-      if (trialInfo.isActive) {
-        triggerToast(`🎉 Tebrikler! 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı (${trialInfo.daysRemaining} gün kaldı)!`);
-      } else {
-        triggerToast("⚠️ Bu hesap için 7 günlük ücretsiz deneme hakkı daha önce tamamlanmıştır.");
-      }
-    } catch (err) {
-      console.warn("activate7DayTrialAfterVideo fallback:", err);
-      const nowIso = new Date().toISOString();
-      const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      setHasUsedTrial(true);
-      setIsTrialActive(true);
-      setIsTrialExpiredLocked(false);
-      setTrialDaysRemaining(7);
-      setIsPremium(false);
-      localStorage.setItem("has_used_trial", "true");
-      localStorage.setItem("is_premium", "false");
-      localStorage.setItem("is_guest", "false");
-      localStorage.setItem("is_trial_active", "true");
-      localStorage.setItem("premium_source", "trial");
-      localStorage.setItem("trial_start_date", nowIso);
-      localStorage.setItem("trial_end_date", endIso);
-      hideNativeBannerAd().catch(() => {});
-      window.dispatchEvent(new CustomEvent("trial_status_changed"));
-      window.dispatchEvent(new CustomEvent("premium_status_changed"));
-      triggerToast("🎉 7 günlük reklamsız ve sınırsız Bütçem PRO denemeniz başlatıldı!");
+    } finally {
+      isActivatingTrialRef.current = false;
     }
   };
 
@@ -1292,6 +1299,13 @@ export default function App() {
   const [rewardedCallback, setRewardedCallback] = useState<(() => void) | null>(null);
   const [, setRewardedPassTick] = useState(0);
 
+  const rewardedFeatureRef = useRef(rewardedFeature);
+  rewardedFeatureRef.current = rewardedFeature;
+  const rewardedCallbackRef = useRef(rewardedCallback);
+  rewardedCallbackRef.current = rewardedCallback;
+  const activateTrialFnRef = useRef(activate7DayTrialAfterVideo);
+  activateTrialFnRef.current = activate7DayTrialAfterVideo;
+
   useEffect(() => {
     const syncRewardedPass = () => setRewardedPassTick((t) => t + 1);
     window.addEventListener("rewarded_pass_updated", syncRewardedPass);
@@ -1302,7 +1316,7 @@ export default function App() {
     };
   }, []);
 
-  const openRewardedModal = (
+  const openRewardedModal = useCallback((
     feature: RewardedFeatureType = "any",
     onSuccess?: () => void
   ) => {
@@ -1314,7 +1328,48 @@ export default function App() {
     setRewardedFeature(feature);
     setRewardedCallback(() => onSuccess || null);
     setIsRewardedModalOpen(true);
-  };
+  }, [hasProAccess]);
+
+  const handleCloseRewardedModal = useCallback(() => {
+    setIsRewardedModalOpen(false);
+    setRewardedCallback(null);
+  }, []);
+
+  const handleRewardedModalGranted = useCallback(() => {
+    const feature = rewardedFeatureRef.current;
+    const cb = rewardedCallbackRef.current;
+    setRewardedCallback(null);
+    setIsRewardedModalOpen(false);
+
+    if (feature === "trial7days") {
+      if (cb) {
+        cb();
+      } else {
+        activateTrialFnRef.current();
+      }
+      return;
+    }
+
+    const featureNames: Record<string, string> = {
+      report: "Finansal Rapor & CSV İndirme",
+      ai: "Yapay Zeka Analiz Asistanı",
+      export: "Veri Dışa Aktarma & Yedekleme",
+      import: "Veri İçe Aktarma & Geri Yükleme",
+      debts: "Borç Yönetimi PRO Araçları",
+      expenses: "Gider Yönetimi & Fiş Tarama",
+      installments: "Taksit Planı PRO Araçları",
+      incomes: "Gelir Yönetimi & Şablon Araçları",
+      contacts: "Kişi Alacak/Verecek Takibi",
+      tools: "Finansal Analiz & Hesaplama Araçları",
+      alarms: "Bildirim & Alarm Merkezi",
+      any: "Seçili özellik"
+    };
+    const name = featureNames[feature] || "Seçili özellik";
+    if (cb) {
+      cb();
+    }
+    triggerToast(`🎉 24 saatlik ${name} erişim hakkınız başarıyla tanımlandı!`);
+  }, []);
 
   const closeUpgradeModal = () => {
     setIsUpgradeModalOpen(false);
@@ -3454,11 +3509,7 @@ export default function App() {
     // Native Capacitor Status Bar Senkronizasyonu (Android / iOS)
     const applyNativeStatusBar = async () => {
       try {
-        if (document.documentElement.classList.contains("ad-transition-dark-lock")) {
-          return;
-        }
         if (Capacitor.isPluginAvailable("StatusBar")) {
-          await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
           await StatusBar.setBackgroundColor({ color: statusBarColor }).catch(() => {});
           await StatusBar.setStyle({ style: darkMode ? Style.Dark : Style.Light }).catch(() => {});
         }
@@ -3468,38 +3519,21 @@ export default function App() {
     };
     applyNativeStatusBar().catch(() => {});
 
-    const handleResumeStatusSync = () => {
-      if (document.visibilityState === "visible") {
-        window.requestAnimationFrame(() => {
-          setTimeout(() => {
-            applyNativeStatusBar().catch(() => {});
-          }, 80);
-        });
-      }
-    };
-    document.addEventListener("visibilitychange", handleResumeStatusSync);
-
-    if (!document.documentElement.classList.contains("ad-transition-dark-lock")) {
-      if (darkMode) {
-        document.documentElement.classList.add("dark");
-        document.body.classList.add("dark");
-        document.body.classList.add("dark-mode");
-        document.documentElement.style.backgroundColor = "#0F172A";
-        document.body.style.backgroundColor = "#0F172A";
-        localStorage.setItem("darkMode", "1");
-      } else {
-        document.documentElement.classList.remove("dark");
-        document.body.classList.remove("dark");
-        document.body.classList.remove("dark-mode");
-        document.documentElement.style.backgroundColor = "#F4F6F9";
-        document.body.style.backgroundColor = "#F4F6F9";
-        localStorage.setItem("darkMode", "0");
-      }
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+      document.body.classList.add("dark");
+      document.body.classList.add("dark-mode");
+      document.documentElement.style.backgroundColor = "#0F172A";
+      document.body.style.backgroundColor = "#0F172A";
+      localStorage.setItem("darkMode", "1");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.body.classList.remove("dark");
+      document.body.classList.remove("dark-mode");
+      document.documentElement.style.backgroundColor = "#F4F6F9";
+      document.body.style.backgroundColor = "#F4F6F9";
+      localStorage.setItem("darkMode", "0");
     }
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleResumeStatusSync);
-    };
   }, [darkMode]);
 
   // Sync color theme overrides on documents
@@ -7962,12 +7996,16 @@ export default function App() {
     }
   }, [activeTab, sidebarCategories]);
 
+  const wasSidebarOpenRef = useRef(false);
   useEffect(() => {
-    if (hasProAccess) return;
-    if (isSidebarOpen) {
+    if (hasProAccess) {
+      wasSidebarOpenRef.current = isSidebarOpen;
+      return;
+    }
+    if (isSidebarOpen && !wasSidebarOpenRef.current) {
       hideNativeBannerAd().catch(() => {});
       pauseInlineNativeFeed().catch(() => {});
-    } else {
+    } else if (!isSidebarOpen && wasSidebarOpenRef.current) {
       resumeInlineNativeFeed();
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -7975,6 +8013,7 @@ export default function App() {
         );
       }
     }
+    wasSidebarOpenRef.current = isSidebarOpen;
   }, [isSidebarOpen, hasProAccess]);
 
   const guestNavClickCountRef = useRef(0);
@@ -12008,52 +12047,10 @@ export default function App() {
       {/* Google AdMob Rewarded Video Ad Modal (24-Hour Pass Unlock) */}
       <RewardedAdModal
         isOpen={isRewardedModalOpen}
-        onClose={() => {
-          window.requestAnimationFrame(() => {
-            setTimeout(() => {
-              setIsRewardedModalOpen(false);
-            }, 32);
-          });
-        }}
+        onClose={handleCloseRewardedModal}
         targetFeature={rewardedFeature}
         isPremium={hasProAccess}
-        onRewardGranted={() => {
-          if (rewardedFeature === "trial7days") {
-            window.requestAnimationFrame(() => {
-              setTimeout(() => {
-                if (rewardedCallback) {
-                  rewardedCallback();
-                } else {
-                  activate7DayTrialAfterVideo();
-                }
-              }, 64);
-            });
-            return;
-          }
-          const featureNames: Record<string, string> = {
-            report: "Finansal Rapor & CSV İndirme",
-            ai: "Yapay Zeka Analiz Asistanı",
-            export: "Veri Dışa Aktarma & Yedekleme",
-            import: "Veri İçe Aktarma & Geri Yükleme",
-            debts: "Borç Yönetimi PRO Araçları",
-            expenses: "Gider Yönetimi & Fiş Tarama",
-            installments: "Taksit Planı PRO Araçları",
-            incomes: "Gelir Yönetimi & Şablon Araçları",
-            contacts: "Kişi Alacak/Verecek Takibi",
-            tools: "Finansal Analiz & Hesaplama Araçları",
-            alarms: "Bildirim & Alarm Merkezi",
-            any: "Seçili özellik"
-          };
-          const name = featureNames[rewardedFeature] || "Seçili özellik";
-          window.requestAnimationFrame(() => {
-            setTimeout(() => {
-              if (rewardedCallback) {
-                rewardedCallback();
-              }
-              triggerToast(`🎉 24 saatlik ${name} erişim hakkınız başarıyla tanımlandı!`);
-            }, 64);
-          });
-        }}
+        onRewardGranted={handleRewardedModalGranted}
         onUpgradeClick={() => {
           openUpgradeModal("Bütçem Pro");
         }}
