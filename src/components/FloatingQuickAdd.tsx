@@ -211,7 +211,7 @@ export const FloatingQuickAdd: React.FC<FloatingQuickAddProps> = ({
       </AnimatePresence>
 
       {/* Floating Action Button (FAB) Container */}
-      <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end pointer-events-none select-none">
+      <div className="fixed bottom-20 right-4 sm:bottom-20 sm:right-6 z-50 flex flex-col items-end pointer-events-none select-none">
         {/* Child Bubble Options */}
         <AnimatePresence>
           {isOpen && (

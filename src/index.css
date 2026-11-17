@@ -91,8 +91,7 @@ body > canvas {
 }
 
 html {
-  scroll-behavior: smooth;
-  height: 100%;
+  min-height: 100%;
   -webkit-text-size-adjust: 100%;
   background-color: #F4F6F9;
   color: #0F172A;
@@ -107,10 +106,10 @@ body {
   min-height: 100%;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: auto;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
   background-color: #F4F6F9;
   color: #0F172A;
   transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -130,6 +129,7 @@ html:not(.dark) body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: inherit;
@@ -534,13 +534,4 @@ html.ad-transition-dark-lock header[data-app-header="true"] {
 
 .animate-fade-in {
   animation: adSmoothFadeIn 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-/* Android WebView reklam kapanışı sonrası beyaz kare render kalıntılarını önleme */
-body, html {
-  background-color: #0f172a !important;
-  -webkit-font-smoothing: antialiased;
-}
-* {
-  -webkit-backface-visibility: hidden;
 }

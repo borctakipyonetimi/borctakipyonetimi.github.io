@@ -10,19 +10,21 @@ import {
   BannerAdPluginEvents,
   BannerAdPosition,
   BannerAdSize,
+  NativeAdPluginEvents,
   type AdMobBannerSize
 } from "@capacitor-community/admob";
 import {
   ADMOB_CONFIG,
   showNativeBannerAd,
   hideNativeBannerAd,
-  isUserAdFree
+  isUserAdFree,
+  acquireInlineNativeFeed
 } from "../utils/rewardedAdService";
 import { useAuth } from "../context/AuthContext";
 
 interface AdMobBannerProps {
   unitType?: "banner" | "native" | "interstitial" | "rectangle";
-  placement?: "inline" | "bottom-dock" | "drawer-square";
+  placement?: "inline" | "bottom-dock";
   active?: boolean;
   className?: string;
   onUpgradeClick?: () => void;
@@ -48,9 +50,10 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   const rawReactId = useId();
   const cleanReactId = rawReactId.replace(/[^a-zA-Z0-9_-]/g, "");
   const slotDivId = `butcem-gpt-${cleanReactId}`;
+  const nativeSlotKey = `inline_${cleanReactId}`;
 
   const slotContainerRef = useRef<HTMLDivElement | null>(null);
-  const drawerWasActiveRef = useRef(false);
+  const nativeSlotRef = useRef<HTMLDivElement | null>(null);
 
   const [localAdFree, setLocalAdFree] = useState(() => isUserAdFree());
   const [adLoaded, setAdLoaded] = useState(false);
@@ -79,8 +82,8 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   const isPremium = Boolean(auth?.isPremium);
   const isTrialActive = Boolean(auth?.isTrialActive);
-  const shouldHideAds = isPremium || isTrialActive || localAdFree;
-  const isRectangle = placement === "drawer-square" || unitType === "rectangle";
+  const shouldHideAds = isPremium || isTrialActive || localAdFree || !active;
+  const isRectangle = unitType === "rectangle";
 
   useEffect(() => {
     if (shouldHideAds) {
@@ -92,7 +95,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       return;
     }
 
-    // 1. NATIVE ANDROID / iOS: BOTTOM-DOCK ADAPTIVE BANNER (ca-app-pub-3940256099942544/6300978111)
+    // 1. NATIVE ANDROID / iOS: BOTTOM-DOCK ADAPTIVE BANNER
     if (isNative && placement === "bottom-dock") {
       let isMounted = true;
       const listeners: PluginListenerHandle[] = [];
@@ -187,27 +190,108 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       };
     }
 
-    // 2. DRAWER-SQUARE & INLINE BANNER SLOTS (Web + Android WebView DOM-contained GPT)
-    // Never uses NativeAdFeed so Google AdMob Native Ad Validator overlays never pop up.
-    if (placement === "drawer-square" && !active) {
+    // 2. NATIVE ANDROID / iOS: INLINE NATIVE AD FEED
+    // Uses real Google AdMob Native Test Ad (ca-app-pub-3940256099942544/2247696110) projected onto the DOM box.
+    if (isNative) {
+      let isMounted = true;
+      let attachedFeed: any = null;
+      let attachTimer: ReturnType<typeof setTimeout> | null = null;
+      let failFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+      const listeners: PluginListenerHandle[] = [];
+
       setAdLoaded(false);
       setAdUnfilled(false);
-      if (isNative && drawerWasActiveRef.current) {
-        drawerWasActiveRef.current = false;
-        if (!isUserAdFree()) {
-          window.dispatchEvent(
-            new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } })
+
+      const mountNativeSlot = async () => {
+        try {
+          const feed = await acquireInlineNativeFeed();
+
+          if (!isMounted || !feed || isUserAdFree()) {
+            if (isMounted && !feed) {
+              setAdUnfilled(true);
+            }
+            return;
+          }
+
+          attachedFeed = feed;
+
+          const loadedHandle = await feed.addListener(
+            NativeAdPluginEvents.Loaded,
+            (ev: any) => {
+              if (!isMounted || ev?.slotKey !== nativeSlotKey) return;
+              if (failFallbackTimer) {
+                clearTimeout(failFallbackTimer);
+                failFallbackTimer = null;
+              }
+              setAdLoaded(true);
+              setAdUnfilled(false);
+            }
           );
+          listeners.push(loadedHandle);
+
+          const failedHandle = await feed.addListener(
+            NativeAdPluginEvents.FailedToLoad,
+            (ev: any) => {
+              if (!isMounted || ev?.slotKey !== nativeSlotKey) return;
+              if (failFallbackTimer) {
+                clearTimeout(failFallbackTimer);
+                failFallbackTimer = null;
+              }
+              setAdLoaded(false);
+              setAdUnfilled(true);
+            }
+          );
+          listeners.push(failedHandle);
+
+          attachTimer = setTimeout(() => {
+            if (!isMounted || !nativeSlotRef.current) return;
+            try {
+              feed.attach(nativeSlotKey, nativeSlotRef.current);
+            } catch (attachErr) {
+              console.warn("[AdMob NativeFeed] attach error:", attachErr);
+              if (isMounted) setAdUnfilled(true);
+            }
+          }, 60);
+
+          failFallbackTimer = setTimeout(() => {
+            if (isMounted) {
+              setAdLoaded((loaded) => {
+                if (!loaded) {
+                  setAdUnfilled(true);
+                }
+                return loaded;
+              });
+            }
+          }, 9000);
+        } catch (err) {
+          console.warn("[AdMob NativeFeed] mount error:", err);
+          if (isMounted) {
+            setAdLoaded(false);
+            setAdUnfilled(true);
+          }
         }
-      }
-      return;
+      };
+
+      mountNativeSlot();
+
+      return () => {
+        isMounted = false;
+        if (attachTimer) clearTimeout(attachTimer);
+        if (failFallbackTimer) clearTimeout(failFallbackTimer);
+        if (attachedFeed && nativeSlotRef.current) {
+          try {
+            attachedFeed.detach(nativeSlotRef.current);
+          } catch {}
+        }
+        for (const handle of listeners) {
+          try {
+            handle.remove();
+          } catch {}
+        }
+      };
     }
 
-    if (isNative && placement === "drawer-square" && active) {
-      drawerWasActiveRef.current = true;
-      hideNativeBannerAd().catch(() => {});
-    }
-
+    // 3. WEB / PWA ENVIRONMENT: REAL GOOGLE PUBLISHER TAG TEST AD UNIT (/6355419/Travel)
     let isMounted = true;
     let activeSlot: any = null;
     let renderHandlerRef: ((event: any) => void) | null = null;
@@ -216,10 +300,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     setAdLoaded(false);
     setAdUnfilled(false);
 
-    // /6355419/Travel serves [250, 250] / [300, 250] squares for drawer and [320, 50] for banners
-    const adSizes: [number, number][] = isRectangle
-      ? [[250, 250], [300, 250]]
-      : [[320, 50]];
+    const adSizes: [number, number][] = isRectangle ? [[300, 250], [250, 250]] : [[320, 50]];
 
     const initGptSlot = () => {
       if (!isMounted || typeof window === "undefined") return;
@@ -283,10 +364,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       });
     };
 
-    // Wait for drawer slide-in animation (300ms) so the DOM container is inside the viewport
-    const startTimer = setTimeout(initGptSlot, placement === "drawer-square" ? 360 : 80);
+    const startTimer = setTimeout(initGptSlot, 80);
 
-    // Collapse cleanly if offline or adblocked
+    // Collapse cleanly if network/adblocker blocks Google test ads
     timeoutHandle = setTimeout(() => {
       if (!isMounted) return;
       const el = slotContainerRef.current;
@@ -295,21 +375,12 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         setAdLoaded(false);
         setAdUnfilled(true);
       }
-    }, 7000);
+    }, 6000);
 
     return () => {
       isMounted = false;
       clearTimeout(startTimer);
       if (timeoutHandle) clearTimeout(timeoutHandle);
-
-      if (isNative && placement === "drawer-square" && drawerWasActiveRef.current) {
-        drawerWasActiveRef.current = false;
-        if (!isUserAdFree()) {
-          window.dispatchEvent(
-            new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } })
-          );
-        }
-      }
 
       try {
         const googletag = window.googletag;
@@ -328,12 +399,10 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         }
       } catch {}
     };
-  }, [shouldHideAds, isNative, unitType, placement, active, isRectangle, slotDivId]);
+  }, [shouldHideAds, isNative, unitType, placement, isRectangle, slotDivId, nativeSlotKey]);
 
   // KESİN KURAL: Premium ve aktif 7 günlük deneme kullanıcılarına HİÇBİR reklam gösterilmez
   if (shouldHideAds) return null;
-
-  if (placement === "drawer-square" && !active) return null;
 
   // Collapse completely when unfilled/blocked so empty reserved areas never appear
   if (adUnfilled) return null;
@@ -351,17 +420,52 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Drawer-Square GPT Slot: Stays strictly fixed inside the bottom of <aside>
+  // Native Inline Cards: Measured NativeUIProjection Slot (>=144x300px)
+  if (isNative) {
+    return (
+      <div className={`w-full flex flex-col items-center overflow-hidden my-2 space-y-1.5 ${className}`}>
+        <div
+          ref={nativeSlotRef}
+          aria-label="Google AdMob Native Test Ad"
+          data-admob-unit={ADMOB_CONFIG.NATIVE_ID}
+          data-admob-slot={nativeSlotKey}
+          style={{ width: "100%", height: "304px", minHeight: "304px" }}
+          className="w-full rounded-2xl bg-[#0f172a] border border-slate-800/80 overflow-hidden"
+        />
+        {adLoaded && onUpgradeClick && (
+          <div className="flex justify-end w-full pr-2">
+            <button
+              type="button"
+              onClick={onUpgradeClick}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
+            >
+              {upgradeLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Web Rectangle GPT Slot
   if (isRectangle) {
     return (
       <div
-        className={`w-full flex flex-col items-center justify-center rounded-2xl bg-[#0f172a]/95 border border-slate-800 p-1 min-h-[260px] overflow-hidden transition-all duration-300 ${className}`}
+        className={`w-full flex flex-col items-center justify-center rounded-2xl transition-all duration-300 ${
+          adLoaded
+            ? "bg-[#0f172a]/95 border border-slate-800 p-1 min-h-[260px] overflow-hidden"
+            : "h-0 overflow-visible pointer-events-none"
+        } ${className}`}
       >
         <div
           ref={slotContainerRef}
           id={slotDivId}
           data-admob-unit={ADMOB_CONFIG.BANNER_ID}
-          style={{ width: "300px", height: "250px", maxWidth: "100%" }}
+          style={
+            adLoaded
+              ? { width: "300px", height: "250px", maxWidth: "100%" }
+              : { width: "300px", height: "250px", position: "fixed", left: "-9999px", top: "0", opacity: 0 }
+          }
           className="flex items-center justify-center overflow-hidden rounded-xl"
         />
       </div>
@@ -372,7 +476,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   if (placement === "bottom-dock") {
     return (
       <div
-        className={`w-full flex items-center justify-center bg-[rgba(15,23,42,0.95)] transition-all duration-300 ${
+        className={`w-full flex items-center justify-center bg-[#0f172a]/95 backdrop-blur-md transition-all duration-300 ${
           adLoaded
             ? "border-t border-slate-700/60 px-2 py-1 min-h-[58px] overflow-hidden"
             : "h-0 border-t-0 overflow-visible pointer-events-none"
@@ -393,7 +497,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Inline GPT Banner Slot (Web & Android WebView)
+  // Web Inline GPT Banner Slot
   return (
     <div
       className={`w-full flex flex-col items-center transition-all duration-300 ${

@@ -4,7 +4,7 @@
  * Bütçem Pro - Kişisel Finans & Borç Takip Yönetimi
  */
 
-import React, { useState, useEffect, useRef, useMemo, useTransition, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useTransition, useCallback } from "react";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, updatePassword, getRedirectResult } from "firebase/auth";
 import { 
   auth, 
@@ -139,7 +139,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, hideNativeBannerAd } from "./utils/rewardedAdService";
+import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd, pauseInlineNativeFeed, resumeInlineNativeFeed } from "./utils/rewardedAdService";
 import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -1390,8 +1390,20 @@ export default function App() {
   const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
   const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
 
-  // Smooth concurrent tab transition state
+  // Smooth concurrent tab transition state & main scroll container ref
   const [isNavPending, startNavTransition] = useTransition();
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollPageToTop = useCallback(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  }, []);
 
   // Design palettes state - defaults with automatic phone/system adaptation
   const [themeMode, setThemeMode] = useState<"auto" | "dark" | "light">(() => {
@@ -1641,13 +1653,6 @@ export default function App() {
       }
     }
   }, [oneSignalAppId]);
-
-  // Scroll to top unconditionally on tab transition or public view switch to prevent screen scroll lockups
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.scrollTo(0, 0);
-    }
-  }, [activeTab, showPublicView]);
 
   // Register Service Worker and inject Android WebView Polyfill for System Tray Push Notifications and Audio Gesture Unlocker
   useEffect(() => {
@@ -2805,6 +2810,31 @@ export default function App() {
       return false;
     }
   });
+
+  // Scroll to top synchronously on tab transition or public view switch so every page always starts at the top
+  useLayoutEffect(() => {
+    scrollPageToTop();
+  }, [activeTab, showPublicView, userLoggedIn, isGuestMode, scrollPageToTop]);
+
+  useEffect(() => {
+    scrollPageToTop();
+    if (focusedDebtId || focusedInstallmentId) return;
+
+    let rafId: number | null = null;
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      rafId = window.requestAnimationFrame(() => {
+        scrollPageToTop();
+      });
+    }
+    const timer = setTimeout(() => {
+      scrollPageToTop();
+    }, 60);
+
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      clearTimeout(timer);
+    };
+  }, [activeTab, showPublicView, scrollPageToTop, focusedDebtId, focusedInstallmentId]);
 
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     try {
@@ -7932,9 +7962,36 @@ export default function App() {
     }
   }, [activeTab, sidebarCategories]);
 
+  useEffect(() => {
+    if (hasProAccess) return;
+    if (isSidebarOpen) {
+      hideNativeBannerAd().catch(() => {});
+      pauseInlineNativeFeed().catch(() => {});
+    } else {
+      resumeInlineNativeFeed();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } })
+        );
+      }
+    }
+  }, [isSidebarOpen, hasProAccess]);
+
+  const guestNavClickCountRef = useRef(0);
+
   const handleNavClick = (tabId: string) => {
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
+    }
+    scrollPageToTop();
+
+    // KURAL 1: Misafir veya denemesi bitmiş kullanıcılara geçiş reklamları zorunlu olarak gösterilir
+    // KURAL 2 & 3: Premium ve aktif 7 günlük deneme kullanıcılarına KESİNLİKLE reklam gösterilmez
+    if (!hasProAccess) {
+      guestNavClickCountRef.current += 1;
+      if (guestNavClickCountRef.current % 4 === 0) {
+        showNativeInterstitialAd().catch(() => {});
+      }
     }
 
     if (tabId === "faq" || tabId === "help" || tabId === "guide") {
@@ -8061,10 +8118,7 @@ export default function App() {
   }
 
   return (
-    <div
-      data-app-root="true"
-      className={`min-h-screen pb-16 md:pb-6 font-sans transition-colors duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] [transform:translateZ(0)] [will-change:transform] [backface-visibility:hidden] theme-${colorTheme}`}
-    >
+    <div className={`fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden font-sans transition-colors duration-300 bg-[#F4F6F9] dark:bg-[#0F172A] theme-${colorTheme}`}>
 
       {/* Custom Confirmation Modal to bypass browser modal blocking inside sandboxed iframe previews */}
       {confirmModal.isOpen && (
@@ -8112,7 +8166,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="pointer-events-auto bg-[rgba(15,23,42,0.95)] dark:bg-[rgba(15,23,42,0.95)] border-2 border-indigo-500/50 text-white rounded-2xl p-3 sm:p-4 shadow-2xl shadow-indigo-950/70 max-w-lg w-full transition-all duration-200"
+              className="pointer-events-auto bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-2xl border-2 border-indigo-500/50 text-white rounded-2xl p-3 sm:p-4 shadow-2xl shadow-indigo-950/70 max-w-lg w-full transition-all duration-200"
             >
               <div className="flex items-start gap-3">
                 {/* Sol İkon Rozeti */}
@@ -8279,12 +8333,14 @@ export default function App() {
       <header 
         data-app-header="true"
         style={{ paddingTop: "max(1.25rem, calc(1rem + env(safe-area-inset-top, 0px)))" }}
-        className="sticky top-0 z-30 bg-white dark:bg-[rgba(15,23,42,0.95)] border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 transition-colors duration-200 relative group [transform:translateZ(0)] [will-change:transform] [backface-visibility:hidden]"
+        className="shrink-0 z-30 bg-white/95 dark:bg-[#0F172A]/95 border-b border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-white shadow-xs dark:shadow-2xl px-2 sm:px-6 py-2.5 flex flex-col gap-2 backdrop-blur-lg transition-colors duration-200 relative group [transform:translateZ(0)] [backface-visibility:hidden]"
       >
         
-        {/* Subtle top accent stripe (GPU-safe, zero heavy CSS blur) */}
+        {/* Decorative ambient lighting overlays */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80" />
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-indigo-500/80 to-emerald-400/80 animate-pulse duration-[3000ms]" />
+          <div className="absolute top-[-40%] right-[10%] w-72 h-24 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-[-20%] left-[2%] w-56 h-16 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
         </div>
         
         {/* Row 1: Top row with Logo/Title on left and Welcome Button on right */}
@@ -8393,7 +8449,7 @@ export default function App() {
                       ? (registeredName ? `${registeredName} (${userEmail})` : userEmail)
                       : "Giriş Yap"
                   }
-                  className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
+                  className={`group flex items-center gap-1.5 bg-gradient-to-r ${themeStyles.bg} backdrop-blur-md px-2 py-1 rounded-xl border ${themeStyles.border} transition-all cursor-pointer select-none shrink-0 hover:brightness-110 active:scale-95`}
                 >
                   <div className={`p-1 ${themeStyles.iconContainerBg} rounded-lg flex items-center justify-center shrink-0`}>
                     {isUserAuthenticated ? (
@@ -8541,10 +8597,6 @@ export default function App() {
           <button
             onClick={() => {
               handleNavClick("notifications");
-              const el = document.getElementById("main-nav-tabs") || document.getElementById("notifications-container");
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth" });
-              }
             }}
             title={`Bildirimler ve Alarmlar (${notifications.length})`}
             className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 active:scale-95 rounded-xl transition-all text-slate-700 dark:text-white flex items-center justify-center duration-300 cursor-pointer shadow-xs dark:shadow-inner relative shrink-0"
@@ -8608,7 +8660,7 @@ export default function App() {
 
       {/* Firestore Connection / Sync Error Banner with full error text and retry */}
       {firestoreErrorMessage && (
-        <div className="bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in z-20 relative">
+        <div className="shrink-0 bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md animate-in fade-in z-20 relative">
           <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
             <div className="p-1.5 bg-rose-500/20 text-rose-300 rounded-lg shrink-0 mt-0.5 sm:mt-0">
               <AlertTriangle className="w-4 h-4 text-rose-300 animate-pulse" />
@@ -8851,7 +8903,7 @@ export default function App() {
           : [];
 
         return (
-          <div className={`relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs ${themeStyles.barBg}`}>
+          <div className={`shrink-0 relative w-full py-1.5 overflow-hidden flex items-center z-20 shadow-xs backdrop-blur-md ${themeStyles.barBg}`}>
             {/* Left Status Badge with Compact Responsive Label and Play/Pause Controller */}
             <div className={`absolute left-0 top-0 bottom-0 px-2 sm:px-3 text-white font-black text-[8.5px] sm:text-[9.5px] uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 z-30 shadow-md rounded-r-xl border-r border-white/20 shrink-0 select-none ${themeStyles.badgeBg}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
@@ -9038,12 +9090,12 @@ export default function App() {
 
       {/* Side drawer panel - Açılır Akordiyon Menü */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-80 max-w-[92vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden overflow-y-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
+        className={`fixed left-0 top-0 bottom-0 w-76 sm:w-80 max-w-[85vw] bg-white dark:bg-[#0F172A] border-r border-slate-200/90 dark:border-slate-800 z-50 transform transition-transform duration-300 flex flex-col overflow-x-hidden overflow-y-hidden shadow-2xl shadow-indigo-950/20 dark:shadow-black/70 will-change-transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Workspace Title & Close Header (Fixed/Sticky at Top) */}
-        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[rgba(15,23,42,0.95)] shrink-0 flex items-center justify-between z-20">
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-amber-500/30 p-1 shadow-md shadow-amber-500/15 shrink-0 overflow-hidden flex items-center justify-center">
               <img
@@ -9688,28 +9740,21 @@ export default function App() {
           </nav>
 
           {/* Quick Footer inside scroll body */}
-          <div className="pt-2 pb-2 text-center">
+          <div className="pt-2 pb-4 text-center">
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
               Bütçem Pro © {new Date().getFullYear()} • Güvenli & Şifreli
             </p>
           </div>
-
-          {/* Açılır Menü En Alt Boşluk: Menü alanı içinde kalan Kare Sabit Reklam */}
-          {!hasProAccess && (
-            <div className="pb-4 -mx-2 w-[calc(100%+1rem)] overflow-hidden flex justify-center">
-              <AdMobBanner
-                unitType="rectangle"
-                placement="drawer-square"
-                active={isSidebarOpen}
-                className="my-0 max-w-full"
-              />
-            </div>
-          )}
         </div>
       </aside>
 
-      {/* Central View Dashboard Grid content container */}
-      <main className="max-w-3xl mx-auto px-4 py-6 pb-32 sm:pb-36">
+      {/* Scrollable Central View Dashboard Grid content container */}
+      <div
+        ref={mainScrollRef}
+        id="app-main-scroll-container"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+      >
+        <main className="max-w-3xl mx-auto px-4 py-5 pb-10">
 
         {/* 7 Günlük Deneme Sürümü Aktif Bilgilendirme Kartı - KESİNLİKLE Premium hesaplarda gösterilmez */}
         {!isPaidPremium && isTrialActive && (
@@ -11240,9 +11285,10 @@ export default function App() {
             </div>
           </div>
         </footer>
-      </main>
+        </main>
+      </div>
 
-      {/* Fixed bottom navigation panel optimized for mobile view on cellphones */}
+      {/* Permanently fixed bottom navigation dock (always visible above bottom AdMob banner) */}
       {(() => {
         const getBottomTabClass = (tabId: string) => {
           const isActive = activeTab === tabId;
@@ -11270,9 +11316,13 @@ export default function App() {
         };
 
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-40 max-w-xl mx-auto flex flex-col pointer-events-auto shadow-2xl">
+          <div
+            data-bottom-nav-dock="true"
+            style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+            className="shrink-0 z-40 w-full bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 shadow-[0_-8px_24px_-6px_rgba(15,23,42,0.12)] dark:shadow-[0_-8px_24px_-6px_rgba(0,0,0,0.45)] flex flex-col pointer-events-auto"
+          >
             {/* 1. ALT MENÜ / NAVİGASYON (ÜSTTE - ASLA REKLAMLAR İLE KAPATILMAZ) */}
-            <footer className="w-full bg-white dark:bg-[rgba(15,23,42,0.95)] border-t border-slate-200/80 dark:border-slate-800 p-2 flex justify-around select-none shadow-md">
+            <footer className="w-full max-w-xl mx-auto px-1.5 py-1.5 sm:p-2 flex justify-around select-none">
               <button
                 onClick={() => handleNavClick("overview")}
                 className={getBottomTabClass("overview")}
@@ -11319,7 +11369,9 @@ export default function App() {
 
             {/* 2. REKLAM ALANI (ALT MENÜNÜN ALTINA YERLEŞTİRİLİR - SADECE PRO OLMAYANLARA) */}
             {!hasProAccess && (
-              <AdMobBanner unitType="banner" placement="bottom-dock" className="my-0" />
+              <div className="w-full max-w-xl mx-auto">
+                <AdMobBanner unitType="banner" placement="bottom-dock" className="my-0" />
+              </div>
             )}
           </div>
         );

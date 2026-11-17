@@ -11,7 +11,9 @@ import {
   BannerAdSize,
   BannerAdPluginEvents,
   RewardAdPluginEvents,
-  InterstitialAdPluginEvents
+  InterstitialAdPluginEvents,
+  NativeAdFeed,
+  NativeAdTemplate
 } from "@capacitor-community/admob";
 
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
@@ -477,6 +479,86 @@ export async function hideNativeBannerAd(): Promise<void> {
   }
 }
 
+// ============================================================================
+// NATIVE ADMOB FEED MANAGER (Real Google AdMob Native Test Ads for Inline Cards)
+// ============================================================================
+
+const NATIVE_AD_THEME_STYLE = {
+  backgroundColor: "#0f172a",
+  borderColor: "#1e293b",
+  borderWidth: 1,
+  cornerRadius: 16,
+  headlineColor: "#f8fafc",
+  headlineFontSize: 15,
+  bodyColor: "#cbd5e1",
+  bodyFontSize: 12,
+  callToActionBackgroundColor: "#f59e0b",
+  callToActionTextColor: "#0f172a",
+  callToActionFontSize: 13,
+};
+
+let inlineNativeFeed: NativeAdFeed | null = null;
+let inlineFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
+
+export async function acquireInlineNativeFeed(): Promise<NativeAdFeed | null> {
+  if (!Capacitor.isNativePlatform() || isUserAdFree()) return null;
+  if (inlineNativeFeed) return inlineNativeFeed;
+  if (inlineFeedCreatePromise) return inlineFeedCreatePromise;
+
+  inlineFeedCreatePromise = (async () => {
+    try {
+      await initNativeAdMobSdk();
+      const feed = await NativeAdFeed.create({
+        feedId: "butcem_inline_feed",
+        template: NativeAdTemplate.Medium,
+        isTesting: true,
+        adId: ADMOB_CONFIG.NATIVE_ID,
+        style: NATIVE_AD_THEME_STYLE,
+        androidScrollSnapshot: Capacitor.getPlatform() === "android",
+      });
+      inlineNativeFeed = feed;
+      return feed;
+    } catch (err) {
+      console.warn("[AdMob NativeFeed] Inline feed init warning:", err);
+      return null;
+    } finally {
+      inlineFeedCreatePromise = null;
+    }
+  })();
+
+  return inlineFeedCreatePromise;
+}
+
+export async function pauseInlineNativeFeed(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || !inlineNativeFeed) return;
+  try {
+    await inlineNativeFeed.pause();
+  } catch {
+    // Safe ignore if feed already paused or destroyed
+  }
+}
+
+export function resumeInlineNativeFeed(): void {
+  if (!Capacitor.isNativePlatform() || !inlineNativeFeed || isUserAdFree()) return;
+  try {
+    inlineNativeFeed.resume();
+  } catch {
+    // Safe ignore
+  }
+}
+
+export async function destroyAllNativeFeeds(): Promise<void> {
+  const feed = inlineNativeFeed;
+  inlineNativeFeed = null;
+  if (feed) {
+    try {
+      await feed.destroy();
+    } catch {
+      // Ignore cleanup warning
+    }
+  }
+}
+
 /**
  * Prepares and shows official Google Test Interstitial (Geçiş) Ad
  */
@@ -583,17 +665,6 @@ export async function showNativeRewardedAd(callbacks: {
     listenerHandles.length = 0;
   };
 
-  const forceWebViewRepaint = () => {
-    if (typeof document === "undefined" || !document.body) return;
-    const prevScrollY = typeof window !== "undefined" ? window.scrollY : 0;
-    document.body.style.display = "none";
-    void document.body.offsetHeight; // reflow tetikle
-    document.body.style.display = "";
-    if (prevScrollY > 0 && typeof window !== "undefined") {
-      window.scrollTo(0, prevScrollY);
-    }
-  };
-
   const settleAfterAdClose = async (triggerDismissedCallback: boolean) => {
     if (settled) return;
     settled = true;
@@ -615,7 +686,6 @@ export async function showNativeRewardedAd(callbacks: {
             // Safe fallback
           }
         }
-        forceWebViewRepaint();
         releaseDarkAdTransitionBackground(480);
       }, 120);
     };
@@ -644,12 +714,11 @@ export async function showNativeRewardedAd(callbacks: {
     );
     listenerHandles.push(rewardedHandle);
 
-    // 2. Listen for ad dismissal event and force immediate WebView reflow + smooth UI refresh
+    // 2. Listen for ad dismissal event and smoothly refresh UI on next animation frame
     const dismissedHandle = await AdMob.addListener(
       RewardAdPluginEvents.Dismissed,
       async () => {
         console.log("[AdMob Rewarded] Ad dismissed by user.");
-        forceWebViewRepaint();
         await settleAfterAdClose(true);
       }
     );
