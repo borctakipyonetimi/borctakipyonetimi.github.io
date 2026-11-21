@@ -168,7 +168,9 @@ import {
   saveAndroidNativeBackupFile,
   saveAndroidNativeImageToGallery,
   shareAndroidNativeBackupFile,
-  openAndroidGoogleDrive
+  openAndroidGoogleDrive,
+  REMINDER_NOTIFICATION_CHANNEL_ID,
+  REMINDER_NOTIFICATION_SOUND
 } from "./utils/androidAlarmBridge";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { StatusBar, Style } from "@capacitor/status-bar";
@@ -6519,7 +6521,8 @@ export default function App() {
                 exact: true,
                 allowInExactlyDatatype: true
               },
-              channelId: "debt_reminders",
+              channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
+              sound: REMINDER_NOTIFICATION_SOUND,
               smallIcon: 'ic_stat_notify',
               largeIcon: 'ic_stat_notify_large',
               iconColor: '#10B981',

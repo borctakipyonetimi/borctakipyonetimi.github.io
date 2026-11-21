@@ -10,7 +10,11 @@
  */
 
 import { LocalNotifications, LocalNotificationSchema } from "@capacitor/local-notifications";
-import { initCapacitorNotificationChannel } from "./androidAlarmBridge";
+import {
+  initCapacitorNotificationChannel,
+  REMINDER_NOTIFICATION_CHANNEL_ID,
+  REMINDER_NOTIFICATION_SOUND
+} from "./androidAlarmBridge";
 
 export interface SpecialDay {
   id: string;
@@ -232,10 +236,10 @@ export function buildSpecialDayNotificationItems(options?: { nowMs?: number }): 
             at: triggerDate,
             allowWhileIdle: true
           },
-          sound: "res://raw/notification_sound",
+          sound: REMINDER_NOTIFICATION_SOUND,
           smallIcon: "res://drawable/ic_stat_name",
           largeIcon: "res://drawable/notification_icon",
-          channelId: "butcem_pro_alarms",
+          channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
           extra: {
             specialDayId: sd.id,
             isSpecialDay: true,

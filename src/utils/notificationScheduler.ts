@@ -24,7 +24,9 @@ import {
   scheduleAndroidDebtAlarm,
   cancelAndroidDebtAlarm,
   cancelCapacitorAlarm,
-  IS_NOTIFICATIONS_ISOLATED
+  IS_NOTIFICATIONS_ISOLATED,
+  REMINDER_NOTIFICATION_CHANNEL_ID,
+  REMINDER_NOTIFICATION_SOUND
 } from "./androidAlarmBridge";
 import { LocalNotifications, LocalNotificationSchema } from "@capacitor/local-notifications";
 import {
@@ -212,12 +214,12 @@ export function buildDebtNotificationItems(
             allowInExactlyDatatype: true,
             forceShow: true
           } as any,
-          channelId: "debt_reminders",
+          channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
           autoCancel: true,
           smallIcon: "ic_stat_notify",
           largeIcon: "ic_stat_notify_large",
           iconColor: "#10B981",
-          sound: "beep.wav",
+          sound: REMINDER_NOTIFICATION_SOUND,
           extra: {
             debtId: Number(debtId),
             borcAdi: debtName,
@@ -262,12 +264,12 @@ export function buildDebtNotificationItems(
             allowInExactlyDatatype: true,
             forceShow: true
           } as any,
-          channelId: "debt_reminders",
+          channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
           autoCancel: true,
           smallIcon: "ic_stat_notify",
           largeIcon: "ic_stat_notify_large",
           iconColor: "#10B981",
-          sound: "beep.wav",
+          sound: REMINDER_NOTIFICATION_SOUND,
           extra: {
             debtId: Number(debtId),
             borcAdi: debtName,
@@ -494,12 +496,12 @@ export function buildWeekdayMorningReportItems(
         exact: true,
         forceShow: true
       } as any,
-      channelId: "debt_reminders",
+      channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
       autoCancel: true,
       smallIcon: "ic_stat_notify",
       largeIcon: "ic_stat_notify_large",
       iconColor: "#10B981",
-      sound: "beep.wav",
+      sound: REMINDER_NOTIFICATION_SOUND,
       extra: {
         type: "weekday_morning_report",
         notifId,
@@ -1052,11 +1054,11 @@ export async function scheduleSubscriptionExpiryNotifications(expiryDateStr?: st
                   allowWhileIdle: true,
                   exact: true
                 } as any,
-                channelId: "debt_reminders",
+                channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
                 autoCancel: true,
                 smallIcon: "ic_stat_notify",
                 iconColor: "#10B981",
-                sound: "beep.wav"
+                sound: REMINDER_NOTIFICATION_SOUND
               }
             ]
           }).catch(() => {});

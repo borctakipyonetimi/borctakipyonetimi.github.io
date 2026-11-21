@@ -160,22 +160,30 @@ export function requestBatteryOptimizationExemption(): void {
   }
 }
 
+export const REMINDER_NOTIFICATION_CHANNEL_ID = "debt_reminders_v2";
+export const REMINDER_NOTIFICATION_SOUND = "butcempro.wav";
+
 let isRequestingPermission = false;
 
 /**
- * Android 8.0+ için yüksek öncelikli sesli/titreşimli bildirim kanalını yapılandırır.
+ * Android 8.0+ için yüksek öncelikli özel sesli/titreşimli bildirim kanalını yapılandırır.
  */
 export async function initCapacitorNotificationChannel(): Promise<void> {
   if (IS_NOTIFICATIONS_ISOLATED) return;
   if (typeof window === "undefined" || !isCapacitorAvailable()) return;
   try {
+    if (typeof (LocalNotifications as any)?.deleteChannel === "function") {
+      await LocalNotifications.deleteChannel({ id: "debt_reminders" }).catch(() => {});
+      await LocalNotifications.deleteChannel({ id: "butcem_pro_alarms" }).catch(() => {});
+    }
     if (typeof (LocalNotifications as any)?.createChannel === "function") {
       await LocalNotifications.createChannel({
-        id: "debt_reminders",
+        id: REMINDER_NOTIFICATION_CHANNEL_ID,
         name: "Borç ve Ödeme Hatırlatıcıları",
         description: "Vadesi gelen borçlar ve taksitler için sistem bildirimleri ve hatırlatıcıları",
         importance: 5,
         visibility: 1,
+        sound: REMINDER_NOTIFICATION_SOUND,
         vibration: true,
         lights: true,
         lightColor: "#4F46E5"
@@ -334,7 +342,8 @@ export async function scheduleCapacitorAlarm(
               exact: true,
               forceShow: true
             },
-            channelId: "debt_reminders",
+            channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
+            sound: REMINDER_NOTIFICATION_SOUND,
             autoCancel: true,
             smallIcon: 'ic_stat_notify',
             largeIcon: 'ic_stat_notify_large',
@@ -372,7 +381,8 @@ export async function scheduleCapacitorAlarm(
                 allowWhileIdle: true,
                 exact: false
               },
-              channelId: "debt_reminders",
+              channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
+              sound: REMINDER_NOTIFICATION_SOUND,
               autoCancel: true,
               smallIcon: 'ic_stat_notify',
               iconColor: '#10B981'
@@ -419,7 +429,8 @@ export async function sendInstantCapacitorNotification(
       body: safeMessage,
       largeBody: safeMessage,
       summaryText: "Ödeme detaylarınızı kontrol etmeyi unutmayın.",
-      channelId: "debt_reminders",
+      channelId: REMINDER_NOTIFICATION_CHANNEL_ID,
+      sound: REMINDER_NOTIFICATION_SOUND,
       autoCancel: true,
       smallIcon: "ic_stat_notify",
       largeIcon: "ic_stat_notify_large",
