@@ -69,9 +69,9 @@ export function safePdfText(text: string | number | undefined | null): string {
     "ö": "o", "Ö": "O",
     "ş": "s", "Ş": "S",
     "ü": "u", "Ü": "U",
-    "₺": "TL"
+    "₺": "TL", "€": "EUR", "£": "GBP"
   };
-  return str.replace(/[çÇğĞıİöÖşŞüÜ₺]/g, (match) => map[match] || match);
+  return str.replace(/[çÇğĞıİöÖşŞüÜ₺€£]/g, (match) => map[match] || match);
 }
 
 /**
@@ -656,13 +656,14 @@ export async function generateAnnualPdfReport(options: AnnualReportOptions): Pro
   doc.text(safePdfText("Bütçem Pro Finansal Takip Sistemi • Gizli ve Kişiye Özel Finansal Değerlendirme • Sayfa 2 / 2"), margin, pageHeight - 8);
 
   // Universal Robust Save & Download for Web, WebView and Mobile APK
+  let savedOk = false;
   try {
-    await savePdfDocument(doc, fileName);
+    savedOk = await savePdfDocument(doc, fileName);
   } catch (err) {
     console.warn("[annualPdfReport] savePdfDocument error:", err);
   }
 
-  return { success: true, fileName, doc };
+  return { success: savedOk, fileName, doc };
 }
 
 export interface MonthlyReportOptions {
@@ -1137,11 +1138,12 @@ export async function generateMonthlyPdfReport(options: MonthlyReportOptions): P
   doc.setTextColor(148, 163, 184);
   doc.text(safePdfText("Bütçem Pro • Resmi Onaylı Aylık Finansal Denetim ve Bütçe Raporu"), margin, pageHeight - 8);
 
+  let savedOk = false;
   try {
-    await savePdfDocument(doc, fileName);
+    savedOk = await savePdfDocument(doc, fileName);
   } catch (err) {
     console.warn("[monthlyPdfReport] savePdfDocument error:", err);
   }
 
-  return { success: true, fileName, doc };
+  return { success: savedOk, fileName, doc };
 }

@@ -53,7 +53,7 @@ import { t } from "../utils/translations";
 import { useCurrency } from "../utils/CurrencyContext";
 import { generateAnnualPdfReport, safePdfText } from "../utils/annualPdfReport";
 import { Capacitor } from "@capacitor/core";
-import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
+import { downloadFileWithCustomName, savePdfDocument, printHtmlReport } from "../utils/fileDownloadHelper";
 import { parseDateParts } from "../utils/dateUtils";
 import { InteractiveFinancialCharts } from "./InteractiveFinancialCharts";
 import { useAuth } from "../context/AuthContext";
@@ -1228,6 +1228,445 @@ export function FinancialTools({
   };
 
   const [selectedDayTab, setSelectedDayTab] = useState<number | null>(new Date().getDate());
+
+  const escapeAuditHtml = (val: string | number | undefined | null) =>
+    String(val ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const downloadAuditPdfReport = async (silentStatus: boolean = false): Promise<boolean> => {
+    setIsGeneratingPdf(true);
+    if (!silentStatus) {
+      setReportStatusMessage({ type: "info", text: "PDF Denetim Raporu hazırlanıyor..." });
+    }
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const docId = `BP-${Date.now().toString().slice(-6)}`;
+      const formatPdf = (val: number) => safePdfText(format(val));
+
+      // Header Background Banner
+      doc.setFillColor(30, 41, 59); // slate-800
+      doc.rect(0, 0, 210, 36, "F");
+
+      // Header Text
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text("BUTCEM PRO - RESMI FINANSAL DENETIM RAPORU", 15, 16);
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(203, 213, 225);
+      doc.text(
+        safePdfText(`Belge Seri No: ${docId} | Olusturma Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}`),
+        15,
+        25
+      );
+      doc.text(
+        safePdfText(`Kullanici: ${currentUser || "Yerel Profil"} | Durum: ONAYLI FINANSAL DOSYA`),
+        15,
+        31
+      );
+
+      // Section 1: Summary Cards
+      doc.setFontSize(11);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(safePdfText("1. GENEL GOSTERGELER VE DETAYLI FINANSAL OZET"), 15, 48);
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.4);
+      doc.line(15, 51, 195, 51);
+
+      const kpis = [
+        { label: "AYLIK NET GELIR", val: formatPdf(monthlyIncome), color: [16, 185, 129] },
+        { label: "YILLIK GELIR (12 AY)", val: formatPdf(annualIncome), color: [16, 185, 129] },
+        { label: "AYLIK GIDER VE TAKSIT", val: formatPdf(monthlyExpense + totalMonthlyInstallmentLoad), color: [244, 63, 94] },
+        { label: "AYLIK NET BAKIYE", val: formatPdf(monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)), color: [14, 165, 233] },
+        { label: "BANKA & TAKSIT BORCU", val: formatPdf(bankAndInstallmentDebt), color: [245, 158, 11] },
+        { label: "SAGLIK SKORU", val: `${healthScore} / 100`, color: [99, 102, 241] }
+      ];
+
+      let currentY = 56;
+      for (let row = 0; row < 2; row++) {
+        for (let col = 0; col < 3; col++) {
+          const idx = row * 3 + col;
+          const item = kpis[idx];
+          const x = 15 + col * 62;
+          const y = currentY;
+
+          doc.setFillColor(248, 250, 252);
+          doc.rect(x, y, 58, 18, "F");
+          doc.setDrawColor(226, 232, 240);
+          doc.rect(x, y, 58, 18, "S");
+
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          doc.text(safePdfText(item.label), x + 4, y + 6);
+
+          doc.setFontSize(10);
+          doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+          doc.text(item.val, x + 4, y + 13);
+        }
+        currentY += 22;
+      }
+
+      // Section 2: Banka veya Kredi Kartı Borçları
+      let tableY = currentY + 6;
+      doc.setFontSize(11);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(safePdfText(`2. BANKA VEYA KREDI KARTI BORCLARI (${cleanDebts.length} Kalem)`), 15, tableY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, tableY + 3, 195, tableY + 3);
+      tableY += 9;
+
+      if (cleanDebts.length === 0) {
+        doc.setFont("Helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safePdfText("Kayitli aktif banka borcu bulunmuyor."), 15, tableY);
+        tableY += 8;
+      } else {
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
+        doc.setTextColor(71, 85, 105);
+        doc.text(safePdfText("Borc Adi / Kategori"), 18, tableY + 1);
+        doc.text(safePdfText("Durum"), 105, tableY + 1);
+        doc.text(safePdfText("Odenen / Kalan / Toplam"), 135, tableY + 1);
+        tableY += 8;
+
+        cleanDebts.forEach((d) => {
+          if (tableY > 265) {
+            doc.addPage();
+            tableY = 22;
+          }
+          const rem = Math.max(0, d.amount - d.paid);
+          const isPaid = rem === 0;
+
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+          const nameStr = safePdfText(`${d.name} (${d.category || "Genel"})`);
+          doc.text(nameStr.length > 38 ? nameStr.slice(0, 36) + ".." : nameStr, 18, tableY);
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(7.5);
+          if (isPaid) {
+            doc.setTextColor(16, 185, 129);
+            doc.text(safePdfText("ODENDI"), 105, tableY);
+          } else {
+            doc.setTextColor(239, 68, 68);
+            doc.text(safePdfText("AKTIF"), 105, tableY);
+          }
+
+          doc.setTextColor(51, 65, 85);
+          doc.text(`${formatPdf(d.paid)} / ${formatPdf(rem)} / ${formatPdf(d.amount)}`, 135, tableY);
+
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+          tableY += 6.5;
+        });
+      }
+
+      // Section 3: Taksitli Borçlar ve Krediler
+      tableY += 6;
+      if (tableY > 245) {
+        doc.addPage();
+        tableY = 22;
+      }
+      doc.setFontSize(11);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(safePdfText(`3. TAKSITLI BORCLAR VE KREDILER (${cleanInstallments.length} Kalem)`), 15, tableY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, tableY + 3, 195, tableY + 3);
+      tableY += 9;
+
+      if (cleanInstallments.length === 0) {
+        doc.setFont("Helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safePdfText("Kayitli taksitli borc bulunmuyor."), 15, tableY);
+        tableY += 8;
+      } else {
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
+        doc.setTextColor(71, 85, 105);
+        doc.text(safePdfText("Taksit Adi"), 18, tableY + 1);
+        doc.text(safePdfText("Taksit Durumu"), 105, tableY + 1);
+        doc.text(safePdfText("Kalan Tutar / Toplam"), 140, tableY + 1);
+        tableY += 8;
+
+        cleanInstallments.forEach((inst) => {
+          if (tableY > 265) {
+            doc.addPage();
+            tableY = 22;
+          }
+          const monthly = inst.totalAmount / (inst.installmentCount || 1);
+          const paidVal = (inst.paidInstallmentCount || 0) * monthly;
+          const rem = Math.max(0, inst.totalAmount - paidVal);
+
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+          const instName = safePdfText(inst.name);
+          doc.text(instName.length > 38 ? instName.slice(0, 36) + ".." : instName, 18, tableY);
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(79, 70, 229);
+          doc.text(`${inst.paidInstallmentCount || 0}/${inst.installmentCount} Taksit`, 105, tableY);
+
+          doc.setTextColor(51, 65, 85);
+          doc.text(`${formatPdf(rem)} / ${formatPdf(inst.totalAmount)}`, 140, tableY);
+
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+          tableY += 6.5;
+        });
+      }
+
+      // Section 4: Kişi Bazlı Borç ve Alacaklar
+      tableY += 6;
+      if (tableY > 245) {
+        doc.addPage();
+        tableY = 22;
+      }
+      doc.setFontSize(11);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(safePdfText(`4. KISI BAZLI BORC VE ALACAKLAR (CARI) (${cleanContactTxs.length} Islem)`), 15, tableY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, tableY + 3, 195, tableY + 3);
+      tableY += 9;
+
+      if (cleanContactTxs.length === 0) {
+        doc.setFont("Helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safePdfText("Kayitli kisi borcu veya alacagi bulunmuyor."), 15, tableY);
+        tableY += 8;
+      } else {
+        cleanContactTxs.forEach((tx) => {
+          if (tableY > 265) {
+            doc.addPage();
+            tableY = 22;
+          }
+          const typeLabel = tx.type === "payable" ? "Borc (Verecek)" : "Alacak";
+          const statusLabel = tx.isPaid ? "Odendi" : "Bekliyor";
+
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+          doc.text(safePdfText(`${tx.contactName} (${typeLabel})`), 18, tableY);
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(tx.isPaid ? 16 : 245, tx.isPaid ? 185 : 158, tx.isPaid ? 129 : 11);
+          doc.text(safePdfText(statusLabel), 110, tableY);
+
+          doc.setFont("Helvetica", "bold");
+          doc.setTextColor(30, 41, 59);
+          doc.text(formatPdf(tx.amount), 150, tableY);
+
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
+          tableY += 6.5;
+        });
+      }
+
+      // Section 5: Asistan Strateji ve Değerlendirme
+      tableY += 6;
+      if (tableY > 230) {
+        doc.addPage();
+        tableY = 22;
+      }
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(79, 70, 229);
+      doc.text(safePdfText("5. FINANSAL SAGLIK VE ASISTAN STRATEJISI"), 15, tableY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, tableY + 3, 195, tableY + 3);
+      tableY += 8;
+
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, tableY - 2, 180, 22, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(15, tableY - 2, 180, 22, "S");
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      const splitAdvice = doc.splitTextToSize(safePdfText(advice.desc), 172);
+      doc.text(splitAdvice, 18, tableY + 4);
+
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        safePdfText("Butcem Pro Guvenli Finansal Takip Sistemi • Yerel ve Gizli Denetim Raporu"),
+        15,
+        285
+      );
+
+      const fileName = `Butcem_Pro_Denetim_Raporu_${docId}.pdf`;
+      const savedOk = await savePdfDocument(doc, fileName);
+
+      if (savedOk) {
+        setReportStatusMessage({
+          type: "success",
+          text: `PDF Denetim Raporu (${fileName}) başarıyla hazırlandı!`
+        });
+      } else {
+        setReportStatusMessage({
+          type: "error",
+          text: "PDF dosyası kaydedilemedi veya paylaşım iptal edildi."
+        });
+      }
+      return savedOk;
+    } catch (err: any) {
+      console.error("PDF generation error:", err);
+      setReportStatusMessage({
+        type: "error",
+        text: "PDF oluşturulurken bir hata meydana geldi: " + (err?.message || "Bilinmeyen hata")
+      });
+      return false;
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const buildAuditReportHtml = (): string => {
+    const docId = `BP-${Date.now().toString().slice(-6)}`;
+    const dateNow = `${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`;
+    const debtRows = cleanDebts.length === 0
+      ? `<tr><td colspan="4" style="padding:10px;color:#64748b;font-style:italic;">Kayıtlı banka borcu bulunmuyor.</td></tr>`
+      : cleanDebts.map((d) => {
+          const rem = Math.max(0, safeNumber(d.amount) - safeNumber(d.paid));
+          return `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;">${escapeAuditHtml(d.name)} <span style="color:#64748b;font-weight:400;">(${escapeAuditHtml(d.category || "Genel")})</span></td>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;color:${rem === 0 ? "#059669" : "#e11d48"};">${rem === 0 ? "ÖDENDİ" : "AKTİF"}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeAuditHtml(format(safeNumber(d.paid)))}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeAuditHtml(format(rem))} / ${escapeAuditHtml(format(safeNumber(d.amount)))}</td>
+          </tr>`;
+        }).join("");
+
+    const instRows = cleanInstallments.length === 0
+      ? `<tr><td colspan="3" style="padding:10px;color:#64748b;font-style:italic;">Kayıtlı taksitli borç bulunmuyor.</td></tr>`
+      : cleanInstallments.map((inst) => {
+          const count = Math.max(1, safeNumber(inst.installmentCount) || 1);
+          const monthly = safeNumber(inst.totalAmount) / count;
+          const rem = Math.max(0, safeNumber(inst.totalAmount) - safeNumber(inst.paidInstallmentCount) * monthly);
+          return `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;">${escapeAuditHtml(inst.name)}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#4f46e5;font-weight:700;">${safeNumber(inst.paidInstallmentCount)} / ${count} Taksit</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeAuditHtml(format(rem))} / ${escapeAuditHtml(format(safeNumber(inst.totalAmount)))}</td>
+          </tr>`;
+        }).join("");
+
+    const contactRows = cleanContactTxs.length === 0
+      ? `<tr><td colspan="3" style="padding:10px;color:#64748b;font-style:italic;">Kayıtlı kişi borcu veya alacağı bulunmuyor.</td></tr>`
+      : cleanContactTxs.map((tx) => `<tr>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;">${escapeAuditHtml(tx.contactName)} (${tx.type === "payable" ? "Borç" : "Alacak"})</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;color:${tx.isPaid ? "#059669" : "#d97706"};">${tx.isPaid ? "Ödendi" : "Bekliyor"}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeAuditHtml(format(safeNumber(tx.amount)))}</td>
+        </tr>`).join("");
+
+    return `
+      <div style="max-width:860px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;background:#fff;padding:16px;">
+        <div style="background:#1e293b;color:#fff;padding:18px 20px;border-radius:12px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-size:18px;font-weight:900;letter-spacing:0.3px;">BÜTÇEM PRO • RESMİ FİNANSAL DENETİM RAPORU</div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:4px;">Seri No: ${escapeAuditHtml(docId)} • Düzenleme: ${escapeAuditHtml(dateNow)} • Kullanıcı: ${escapeAuditHtml(currentUser || "Yerel Profil")}</div>
+          </div>
+          <div style="background:#10b981;color:#fff;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:900;">✓ ONAYLI DOSYA</div>
+        </div>
+
+        <h3 style="font-size:12px;text-transform:uppercase;color:#334155;border-bottom:2px solid #cbd5e1;padding-bottom:6px;margin:14px 0 10px;">1. Genel Finansal Göstergeler</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">AYLIK NET GELİR</div>
+            <div style="font-size:14px;font-weight:900;color:#059669;margin-top:4px;">${escapeAuditHtml(format(monthlyIncome))}</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">AYLIK GİDER VE TAKSİT</div>
+            <div style="font-size:14px;font-weight:900;color:#e11d48;margin-top:4px;">${escapeAuditHtml(format(monthlyExpense + totalMonthlyInstallmentLoad))}</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">SAĞLIK SKORU</div>
+            <div style="font-size:14px;font-weight:900;color:#4f46e5;margin-top:4px;">${healthScore} / 100</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">YILLIK GELİR (12 AY)</div>
+            <div style="font-size:14px;font-weight:900;color:#059669;margin-top:4px;">${escapeAuditHtml(format(annualIncome))}</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">AYLIK NET BAKİYE</div>
+            <div style="font-size:14px;font-weight:900;color:#0284c7;margin-top:4px;">${escapeAuditHtml(format(monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)))}</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#64748b;font-weight:800;">BANKA &amp; TAKSİT BORCU</div>
+            <div style="font-size:14px;font-weight:900;color:#d97706;margin-top:4px;">${escapeAuditHtml(format(bankAndInstallmentDebt))}</div>
+          </div>
+        </div>
+
+        <h3 style="font-size:12px;text-transform:uppercase;color:#334155;border-bottom:2px solid #cbd5e1;padding-bottom:6px;margin:14px 0 8px;">2. Banka ve Kredi Kartı Borçları (${cleanDebts.length} Kalem)</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+          <thead>
+            <tr style="background:#f1f5f9;color:#475569;text-align:left;">
+              <th style="padding:8px 10px;">Borç Adı / Kategori</th>
+              <th style="padding:8px 10px;">Durum</th>
+              <th style="padding:8px 10px;text-align:right;">Ödenen</th>
+              <th style="padding:8px 10px;text-align:right;">Kalan / Toplam</th>
+            </tr>
+          </thead>
+          <tbody>${debtRows}</tbody>
+        </table>
+
+        <h3 style="font-size:12px;text-transform:uppercase;color:#334155;border-bottom:2px solid #cbd5e1;padding-bottom:6px;margin:14px 0 8px;">3. Taksitli Borçlar ve Krediler (${cleanInstallments.length} Kalem)</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+          <thead>
+            <tr style="background:#f1f5f9;color:#475569;text-align:left;">
+              <th style="padding:8px 10px;">Taksit Planı</th>
+              <th style="padding:8px 10px;">İlerleme</th>
+              <th style="padding:8px 10px;text-align:right;">Kalan / Toplam</th>
+            </tr>
+          </thead>
+          <tbody>${instRows}</tbody>
+        </table>
+
+        <h3 style="font-size:12px;text-transform:uppercase;color:#334155;border-bottom:2px solid #cbd5e1;padding-bottom:6px;margin:14px 0 8px;">4. Kişi Bazlı Borç ve Alacaklar (${cleanContactTxs.length} İşlem)</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+          <thead>
+            <tr style="background:#f1f5f9;color:#475569;text-align:left;">
+              <th style="padding:8px 10px;">Kişi / Tür</th>
+              <th style="padding:8px 10px;">Durum</th>
+              <th style="padding:8px 10px;text-align:right;">Tutar</th>
+            </tr>
+          </thead>
+          <tbody>${contactRows}</tbody>
+        </table>
+
+        <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-top:14px;">
+          <div style="font-size:11px;font-weight:900;color:#4f46e5;margin-bottom:4px;">5. FİNANSAL SAĞLIK VE ASİSTAN STRATEJİSİ</div>
+          <div style="font-size:12px;color:#334155;line-height:1.5;">${escapeAuditHtml(advice.desc)}</div>
+        </div>
+      </div>
+    `;
+  };
 
   return (
     <div className="w-full space-y-6">
@@ -2887,6 +3326,7 @@ export function FinancialTools({
               <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
                 {/* 1. PDF Olarak İndir Butonu */}
                 <button
+                  type="button"
                   disabled={isGeneratingPdf}
                   onClick={async () => {
                     if (!hasReportProAccess) {
@@ -2897,313 +3337,7 @@ export function FinancialTools({
                       }
                       return;
                     }
-                    setIsGeneratingPdf(true);
-                    setReportStatusMessage({ type: "info", text: "PDF Denetim Raporu hazırlanıyor..." });
-
-                    try {
-                      const doc = new jsPDF({
-                        orientation: "portrait",
-                        unit: "mm",
-                        format: "a4"
-                      });
-
-                      const docId = `BP-${Date.now().toString().slice(-6)}`;
-                      const formatPdf = (val: number) => safePdfText(format(val));
-
-                      // Header Background Banner
-                      doc.setFillColor(30, 41, 59); // slate-800
-                      doc.rect(0, 0, 210, 36, "F");
-
-                      // Header Text
-                      doc.setTextColor(255, 255, 255);
-                      doc.setFont("Helvetica", "bold");
-                      doc.setFontSize(15);
-                      doc.text("BUTCEM PRO - RESMI FINANSAL DENETIM RAPORU", 15, 16);
-
-                      doc.setFont("Helvetica", "normal");
-                      doc.setFontSize(8);
-                      doc.setTextColor(203, 213, 225);
-                      doc.text(
-                        safePdfText(`Belge Seri No: ${docId} | Olusturma Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}`),
-                        15,
-                        25
-                      );
-                      doc.text(
-                        safePdfText(`Kullanici: ${currentUser || "Yerel Profil"} | Durum: ONAYLI FINANSAL DOSYA`),
-                        15,
-                        31
-                      );
-
-                      // Section 1: Summary Cards
-                      doc.setFontSize(11);
-                      doc.setFont("Helvetica", "bold");
-                      doc.setTextColor(15, 23, 42); // slate-900
-                      doc.text(safePdfText("1. GENEL GOSTERGELER VE DETAYLI FINANSAL OZET"), 15, 48);
-
-                      doc.setDrawColor(203, 213, 225);
-                      doc.setLineWidth(0.4);
-                      doc.line(15, 51, 195, 51);
-
-                      // KPI Blocks (3 columns, 2 rows)
-                      const kpis = [
-                        { label: "AYLIK NET GELIR", val: formatPdf(monthlyIncome), color: [16, 185, 129] },
-                        { label: "YILLIK GELIR (12 AY)", val: formatPdf(annualIncome), color: [16, 185, 129] },
-                        { label: "AYLIK GIDER VE TAKSIT", val: formatPdf(monthlyExpense + totalMonthlyInstallmentLoad), color: [244, 63, 94] },
-                        { label: "AYLIK NET BAKIYE", val: formatPdf(monthlyIncome - (monthlyExpense + totalMonthlyInstallmentLoad)), color: [14, 165, 233] },
-                        { label: "BANKA & TAKSIT BORCU", val: formatPdf(bankAndInstallmentDebt), color: [245, 158, 11] },
-                        { label: "SAGLIK SKORU", val: `${healthScore} / 100`, color: [99, 102, 241] }
-                      ];
-
-                      let currentY = 56;
-                      for (let row = 0; row < 2; row++) {
-                        for (let col = 0; col < 3; col++) {
-                          const idx = row * 3 + col;
-                          const item = kpis[idx];
-                          const x = 15 + col * 62;
-                          const y = currentY;
-
-                          doc.setFillColor(248, 250, 252);
-                          doc.rect(x, y, 58, 18, "F");
-                          doc.setDrawColor(226, 232, 240);
-                          doc.rect(x, y, 58, 18, "S");
-
-                          doc.setFont("Helvetica", "bold");
-                          doc.setFontSize(7);
-                          doc.setTextColor(100, 116, 139);
-                          doc.text(safePdfText(item.label), x + 4, y + 6);
-
-                          doc.setFontSize(10);
-                          doc.setTextColor(item.color[0], item.color[1], item.color[2]);
-                          doc.text(item.val, x + 4, y + 13);
-                        }
-                        currentY += 22;
-                      }
-
-                      // Section 2: Banka veya Kredi Kartı Borçları
-                      let tableY = currentY + 6;
-                      doc.setFontSize(11);
-                      doc.setFont("Helvetica", "bold");
-                      doc.setTextColor(15, 23, 42);
-                      doc.text(safePdfText(`2. BANKA VEYA KREDI KARTI BORCLARI (${cleanDebts.length} Kalem)`), 15, tableY);
-                      doc.setDrawColor(203, 213, 225);
-                      doc.line(15, tableY + 3, 195, tableY + 3);
-                      tableY += 9;
-
-                      if (cleanDebts.length === 0) {
-                        doc.setFont("Helvetica", "italic");
-                        doc.setFontSize(8.5);
-                        doc.setTextColor(100, 116, 139);
-                        doc.text(safePdfText("Kayitli aktif banka borcu bulunmuyor."), 15, tableY);
-                        tableY += 8;
-                      } else {
-                        doc.setFont("Helvetica", "bold");
-                        doc.setFontSize(7.5);
-                        doc.setFillColor(241, 245, 249);
-                        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
-                        doc.setTextColor(71, 85, 105);
-                        doc.text(safePdfText("Borc Adi / Kategori"), 18, tableY + 1);
-                        doc.text(safePdfText("Durum"), 105, tableY + 1);
-                        doc.text(safePdfText("Odenen / Kalan / Toplam"), 135, tableY + 1);
-                        tableY += 8;
-
-                        cleanDebts.forEach((d) => {
-                          if (tableY > 265) {
-                            doc.addPage();
-                            tableY = 22;
-                          }
-                          const rem = Math.max(0, d.amount - d.paid);
-                          const isPaid = rem === 0;
-
-                          doc.setFont("Helvetica", "bold");
-                          doc.setFontSize(8);
-                          doc.setTextColor(30, 41, 59);
-                          const nameStr = safePdfText(`${d.name} (${d.category || "Genel"})`);
-                          doc.text(nameStr.length > 38 ? nameStr.slice(0, 36) + ".." : nameStr, 18, tableY);
-
-                          doc.setFont("Helvetica", "normal");
-                          doc.setFontSize(7.5);
-                          if (isPaid) {
-                            doc.setTextColor(16, 185, 129);
-                            doc.text(safePdfText("ODENDI"), 105, tableY);
-                          } else {
-                            doc.setTextColor(239, 68, 68);
-                            doc.text(safePdfText("AKTIF"), 105, tableY);
-                          }
-
-                          doc.setTextColor(51, 65, 85);
-                          doc.text(
-                            `${formatPdf(d.paid)} / ${formatPdf(rem)} / ${formatPdf(d.amount)}`,
-                            135,
-                            tableY
-                          );
-
-                          doc.setDrawColor(241, 245, 249);
-                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
-                          tableY += 6.5;
-                        });
-                      }
-
-                      // Section 3: Taksitli Borçlar ve Krediler
-                      tableY += 6;
-                      if (tableY > 245) {
-                        doc.addPage();
-                        tableY = 22;
-                      }
-                      doc.setFontSize(11);
-                      doc.setFont("Helvetica", "bold");
-                      doc.setTextColor(15, 23, 42);
-                      doc.text(safePdfText(`3. TAKSITLI BORCLAR VE KREDILER (${cleanInstallments.length} Kalem)`), 15, tableY);
-                      doc.setDrawColor(203, 213, 225);
-                      doc.line(15, tableY + 3, 195, tableY + 3);
-                      tableY += 9;
-
-                      if (cleanInstallments.length === 0) {
-                        doc.setFont("Helvetica", "italic");
-                        doc.setFontSize(8.5);
-                        doc.setTextColor(100, 116, 139);
-                        doc.text(safePdfText("Kayitli taksitli borc bulunmuyor."), 15, tableY);
-                        tableY += 8;
-                      } else {
-                        doc.setFont("Helvetica", "bold");
-                        doc.setFontSize(7.5);
-                        doc.setFillColor(241, 245, 249);
-                        doc.rect(15, tableY - 3.5, 180, 6.5, "F");
-                        doc.setTextColor(71, 85, 105);
-                        doc.text(safePdfText("Taksit Adi"), 18, tableY + 1);
-                        doc.text(safePdfText("Taksit Durumu"), 105, tableY + 1);
-                        doc.text(safePdfText("Kalan Tutar / Toplam"), 140, tableY + 1);
-                        tableY += 8;
-
-                        cleanInstallments.forEach((inst) => {
-                          if (tableY > 265) {
-                            doc.addPage();
-                            tableY = 22;
-                          }
-                          const monthly = inst.totalAmount / (inst.installmentCount || 1);
-                          const paidVal = (inst.paidInstallmentCount || 0) * monthly;
-                          const rem = Math.max(0, inst.totalAmount - paidVal);
-
-                          doc.setFont("Helvetica", "bold");
-                          doc.setFontSize(8);
-                          doc.setTextColor(30, 41, 59);
-                          const instName = safePdfText(inst.name);
-                          doc.text(instName.length > 38 ? instName.slice(0, 36) + ".." : instName, 18, tableY);
-
-                          doc.setFont("Helvetica", "normal");
-                          doc.setFontSize(7.5);
-                          doc.setTextColor(79, 70, 229);
-                          doc.text(`${inst.paidInstallmentCount || 0}/${inst.installmentCount} Taksit`, 105, tableY);
-
-                          doc.setTextColor(51, 65, 85);
-                          doc.text(`${formatPdf(rem)} / ${formatPdf(inst.totalAmount)}`, 140, tableY);
-
-                          doc.setDrawColor(241, 245, 249);
-                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
-                          tableY += 6.5;
-                        });
-                      }
-
-                      // Section 4: Kişi Bazlı Borç ve Alacaklar
-                      tableY += 6;
-                      if (tableY > 245) {
-                        doc.addPage();
-                        tableY = 22;
-                      }
-                      doc.setFontSize(11);
-                      doc.setFont("Helvetica", "bold");
-                      doc.setTextColor(15, 23, 42);
-                      doc.text(safePdfText(`4. KISI BAZLI BORC VE ALACAKLAR (CARI) (${cleanContactTxs.length} Islem)`), 15, tableY);
-                      doc.setDrawColor(203, 213, 225);
-                      doc.line(15, tableY + 3, 195, tableY + 3);
-                      tableY += 9;
-
-                      if (cleanContactTxs.length === 0) {
-                        doc.setFont("Helvetica", "italic");
-                        doc.setFontSize(8.5);
-                        doc.setTextColor(100, 116, 139);
-                        doc.text(safePdfText("Kayitli kisi borcu veya alacagi bulunmuyor."), 15, tableY);
-                        tableY += 8;
-                      } else {
-                        cleanContactTxs.forEach((tx) => {
-                          if (tableY > 265) {
-                            doc.addPage();
-                            tableY = 22;
-                          }
-                          const typeLabel = tx.type === "payable" ? "Borc (Verecek)" : "Alacak";
-                          const statusLabel = tx.isPaid ? "Odendi" : "Bekliyor";
-
-                          doc.setFont("Helvetica", "bold");
-                          doc.setFontSize(8);
-                          doc.setTextColor(30, 41, 59);
-                          doc.text(safePdfText(`${tx.contactName} (${typeLabel})`), 18, tableY);
-
-                          doc.setFont("Helvetica", "normal");
-                          doc.setFontSize(7.5);
-                          doc.setTextColor(tx.isPaid ? 16 : 245, tx.isPaid ? 185 : 158, tx.isPaid ? 129 : 11);
-                          doc.text(safePdfText(statusLabel), 110, tableY);
-
-                          doc.setFont("Helvetica", "bold");
-                          doc.setTextColor(30, 41, 59);
-                          doc.text(formatPdf(tx.amount), 150, tableY);
-
-                          doc.setDrawColor(241, 245, 249);
-                          doc.line(15, tableY + 2.5, 195, tableY + 2.5);
-                          tableY += 6.5;
-                        });
-                      }
-
-                      // Section 5: Asistan Strateji ve Değerlendirme
-                      tableY += 6;
-                      if (tableY > 230) {
-                        doc.addPage();
-                        tableY = 22;
-                      }
-                      doc.setFont("Helvetica", "bold");
-                      doc.setFontSize(10.5);
-                      doc.setTextColor(79, 70, 229);
-                      doc.text(safePdfText("5. FINANSAL SAGLIK VE ASISTAN STRATEJISI"), 15, tableY);
-                      doc.setDrawColor(203, 213, 225);
-                      doc.line(15, tableY + 3, 195, tableY + 3);
-                      tableY += 8;
-
-                      doc.setFillColor(248, 250, 252);
-                      doc.rect(15, tableY - 2, 180, 22, "F");
-                      doc.setDrawColor(226, 232, 240);
-                      doc.rect(15, tableY - 2, 180, 22, "S");
-
-                      doc.setFont("Helvetica", "normal");
-                      doc.setFontSize(8);
-                      doc.setTextColor(51, 65, 85);
-                      const splitAdvice = doc.splitTextToSize(safePdfText(advice.desc), 172);
-                      doc.text(splitAdvice, 18, tableY + 4);
-
-                      // Footnote
-                      doc.setFontSize(7);
-                      doc.setTextColor(148, 163, 184);
-                      doc.text(
-                        safePdfText("Butcem Pro Guvenli Finansal Takip Sistemi • Yerel ve Gizli Denetim Raporu"),
-                        15,
-                        285
-                      );
-
-                      const fileName = `Butcem_Pro_Denetim_Raporu_${docId}.pdf`;
-
-                      // Universal robust PDF download across Android WebView, Capacitor and Web
-                      await savePdfDocument(doc, fileName);
-
-                      setReportStatusMessage({
-                        type: "success",
-                        text: `PDF Denetim Raporu (${fileName}) başarıyla hazırlandı ve indirildi!`
-                      });
-                    } catch (err: any) {
-                      console.error("PDF generation error:", err);
-                      setReportStatusMessage({
-                        type: "error",
-                        text: "PDF oluşturulurken bir hata meydana geldi: " + (err?.message || "Bilinmeyen hata")
-                      });
-                    } finally {
-                      setIsGeneratingPdf(false);
-                    }
+                    await downloadAuditPdfReport(false);
                   }}
                   className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-amber-400/30"
                 >
@@ -3214,7 +3348,9 @@ export function FinancialTools({
 
                 {/* 2. Sistemden Yazdır Butonu */}
                 <button
-                  onClick={() => {
+                  type="button"
+                  disabled={isGeneratingPdf}
+                  onClick={async () => {
                     if (!hasReportProAccess) {
                       if (onOpenRewardedModal) {
                         onOpenRewardedModal("report");
@@ -3227,23 +3363,14 @@ export function FinancialTools({
                       type: "info",
                       text: "Yazdırma penceresi hazırlanıyor..."
                     });
-                    setTimeout(() => {
-                      try {
-                        window.print();
-                        setReportStatusMessage({
-                          type: "success",
-                          text: "Yazdırma penceresi açıldı. Raporu doğrudan yazıcıya gönderebilir veya PDF olarak kaydedebilirsiniz."
-                        });
-                      } catch (err) {
-                        console.warn("Direct window.print failed:", err);
-                        setReportStatusMessage({
-                          type: "error",
-                          text: "Yazdırma komutu açılamadı. Lütfen 'PDF Olarak İndir' butonunu kullanarak belgeyi edinin."
-                        });
-                      }
-                    }, 150);
+                    await printHtmlReport({
+                      html: buildAuditReportHtml(),
+                      jobName: `Butcem_Pro_Denetim_Raporu_${new Date().toISOString().slice(0, 10)}`,
+                      pdfFallback: () => downloadAuditPdfReport(true),
+                      onStatus: (type, text) => setReportStatusMessage({ type, text })
+                    });
                   }}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-slate-700/40"
                 >
                   <Printer className="w-4 h-4 text-emerald-400" /> Sistemden Yazdır 🖨️
                   <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />
@@ -3251,6 +3378,8 @@ export function FinancialTools({
 
                 {/* 3. Yıllık PDF Özeti Butonu */}
                 <button
+                  type="button"
+                  disabled={isGeneratingPdf}
                   onClick={async () => {
                     if (!hasReportProAccess) {
                       if (onOpenRewardedModal) {
@@ -3260,6 +3389,7 @@ export function FinancialTools({
                       }
                       return;
                     }
+                    setIsGeneratingPdf(true);
                     try {
                       setReportStatusMessage({ type: "info", text: "Yıllık Finansal Özet PDF oluşturuluyor..." });
                       const curYear = new Date().getFullYear();
@@ -3273,10 +3403,15 @@ export function FinancialTools({
                         currencySymbol: "₺",
                         language
                       });
-                      if (res?.fileName) {
+                      if (res?.success) {
                         setReportStatusMessage({
                           type: "success",
-                          text: `Yıllık Finansal Özet PDF (${res.fileName}) başarıyla indirildi!`
+                          text: `Yıllık Finansal Özet PDF (${res.fileName}) başarıyla hazırlandı!`
+                        });
+                      } else {
+                        setReportStatusMessage({
+                          type: "error",
+                          text: "Yıllık PDF dosyası cihazınıza kaydedilemedi. Lütfen tekrar deneyin."
                         });
                       }
                     } catch (err: any) {
@@ -3285,9 +3420,11 @@ export function FinancialTools({
                         type: "error",
                         text: "Yıllık PDF oluşturulurken hata oluştu: " + (err?.message || "Bilinmeyen hata")
                       });
+                    } finally {
+                      setIsGeneratingPdf(false);
                     }
                   }}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition cursor-pointer active:scale-97 flex items-center gap-1.5 shadow-md border border-indigo-400/20"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" /> Yıllık PDF Özeti (Tek Tuş) ✨
                   <FeatureAccessBadge featureKey="report" isPremiumProp={isPremium} compact hideWhenPaid />

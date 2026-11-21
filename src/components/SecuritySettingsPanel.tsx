@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { isPassActive } from "../utils/rewardedAdService";
 import { useFeatureAccess } from "./FeatureAccessBadge";
+import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 
 interface SecuritySettingsPanelProps {
   language?: string;
@@ -226,7 +227,7 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
     );
   };
 
-  const handleTriggerDriveExport = (action: "download" | "drive" | "whatsapp" | "share") => {
+  const handleTriggerDriveExport = async (action: "download" | "drive" | "whatsapp" | "share") => {
     const hasExportAccess = isPremium || isPassActive("export");
     if (!hasExportAccess) {
       if (onOpenRewardedModal) {
@@ -263,16 +264,19 @@ export const SecuritySettingsPanel: React.FC<SecuritySettingsPanelProps> = ({
         expenseCategories,
       };
       const jsonString = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${customBackupName.endsWith(".json") ? customBackupName : `${customBackupName}.json`}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      onSuccessToast(`📁 '${customBackupName}.json' cihazınıza başarıyla indirildi!`);
+      const finalFileName = customBackupName.endsWith(".json") ? customBackupName : `${customBackupName}.json`;
+      await downloadFileWithCustomName({
+        fileName: finalFileName,
+        content: jsonString,
+        mimeType: "application/json;charset=utf-8",
+        openShareSheet: action !== "download",
+        onSuccess: () => {
+          onSuccessToast(`📁 '${finalFileName}' başarıyla dışa aktarıldı!`);
+        },
+        onError: () => {
+          onSuccessToast("Dosya indirme sırasında bir hata oluştu.");
+        }
+      });
     } catch (err) {
       console.error(err);
       onSuccessToast("Dosya indirme sırasında bir hata oluştu.");

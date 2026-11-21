@@ -768,15 +768,44 @@ export function saveAndroidNativeFile(fileName: string, content: string, mimeTyp
   if (Capacitor.isNativePlatform()) {
     (async () => {
       try {
-        const isBase64 = content.startsWith("data:") || mimeType.startsWith("image/");
+        const isBase64 = content.startsWith("data:") || mimeType.startsWith("image/") || mimeType.includes("pdf");
         const cleanContent = isBase64 && content.includes(",") ? content.split(",")[1] : content;
-        await Filesystem.writeFile({
+        const cacheRes = await Filesystem.writeFile({
           path: fileName,
           data: cleanContent,
-          directory: Directory.Documents,
+          directory: Directory.Cache,
           encoding: isBase64 ? undefined : Encoding.UTF8,
           recursive: true
         });
+        let docsOk = false;
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: cleanContent,
+            directory: Directory.Documents,
+            encoding: isBase64 ? undefined : Encoding.UTF8,
+            recursive: true
+          });
+          docsOk = true;
+        } catch {
+          try {
+            await Filesystem.writeFile({
+              path: `ButcemPro/${fileName}`,
+              data: cleanContent,
+              directory: Directory.Documents,
+              encoding: isBase64 ? undefined : Encoding.UTF8,
+              recursive: true
+            });
+            docsOk = true;
+          } catch {}
+        }
+        if (!docsOk || mimeType.includes("pdf")) {
+          await Share.share({
+            title: fileName,
+            url: cacheRes.uri,
+            dialogTitle: "Dosyayı Kaydet veya Paylaş"
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn("[AndroidAlarmBridge] Capacitor writeFile hatası:", err);
       }
@@ -812,12 +841,29 @@ export function saveAndroidNativeImageToGallery(fileName: string, base64Data: st
     (async () => {
       try {
         const cleanData = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
-        await Filesystem.writeFile({
+        const cacheRes = await Filesystem.writeFile({
           path: fileName,
           data: cleanData,
-          directory: Directory.Documents,
+          directory: Directory.Cache,
           recursive: true
         });
+        let docsOk = false;
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: cleanData,
+            directory: Directory.Documents,
+            recursive: true
+          });
+          docsOk = true;
+        } catch {}
+        if (!docsOk) {
+          await Share.share({
+            title: fileName,
+            url: cacheRes.uri,
+            dialogTitle: "Görseli Kaydet veya Paylaş"
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn("[AndroidAlarmBridge] Capacitor saveImage error:", err);
       }

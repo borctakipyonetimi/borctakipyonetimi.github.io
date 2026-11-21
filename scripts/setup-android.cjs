@@ -199,8 +199,14 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.content.Context;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import androidx.core.app.ActivityCompat;
@@ -212,6 +218,83 @@ import com.getcapacitor.BridgeWebChromeClient;
 public class MainActivity extends BridgeActivity {
     private static final int RECORD_AUDIO_REQUEST_CODE = 1002;
     private static final int DARK_WEBVIEW_BG = Color.parseColor("#0f172a");
+    private boolean printBridgeAttached = false;
+    private WebView mPrintWebView = null;
+
+    private class AndroidPrintBridge {
+        @JavascriptInterface
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void printCurrentPage(final String jobName) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Bridge bridge = MainActivity.this.getBridge();
+                        if (bridge != null && bridge.getWebView() != null) {
+                            PrintManager printManager = (PrintManager) MainActivity.this.getSystemService(Context.PRINT_SERVICE);
+                            if (printManager != null) {
+                                String safeTitle = (jobName != null && !jobName.trim().isEmpty()) ? jobName.trim() : "Butcem_Pro_Rapor";
+                                PrintDocumentAdapter adapter = bridge.getWebView().createPrintDocumentAdapter(safeTitle);
+                                printManager.print(safeTitle, adapter, new PrintAttributes.Builder().build());
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void printHtml(final String htmlContent, final String jobName) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        final PrintManager printManager = (PrintManager) MainActivity.this.getSystemService(Context.PRINT_SERVICE);
+                        if (printManager == null) return;
+                        final String safeTitle = (jobName != null && !jobName.trim().isEmpty()) ? jobName.trim() : "Butcem_Pro_Rapor";
+                        final WebView printWebView = new WebView(MainActivity.this);
+                        printWebView.getSettings().setJavaScriptEnabled(false);
+                        printWebView.setWebViewClient(new WebViewClient() {
+                            @Override
+                            public void onPageFinished(WebView view, String url) {
+                                try {
+                                    PrintDocumentAdapter adapter = view.createPrintDocumentAdapter(safeTitle);
+                                    printManager.print(safeTitle, adapter, new PrintAttributes.Builder().build());
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    mPrintWebView = null;
+                                }
+                            }
+                        });
+                        mPrintWebView = printWebView;
+                        printWebView.loadDataWithBaseURL("about:blank", htmlContent != null ? htmlContent : "", "text/html", "UTF-8", null);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    }
+
+    private void setupPrintBridge() {
+        try {
+            if (printBridgeAttached) return;
+            Bridge bridge = this.getBridge();
+            if (bridge != null && bridge.getWebView() != null) {
+                bridge.getWebView().addJavascriptInterface(new AndroidPrintBridge(), "AndroidPrint");
+                printBridgeAttached = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -220,6 +303,7 @@ public class MainActivity extends BridgeActivity {
         applyWebViewDarkBackground();
         requestAudioPermissionsIfNecessary();
         setupAudioWebChromeClient();
+        setupPrintBridge();
     }
 
     @Override
@@ -227,6 +311,7 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         applyStatusBarTheme();
         applyWebViewDarkBackground();
+        setupPrintBridge();
     }
 
     @Override

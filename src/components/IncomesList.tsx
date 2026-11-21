@@ -32,6 +32,7 @@ import { DoughnutChart, LineChart } from "./BudgetCharts";
 import { useCurrency } from "../utils/CurrencyContext";
 import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
+import { Capacitor } from "@capacitor/core";
 import { downloadFileWithCustomName } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { AdMobBanner } from "./AdMobBanner";
@@ -253,8 +254,8 @@ export const IncomesList: React.FC<IncomesListProps> = ({
       return;
     }
 
-    if (method === "file_picker") {
-      // 1. Check Android Native App Bridge
+    if (method === "file_picker" && !Capacitor.isNativePlatform()) {
+      // 1. Check Android Native App Bridge (legacy non-Capacitor)
       if (isAndroidAlarmBridgeAvailable()) {
         try {
           const isShared = shareAndroidNativeBackupFile(fileName, jsonString, "Gelir Şablonu");
@@ -325,17 +326,18 @@ export const IncomesList: React.FC<IncomesListProps> = ({
       }
     }
 
-    // Direct clean download (Android APK & Browser Safe)
-    downloadFileWithCustomName({
+    // Direct clean download (Capacitor APK & Browser Safe)
+    await downloadFileWithCustomName({
       fileName,
       content: jsonString,
       mimeType: "application/json",
+      openShareSheet: method === "file_picker",
       onSuccess: () => {
-        alert(`✅ Gelir Şablonu '${fileName}' adıyla İndirilenler klasörünüze başarıyla kaydedildi!`);
+        alert(`✅ Gelir Şablonu '${fileName}' adıyla başarıyla dışa aktarıldı!`);
         setIsSaveTemplateModalOpen(false);
       },
       onError: () => {
-        alert(`✅ Gelir Şablonu '${fileName}' adıyla kaydedildi!`);
+        alert(`⚠️ Gelir Şablonu '${fileName}' dışa aktarılamadı.`);
         setIsSaveTemplateModalOpen(false);
       }
     });

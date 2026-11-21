@@ -23,7 +23,12 @@ import {
   CameraResultType,
   CameraSource
 } from "@capacitor/camera";
-import { getApiUrl, getBackendCandidateUrls } from "../utils/api";
+import {
+  getApiUrl,
+  getBackendCandidateUrls,
+  getConfiguredEnvApiBaseUrl,
+  isCapacitorOrStaticLocalOrigin
+} from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
 
 export interface ScannedReceiptResult {
@@ -69,7 +74,7 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
           return;
         }
 
-        const MAX_DIMENSION = 1024;
+        const MAX_DIMENSION = 960;
         let width = img.width;
         let height = img.height;
 
@@ -100,9 +105,12 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        let compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
-        if (compressedDataUrl.length > 650000) {
-          compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
+        let compressedDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+        if (compressedDataUrl.length > 300000) {
+          compressedDataUrl = canvas.toDataURL("image/jpeg", 0.58);
+        }
+        if (compressedDataUrl.length > 420000) {
+          compressedDataUrl = canvas.toDataURL("image/jpeg", 0.48);
         }
         const commaIdx = compressedDataUrl.indexOf(",");
         if (!compressedDataUrl.startsWith("data:image/") || commaIdx === -1 || compressedDataUrl.slice(commaIdx + 1).length < 100) {
@@ -138,11 +146,230 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
   });
 }
 
+function parseOcrAmount(rawAmount: unknown): number {
+  if (typeof rawAmount === "number") {
+    return Number.isFinite(rawAmount) && rawAmount >= 0 ? rawAmount : 0;
+  }
+  if (typeof rawAmount !== "string") return 0;
+  let cleaned = rawAmount.replace(/[^\d.,-]/g, "").trim();
+  if (!cleaned) return 0;
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (cleaned.includes(",")) {
+    cleaned = cleaned.replace(",", ".");
+  }
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) && num >= 0 ? num : 0;
+}
+
+function getBuildTimeGeminiKey(): string | undefined {
+  try {
+    const key = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
+    if (typeof key === "string" && key.trim().length > 5) {
+      return key.trim();
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+async function scanReceiptDirectlyWithGemini(params: {
+  base64DataUrl: string;
+  mimeType: string;
+  apiKey: string;
+  defaultType: "expense" | "debt";
+  attemptDiagnostics: string[];
+}): Promise<{
+  title: string;
+  amount: number;
+  date: string;
+  categorySuggestion: string;
+  type: "expense" | "debt";
+  warning?: string;
+}> {
+  const { base64DataUrl, mimeType, apiKey, defaultType, attemptDiagnostics } = params;
+  const commaIdx = base64DataUrl.indexOf(",");
+  const pureBase64 = (commaIdx !== -1 ? base64DataUrl.slice(commaIdx + 1) : base64DataUrl).replace(/\s+/g, "");
+  let effectiveMime = mimeType || "image/jpeg";
+  if (commaIdx !== -1) {
+    const headerMatch = base64DataUrl.slice(0, commaIdx).match(/data:([^;]+);base64/i);
+    if (headerMatch?.[1]) {
+      effectiveMime = headerMatch[1].trim();
+    }
+  }
+
+  const promptText =
+    "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
+    "Lütfen belgeden şu bilgileri çıkar:\n" +
+    "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
+    "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
+    "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Yıl eksikse 2026 al).\n" +
+    "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Diğer').\n" +
+    `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
+    "Yalnızca geçerli bir JSON objesi döndür.";
+
+  const modelEndpoint =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+  let rawResponseText = "";
+  try {
+    const res = await fetch(modelEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inline_data: {
+                  mime_type: effectiveMime,
+                  data: pureBase64,
+                },
+              },
+              { text: promptText },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              title: { type: "STRING" },
+              amount: { type: "NUMBER" },
+              date: { type: "STRING" },
+              categorySuggestion: { type: "STRING" },
+              type: { type: "STRING" },
+            },
+            required: ["title", "amount"],
+          },
+        },
+      }),
+    });
+
+    const rawText = await res.text();
+    let jsonBody: any = null;
+    try {
+      jsonBody = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      jsonBody = null;
+    }
+
+    if (!res.ok) {
+      const apiErrMsg = jsonBody?.error?.message || rawText.slice(0, 160);
+      attemptDiagnostics.push(`Gemini Doğrudan API -> HTTP ${res.status} (${apiErrMsg})`);
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        throw new Error(
+          `[INVALID_API_KEY] Gemini API anahtarı geçersiz veya yetkisiz (HTTP ${res.status}). Lütfen Yapay Zekâ Motor Ayarları kısmındaki anahtarı kontrol edin.`
+        );
+      }
+      if (res.status === 429) {
+        throw new Error(
+          "[QUOTA_EXCEEDED] Gemini API kullanım kotasına ulaşıldı (HTTP 429). Lütfen kısa bir süre sonra tekrar deneyin."
+        );
+      }
+      throw new Error(`Gemini servisi hata döndürdü (HTTP ${res.status}): ${apiErrMsg}`);
+    }
+
+    const parts = jsonBody?.candidates?.[0]?.content?.parts;
+    if (Array.isArray(parts)) {
+      rawResponseText = parts
+        .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+        .join("")
+        .trim();
+    }
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      attemptDiagnostics.push("Gemini Doğrudan API -> Zaman aşımı (35 sn)");
+      throw new Error("Fatura analiz isteği zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
+    }
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(String(err?.message || ""))) {
+      attemptDiagnostics.push(`Gemini Doğrudan API -> Ağ hatası (${err?.message || "Failed to fetch"})`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!rawResponseText) {
+    attemptDiagnostics.push("Gemini Doğrudan API -> Boş yanıt");
+    throw new Error("Yapay zeka servisinden boş yanıt döndü. Lütfen fotoğrafın net ve aydınlık olduğundan emin olup tekrar deneyin.");
+  }
+
+  const cleanedText = rawResponseText
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+  const jsonCandidate = jsonMatch ? jsonMatch[0] : cleanedText;
+
+  let parsedData: Record<string, any>;
+  try {
+    const parsed = JSON.parse(jsonCandidate);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Invalid JSON root");
+    }
+    parsedData = parsed;
+  } catch {
+    attemptDiagnostics.push("Gemini Doğrudan API -> JSON ayrıştırma hatası");
+    throw new Error("Fatura verisi JSON formatında ayrıştırılamadı. Fotoğraf bulanık veya eksik olabilir; lütfen tekrar çekip deneyin.");
+  }
+
+  const parsedAmount = parseOcrAmount(parsedData.amount);
+  const cleanTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
+
+  if (!cleanTitle && parsedAmount <= 0) {
+    throw new Error("Görselden mağaza/kurum adı ve toplam tutar okunamadı. Fiş net görünmüyor olabilir; daha aydınlık ortamda yeniden çekin.");
+  }
+
+  const missingFields: string[] = [];
+  if (!cleanTitle) missingFields.push("Mağaza / kurum adı");
+  if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+
+  let parsedDate = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+    parsedDate = new Date().toISOString().split("T")[0];
+  }
+
+  const cleanCategory =
+    typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim()
+      ? parsedData.categorySuggestion.trim()
+      : defaultType === "debt"
+        ? "Fatura"
+        : "Gıda / Market";
+
+  return {
+    title: cleanTitle || (defaultType === "debt" ? "Fatura" : "Harcama Fişi"),
+    amount: parsedAmount,
+    date: parsedDate,
+    categorySuggestion: cleanCategory,
+    type: parsedData.type === "debt" ? "debt" : parsedData.type === "expense" ? "expense" : defaultType,
+    warning:
+      missingFields.length > 0
+        ? `Şu bilgiler görselden net okunamadı: ${missingFields.join(", ")}. Lütfen kontrol edip manuel olarak tamamlayın.`
+        : undefined,
+  };
+}
+
 export default function ReceiptScanner({ onScanCompleted, onClose, defaultType = "expense" }: ReceiptScannerProps) {
   const [activeTab, setActiveTab] = useState<"camera" | "upload">("camera");
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>("Görsel hazırlanıyor...");
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [scanWarning, setScanWarning] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<ScannedReceiptResult | null>(null);
@@ -174,6 +401,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
 
   const startWebcam = async () => {
     setError(null);
+    setErrorDetail(null);
     if (typeof navigator === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
       setError("Tarayıcınızda canlı web kamerası önizlemesi desteklenmiyor. Lütfen telefon kamerasını açın.");
       setWebcamActive(false);
@@ -223,6 +451,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   };
 
   const captureFromWebcam = () => {
+    setErrorDetail(null);
     if (!videoRef.current || !webcamActive) {
       setError("Web kamerası aktif değil. Lütfen kamerayı başlatıp tekrar deneyin.");
       return;
@@ -235,7 +464,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         return;
       }
 
-      const MAX_DIM = 1024;
+      const MAX_DIM = 960;
       let targetW = video.videoWidth;
       let targetH = video.videoHeight;
       if (targetW > MAX_DIM || targetH > MAX_DIM) {
@@ -263,7 +492,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
       ctx.fillRect(0, 0, targetW, targetH);
       ctx.drawImage(video, 0, 0, targetW, targetH);
 
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
       const commaIdx = dataUrl.indexOf(",");
       if (!dataUrl.startsWith("data:image/jpeg;base64,") || commaIdx === -1 || dataUrl.slice(commaIdx + 1).length < 500) {
         setError("Kameradan alınan görüntü boş veya bozuk. Kameranın kapalı/engelli olmadığından emin olun.");
@@ -282,6 +511,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   // Trigger device's native rear camera directly via @capacitor/camera on native platforms
   const triggerNativeCamera = async () => {
     setError(null);
+    setErrorDetail(null);
     setScanWarning(null);
     stopWebcam();
     setShowWebcamPreview(false);
@@ -347,6 +577,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   // Trigger file picker
   const triggerFilePicker = () => {
     setError(null);
+    setErrorDetail(null);
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -385,6 +616,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   const handleProcessImage = async (fileOrDataUrl: File | string) => {
     setLoading(true);
     setError(null);
+    setErrorDetail(null);
     setScanWarning(null);
     setSuccessResult(null);
     setLoadingStep("Görsel sıkıştırılıyor ve hazırlanıyor...");
@@ -399,18 +631,81 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
 
       setLoadingStep("Yapay zeka faturayı inceliyor...");
 
-      // 2. Read user API key if configured
+      // 2. Read user / build-time Gemini API key (if configured for direct on-device APK OCR)
       let userApiKey: string | undefined = undefined;
+      let customServerUrl = "";
       try {
         const savedKey = localStorage.getItem("user_gemini_api_key");
         if (savedKey && savedKey.trim().length > 5) {
           userApiKey = savedKey.trim();
         }
+        customServerUrl = localStorage.getItem("customServerUrl")?.trim() || "";
       } catch {
         // ignore
       }
 
-      // 3. Build candidate OCR endpoints (same-origin first on Cloud Run; multi-endpoint fallback elsewhere)
+      const buildGeminiKey = getBuildTimeGeminiKey();
+      const effectiveDirectKey = userApiKey || buildGeminiKey;
+      const envBase = getConfiguredEnvApiBaseUrl();
+      const isStaticOrApk = isCapacitorOrStaticLocalOrigin();
+      const hasExplicitBackend = Boolean(customServerUrl || envBase);
+
+      const attemptDiagnostics: string[] = [];
+
+      const formatDiagnosticSummary = () => {
+        const isNative = Capacitor.isNativePlatform();
+        const originLabel = typeof window !== "undefined" ? window.location.origin : "unknown";
+        const keySource = userApiKey
+          ? "Kullanıcı Anahtarı (Ayarlar)"
+          : buildGeminiKey
+            ? "Build Ortamı (VITE_GEMINI_API_KEY)"
+            : "Tanımlı Değil";
+        const metaLines = [
+          `Ortam: ${isNative ? `Capacitor APK (${Capacitor.getPlatform()})` : "Web"} | Origin: ${originLabel}`,
+          `API Anahtarı: ${keySource} | Özel Sunucu: ${customServerUrl || envBase || "Yok"}`,
+        ];
+        if (attemptDiagnostics.length > 0) {
+          metaLines.push("Denenen Bağlantılar:");
+          attemptDiagnostics.forEach((d, idx) => metaLines.push(`${idx + 1}. ${d}`));
+        }
+        return metaLines.join("\n");
+      };
+
+      // 3A. In standalone APK / static bundle with no external backend URL, call Gemini directly if a key is available
+      if (isStaticOrApk && !hasExplicitBackend && effectiveDirectKey) {
+        try {
+          const directRes = await scanReceiptDirectlyWithGemini({
+            base64DataUrl: base64,
+            mimeType,
+            apiKey: effectiveDirectKey,
+            defaultType,
+            attemptDiagnostics,
+          });
+          setLoadingStep("Bilgiler ayrıştırıldı!");
+          if (directRes.warning) {
+            setScanWarning(directRes.warning);
+          } else if (directRes.amount <= 0) {
+            setScanWarning("Toplam tutar görselden net okunamadı. Lütfen tutar alanını kontrol edip düzenleyin.");
+          }
+          setSuccessResult({
+            title: directRes.title,
+            amount: directRes.amount,
+            date: directRes.date,
+            categorySuggestion: directRes.categorySuggestion,
+            type: directRes.type,
+          });
+          return;
+        } catch (directErr: any) {
+          const msg = String(directErr?.message || "");
+          if (/INVALID_API_KEY|QUOTA_EXCEEDED|okunamadı|JSON|boş yanıt|zaman aşımına/i.test(msg)) {
+            setErrorDetail(formatDiagnosticSummary());
+            throw directErr;
+          }
+          // Otherwise fall through to try backend candidates too
+        }
+      }
+
+      // 3B. Build candidate OCR endpoints (same-origin on hosted backend; fallback candidates elsewhere)
       const endpointPath = "/api/scan-receipt";
       const primaryEndpoint = getApiUrl(endpointPath);
       const candidateUrls: string[] = [primaryEndpoint];
@@ -432,12 +727,12 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
 
       let response: Response | null = null;
       let data: any = null;
-      let lastNetworkError: any = null;
       let hadTimeout = false;
+      let hitPreviewAuthWall = false;
 
       for (const targetUrl of candidateUrls) {
         const controller = new AbortController();
-        const requestTimeout = setTimeout(() => controller.abort(), 25000);
+        const requestTimeout = setTimeout(() => controller.abort(), 45000);
         try {
           const attemptRes = await fetch(targetUrl, {
             method: "POST",
@@ -456,10 +751,36 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
             }
           }
 
-          // If proxy/static host returned HTML instead of API JSON, try next candidate
-          if (!parsedJson && attemptRes.ok) {
-            lastNetworkError = new Error("NON_JSON_RESPONSE");
+          // Check if AI Studio preview auth gate or HTML fallback intercepted the API request
+          const finalUrl = attemptRes.url || targetUrl;
+          const isAuthGate =
+            finalUrl.includes("__cookie_check") ||
+            finalUrl.includes("accounts.google.com") ||
+            rawBody.includes("__cookie_check") ||
+            rawBody.includes("_aistudio-iframe");
+
+          if (!parsedJson) {
+            if (isAuthGate) {
+              hitPreviewAuthWall = true;
+              attemptDiagnostics.push(
+                `${targetUrl} -> Ön izleme oturum doğrulaması (HTTP ${attemptRes.status}, __cookie_check.html)`
+              );
+            } else {
+              const contentType = attemptRes.headers.get("content-type") || "bilinmiyor";
+              attemptDiagnostics.push(
+                `${targetUrl} -> HTTP ${attemptRes.status} (${contentType}, JSON olmayan yanıt)`
+              );
+            }
             continue;
+          }
+
+          if (!attemptRes.ok) {
+            const errCodeTag = parsedJson?.errorCode ? `[${parsedJson.errorCode}] ` : "";
+            const errMsgTag = parsedJson?.error || parsedJson?.detail || rawBody.slice(0, 120);
+            attemptDiagnostics.push(`${targetUrl} -> HTTP ${attemptRes.status} ${errCodeTag}${errMsgTag}`);
+            if (attemptRes.status === 404) {
+              continue;
+            }
           }
 
           response = attemptRes;
@@ -468,26 +789,69 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         } catch (fetchErr: any) {
           if (fetchErr?.name === "AbortError") {
             hadTimeout = true;
+            attemptDiagnostics.push(`${targetUrl} -> İstek zaman aşımına uğradı (45 sn)`);
+          } else {
+            attemptDiagnostics.push(
+              `${targetUrl} -> Ağ/CORS hatası (${fetchErr?.name || "Error"}: ${fetchErr?.message || "Failed to fetch"})`
+            );
           }
-          lastNetworkError = fetchErr;
           continue;
         } finally {
           clearTimeout(requestTimeout);
         }
       }
 
+      // 3C. Fallback to direct Gemini API if backend wasn't reachable and direct key exists
+      if (!response && effectiveDirectKey) {
+        try {
+          const directRes = await scanReceiptDirectlyWithGemini({
+            base64DataUrl: base64,
+            mimeType,
+            apiKey: effectiveDirectKey,
+            defaultType,
+            attemptDiagnostics,
+          });
+          setLoadingStep("Bilgiler ayrıştırıldı!");
+          if (directRes.warning) {
+            setScanWarning(directRes.warning);
+          } else if (directRes.amount <= 0) {
+            setScanWarning("Toplam tutar görselden net okunamadı. Lütfen tutar alanını kontrol edip düzenleyin.");
+          }
+          setSuccessResult({
+            title: directRes.title,
+            amount: directRes.amount,
+            date: directRes.date,
+            categorySuggestion: directRes.categorySuggestion,
+            type: directRes.type,
+          });
+          return;
+        } catch (directErr: any) {
+          setErrorDetail(formatDiagnosticSummary());
+          throw directErr;
+        }
+      }
+
       if (!response) {
-        if (hadTimeout) {
+        setErrorDetail(formatDiagnosticSummary());
+        if (hadTimeout && attemptDiagnostics.every((d) => d.includes("zaman aşımına"))) {
           throw new Error("Fatura analiz isteği zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
         }
+        if ((isStaticOrApk || hitPreviewAuthWall) && !effectiveDirectKey) {
+          throw new Error(
+            "APK ortamında harici sunucu olmadan doğrudan fatura taramak için Yapay Zekâ Asistanı > Yapay Zekâ Motor Ayarları kısmından Gemini API anahtarınızı kaydedin (veya GitHub build sırasında VITE_GEMINI_API_KEY tanımlayın)."
+          );
+        }
         throw new Error(
-          "Fatura analiz sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin veya bilgileri elle girmek için 'Manuel Olarak Doldur' butonunu kullanın."
+          "Fatura analiz servisine bağlanılamadı. Teknik detayları aşağıda görebilir veya bilgileri elle girmek için 'Manuel Olarak Doldur' butonunu kullanabilirsiniz."
         );
       }
 
       if (!response.ok) {
+        setErrorDetail(formatDiagnosticSummary());
+        const detailSuffix = data?.detail ? ` (${data.detail})` : "";
+        const codePrefix = data?.errorCode ? `[${data.errorCode}] ` : "";
         throw new Error(
-          data?.error ||
+          (data?.error ? `${codePrefix}${data.error}${detailSuffix}` : null) ||
           (response.status === 413
             ? "Görsel boyutu sunucu limitini aşıyor. Lütfen daha küçük veya net bir fotoğraf deneyin."
             : `Fatura taranırken sunucu hatası oluştu (HTTP ${response.status}).`)
@@ -495,15 +859,13 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
       }
 
       if (!data || typeof data !== "object") {
+        setErrorDetail(formatDiagnosticSummary());
         throw new Error("Sunucudan gelen OCR yanıtı geçerli JSON formatında okunamadı. Lütfen tekrar deneyin.");
       }
 
       if (data.success) {
         setLoadingStep("Bilgiler ayrıştırıldı!");
-        const parsedAmount =
-          typeof data.amount === "number"
-            ? data.amount
-            : parseFloat(String(data.amount ?? "").replace(",", ".")) || 0;
+        const parsedAmount = parseOcrAmount(data.amount);
 
         const result: ScannedReceiptResult = {
           title: typeof data.title === "string" && data.title.trim() ? data.title.trim() : (defaultType === "debt" ? "Fatura" : "Alışveriş"),
@@ -521,6 +883,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
 
         setSuccessResult(result);
       } else {
+        setErrorDetail(formatDiagnosticSummary());
         throw new Error(data.error || "Fatura üzerindeki bilgiler okunamadı. Lütfen daha net bir fotoğraf çekin.");
       }
     } catch (err: any) {
@@ -528,9 +891,9 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
       const rawMsg = String(err?.message || "");
       if (err?.name === "AbortError") {
         setError("Fatura okuma isteği zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.");
-      } else if (/failed to fetch|networkerror|load failed|network request failed|fetch/i.test(rawMsg)) {
+      } else if (/failed to fetch|networkerror|load failed|network request failed/i.test(rawMsg)) {
         setError(
-          "Fatura analiz sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin veya bilgileri girmek için 'Manuel Olarak Doldur' butonunu kullanın."
+          `Fatura analiz servisine bağlanılamadı (${rawMsg}). İnternet bağlantınızı kontrol edin veya 'Manuel Olarak Doldur' butonunu kullanın.`
         );
       } else {
         setError(
@@ -623,6 +986,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
               type="button"
               onClick={() => {
                 setError(null);
+                setErrorDetail(null);
                 setActiveTab("camera");
               }}
               className={`flex-1 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition duration-150 cursor-pointer ${
@@ -637,6 +1001,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
               type="button"
               onClick={() => {
                 setError(null);
+                setErrorDetail(null);
                 stopWebcam();
                 setShowWebcamPreview(false);
                 setActiveTab("upload");
@@ -662,6 +1027,14 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{error}</span>
               </div>
+              {errorDetail && (
+                <div className="w-full p-2.5 rounded-xl bg-slate-900/90 border border-rose-500/25 text-left text-[10px] leading-relaxed text-slate-300 font-mono whitespace-pre-wrap break-all max-h-28 overflow-y-auto">
+                  <div className="text-[9.5px] font-sans font-bold uppercase tracking-wider text-rose-300 mb-1">
+                    Teknik Hata Detayı
+                  </div>
+                  {errorDetail}
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-center gap-2 w-full pt-1">
                 <button
                   type="button"
@@ -816,6 +1189,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                     setSuccessResult(null);
                     setScanWarning(null);
                     setError(null);
+                    setErrorDetail(null);
                   }}
                   className="py-2.5 px-3 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition cursor-pointer flex items-center gap-1"
                 >

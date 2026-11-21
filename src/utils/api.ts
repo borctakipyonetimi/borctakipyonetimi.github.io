@@ -1,40 +1,98 @@
+import { Capacitor } from "@capacitor/core";
+
 export const CLOUD_RUN_DEV_URL = "https://ais-dev-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app";
 export const CLOUD_RUN_PRE_URL = "https://ais-pre-sta4ngj4pjhcez5qwcqjac-200839682182.europe-west2.run.app";
 export const CLOUD_RUN_BACKEND_URL = CLOUD_RUN_DEV_URL;
 
+function normalizeBaseUrl(raw?: string | null): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || !/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+export function getConfiguredEnvApiBaseUrl(): string | null {
+  try {
+    const env = (import.meta as any)?.env;
+    return (
+      normalizeBaseUrl(env?.VITE_API_BASE_URL) ||
+      normalizeBaseUrl(env?.VITE_BACKEND_URL) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function isCapacitorOrStaticLocalOrigin(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {
+    // ignore
+  }
+  const { protocol, hostname, port } = window.location;
+  if (
+    protocol === "file:" ||
+    protocol.startsWith("capacitor") ||
+    protocol.startsWith("app")
+  ) {
+    return true;
+  }
+  // Capacitor Android/iOS serves static www/ on https://localhost or http://localhost without a backend port
+  if ((hostname === "localhost" || hostname === "127.0.0.1") && !port) {
+    return true;
+  }
+  if (
+    hostname.includes("github.io") ||
+    hostname.includes("borctakipyonetimi") ||
+    hostname.includes("vercel.app") ||
+    hostname.includes("netlify.app")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Returns candidate base URLs to reach the Bütçem Pro email and notification server.
+ * Returns candidate base URLs to reach the Bütçem Pro backend server.
  */
 export function getBackendCandidateUrls(): string[] {
   const candidates: string[] = [];
+  const pushUnique = (url?: string | null) => {
+    const norm = normalizeBaseUrl(url);
+    if (norm && !candidates.includes(norm)) {
+      candidates.push(norm);
+    }
+  };
 
   // 1. Custom configured server URL in localStorage
   if (typeof window !== "undefined") {
-    const custom = localStorage.getItem("customServerUrl")?.trim();
-    if (custom) {
-      candidates.push(custom.endsWith("/") ? custom.slice(0, -1) : custom);
+    try {
+      pushUnique(localStorage.getItem("customServerUrl"));
+    } catch {
+      // ignore
     }
   }
 
-  // 2. Current origin if valid
+  // 2. Build-time configured public backend URL (VITE_API_BASE_URL / VITE_BACKEND_URL)
+  pushUnique(getConfiguredEnvApiBaseUrl());
+
+  // 3. Current origin only if we are NOT inside a static/Capacitor WebView bundle
   if (typeof window !== "undefined") {
     const { protocol, origin, hostname } = window.location;
-    if (protocol.startsWith("http")) {
-      candidates.push(origin);
+    if (protocol.startsWith("http") && !isCapacitorOrStaticLocalOrigin()) {
+      pushUnique(origin);
       // On Cloud Run domain, use current origin only to avoid cross-subdomain cookie check redirects
-      if (hostname.endsWith(".run.app")) {
+      if (hostname.endsWith(".run.app") && candidates.length === 1) {
         return candidates;
       }
     }
   }
 
-  // 3. Cloud Run URLs for external/static hosts only
-  if (!candidates.includes(CLOUD_RUN_DEV_URL)) {
-    candidates.push(CLOUD_RUN_DEV_URL);
-  }
-  if (!candidates.includes(CLOUD_RUN_PRE_URL)) {
-    candidates.push(CLOUD_RUN_PRE_URL);
-  }
+  // 4. Shared / Pre-deployed Cloud Run URL first (public if shared), then Dev URL
+  pushUnique(CLOUD_RUN_PRE_URL);
+  pushUnique(CLOUD_RUN_DEV_URL);
 
   return candidates;
 }
@@ -45,39 +103,36 @@ export function getBackendCandidateUrls(): string[] {
 export function getApiUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
 
-  // 1. Custom server URL
+  // 1. Custom server URL from app settings
   if (typeof window !== "undefined") {
-    const savedServer = localStorage.getItem("customServerUrl")?.trim();
-    if (savedServer) {
-      const base = savedServer.endsWith("/") ? savedServer.slice(0, -1) : savedServer;
-      return `${base}${cleanPath}`;
+    try {
+      const savedServer = normalizeBaseUrl(localStorage.getItem("customServerUrl"));
+      if (savedServer) {
+        return `${savedServer}${cleanPath}`;
+      }
+    } catch {
+      // ignore
     }
   }
 
-  // 2. Current browser environment
-  if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
+  // 2. Build-time backend URL (e.g. injected in Vite/Capacitor build via VITE_API_BASE_URL)
+  const envBase = getConfiguredEnvApiBaseUrl();
+  if (envBase) {
+    return `${envBase}${cleanPath}`;
+  }
 
-    // If directly on *.run.app, relative path is direct
+  // 3. Current browser environment
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+
+    // Directly on *.run.app preview/hosted backend -> relative path is same-origin
     if (hostname.endsWith(".run.app")) {
       return cleanPath;
     }
 
-    // Packaged APK, Cordova, Capacitor, GitHub Pages, or local static files
-    const isExternalOrStatic =
-      protocol === "file:" ||
-      protocol.startsWith("capacitor") ||
-      protocol.startsWith("app") ||
-      hostname.includes("github.io") ||
-      hostname.includes("borctakipyonetimi") ||
-      hostname.includes("vercel.app") ||
-      hostname.includes("netlify.app") ||
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname.startsWith("192.168.");
-
-    if (isExternalOrStatic) {
-      return `${CLOUD_RUN_DEV_URL}${cleanPath}`;
+    // Packaged APK, Cordova, Capacitor, GitHub Pages, or local static files -> use remote backend URL
+    if (isCapacitorOrStaticLocalOrigin()) {
+      return `${CLOUD_RUN_PRE_URL}${cleanPath}`;
     }
   }
 
@@ -98,14 +153,16 @@ export async function safeFetchJson<T = any>(
 
   const candidateUrls: string[] = [initialUrl];
   if (fallbackBaseUrl) {
-    const base = fallbackBaseUrl.endsWith("/") ? fallbackBaseUrl.slice(0, -1) : fallbackBaseUrl;
-    const full = `${base}${cleanPath}`;
-    if (!candidateUrls.includes(full)) {
-      candidateUrls.push(full);
+    const base = normalizeBaseUrl(fallbackBaseUrl);
+    if (base) {
+      const full = `${base}${cleanPath}`;
+      if (!candidateUrls.includes(full)) {
+        candidateUrls.push(full);
+      }
     }
   }
 
-  // Only append additional backend candidates if not running directly on *.run.app
+  // Append additional backend candidates when not running directly on *.run.app
   if (typeof window !== "undefined" && !window.location.hostname.endsWith(".run.app")) {
     for (const base of getBackendCandidateUrls()) {
       const full = `${base}${cleanPath}`;
@@ -129,7 +186,7 @@ export async function safeFetchJson<T = any>(
       try {
         json = JSON.parse(rawText);
       } catch {
-        // Not valid JSON (likely HTML 404 page or redirect), try next candidate
+        // Not valid JSON (likely HTML 404/cookie check/redirect), try next candidate
         continue;
       }
 
@@ -169,7 +226,6 @@ export async function safeFetchJson<T = any>(
     lastError?.message ||
     (isStaticHost
       ? "GitHub Pages statik bir sunucudur. Doğrudan canlı e-posta gönderimi için özel bir Node.js API sunucu URL'si bağlayabilir veya 'Mail Uygulamasında Aç (.EML)' butonunu kullanabilirsiniz."
-      : "E-posta sunucusuna bağlanılamadı. Lütfen sunucu bağlantınızı kontrol ediniz.");
+      : "Sunucuya bağlanılamadı. Lütfen sunucu bağlantınızı kontrol ediniz.");
   throw new Error(finalMsg);
 }
-

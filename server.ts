@@ -98,6 +98,7 @@ app.get("/api/health", (req, res) => {
     service: "butcem-pro-backend",
     time: new Date().toISOString(),
     smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass),
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
   });
 });
 
@@ -1495,6 +1496,7 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!image || typeof image !== "string" || !image.trim()) {
     return res.status(400).json({
       success: false,
+      errorCode: "INVALID_IMAGE",
       error: "Taranacak fatura veya fiş görseli bulunamadı. Lütfen fotoğraf çekin veya görsel seçin."
     });
   }
@@ -1518,6 +1520,7 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!detectedMimeType.toLowerCase().startsWith("image/")) {
     return res.status(400).json({
       success: false,
+      errorCode: "INVALID_MIME_TYPE",
       error: "Gönderilen dosya geçerli bir görsel formatında değil (JPG, PNG veya WEBP olmalı)."
     });
   }
@@ -1525,6 +1528,7 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!base64Data || base64Data.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
     return res.status(400).json({
       success: false,
+      errorCode: "CORRUPT_IMAGE",
       error: "Görsel verisi boş veya bozuk görünüyor. Lütfen fotoğrafı net şekilde yeniden çekin."
     });
   }
@@ -1534,7 +1538,8 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!aiClient) {
     return res.status(503).json({
       success: false,
-      error: "Fatura okuma (OCR) için Gemini API anahtarı yapılandırılmamış. Lütfen Ayarlar > Secrets panelinden API anahtarını kontrol edin."
+      errorCode: "MISSING_API_KEY",
+      error: "Fatura okuma (OCR) için sunucuda GEMINI_API_KEY yapılandırılmamış. Lütfen Ayarlar > Secrets panelinden API anahtarını kontrol edin."
     });
   }
 
@@ -1561,7 +1566,7 @@ app.post("/api/scan-receipt", async (req, res) => {
       },
     ];
 
-    const generateConfig = {
+    const baseSchemaConfig = {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -1588,31 +1593,49 @@ app.post("/api/scan-receipt", async (req, res) => {
           }
         },
         required: ["title", "amount"]
-      },
-      thinkingConfig: {
-        thinkingLevel: ThinkingLevel.LOW,
-      },
+      }
     };
+
+    const runWithTimeout = <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`TIMEOUT: ${label} exceeded ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ]);
 
     let response: any;
     try {
-      response = await aiClient.models.generateContent({
-        model: "gemini-4-hydrogen",
-        contents: { parts: contentParts },
-        config: generateConfig,
-      });
+      response = await runWithTimeout(
+        aiClient.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: { parts: contentParts },
+          config: baseSchemaConfig,
+        }),
+        22000,
+        "gemini-3.1-flash-lite"
+      );
     } catch (primaryErr: any) {
       const errMsg = String(primaryErr?.message || "");
       const status = primaryErr?.status || primaryErr?.code;
       if (status === 400 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
         throw primaryErr;
       }
-      console.warn("[Scan API] Primary gemini-4-hydrogen returned:", errMsg || status, "- Trying gemini-3.1-flash-lite...");
-      response = await aiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: { parts: contentParts },
-        config: generateConfig,
-      });
+      console.warn("[Scan API] Primary gemini-3.1-flash-lite returned:", errMsg || status, "- Trying gemini-4-hydrogen...");
+      response = await runWithTimeout(
+        aiClient.models.generateContent({
+          model: "gemini-4-hydrogen",
+          contents: { parts: contentParts },
+          config: {
+            ...baseSchemaConfig,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
+          },
+        }),
+        15000,
+        "gemini-4-hydrogen"
+      );
     }
 
     const rawResponseText = (response?.text ?? "").trim();
@@ -1686,9 +1709,18 @@ app.post("/api/scan-receipt", async (req, res) => {
     const status = Number(error?.status || error?.code || 0);
     console.error("[Scan Receipt API Error]:", errMsg || error);
 
+    if (errMsg.startsWith("TIMEOUT:") || /timeout|deadline/i.test(errMsg)) {
+      return res.status(504).json({
+        success: false,
+        errorCode: "TIMEOUT",
+        error: "Fatura okuma servisi yanıt vermekte gecikti. Lütfen fotoğraf boyutunu küçültüp tekrar deneyin veya 'Manuel Olarak Doldur' seçeneğini kullanın."
+      });
+    }
+
     if (status === 403 || status === 400 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
       return res.status(status === 403 ? 403 : 400).json({
         success: false,
+        errorCode: "INVALID_API_KEY",
         error: "Gemini API anahtarı geçersiz veya yetkisiz. Lütfen Settings > Secrets panelinden API anahtarını kontrol edin."
       });
     }
@@ -1696,13 +1728,16 @@ app.post("/api/scan-receipt", async (req, res) => {
     if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(errMsg)) {
       return res.status(429).json({
         success: false,
+        errorCode: "QUOTA_EXCEEDED",
         error: "Yapay zeka OCR kullanım kotasına ulaşıldı. Lütfen kısa bir süre bekleyip tekrar deneyin."
       });
     }
 
     return res.status(502).json({
       success: false,
-      error: "Fatura görseli yapay zeka tarafından analiz edilemedi. İnternet bağlantınızı ve fotoğraf netliğini kontrol edip tekrar deneyin."
+      errorCode: "UPSTREAM_ERROR",
+      error: "Fatura görseli yapay zeka tarafından analiz edilemedi. İnternet bağlantınızı ve fotoğraf netliğini kontrol edip tekrar deneyin.",
+      detail: errMsg ? errMsg.slice(0, 180) : undefined
     });
   }
 });

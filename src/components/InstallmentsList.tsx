@@ -17,7 +17,8 @@ import { t } from "../utils/translations";
 import { jsPDF } from "jspdf";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
-import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
+import { Capacitor } from "@capacitor/core";
+import { downloadFileWithCustomName, savePdfDocument, printHtmlReport } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { RewardedFeatureType } from "../utils/rewardedAdService";
 import { FeatureAccessBadge, useFeatureAccess } from "./FeatureAccessBadge";
@@ -92,6 +93,17 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   // State for Installment Payment Modal with Date Picker
   const [payModalInst, setPayModalInst] = useState<InstallmentDebt | null>(null);
   const [payDate, setPayDate] = useState<string>("");
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const notify = (msg: string) => {
+    if (triggerToast) {
+      triggerToast(msg);
+    } else if (typeof window !== "undefined") {
+      try {
+        alert(msg);
+      } catch {}
+    }
+  };
 
   const handleOpenPayModal = (inst: InstallmentDebt) => {
     setPayModalInst(inst);
@@ -123,7 +135,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
   // --- TAKSİT DIŞA VE İÇE AKTARMA (YEDEKLEME & GERİ YÜKLEME) ---
   const handleOpenExportModal = () => {
     if (installmentDebts.length === 0) {
-      alert("Dışa aktarılacak taksitli borç planı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
+      notify("Dışa aktarılacak taksitli borç planı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
       return;
     }
     setExportFileName(`Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`);
@@ -132,7 +144,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
   const executeExportInstallments = async (pickFolder: boolean = false) => {
     if (installmentDebts.length === 0) {
-      alert("İndirilecek taksit planı bulunmuyor.");
+      notify("İndirilecek taksit planı bulunmuyor.");
       return;
     }
     const jsonString = JSON.stringify(installmentDebts, null, 2);
@@ -143,19 +155,19 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
 
     const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
 
-    if (pickFolder) {
-      // 1. Android Native App Bridge Check
+    if (pickFolder && !Capacitor.isNativePlatform()) {
+      // 1. Legacy Android WebView Bridge Check (only outside Capacitor)
       if (isAndroidAlarmBridgeAvailable()) {
         try {
           const isShared = shareAndroidNativeBackupFile(fileName, jsonString, "Taksitli Borç Planları");
           if (isShared) {
-            alert(`✅ '${fileName}' taksit yedeği paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
+            notify(`✅ '${fileName}' taksit yedeği paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
             setIsExportModalOpen(false);
             return;
           }
           const isSaved = saveAndroidNativeBackupFile(fileName, jsonString);
           if (isSaved) {
-            alert(`✅ '${fileName}' taksit yedeği İndirilenler klasörüne başarıyla kaydedildi!`);
+            notify(`✅ '${fileName}' taksit yedeği İndirilenler klasörüne başarıyla kaydedildi!`);
             setIsExportModalOpen(false);
             return;
           }
@@ -179,7 +191,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
               text: `Bütçem Taksit Planları (${fileName})`,
               files: [testFile],
             });
-            alert(`✅ '${fileName}' taksit yedeği seçilen konuma / uygulamaya başarıyla iletildi!`);
+            notify(`✅ '${fileName}' taksit yedeği seçilen konuma / uygulamaya başarıyla iletildi!`);
             setIsExportModalOpen(false);
             return;
           }
@@ -203,7 +215,7 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
           const writable = await handle.createWritable();
           await writable.write(jsonString);
           await writable.close();
-          alert(`✅ '${fileName}' taksit yedeği başarıyla seçtiğiniz konuma kaydedildi!`);
+          notify(`✅ '${fileName}' taksit yedeği başarıyla seçtiğiniz konuma kaydedildi!`);
           setIsExportModalOpen(false);
           return;
         } catch (err: any) {
@@ -213,25 +225,26 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
       }
     }
 
-    // Direct clean download (Android APK & Browser Safe)
-    downloadFileWithCustomName({
+    // Direct clean download (Capacitor APK & Browser Safe)
+    await downloadFileWithCustomName({
       fileName,
       content: jsonString,
       mimeType: "application/json",
+      openShareSheet: pickFolder,
       onSuccess: () => {
-        alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
+        notify(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla dışa aktarıldı!`);
         setIsExportModalOpen(false);
       },
       onError: () => {
-        alert(`✅ ${installmentDebts.length} adet taksit planı '${fileName}' adıyla kaydedildi!`);
+        notify(`⚠️ '${fileName}' dosyası dışa aktarılamadı.`);
         setIsExportModalOpen(false);
       }
     });
   };
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (installmentDebts.length === 0) {
-      alert("Dışa aktarılacak taksitli borç planı bulunmuyor.");
+      notify("Dışa aktarılacak taksitli borç planı bulunmuyor.");
       return;
     }
     const header = "Plan Adı,Toplam Borç,Taksit Sayısı,Ödenen Taksit,Kalan Taksit,Aylık Taksit Tutarı,İlk Vade Tarihi\n";
@@ -242,13 +255,17 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     }).join("\n");
     const csvContent = "\uFEFF" + header + rows;
     const fileName = `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}.csv`;
-    downloadFileWithCustomName({
+    await downloadFileWithCustomName({
       fileName,
       content: csvContent,
       mimeType: "text/csv;charset=utf-8",
+      openShareSheet: true,
       onSuccess: () => {
-        alert(`✅ ${installmentDebts.length} adet taksit planı CSV/Excel olarak indirildi!`);
+        notify(`✅ ${installmentDebts.length} adet taksit planı CSV/Excel olarak indirildi!`);
         setIsExportModalOpen(false);
+      },
+      onError: () => {
+        notify("⚠️ CSV dosyası dışa aktarılamadı.");
       }
     });
   };
@@ -413,141 +430,175 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
     return sum + (inst.installmentCount - inst.paidInstallmentCount) * single;
   }, 0);
 
-  const handlePrint = async (isPdf = false) => {
+  const handlePrint = async (isPdf = false): Promise<boolean> => {
     if (installmentDebts.length === 0) {
-      alert("Yazdırılacak veya indirilecek taksit kaydı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
-      return;
+      notify("Yazdırılacak veya indirilecek taksit kaydı bulunmuyor. Lütfen önce bir taksit planı ekleyin.");
+      return false;
     }
 
     if (isPdf) {
-      const doc = new jsPDF();
-      const safeText = (text: string) => {
-        if (!text) return "";
-        const map: { [key: string]: string } = {
-          'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I',
-          'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U'
-        };
-        return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (match) => map[match] || match);
-      };
-
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, 210, 32, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text("Butcem Pro - Taksitli Borc Raporu", 15, 18);
-      doc.setFontSize(9);
-      doc.text(`Tarih: ${new Date().toLocaleDateString("tr-TR")}`, 15, 26);
-
-      let yPos = 45;
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(11);
-      doc.text(safeText("Aktif Taksit Planları Listesi"), 15, yPos);
-      doc.line(15, yPos + 3, 195, yPos + 3);
-      yPos += 12;
-
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, yPos - 5, 180, 8, "F");
-      doc.setFontSize(9);
-      doc.text(safeText("Plan Adı"), 18, yPos);
-      doc.text(safeText("Toplam Tutar"), 80, yPos);
-      doc.text(safeText("Taksit"), 125, yPos);
-      doc.text(safeText("Kalan Borç"), 160, yPos);
-      yPos += 10;
-
-      installmentDebts.forEach((inst) => {
-        if (yPos > 270) { doc.addPage(); yPos = 25; }
-        doc.setFont("Helvetica", "normal");
-        const single = inst.totalAmount / (inst.installmentCount || 1);
-        const remaining = ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0)) * single;
-        doc.text(safeText(inst.name), 18, yPos);
-        doc.text(format(inst.totalAmount), 80, yPos);
-        doc.text(`${inst.paidInstallmentCount || 0}/${inst.installmentCount || 1}`, 125, yPos);
-        doc.text(format(remaining), 160, yPos);
-        yPos += 8;
-      });
-
+      if (isGeneratingPdf) return false;
+      setIsGeneratingPdf(true);
       try {
-        await savePdfDocument(doc, `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}.pdf`);
-      } catch (pdfErr) {
+        const doc = new jsPDF();
+        const safeText = (text: string | number | undefined | null) => {
+          if (text === undefined || text === null) return "";
+          const map: { [key: string]: string } = {
+            'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I',
+            'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U',
+            '₺': 'TL', '€': 'EUR', '£': 'GBP'
+          };
+          return String(text).replace(/[çÇğĞıİöÖşŞüÜ₺€£]/g, (match) => map[match] || match);
+        };
+        const formatPdfVal = (val: number) => safeText(format(val));
+        const clipText = (text: string | number | undefined | null, maxLen: number) => {
+          const clean = safeText(text).trim();
+          return clean.length > maxLen ? `${clean.slice(0, Math.max(1, maxLen - 2))}..` : clean;
+        };
+
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, 210, 32, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("Butcem Pro - Taksitli Borc Raporu", 15, 18);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(226, 232, 240);
+        doc.text(`Tarih: ${new Date().toLocaleDateString("tr-TR")} | Plan Sayisi: ${installmentDebts.length}`, 15, 26);
+
+        let yPos = 45;
+        doc.setTextColor(15, 23, 42);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(safeText("Aktif Taksit Planları Listesi"), 15, yPos);
+        doc.setDrawColor(148, 163, 184);
+        doc.line(15, yPos + 3, 195, yPos + 3);
+        yPos += 12;
+
+        doc.setFillColor(241, 245, 249);
+        doc.rect(15, yPos - 5, 180, 8, "F");
+        doc.setFontSize(9);
+        doc.setTextColor(51, 65, 85);
+        doc.text(safeText("Plan Adı"), 18, yPos);
+        doc.text(safeText("Toplam Tutar"), 82, yPos);
+        doc.text(safeText("Taksit"), 122, yPos);
+        doc.text(safeText("Aylik Taksit"), 145, yPos);
+        doc.text(safeText("Kalan Borç"), 172, yPos);
+        yPos += 10;
+
+        installmentDebts.forEach((inst) => {
+          if (yPos > 265) {
+            doc.addPage();
+            yPos = 25;
+            doc.setFillColor(241, 245, 249);
+            doc.rect(15, yPos - 5, 180, 8, "F");
+            doc.setFont("Helvetica", "bold");
+            doc.setTextColor(51, 65, 85);
+            doc.text(safeText("Plan Adı"), 18, yPos);
+            doc.text(safeText("Toplam Tutar"), 82, yPos);
+            doc.text(safeText("Taksit"), 122, yPos);
+            doc.text(safeText("Aylik Taksit"), 145, yPos);
+            doc.text(safeText("Kalan Borç"), 172, yPos);
+            yPos += 10;
+          }
+          doc.setFont("Helvetica", "normal");
+          doc.setTextColor(30, 41, 59);
+          const count = inst.installmentCount || 1;
+          const paidCount = inst.paidInstallmentCount || 0;
+          const single = inst.totalAmount / count;
+          const remaining = Math.max(0, (count - paidCount) * single);
+          doc.text(clipText(inst.name || "Taksit", 28), 18, yPos);
+          doc.text(formatPdfVal(inst.totalAmount), 82, yPos);
+          doc.text(`${paidCount}/${count}`, 122, yPos);
+          doc.text(formatPdfVal(single), 145, yPos);
+          doc.text(formatPdfVal(remaining), 172, yPos);
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, yPos + 3, 195, yPos + 3);
+          yPos += 8;
+        });
+
+        if (yPos > 255) {
+          doc.addPage();
+          yPos = 25;
+        }
+        yPos += 4;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, yPos, 180, 14, "F");
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(15, yPos, 180, 14, "S");
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(safeText(`TOPLAM KALAN TAKSIT YUKU (${installmentDebts.length} PLAN):`), 18, yPos + 9);
+        doc.setTextColor(220, 38, 38);
+        doc.text(formatPdfVal(totalRemaining), 145, yPos + 9);
+
+        const pdfName = `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const savedOk = await savePdfDocument(doc, pdfName);
+        if (savedOk) {
+          notify(`📄 Taksitli Borç Raporu (${pdfName}) başarıyla hazırlandı!`);
+        } else {
+          notify("⚠️ PDF dosyası kaydedilemedi. Lütfen tekrar deneyin.");
+        }
+        return savedOk;
+      } catch (pdfErr: any) {
         console.error("PDF export error:", pdfErr);
+        notify(`PDF oluşturulurken hata oluştu: ${pdfErr?.message || "Bilinmeyen hata"}`);
+        return false;
+      } finally {
+        setIsGeneratingPdf(false);
       }
-      return;
     }
 
-    // Direct Browser Print: Create a styled print window
-    try {
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Taksitli Borç Raporu - Bütçem Pro</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
-              .header { border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
-              h1 { font-size: 20px; margin: 0 0 6px 0; color: #1e1b4b; }
-              .meta { font-size: 12px; color: #64748b; }
-              table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-              th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; }
-              th { background-color: #f8fafc; font-weight: 700; color: #334155; }
-              tr:nth-child(even) { background-color: #f8fafc; }
-              .totals { margin-top: 24px; padding: 12px; background: #eef2ff; border-radius: 8px; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>🗓️ Bütçem Pro - Taksitli Borç Planı Raporu</h1>
-              <div class="meta">Rapor Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Taksit Plan Adı</th>
-                  <th>Toplam Borç</th>
-                  <th>Taksit Durumu</th>
-                  <th>Aylık Taksit</th>
-                  <th>Kalan Borç Tutarı</th>
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #0f172a; background: #ffffff;">
+        <div style="border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1 style="font-size: 20px; margin: 0 0 4px 0; color: #1e1b4b;">Bütçem Pro - Taksitli Borç Planı Raporu</h1>
+            <div style="font-size: 11px; color: #64748b;">Rapor Tarihi: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</div>
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px;">
+          <thead>
+            <tr>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; background-color: #f8fafc; font-weight: 700; color: #334155;">#</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; background-color: #f8fafc; font-weight: 700; color: #334155;">Taksit Plan Adı</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; background-color: #f8fafc; font-weight: 700; color: #334155;">Toplam Borç</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; background-color: #f8fafc; font-weight: 700; color: #334155;">Taksit Durumu</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; background-color: #f8fafc; font-weight: 700; color: #334155;">Aylık Taksit</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; background-color: #f8fafc; font-weight: 700; color: #334155;">Kalan Borç Tutarı</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${installmentDebts.map((inst, idx) => {
+              const single = inst.totalAmount / (inst.installmentCount || 1);
+              const rem = Math.max(0, ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0)) * single);
+              return `
+                <tr style="background-color: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">${idx + 1}</td>
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px;"><strong>${inst.name}</strong></td>
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;">${format(inst.totalAmount)}</td>
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">${inst.paidInstallmentCount || 0} / ${inst.installmentCount || 1} Ödendi</td>
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;">${format(single)} / Ay</td>
+                  <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;"><strong>${format(rem)}</strong></td>
                 </tr>
-              </thead>
-              <tbody>
-                ${installmentDebts.map((inst, idx) => {
-                  const single = inst.totalAmount / (inst.installmentCount || 1);
-                  const rem = ((inst.installmentCount || 1) - (inst.paidInstallmentCount || 0)) * single;
-                  return `
-                    <tr>
-                      <td>${idx + 1}</td>
-                      <td><strong>${inst.name}</strong></td>
-                      <td>${format(inst.totalAmount)}</td>
-                      <td>${inst.paidInstallmentCount || 0} / ${inst.installmentCount || 1} Ödendi</td>
-                      <td>${format(single)} / Ay</td>
-                      <td><strong>${format(rem)}</strong></td>
-                    </tr>
-                  `;
-                }).join("")}
-              </tbody>
-            </table>
-            <div class="totals">
-              Toplam Kalan Taksit Yükü: ${format(totalRemaining)} | Toplam Plan: ${installmentDebts.length} Adet
-            </div>
-            <script>
-              window.onload = function() {
-                window.focus();
-                window.print();
-              };
-            </script>
-          </body>
-          </html>
-        `);
-        printWindow.document.close();
-      } else {
-        window.print();
-      }
-    } catch (e) {
-      window.print();
-    }
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+        <div style="margin-top: 20px; padding: 12px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; font-weight: bold; font-size: 12px; color: #1e1b4b;">
+          Toplam Kalan Taksit Yükü: ${format(totalRemaining)} | Toplam Plan: ${installmentDebts.length} Adet
+        </div>
+      </div>
+    `;
+
+    return await printHtmlReport({
+      html,
+      jobName: `Taksitli_Borclar_${new Date().toISOString().slice(0, 10)}`,
+      pdfFallback: () => handlePrint(true),
+      onStatus: (_type, text) => notify(text)
+    });
   };
 
   return (
@@ -612,16 +663,17 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             </button>
           )}
           <button
+            type="button"
             onClick={() => {
               if (!hasInstallmentsProAccess) {
                 if (onOpenRewardedModal) {
-                  onOpenRewardedModal("installments", () => handlePrint(false));
+                  onOpenRewardedModal("installments", () => { void handlePrint(false); });
                 } else {
                   onUpgradeClick?.();
                 }
                 return;
               }
-              handlePrint(false);
+              void handlePrint(false);
             }}
             className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
           >
@@ -629,20 +681,22 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
             <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
+            type="button"
+            disabled={isGeneratingPdf}
             onClick={() => {
               if (!hasInstallmentsProAccess) {
                 if (onOpenRewardedModal) {
-                  onOpenRewardedModal("installments", () => handlePrint(true));
+                  onOpenRewardedModal("installments", () => { void handlePrint(true); });
                 } else {
                   onUpgradeClick?.();
                 }
                 return;
               }
-              handlePrint(true);
+              void handlePrint(true);
             }}
-            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 transition cursor-pointer"
+            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 disabled:opacity-60 transition cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5" /> PDF Al
+            <FileText className="w-3.5 h-3.5" /> {isGeneratingPdf ? "Hazırlanıyor..." : "PDF Al"}
             <FeatureAccessBadge featureKey="installments" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
@@ -1092,10 +1146,14 @@ export const InstallmentsList: React.FC<InstallmentsListProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(installmentDebts, null, 2));
-                      alert("✅ Taksit planları verisi panoya kopyalandı!");
-                      setIsExportModalOpen(false);
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(JSON.stringify(installmentDebts, null, 2));
+                        notify("✅ Taksit planları verisi panoya kopyalandı!");
+                        setIsExportModalOpen(false);
+                      } catch {
+                        notify("⚠️ Panoya kopyalama başarısız oldu.");
+                      }
                     }}
                     className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition active:scale-[0.98] cursor-pointer"
                   >

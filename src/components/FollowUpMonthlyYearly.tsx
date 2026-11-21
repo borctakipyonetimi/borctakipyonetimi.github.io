@@ -311,6 +311,9 @@ export const FollowUpMonthlyYearly: React.FC<FollowUpMonthlyYearlyProps> = ({
       if (res.success) {
         setPdfSuccessMessage(`📄 '${res.fileName}' başarıyla oluşturuldu ve cihazınıza kaydedildi!`);
         setTimeout(() => setPdfSuccessMessage(null), 12000);
+      } else {
+        setPdfSuccessMessage("⚠️ PDF dosyası cihazınıza kaydedilemedi. Lütfen depolama izinlerini kontrol edin veya paylaşım menüsünü kullanın.");
+        setTimeout(() => setPdfSuccessMessage(null), 12000);
       }
     } catch (err: any) {
       console.error("Annual PDF generation error:", err);

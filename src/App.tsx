@@ -2474,7 +2474,7 @@ export default function App() {
       // Delay briefly to allow state and fonts to hydrate
       const timer = setTimeout(async () => {
         try {
-          await generateMonthlyPdfReport({
+          const pdfRes = await generateMonthlyPdfReport({
             month: targetM,
             year: targetY,
             incomes: incomesRef.current || incomes,
@@ -2489,7 +2489,11 @@ export default function App() {
             "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
             "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
           ];
-          triggerToast(`📥 ${monthNames[targetM]} ${targetY} Detaylı Finansal PDF Raporunuz başarıyla indirildi!`);
+          if (pdfRes?.success) {
+            triggerToast(`📥 ${monthNames[targetM]} ${targetY} Detaylı Finansal PDF Raporunuz başarıyla hazırlandı!`);
+          } else {
+            triggerToast("⚠️ PDF raporu kaydedilemedi. Lütfen tekrar deneyin veya paylaşım menüsünden kaydedin.");
+          }
         } catch (err: any) {
           console.error("[Monthly PDF] Download failed:", err);
           triggerToast(`PDF indirme hatası: ${err?.message || "Hata oluştu"}`);
@@ -7076,7 +7080,8 @@ export default function App() {
           recursive: true
         });
 
-        // Ayrıca kullanıcının Dosyalar / Belgeler klasörüne de kaydet
+        // Ayrıca kullanıcının Dosyalar / Belgeler klasörüne de kaydet (Android Scoped Storage çakışmasına karşı yedek yol)
+        let savedToDocuments = false;
         try {
           await Filesystem.writeFile({
             path: fileName,
@@ -7085,7 +7090,19 @@ export default function App() {
             encoding: Encoding.UTF8,
             recursive: true
           });
-        } catch {}
+          savedToDocuments = true;
+        } catch {
+          try {
+            await Filesystem.writeFile({
+              path: `ButcemPro/${fileName}`,
+              data: jsonString,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+            });
+            savedToDocuments = true;
+          } catch {}
+        }
 
         if (mode === "drive") {
           triggerToast(`📁 '${fileName}' hazırlandı! Menüden Google Drive'ı seçerek bulutunuza kaydedebilirsiniz.`);
@@ -7135,8 +7152,18 @@ export default function App() {
           return;
         }
 
-        // mode === "download": Doğrudan cihazın İndirilenler/Belgeler klasörüne kaydet, Paylaşım Menüsü açılmaz
-        triggerToast(`✅ '${fileName}' İndirilenler/Belgeler klasörüne doğrudan kaydedildi!`);
+        // mode === "download": Belgeler klasörüne yazılamadıysa sistem kaydet/paylaş menüsünü aç
+        if (!savedToDocuments) {
+          await Share.share({
+            title: fileName,
+            text: `Bütçem Pro Veri Yedeği: ${fileName}`,
+            url: cacheRes.uri,
+            dialogTitle: "Yedeği Cihaza Kaydet veya Paylaş"
+          });
+          triggerToast(`✅ '${fileName}' dışa aktarıldı!`);
+        } else {
+          triggerToast(`✅ '${fileName}' Belgeler klasörüne doğrudan kaydedildi!`);
+        }
         localStorage.setItem("last_backup_export_date", new Date().toISOString());
         return;
       } catch (capErr: any) {

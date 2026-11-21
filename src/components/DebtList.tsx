@@ -24,7 +24,8 @@ import { t } from "../utils/translations";
 import { PeriodFilter } from "./PeriodFilter";
 import { ProviderBadge, ProviderSelector } from "./ProviderBadge";
 import { getProviderById, detectProviderFromName } from "../data/providers";
-import { downloadFileWithCustomName, savePdfDocument } from "../utils/fileDownloadHelper";
+import { Capacitor } from "@capacitor/core";
+import { downloadFileWithCustomName, savePdfDocument, printHtmlReport } from "../utils/fileDownloadHelper";
 import { isAndroidAlarmBridgeAvailable, shareAndroidNativeBackupFile, saveAndroidNativeBackupFile } from "../utils/androidAlarmBridge";
 import { scheduleNotification, cancelDebtNotifications } from "../utils/notificationScheduler";
 import { RewardedFeatureType } from "../utils/rewardedAdService";
@@ -146,6 +147,17 @@ export const DebtList: React.FC<DebtListProps> = ({
   
   // Print & Report preview modal state
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const notify = useCallback((msg: string) => {
+    if (triggerToast) {
+      triggerToast(msg);
+    } else if (typeof window !== "undefined") {
+      try {
+        alert(msg);
+      } catch {}
+    }
+  }, [triggerToast]);
 
   // AI OCR scanner state and callback
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -474,33 +486,37 @@ export const DebtList: React.FC<DebtListProps> = ({
       const updatedList = [newTemplate, ...namedTemplates.filter((t) => t.name !== baseName)];
       setNamedTemplates(updatedList);
       localStorage.setItem("user_named_debt_templates", JSON.stringify(updatedList));
-      alert(`✅ '${baseName}' isimli şablon (${templateData.length} adet borç) uygulama hafızasına başarıyla kaydedildi!`);
+      notify(`✅ '${baseName}' isimli şablon (${templateData.length} adet borç) uygulama hafızasına başarıyla kaydedildi!`);
       setIsSaveTemplateModalOpen(false);
       return;
     }
 
     if (destination === "copy") {
-      navigator.clipboard.writeText(jsonString);
-      alert("✅ Şablon JSON verisi panoya kopyalandı!");
-      setIsSaveTemplateModalOpen(false);
+      try {
+        await navigator.clipboard.writeText(jsonString);
+        notify("✅ Şablon JSON verisi panoya kopyalandı!");
+        setIsSaveTemplateModalOpen(false);
+      } catch {
+        notify("⚠️ Panoya kopyalama başarısız oldu.");
+      }
       return;
     }
 
     const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
 
-    if (destination === "file_picker") {
-      // 1. Android Native App Bridge Check
+    if (destination === "file_picker" && !Capacitor.isNativePlatform()) {
+      // 1. Legacy Android WebView Bridge Check (only outside Capacitor)
       if (isAndroidAlarmBridgeAvailable()) {
         try {
           const isShared = shareAndroidNativeBackupFile(fileName, jsonString, "Borç Şablonu");
           if (isShared) {
-            alert(`✅ '${fileName}' borç şablonu paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
+            notify(`✅ '${fileName}' borç şablonu paylaşım ve kayıt menüsüne başarıyla aktarıldı!`);
             setIsSaveTemplateModalOpen(false);
             return;
           }
           const isSaved = saveAndroidNativeBackupFile(fileName, jsonString);
           if (isSaved) {
-            alert(`✅ '${fileName}' borç şablonu İndirilenler klasörüne başarıyla kaydedildi!`);
+            notify(`✅ '${fileName}' borç şablonu İndirilenler klasörüne başarıyla kaydedildi!`);
             setIsSaveTemplateModalOpen(false);
             return;
           }
@@ -524,7 +540,7 @@ export const DebtList: React.FC<DebtListProps> = ({
               text: `Bütçem Borç Şablonu (${fileName})`,
               files: [testFile],
             });
-            alert(`✅ '${fileName}' borç şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
+            notify(`✅ '${fileName}' borç şablonu seçilen konuma / uygulamaya başarıyla iletildi!`);
             setIsSaveTemplateModalOpen(false);
             return;
           }
@@ -548,7 +564,7 @@ export const DebtList: React.FC<DebtListProps> = ({
           const writable = await handle.createWritable();
           await writable.write(jsonString);
           await writable.close();
-          alert(`✅ '${fileName}' borç şablonu başarıyla seçtiğiniz konuma kaydedildi!`);
+          notify(`✅ '${fileName}' borç şablonu başarıyla seçtiğiniz konuma kaydedildi!`);
           setIsSaveTemplateModalOpen(false);
           return;
         } catch (err: any) {
@@ -558,17 +574,18 @@ export const DebtList: React.FC<DebtListProps> = ({
       }
     }
 
-    // Direct download with custom name (Android APK & Browser Safe)
-    downloadFileWithCustomName({
+    // Direct download with custom name (Capacitor APK Cache+Documents+Share & Browser Safe)
+    await downloadFileWithCustomName({
       fileName,
       content: jsonString,
       mimeType: "application/json",
+      openShareSheet: destination === "file_picker",
       onSuccess: () => {
-        alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla İndirilenler klasörünüze kaydedildi!`);
+        notify(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla dışa aktarıldı!`);
         setIsSaveTemplateModalOpen(false);
       },
       onError: () => {
-        alert(`✅ ${templateData.length} adet borç şablonu '${fileName}' adıyla kaydedildi!`);
+        notify(`⚠️ '${fileName}' dosyası dışa aktarılamadı.`);
         setIsSaveTemplateModalOpen(false);
       }
     });
@@ -1161,414 +1178,426 @@ export const DebtList: React.FC<DebtListProps> = ({
   };
 
   // Plain HTML Print & PDF trigger functions
-  const handlePrint = async (isPdf = false) => {
-    // Bypassed premium block so everyone can use PDF exports
+  const handlePrint = async (isPdf = false): Promise<boolean> => {
     const filtered = filteredDebts;
-    if (filtered.length === 0) {
-      alert("Yazdırılacak borç kaydı bulunamadı.");
-      return;
+    const hasAnyReportData = filtered.length > 0 || (isPdf && (installmentDebts.length > 0 || expenses.length > 0));
+    if (!hasAnyReportData) {
+      notify("Yazdırılacak veya PDF oluşturulacak borç kaydı bulunamadı.");
+      return false;
     }
 
     if (isPdf) {
-      const doc = new jsPDF();
-      
-      // Let's safe-convert turkish strings for standard PDF compatibility
-      const safeText = (text: string) => {
-        if (!text) return "";
-        const map: { [key: string]: string } = {
-          'ç': 'c', 'Ç': 'C',
-          'ğ': 'g', 'Ğ': 'G',
-          'ı': 'i', 'İ': 'I',
-          'ö': 'o', 'Ö': 'O',
-          'ş': 's', 'Ş': 'S',
-          'ü': 'u', 'Ü': 'U'
+      if (isGeneratingPdf) return false;
+      setIsGeneratingPdf(true);
+      try {
+        const doc = new jsPDF();
+
+        // Let's safe-convert Turkish strings and currency glyphs for standard Helvetica PDF compatibility
+        const safeText = (text: string | number | undefined | null) => {
+          if (text === undefined || text === null) return "";
+          const map: { [key: string]: string } = {
+            'ç': 'c', 'Ç': 'C',
+            'ğ': 'g', 'Ğ': 'G',
+            'ı': 'i', 'İ': 'I',
+            'ö': 'o', 'Ö': 'O',
+            'ş': 's', 'Ş': 'S',
+            'ü': 'u', 'Ü': 'U',
+            '₺': 'TL', '€': 'EUR', '£': 'GBP'
+          };
+          return String(text).replace(/[çÇğĞıİöÖşŞüÜ₺€£]/g, (match) => map[match] || match);
         };
-        return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (match) => map[match] || match);
-      };
+        const formatPdfVal = (val: number) => safeText(format(val));
+        const clipText = (text: string | number | undefined | null, maxLen: number) => {
+          const clean = safeText(text).trim();
+          return clean.length > maxLen ? `${clean.slice(0, Math.max(1, maxLen - 2))}..` : clean;
+        };
 
-      // Header Banner Box
-      doc.setFillColor(30, 41, 59); // slate-800
-      doc.rect(0, 0, 210, 32, "F");
+        // Header Banner Box
+        doc.setFillColor(30, 41, 59); // slate-800
+        doc.rect(0, 0, 210, 32, "F");
 
-      // Header Text
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text("Butcem Pro - Borc Durum Raporu", 15, 18);
-
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(226, 232, 240);
-      const activeText = activeTab === "unpaid" ? "Odenmemis" : activeTab === "paid" ? "Odenmis" : "Tumu";
-      doc.text(`Tarih: ${new Date().toLocaleDateString("tr-TR")} | Borc Grubu: ${safeText(activeText)}`, 15, 26);
-
-      // Section
-      doc.setFontSize(11);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(15, 23, 42); // slate-900
-      doc.text(safeText("Borç Detayları Listesi"), 15, 45);
-
-      // Draw horizontal line
-      doc.setDrawColor(226, 232, 240);
-      doc.setDrawColor(148, 163, 184);
-      doc.setLineWidth(0.5);
-      doc.line(15, 48, 195, 48);
-
-      let yPos = 56;
-
-      // Table Header row
-      doc.setFillColor(241, 245, 249); // slate-100
-      doc.rect(15, yPos - 5, 180, 8, "F");
-
-      doc.setFontSize(9);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(51, 65, 85); // slate-700
-      doc.text(safeText("Borç Adı"), 18, yPos);
-      doc.text(safeText("Kategori"), 70, yPos);
-      doc.text(safeText("Son Ödeme"), 105, yPos);
-      doc.text(safeText("Tutar"), 140, yPos);
-      doc.text(safeText("Ödenen"), 165, yPos);
-
-      // Separator
-      doc.setDrawColor(226, 232, 240);
-      doc.line(15, yPos + 4, 195, yPos + 4);
-      yPos += 10;
-
-      // Row elements
-      filtered.forEach((d) => {
-        // Page break if we reach the end
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 25;
-          // Redraw table headers on new page
-          doc.setFillColor(241, 245, 249);
-          doc.rect(15, yPos - 5, 180, 8, "F");
-          doc.setFont("Helvetica", "bold");
-          doc.text(safeText("Borç Adı"), 18, yPos);
-          doc.text(safeText("Kategori"), 70, yPos);
-          doc.text(safeText("Son Ödeme"), 105, yPos);
-          doc.text(safeText("Tutar"), 140, yPos);
-          doc.text(safeText("Ödenen"), 165, yPos);
-          doc.line(15, yPos + 4, 195, yPos + 4);
-          yPos += 10;
-        }
+        // Header Text
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("Butcem Pro - Borc Durum Raporu", 15, 18);
 
         doc.setFont("Helvetica", "normal");
-        doc.setTextColor(30, 41, 59);
-        doc.text(safeText(d.name), 18, yPos);
-        doc.text(safeText(d.category), 70, yPos);
-        doc.text(safeText(d.dueDate || "Belirtilmemis"), 105, yPos);
-        doc.text(format(d.amount), 140, yPos);
-        doc.text(format(d.paid), 165, yPos);
+        doc.setFontSize(9);
+        doc.setTextColor(226, 232, 240);
+        const activeText = activeTab === "unpaid" ? "Odenmemis" : activeTab === "paid" ? "Odenmis" : "Tumu";
+        doc.text(`Tarih: ${new Date().toLocaleDateString("tr-TR")} | Borc Grubu: ${safeText(activeText)}`, 15, 26);
 
-        // Underline row
-        doc.setDrawColor(241, 245, 249);
-        doc.line(15, yPos + 3, 195, yPos + 3);
-        yPos += 8;
-      });
+        // Section
+        doc.setFontSize(11);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42); // slate-900
+        doc.text(safeText("Borç Detayları Listesi"), 15, 45);
 
-      // Totals Box
-      if (yPos > 250) {
+        // Draw horizontal line
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.5);
+        doc.line(15, 48, 195, 48);
+
+        let yPos = 56;
+
+        // Table Header row
+        doc.setFillColor(241, 245, 249); // slate-100
+        doc.rect(15, yPos - 5, 180, 8, "F");
+
+        doc.setFontSize(9);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(51, 65, 85); // slate-700
+        doc.text(safeText("Borç Adı"), 18, yPos);
+        doc.text(safeText("Kategori"), 70, yPos);
+        doc.text(safeText("Son Ödeme"), 105, yPos);
+        doc.text(safeText("Tutar"), 140, yPos);
+        doc.text(safeText("Ödenen"), 168, yPos);
+
+        // Separator
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, yPos + 4, 195, yPos + 4);
+        yPos += 10;
+
+        if (filtered.length === 0) {
+          doc.setFont("Helvetica", "normal");
+          doc.setTextColor(100, 116, 139);
+          doc.text(safeText("Bu sekmede kayitli borc bulunmamaktadir."), 18, yPos);
+          yPos += 10;
+        } else {
+          // Row elements
+          filtered.forEach((d) => {
+            if (yPos > 270) {
+              doc.addPage();
+              yPos = 25;
+              doc.setFillColor(241, 245, 249);
+              doc.rect(15, yPos - 5, 180, 8, "F");
+              doc.setFont("Helvetica", "bold");
+              doc.setTextColor(51, 65, 85);
+              doc.text(safeText("Borç Adı"), 18, yPos);
+              doc.text(safeText("Kategori"), 70, yPos);
+              doc.text(safeText("Son Ödeme"), 105, yPos);
+              doc.text(safeText("Tutar"), 140, yPos);
+              doc.text(safeText("Ödenen"), 168, yPos);
+              doc.line(15, yPos + 4, 195, yPos + 4);
+              yPos += 10;
+            }
+
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(30, 41, 59);
+            doc.text(clipText(d.name, 26), 18, yPos);
+            doc.text(clipText(d.category, 16), 70, yPos);
+            doc.text(safeText(d.dueDate || "Belirtilmemis"), 105, yPos);
+            doc.text(formatPdfVal(d.amount), 140, yPos);
+            doc.text(formatPdfVal(d.paid), 168, yPos);
+
+            doc.setDrawColor(241, 245, 249);
+            doc.line(15, yPos + 3, 195, yPos + 3);
+            yPos += 8;
+          });
+        }
+
+        // Totals Box
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 25;
+        }
+
+        yPos += 5;
+        doc.setFillColor(248, 250, 252); // slate-50
+        doc.rect(15, yPos - 4, 180, 22, "F");
+        doc.setFont("Helvetica", "bold");
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(15, yPos - 4, 180, 22, "S");
+
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        const totalAmount = filtered.reduce((s, d) => s + d.amount, 0);
+        const totalPaid = filtered.reduce((s, d) => s + d.paid, 0);
+        const totalRemaining = totalAmount - totalPaid;
+
+        doc.text(safeText("TOPLAM BORÇ:"), 18, yPos + 2);
+        doc.text(formatPdfVal(totalAmount), 54, yPos + 2);
+
+        doc.text(safeText("TOPLAM ÖDENEN:"), 18, yPos + 9);
+        doc.text(formatPdfVal(totalPaid), 54, yPos + 9);
+
+        doc.text(safeText("KALAN ÖDENECEK BORÇ:"), 105, yPos + 5);
+        doc.setFontSize(11);
+        doc.setTextColor(220, 38, 38); // red-600
+        doc.text(formatPdfVal(totalRemaining), 105, yPos + 12);
+
+        // Footnote
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+
+        // --- PAGE 2: TAKSITLI ALISVERISLER VE KREDILER ---
         doc.addPage();
-        yPos = 25;
-      }
 
-      yPos += 5;
-      doc.setFillColor(248, 250, 252); // slate-50
-      doc.rect(15, yPos - 4, 180, 22, "F");
-      doc.setFont("Helvetica", "bold");
-      doc.setDrawColor(203, 213, 225);
-      doc.rect(15, yPos - 4, 180, 22, "S");
+        doc.setFillColor(15, 23, 42); // slate-900
+        doc.rect(0, 0, 210, 24, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("Butcem Pro - Taksitli Alisverisler ve Krediler", 15, 15);
 
-      doc.setFontSize(9);
-      doc.setTextColor(15, 23, 42);
-      const totalAmount = filtered.reduce((s, d) => s + d.amount, 0);
-      const totalPaid = filtered.reduce((s, d) => s + d.paid, 0);
-      const totalRemaining = totalAmount - totalPaid;
+        doc.setFontSize(10);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
 
-      doc.text(safeText("TOPLAM BORÇ:"), 18, yPos + 2);
-      doc.text(format(totalAmount), 50, yPos + 2);
+        const periodStr = selectedMonth !== null && selectedYear !== null
+          ? `${selectedMonth + 1} / ${selectedYear}`
+          : "Tum Zamanlar (Filtresiz)";
+        doc.text(safeText(`Secilen Donem Taksit Detaylari (${periodStr})`), 15, 38);
 
-      doc.text(safeText("TOPLAM ÖDENEN:"), 18, yPos + 9);
-      doc.text(format(totalPaid), 50, yPos + 9);
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.5);
+        doc.line(15, 41, 195, 41);
 
-      doc.text(safeText("KALAN ÖDENECEK BORÇ:"), 105, yPos + 5);
-      doc.setFontSize(11);
-      doc.setTextColor(220, 38, 38); // red-600
-      doc.text(format(totalRemaining), 105, yPos + 12);
+        let tYPos = 49;
 
-      // Footnote
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(15, tYPos - 5, 180, 8, "F");
+        doc.setFontSize(9);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(51, 65, 85);
+        doc.text(safeText("Taksit / Kredi Adı"), 18, tYPos);
+        doc.text(safeText("Baslangic"), 75, tYPos);
+        doc.text(safeText("Taksit Durumu"), 105, tYPos);
+        doc.text(safeText("Aylik Taksit"), 140, tYPos);
+        doc.text(safeText("Toplam Tutar"), 168, tYPos);
 
-      // --- PAGE 2: TAKSITLI ALISVERISLER VE KREDILER ---
-      doc.addPage();
-      
-      // Header Banner Box (Slate Accent)
-      doc.setFillColor(15, 23, 42); // slate-900
-      doc.rect(0, 0, 210, 24, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("Butcem Pro - Taksitli Alisverisler ve Krediler", 15, 15);
-      
-      doc.setFontSize(10);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      
-      let periodStr = selectedMonth !== null && selectedYear !== null 
-        ? `${selectedMonth + 1} / ${selectedYear}` 
-        : "Tum Zamanlar (Filtresiz)";
-      doc.text(safeText(`Secilen Donem Taksit Detaylari (${periodStr})`), 15, 38);
-      
-      doc.setDrawColor(148, 163, 184);
-      doc.setLineWidth(0.5);
-      doc.line(15, 41, 195, 41);
-      
-      let tYPos = 49;
-      
-      // Headers
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, tYPos - 5, 180, 8, "F");
-      doc.setFontSize(9);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(51, 65, 85);
-      doc.text(safeText("Taksit / Kredi Adı"), 18, tYPos);
-      doc.text(safeText("Baslangic"), 75, tYPos);
-      doc.text(safeText("Taksit Durumu"), 105, tYPos);
-      doc.text(safeText("Aylik Taksit"), 140, tYPos);
-      doc.text(safeText("Toplam Tutar"), 165, tYPos);
-      
-      doc.setDrawColor(226, 232, 240);
-      doc.line(15, tYPos + 4, 195, tYPos + 4);
-      tYPos += 10;
-      
-      // Get active list
-      let instList: any[] = [];
-      if (selectedMonth !== null && selectedYear !== null) {
-        instList = installmentDebts.map((inst) => {
-          const startDate = new Date(inst.firstDueDate || "");
-          const startYear = startDate.getFullYear();
-          const startMonth = startDate.getMonth();
-          const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
-          const isActive = monthDiff >= 0 && monthDiff < inst.installmentCount;
-          const isPaid = inst.paidInstallmentCount > monthDiff;
-          const installmentNoStr = isActive ? `${monthDiff + 1} / ${inst.installmentCount}` : "Pasif/Bitti";
-          const paymentThisMonth = isActive ? (inst.totalAmount / (inst.installmentCount || 1)) : 0;
-          return {
-            ...inst,
-            isActive,
-            isPaid,
-            installmentNoStr,
-            paymentThisMonth
-          };
-        }).filter(item => item.isActive);
-      } else {
-        // All installments
-        instList = installmentDebts.map((inst) => {
-          return {
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, tYPos + 4, 195, tYPos + 4);
+        tYPos += 10;
+
+        let instList: any[] = [];
+        if (selectedMonth !== null && selectedYear !== null) {
+          instList = installmentDebts.map((inst) => {
+            const startDate = new Date(inst.firstDueDate || "");
+            const startYear = startDate.getFullYear();
+            const startMonth = startDate.getMonth();
+            const monthDiff = (selectedYear - startYear) * 12 + (selectedMonth - startMonth);
+            const isActive = monthDiff >= 0 && monthDiff < inst.installmentCount;
+            const isPaid = inst.paidInstallmentCount > monthDiff;
+            const installmentNoStr = isActive ? `${monthDiff + 1} / ${inst.installmentCount}` : "Pasif/Bitti";
+            const paymentThisMonth = isActive ? (inst.totalAmount / (inst.installmentCount || 1)) : 0;
+            return {
+              ...inst,
+              isActive,
+              isPaid,
+              installmentNoStr,
+              paymentThisMonth
+            };
+          }).filter(item => item.isActive);
+        } else {
+          instList = installmentDebts.map((inst) => ({
             ...inst,
             isActive: true,
             isPaid: inst.paidInstallmentCount >= inst.installmentCount,
             installmentNoStr: `${inst.paidInstallmentCount} / ${inst.installmentCount}`,
             paymentThisMonth: inst.totalAmount / (inst.installmentCount || 1)
-          };
-        });
-      }
-      
-      if (instList.length === 0) {
-        doc.setFont("Helvetica", "normal");
-        doc.setTextColor(100, 116, 139);
-        doc.text(safeText("Bu doneme ait aktif taksitli harcama veya taksitli kredi bulunmuyor."), 18, tYPos + 5);
-        tYPos += 15;
-      } else {
-        instList.forEach((inst) => {
-          if (tYPos > 260) {
-            doc.addPage();
-            tYPos = 25;
-            // Redraw header
-            doc.setFillColor(241, 245, 249);
-            doc.rect(15, tYPos - 5, 180, 8, "F");
-            doc.setFont("Helvetica", "bold");
-            doc.text(safeText("Taksit / Kredi Adı"), 18, tYPos);
-            doc.text(safeText("Baslangic"), 75, tYPos);
-            doc.text(safeText("Taksit Durumu"), 105, tYPos);
-            doc.text(safeText("Aylik Taksit"), 140, tYPos);
-            doc.text(safeText("Toplam Tutar"), 165, tYPos);
-            doc.line(15, tYPos + 4, 195, tYPos + 4);
-            tYPos += 10;
-          }
-          
-          doc.setFont("Helvetica", "normal");
-          doc.setTextColor(30, 41, 59);
-          doc.text(safeText(inst.name || "Taksit"), 18, tYPos);
-          doc.text(safeText(inst.firstDueDate || "-"), 75, tYPos);
-          
-          const statusText = inst.isPaid ? "Odenmis" : `${inst.installmentNoStr}`;
-          doc.text(safeText(statusText), 105, tYPos);
-          
-          const monthlyPay = inst.totalAmount / (inst.installmentCount || 1);
-          doc.text(format(monthlyPay), 140, tYPos);
-          doc.text(format(inst.totalAmount), 165, tYPos);
-          
-          doc.setDrawColor(241, 245, 249);
-          doc.line(15, tYPos + 3, 195, tYPos + 3);
-          tYPos += 9;
-        });
-      }
-      
-      // Totals of active installments
-      const totalInstallmentsSum = instList.reduce((sum, item) => sum + (item.paymentThisMonth || 0), 0);
-      doc.setFillColor(248, 250, 252);
-      doc.rect(15, tYPos, 180, 12, "F");
-      doc.setDrawColor(203, 213, 225);
-      doc.rect(15, tYPos, 180, 12, "S");
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text(safeText("SECILEN DONEM TOPLAM TAKSIT ODEMESI:"), 18, tYPos + 8);
-      doc.text(format(totalInstallmentsSum), 140, tYPos + 8);
-      
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+          }));
+        }
 
-      // --- PAGE 3: DONEM GIDER DETAYLARI VE HARCAMALAR ---
-      doc.addPage();
-      
-      // Header Banner Box (Amber/Charcoal Accent)
-      doc.setFillColor(15, 23, 42); // slate-900
-      doc.rect(0, 0, 210, 24, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("Butcem Pro - Harcamalar ve Donemsel Giderler", 15, 15);
-      
-      doc.setFontSize(10);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text(safeText(`Secilen Donem Harcama ve Gider Raporu (${periodStr})`), 15, 38);
-      
-      doc.setDrawColor(148, 163, 184);
-      doc.setLineWidth(0.5);
-      doc.line(15, 41, 195, 41);
-      
-      let eYPos = 49;
-      
-      // Headers
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, eYPos - 5, 180, 8, "F");
-      doc.setFontSize(9);
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(51, 65, 85);
-      doc.text(safeText("Gider Basligi"), 18, eYPos);
-      doc.text(safeText("Gider Kategorisi"), 80, eYPos);
-      doc.text(safeText("Harcama Tarihi"), 120, eYPos);
-      doc.text(safeText("Tutar"), 165, eYPos);
-      
-      doc.setDrawColor(226, 232, 240);
-      doc.line(15, eYPos + 4, 195, eYPos + 4);
-      eYPos += 10;
-      
-      // Filter expenses
-      let filteredExpensesList: any[] = [];
-      if (selectedMonth !== null && selectedYear !== null) {
-        filteredExpensesList = expenses.filter((e) => {
-          if (!e.date) return false;
-          try {
-            const expDate = new Date(e.date);
-            return expDate.getMonth() === selectedMonth && expDate.getFullYear() === selectedYear;
-          } catch {
-            return false;
-          }
-        });
-      } else {
-        filteredExpensesList = [...expenses];
-      }
-      
-      if (filteredExpensesList.length === 0) {
-        doc.setFont("Helvetica", "normal");
-        doc.setTextColor(100, 116, 139);
-        doc.text(safeText("Bu doneme ait kayitli harcama veya bütce gideri bulunmuyor."), 18, eYPos + 5);
-        eYPos += 15;
-      } else {
-        filteredExpensesList.forEach((exp) => {
-          if (eYPos > 260) {
-            doc.addPage();
-            eYPos = 25;
-            doc.setFillColor(241, 245, 249);
-            doc.rect(15, eYPos - 5, 180, 8, "F");
-            doc.setFont("Helvetica", "bold");
-            doc.text(safeText("Gider Basligi"), 18, eYPos);
-            doc.text(safeText("Gider Kategorisi"), 80, eYPos);
-            doc.text(safeText("Harcama Tarihi"), 120, eYPos);
-            doc.text(safeText("Tutar"), 165, eYPos);
-            doc.line(15, eYPos + 4, 195, eYPos + 4);
-            eYPos += 10;
-          }
-          
+        if (instList.length === 0) {
           doc.setFont("Helvetica", "normal");
-          doc.setTextColor(30, 41, 59);
-          doc.text(safeText(exp.title || exp.description || "Gider"), 18, eYPos);
-          doc.text(safeText(exp.category || "Genel"), 80, eYPos);
-          doc.text(safeText(exp.date || "-"), 120, eYPos);
-          doc.text(format(exp.amount), 165, eYPos);
-          
-          doc.setDrawColor(241, 245, 249);
-          doc.line(15, eYPos + 3, 195, eYPos + 3);
-          eYPos += 9;
-        });
-      }
-      
-      // Totals of filtered expenses
-      const totalExpensesSum = filteredExpensesList.reduce((sum, item) => sum + (item.amount || 0), 0);
-      doc.setFillColor(248, 250, 252);
-      doc.rect(15, eYPos, 180, 12, "F");
-      doc.setDrawColor(203, 213, 225);
-      doc.rect(15, eYPos, 180, 12, "S");
-      doc.setFont("Helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text(safeText("SECILEN DONEM TOPLAM KAYITLI GIDER TUTARI:"), 18, eYPos + 8);
-      doc.text(format(totalExpensesSum), 140, eYPos + 8);
-      
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+          doc.setTextColor(100, 116, 139);
+          doc.text(safeText("Bu doneme ait aktif taksitli harcama veya taksitli kredi bulunmuyor."), 18, tYPos + 5);
+          tYPos += 15;
+        } else {
+          instList.forEach((inst) => {
+            if (tYPos > 260) {
+              doc.addPage();
+              tYPos = 25;
+              doc.setFillColor(241, 245, 249);
+              doc.rect(15, tYPos - 5, 180, 8, "F");
+              doc.setFont("Helvetica", "bold");
+              doc.setTextColor(51, 65, 85);
+              doc.text(safeText("Taksit / Kredi Adı"), 18, tYPos);
+              doc.text(safeText("Baslangic"), 75, tYPos);
+              doc.text(safeText("Taksit Durumu"), 105, tYPos);
+              doc.text(safeText("Aylik Taksit"), 140, tYPos);
+              doc.text(safeText("Toplam Tutar"), 168, tYPos);
+              doc.line(15, tYPos + 4, 195, tYPos + 4);
+              tYPos += 10;
+            }
 
-      try {
-        await savePdfDocument(doc, "Butcem_Pro_Borc_Raporu.pdf");
-      } catch (pdfErr) {
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(30, 41, 59);
+            doc.text(clipText(inst.name || "Taksit", 28), 18, tYPos);
+            doc.text(safeText(inst.firstDueDate || "-"), 75, tYPos);
+
+            const statusText = inst.isPaid ? "Odenmis" : `${inst.installmentNoStr}`;
+            doc.text(safeText(statusText), 105, tYPos);
+
+            const monthlyPay = inst.totalAmount / (inst.installmentCount || 1);
+            doc.text(formatPdfVal(monthlyPay), 140, tYPos);
+            doc.text(formatPdfVal(inst.totalAmount), 168, tYPos);
+
+            doc.setDrawColor(241, 245, 249);
+            doc.line(15, tYPos + 3, 195, tYPos + 3);
+            tYPos += 9;
+          });
+        }
+
+        const totalInstallmentsSum = instList.reduce((sum, item) => sum + (item.paymentThisMonth || 0), 0);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, tYPos, 180, 12, "F");
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(15, tYPos, 180, 12, "S");
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(safeText("SECILEN DONEM TOPLAM TAKSIT ODEMESI:"), 18, tYPos + 8);
+        doc.text(formatPdfVal(totalInstallmentsSum), 140, tYPos + 8);
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+
+        // --- PAGE 3: DONEM GIDER DETAYLARI VE HARCAMALAR ---
+        doc.addPage();
+
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 210, 24, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("Butcem Pro - Harcamalar ve Donemsel Giderler", 15, 15);
+
+        doc.setFontSize(10);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(safeText(`Secilen Donem Harcama ve Gider Raporu (${periodStr})`), 15, 38);
+
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.5);
+        doc.line(15, 41, 195, 41);
+
+        let eYPos = 49;
+
+        doc.setFillColor(241, 245, 249);
+        doc.rect(15, eYPos - 5, 180, 8, "F");
+        doc.setFontSize(9);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(51, 65, 85);
+        doc.text(safeText("Gider Basligi"), 18, eYPos);
+        doc.text(safeText("Gider Kategorisi"), 80, eYPos);
+        doc.text(safeText("Harcama Tarihi"), 122, eYPos);
+        doc.text(safeText("Tutar"), 165, eYPos);
+
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, eYPos + 4, 195, eYPos + 4);
+        eYPos += 10;
+
+        let filteredExpensesList: any[] = [];
+        if (selectedMonth !== null && selectedYear !== null) {
+          filteredExpensesList = expenses.filter((e) => {
+            if (!e.date) return false;
+            try {
+              const expDate = new Date(e.date);
+              return expDate.getMonth() === selectedMonth && expDate.getFullYear() === selectedYear;
+            } catch {
+              return false;
+            }
+          });
+        } else {
+          filteredExpensesList = [...expenses];
+        }
+
+        if (filteredExpensesList.length === 0) {
+          doc.setFont("Helvetica", "normal");
+          doc.setTextColor(100, 116, 139);
+          doc.text(safeText("Bu doneme ait kayitli harcama veya bütce gideri bulunmuyor."), 18, eYPos + 5);
+          eYPos += 15;
+        } else {
+          filteredExpensesList.forEach((exp) => {
+            if (eYPos > 260) {
+              doc.addPage();
+              eYPos = 25;
+              doc.setFillColor(241, 245, 249);
+              doc.rect(15, eYPos - 5, 180, 8, "F");
+              doc.setFont("Helvetica", "bold");
+              doc.setTextColor(51, 65, 85);
+              doc.text(safeText("Gider Basligi"), 18, eYPos);
+              doc.text(safeText("Gider Kategorisi"), 80, eYPos);
+              doc.text(safeText("Harcama Tarihi"), 122, eYPos);
+              doc.text(safeText("Tutar"), 165, eYPos);
+              doc.line(15, eYPos + 4, 195, eYPos + 4);
+              eYPos += 10;
+            }
+
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(30, 41, 59);
+            doc.text(clipText(exp.title || exp.description || "Gider", 30), 18, eYPos);
+            doc.text(clipText(exp.category || "Genel", 18), 80, eYPos);
+            doc.text(safeText(exp.date || "-"), 122, eYPos);
+            doc.text(formatPdfVal(exp.amount || 0), 165, eYPos);
+
+            doc.setDrawColor(241, 245, 249);
+            doc.line(15, eYPos + 3, 195, eYPos + 3);
+            eYPos += 9;
+          });
+        }
+
+        const totalExpensesSum = filteredExpensesList.reduce((sum, item) => sum + (item.amount || 0), 0);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, eYPos, 180, 12, "F");
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(15, eYPos, 180, 12, "S");
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(safeText("SECILEN DONEM TOPLAM KAYITLI GIDER TUTARI:"), 18, eYPos + 8);
+        doc.text(formatPdfVal(totalExpensesSum), 140, eYPos + 8);
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(safeText("Butcem Pro Akıllı Finans Yonetim Sistemi | v1.0"), 15, 285);
+
+        const pdfFileName = `Butcem_Pro_Borc_Raporu_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const savedOk = await savePdfDocument(doc, pdfFileName);
+        if (savedOk) {
+          notify(`📄 Borç Durum Raporu (${pdfFileName}) başarıyla hazırlandı!`);
+        } else {
+          notify("⚠️ PDF dosyası kaydedilemedi. Lütfen tekrar deneyin.");
+        }
+        return savedOk;
+      } catch (pdfErr: any) {
         console.error("PDF export error:", pdfErr);
+        notify(`PDF oluşturulurken hata oluştu: ${pdfErr?.message || "Bilinmeyen hata"}`);
+        return false;
+      } finally {
+        setIsGeneratingPdf(false);
       }
-      return;
     }
 
     const html = `
-      <div style="font-family: sans-serif; padding: 25px; color: #1e293b; background: white;">
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #1e293b; background: white;">
         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">
           <div>
-            <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">BÜTÇEM PRO</h2>
-            <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Akıllı Bireysel Bütçe ve Borç Yönetim Sistemi</p>
+            <h2 style="color: #4f46e5; margin: 0; font-size: 22px; font-weight: 800;">BÜTÇEM PRO</h2>
+            <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Akıllı Bireysel Bütçe ve Borç Yönetim Sistemi</p>
           </div>
           <div style="text-align: right;">
-            <h3 style="margin: 0; font-size: 14px; color: #0f172a;">Borç Durum Raporu</h3>
-            <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b;">Tarih: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}</p>
+            <h3 style="margin: 0; font-size: 13px; color: #0f172a;">Borç Durum Raporu</h3>
+            <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b;">Tarih: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR")}</p>
           </div>
         </div>
         
-        <p style="font-size: 13px; color: #475569; margin-bottom: 15px;">
+        <p style="font-size: 12px; color: #475569; margin-bottom: 12px;">
           <strong>Rapor Tipi:</strong> ${activeTab === "unpaid" ? "Ödenmemiş Borçlar" : activeTab === "paid" ? "Ödenmiş Borçlar" : "Tüm Borçlar"}
         </p>
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
           <thead>
             <tr>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Borç Adı</th>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Kategori</th>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Son Ödeme</th>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Toplam Tutar</th>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Ödenen Tutar</th>
-              <th style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; font-size: 12px; background: #f1f5f9; font-weight: bold; color: #334155;">Kalan Tutar</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Borç Adı</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Kategori</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Son Ödeme</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Toplam Tutar</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Ödenen Tutar</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; font-size: 11px; background: #f1f5f9; font-weight: bold; color: #334155;">Kalan Tutar</th>
             </tr>
           </thead>
           <tbody>
@@ -1576,73 +1605,37 @@ export const DebtList: React.FC<DebtListProps> = ({
               .map(
                 (d) => `
               <tr>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; color: #1e293b;">${d.name}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; color: #475569;">${d.category}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; color: #475569;">${d.dueDate || "Belirtilmemiş"}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; text-align: right; color: #1e293b; font-weight: 500;">${format(d.amount)}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; text-align: right; color: #16a34a; font-weight: 500;">${format(d.paid)}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; text-align: right; color: ${d.amount - d.paid > 0 ? '#dc2626' : '#1e293b'}; font-weight: bold;">${format(d.amount - d.paid)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; color: #1e293b;">${d.name}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; color: #475569;">${d.category}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; color: #475569;">${d.dueDate || "Belirtilmemiş"}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; text-align: right; color: #1e293b; font-weight: 500;">${format(d.amount)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; text-align: right; color: #16a34a; font-weight: 500;">${format(d.paid)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; text-align: right; color: ${d.amount - d.paid > 0 ? '#dc2626' : '#1e293b'}; font-weight: bold;">${format(d.amount - d.paid)}</td>
               </tr>
             `
               )
               .join("")}
             <tr style="font-weight: bold; background: #f8fafc;">
-              <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px 12px; font-size: 12px; color: #0f172a;">GENEL TOPLAM</td>
-              <td style="border: 1px solid #cbd5e1; padding: 10px 12px; font-size: 12px; text-align: right; color: #0f172a;">${format(filtered.reduce((s, d) => s + d.amount, 0))}</td>
-              <td style="border: 1px solid #cbd5e1; padding: 10px 12px; font-size: 12px; text-align: right; color: #16a34a;">${format(filtered.reduce((s, d) => s + d.paid, 0))}</td>
-              <td style="border: 1px solid #cbd5e1; padding: 10px 12px; font-size: 12px; text-align: right; color: #dc2626; font-weight: 900;">${format(filtered.reduce((s, d) => s + (d.amount - d.paid), 0))}</td>
+              <td colspan="3" style="border: 1px solid #cbd5e1; padding: 9px 10px; font-size: 11px; color: #0f172a;">GENEL TOPLAM</td>
+              <td style="border: 1px solid #cbd5e1; padding: 9px 10px; font-size: 11px; text-align: right; color: #0f172a;">${format(filtered.reduce((s, d) => s + d.amount, 0))}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 9px 10px; font-size: 11px; text-align: right; color: #16a34a;">${format(filtered.reduce((s, d) => s + d.paid, 0))}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 9px 10px; font-size: 11px; text-align: right; color: #dc2626; font-weight: 900;">${format(filtered.reduce((s, d) => s + (d.amount - d.paid), 0))}</td>
             </tr>
           </tbody>
         </table>
         
-        <div style="margin-top: 35px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center; font-size: 11px; color: #94a3b8; font-weight: 600;">
+        <div style="margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 12px; text-align: center; font-size: 10px; color: #94a3b8; font-weight: 600;">
           Bütçem Pro Bireysel Finans ve Borç Yönetim Platformu | Güvenli & Şifreli Yerel Defter
         </div>
       </div>
     `;
 
-    // Direct DOM printing overlay to bypass iframe restrictions in any sandboxed webview environment completely
-    const printContainer = document.createElement("div");
-    printContainer.id = "print-container-temp";
-    printContainer.style.position = "absolute";
-    printContainer.style.left = "0";
-    printContainer.style.top = "0";
-    printContainer.style.width = "100%";
-    printContainer.style.backgroundColor = "white";
-    printContainer.style.color = "black";
-    printContainer.style.zIndex = "9999999";
-    printContainer.innerHTML = html;
-    document.body.appendChild(printContainer);
-
-    const printStyle = document.createElement("style");
-    printStyle.id = "print-style-temp";
-    printStyle.innerHTML = `
-      @media print {
-        body {
-          background-color: white !important;
-          color: black !important;
-        }
-        body > *:not(#print-container-temp) {
-          display: none !important;
-        }
-        #print-container-temp, #print-container-temp * {
-          visibility: visible !important;
-        }
-      }
-    `;
-    document.head.appendChild(printStyle);
-
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (err) {
-        console.error("Yazdırma işlemi sırasında hata oluştu:", err);
-      }
-      setTimeout(() => {
-        printContainer.remove();
-        printStyle.remove();
-      }, 1000);
-    }, 150);
+    return await printHtmlReport({
+      html,
+      jobName: `Butcem_Pro_Borc_Durum_Raporu_${new Date().toISOString().slice(0, 10)}`,
+      pdfFallback: () => handlePrint(true),
+      onStatus: (_type, text) => notify(text)
+    });
   };
 
   return (
@@ -1733,20 +1726,22 @@ export const DebtList: React.FC<DebtListProps> = ({
             <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
+            type="button"
+            disabled={isGeneratingPdf}
             onClick={() => {
               if (!hasDebtsProAccess) {
                 if (onOpenRewardedModal) {
-                  onOpenRewardedModal("debts", () => handlePrint(true));
+                  onOpenRewardedModal("debts", () => { void handlePrint(true); });
                 } else {
                   onUpgradeClick?.();
                 }
               } else {
-                handlePrint(true);
+                void handlePrint(true);
               }
             }}
-            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 transition cursor-pointer"
+            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-amber-600 disabled:opacity-60 transition cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5" /> PDF Al
+            <FileText className="w-3.5 h-3.5" /> {isGeneratingPdf ? "Hazırlanıyor..." : "PDF Al"}
             <FeatureAccessBadge featureKey="debts" isPremiumProp={isPremium} compact hideWhenPaid />
           </button>
           <button
@@ -2473,9 +2468,9 @@ export const DebtList: React.FC<DebtListProps> = ({
             </div>
 
             {/* Document Preview (Simulated A4 Paper) */}
-            <div className="flex-1 overflow-y-auto p-4 bg-slate-100 dark:bg-slate-950/40 select-text">
-              <div className="bg-white text-slate-950 border border-slate-200 p-8 max-w-[21cm] mx-auto shadow-md rounded-xl text-left font-sans text-[11px] min-h-[14cm]">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #e2e8f0", paddingBottom: "12px", marginBottom: "20px" }}>
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-100 dark:bg-slate-950/40 select-text">
+              <div className="bg-white text-slate-950 border border-slate-200 p-4 sm:p-8 max-w-[21cm] mx-auto shadow-md rounded-xl text-left font-sans text-[11px] min-h-[14cm]">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
                   <div>
                     <h2 style={{ color: "#4f46e5", margin: 0, fontSize: "20px", fontWeight: 800 }}>BÜTÇEM PRO</h2>
                     <p style={{ margin: "3px 0 0 0", fontSize: "10px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Akıllı Bireysel Bütçe ve Borç Yönetim Sistemi</p>
@@ -2486,42 +2481,44 @@ export const DebtList: React.FC<DebtListProps> = ({
                   </div>
                 </div>
 
-                <p style={{ fontSize: "11px", color: "#475569", marginBottom: "15px" }}>
+                <p style={{ fontSize: "11px", color: "#475569", marginBottom: "12px" }}>
                   <strong>Rapor Tipi:</strong> {activeTab === "unpaid" ? "Ödenmemiş Borçlar" : activeTab === "paid" ? "Ödenmiş Borçlar" : "Tüm Borçlar"}
                 </p>
 
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "15px" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Borç Adı</th>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Kategori</th>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Son Ödeme</th>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Toplam Tutar</th>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Ödenen Tutar</th>
-                      <th style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Kalan Tutar</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDebts.map((d) => (
-                      <tr key={d.id}>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", color: "#1e293b" }}>{d.name}</td>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", color: "#475569" }}>{d.category}</td>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", color: "#475569" }}>{d.dueDate || "Belirtilmemiş"}</td>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", color: "#1e293b", fontWeight: "500" }}>{format(d.amount)}</td>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", color: "#16a34a", fontWeight: "500" }}>{format(d.paid)}</td>
-                        <td style={{ border: "1px solid #cbd5e1", padding: "8px", textAlign: "right", color: d.amount - d.paid > 0 ? '#dc2626' : '#1e293b', fontWeight: "bold" }}>{format(d.amount - d.paid)}</td>
+                <div className="w-full overflow-x-auto">
+                  <table style={{ width: "100%", minWidth: "460px", borderCollapse: "collapse", marginTop: "8px" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Borç Adı</th>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Kategori</th>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "left", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Son Ödeme</th>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Toplam Tutar</th>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Ödenen Tutar</th>
+                        <th style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", fontSize: "10px", background: "#f1f5f9", fontWeight: "bold", color: "#334155" }}>Kalan Tutar</th>
                       </tr>
-                    ))}
-                    <tr style={{ fontWeight: "bold", background: "#f8fafc" }}>
-                      <td colSpan={3} style={{ border: "1px solid #cbd5e1", padding: "10px", color: "#0f172a" }}>GENEL TOPLAM</td>
-                      <td style={{ border: "1px solid #cbd5e1", padding: "10px", textAlign: "right", color: "#0f172a" }}>{format(filteredDebts.reduce((s, d) => s + d.amount, 0))}</td>
-                      <td style={{ border: "1px solid #cbd5e1", padding: "10px", textAlign: "right", color: "#16a34a" }}>{format(filteredDebts.reduce((s, d) => s + d.paid, 0))}</td>
-                      <td style={{ border: "1px solid #cbd5e1", padding: "10px", textAlign: "right", color: "#dc2626", fontWeight: "900" }}>{format(filteredDebts.reduce((s, d) => s + (d.amount - d.paid), 0))}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredDebts.map((d) => (
+                        <tr key={d.id}>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", color: "#1e293b" }}>{d.name}</td>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", color: "#475569" }}>{d.category}</td>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", color: "#475569", whiteSpace: "nowrap" }}>{d.dueDate || "Belirtilmemiş"}</td>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", color: "#1e293b", fontWeight: "500", whiteSpace: "nowrap" }}>{format(d.amount)}</td>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", color: "#16a34a", fontWeight: "500", whiteSpace: "nowrap" }}>{format(d.paid)}</td>
+                          <td style={{ border: "1px solid #cbd5e1", padding: "7px 8px", textAlign: "right", color: d.amount - d.paid > 0 ? '#dc2626' : '#1e293b', fontWeight: "bold", whiteSpace: "nowrap" }}>{format(d.amount - d.paid)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ fontWeight: "bold", background: "#f8fafc" }}>
+                        <td colSpan={3} style={{ border: "1px solid #cbd5e1", padding: "9px 8px", color: "#0f172a" }}>GENEL TOPLAM</td>
+                        <td style={{ border: "1px solid #cbd5e1", padding: "9px 8px", textAlign: "right", color: "#0f172a", whiteSpace: "nowrap" }}>{format(filteredDebts.reduce((s, d) => s + d.amount, 0))}</td>
+                        <td style={{ border: "1px solid #cbd5e1", padding: "9px 8px", textAlign: "right", color: "#16a34a", whiteSpace: "nowrap" }}>{format(filteredDebts.reduce((s, d) => s + d.paid, 0))}</td>
+                        <td style={{ border: "1px solid #cbd5e1", padding: "9px 8px", textAlign: "right", color: "#dc2626", fontWeight: "900", whiteSpace: "nowrap" }}>{format(filteredDebts.reduce((s, d) => s + (d.amount - d.paid), 0))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-                <div style={{ marginTop: "40px", borderTop: "1px solid #e2e8f0", paddingTop: "15px", textAlign: "center", fontSize: "10px", color: "#94a3b8", fontWeight: "600" }}>
+                <div style={{ marginTop: "32px", borderTop: "1px solid #e2e8f0", paddingTop: "14px", textAlign: "center", fontSize: "10px", color: "#94a3b8", fontWeight: "600" }}>
                   Bütçem Pro Bireysel Finans ve Borç Yönetim Platformu | Güvenli & Şifreli Yerel Defter
                 </div>
               </div>
@@ -2530,27 +2527,29 @@ export const DebtList: React.FC<DebtListProps> = ({
             {/* Actions Footer */}
             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row gap-2 justify-end select-none">
               <button
-                onClick={() => {
-                  handlePrint(true); // Call existing highly-compatible jsPDF downloader
-                  setIsPrintModalOpen(false);
+                type="button"
+                disabled={isGeneratingPdf}
+                onClick={async () => {
+                  const ok = await handlePrint(true);
+                  if (ok) {
+                    setIsPrintModalOpen(false);
+                  }
                 }}
-                className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-750 active:scale-95 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 active:scale-95 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
               >
-                <FileText className="w-4 h-4" /> PDF Raporu Olarak İndir
+                <FileText className="w-4 h-4" /> {isGeneratingPdf ? "PDF Hazırlanıyor..." : "PDF Raporu Olarak İndir"}
               </button>
               <button
-                onClick={() => {
-                  try {
-                    window.print();
-                  } catch (e) {
-                    alert("Doğrudan yazdırma bu tarayıcıda engellenmiştir. Lütfen PDF İndir butonunu kullanın.");
-                  }
+                type="button"
+                onClick={async () => {
+                  await handlePrint(false);
                 }}
                 className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <Printer className="w-4 h-4" /> Tarayıcı Yazıcısını Dene
+                <Printer className="w-4 h-4" /> Yazdır / Tarayıcı Yazıcısı
               </button>
               <button
+                type="button"
                 onClick={() => setIsPrintModalOpen(false)}
                 className="px-4 py-2.5 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold text-xs transition cursor-pointer"
               >

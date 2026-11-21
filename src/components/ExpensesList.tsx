@@ -1986,14 +1986,24 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const config = expenseCategories.map(
                         ({ name, color }) => ({ name, color }),
                       );
-                      downloadFileWithCustomName({
+                      await downloadFileWithCustomName({
                         fileName: "kategori_ayarlari.json",
                         content: JSON.stringify(config, null, 2),
-                        mimeType: "application/json"
+                        mimeType: "application/json",
+                        openShareSheet: true,
+                        onSuccess: () => {
+                          if (typeof window !== "undefined") {
+                            const btn = document.activeElement as HTMLElement | null;
+                            if (btn) btn.blur();
+                          }
+                        },
+                        onError: () => {
+                          console.warn("[ExpensesList] kategori_ayarlari.json dışa aktarılamadı");
+                        }
                       });
                     }}
                     className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black tracking-wider uppercase transition-all duration-300 flex items-center gap-1 cursor-pointer active:scale-95"
