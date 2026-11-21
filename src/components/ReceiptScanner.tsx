@@ -16,7 +16,14 @@ import {
   ChevronDown,
   Monitor
 } from "lucide-react";
-import { getApiUrl } from "../utils/api";
+import { Capacitor } from "@capacitor/core";
+import {
+  Camera as CapacitorCamera,
+  CameraDirection,
+  CameraResultType,
+  CameraSource
+} from "@capacitor/camera";
+import { getApiUrl, getBackendCandidateUrls } from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
 
 export interface ScannedReceiptResult {
@@ -35,18 +42,34 @@ interface ReceiptScannerProps {
 
 /**
  * Client-side image compressor:
- * Downscales images to max 1600px dimension and converts to JPEG quality 0.82.
- * Reduces 15MB smartphone photos to ~350KB, ensuring sub-second transmission
- * and 100% reliable OCR recognition without timeouts or memory crashes.
+ * Downscales images to max 1280px dimension and converts to JPEG quality 0.8.
+ * Validates non-empty image dimensions and base64 payload before OCR transmission.
  */
 async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base64: string; mimeType: string }> {
+  if (!fileOrDataUrl) {
+    throw new Error("Taranacak görsel verisi bulunamadı.");
+  }
+  if (typeof fileOrDataUrl === "string") {
+    const trimmed = fileOrDataUrl.trim();
+    if (!trimmed || (trimmed.startsWith("data:") && (!trimmed.includes(",") || trimmed.split(",")[1].length < 50))) {
+      throw new Error("Yakalanan görsel verisi boş veya bozuk. Lütfen tekrar çekin.");
+    }
+  } else if (fileOrDataUrl.size === 0) {
+    throw new Error("Seçilen dosya boş (0 bayt). Lütfen geçerli bir görsel seçin.");
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
       try {
-        const MAX_DIMENSION = 1600;
+        if (!img.width || !img.height || img.width < 10 || img.height < 10) {
+          reject(new Error("Görsel boyutları çok küçük veya bozuk. Lütfen net bir fotoğraf çekin."));
+          return;
+        }
+
+        const MAX_DIMENSION = 1024;
         let width = img.width;
         let height = img.height;
 
@@ -66,15 +89,7 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-          // Fallback if canvas context fails
-          if (typeof fileOrDataUrl === "string") {
-            resolve({ base64: fileOrDataUrl, mimeType: "image/jpeg" });
-          } else {
-            const reader = new FileReader();
-            reader.onload = () => resolve({ base64: reader.result as string, mimeType: fileOrDataUrl.type || "image/jpeg" });
-            reader.onerror = reject;
-            reader.readAsDataURL(fileOrDataUrl);
-          }
+          reject(new Error("Görsel işleme tuvali (canvas) başlatılamadı. Lütfen tekrar deneyin."));
           return;
         }
 
@@ -85,15 +100,24 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        let compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
+        if (compressedDataUrl.length > 650000) {
+          compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
+        }
+        const commaIdx = compressedDataUrl.indexOf(",");
+        if (!compressedDataUrl.startsWith("data:image/") || commaIdx === -1 || compressedDataUrl.slice(commaIdx + 1).length < 100) {
+          reject(new Error("Görsel sıkıştırılırken boş veri üretildi. Lütfen tekrar deneyin."));
+          return;
+        }
+
         resolve({ base64: compressedDataUrl, mimeType: "image/jpeg" });
-      } catch (e) {
-        reject(e);
+      } catch (e: any) {
+        reject(new Error(e?.message || "Görsel sıkıştırılırken bir hata oluştu."));
       }
     };
 
     img.onerror = () => {
-      reject(new Error("Görsel yüklenemedi. Lütfen geçerli bir resim dosyası seçin."));
+      reject(new Error("Görsel yüklenemedi veya bozuk. Lütfen geçerli bir resim seçin."));
     };
 
     if (typeof fileOrDataUrl === "string") {
@@ -101,9 +125,14 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
     } else {
       const reader = new FileReader();
       reader.onload = () => {
-        img.src = reader.result as string;
+        const result = typeof reader.result === "string" ? reader.result : "";
+        if (!result) {
+          reject(new Error("Görsel dosyası okunamadı."));
+          return;
+        }
+        img.src = result;
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error("Görsel dosyası okunurken hata oluştu."));
       reader.readAsDataURL(fileOrDataUrl);
     }
   });
@@ -114,6 +143,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>("Görsel hazırlanıyor...");
   const [error, setError] = useState<string | null>(null);
+  const [scanWarning, setScanWarning] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<ScannedReceiptResult | null>(null);
   const [showWebcamPreview, setShowWebcamPreview] = useState(false);
@@ -193,18 +223,53 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   };
 
   const captureFromWebcam = () => {
-    if (!videoRef.current || !webcamActive) return;
+    if (!videoRef.current || !webcamActive) {
+      setError("Web kamerası aktif değil. Lütfen kamerayı başlatıp tekrar deneyin.");
+      return;
+    }
 
     try {
       const video = videoRef.current;
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+        setError("Web kamerası görüntüsü henüz hazır değil. Lütfen 1-2 saniye bekleyip tekrar deneyin.");
+        return;
+      }
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const MAX_DIM = 1024;
+      let targetW = video.videoWidth;
+      let targetH = video.videoHeight;
+      if (targetW > MAX_DIM || targetH > MAX_DIM) {
+        if (targetW > targetH) {
+          targetH = Math.round((targetH * MAX_DIM) / targetW);
+          targetW = MAX_DIM;
+        } else {
+          targetW = Math.round((targetW * MAX_DIM) / targetH);
+          targetH = MAX_DIM;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        setError("Kamera görüntüsü işlenemedi (canvas hatası). Lütfen tekrar deneyin.");
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, targetW, targetH);
+      ctx.drawImage(video, 0, 0, targetW, targetH);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+      const commaIdx = dataUrl.indexOf(",");
+      if (!dataUrl.startsWith("data:image/jpeg;base64,") || commaIdx === -1 || dataUrl.slice(commaIdx + 1).length < 500) {
+        setError("Kameradan alınan görüntü boş veya bozuk. Kameranın kapalı/engelli olmadığından emin olun.");
+        return;
+      }
+
       stopWebcam();
       setShowWebcamPreview(false);
       handleProcessImage(dataUrl);
@@ -214,9 +279,66 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
     }
   };
 
-  // Trigger device's native camera
-  const triggerNativeCamera = () => {
+  // Trigger device's native rear camera directly via @capacitor/camera on native platforms
+  const triggerNativeCamera = async () => {
     setError(null);
+    setScanWarning(null);
+    stopWebcam();
+    setShowWebcamPreview(false);
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permStatus = await CapacitorCamera.checkPermissions();
+        if (permStatus.camera !== "granted") {
+          const requested = await CapacitorCamera.requestPermissions({ permissions: ["camera"] });
+          if (requested.camera === "denied") {
+            setError("Kamera izni reddedildi. Lütfen cihaz ayarlarından kamera iznini açıp tekrar deneyin.");
+            return;
+          }
+        }
+
+        const photo = await CapacitorCamera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+          direction: CameraDirection.Rear,
+          correctOrientation: true,
+          width: 1280,
+          height: 1280,
+          saveToGallery: false
+        });
+
+        const capturedDataUrl =
+          photo?.dataUrl ||
+          (photo?.base64String ? `data:image/${photo.format || "jpeg"};base64,${photo.base64String}` : "");
+
+        if (!capturedDataUrl || !capturedDataUrl.includes(",") || capturedDataUrl.split(",")[1].length < 100) {
+          setError("Kameradan alınan fotoğraf verisi boş veya okunamadı. Lütfen tekrar çekin.");
+          return;
+        }
+
+        await handleProcessImage(capturedDataUrl);
+      } catch (err: any) {
+        const code = String(err?.code || "");
+        const msg = String(err?.message || "");
+        if (code === "OS-PLUG-CAMR-0006" || /cancel|iptal|dismiss/i.test(msg)) {
+          return;
+        }
+        if (code === "OS-PLUG-CAMR-0003" || /permission|izin|denied/i.test(msg)) {
+          setError("Kamera izni gerekli. Lütfen uygulama izinlerinden kamera erişimini onaylayın.");
+          return;
+        }
+        if (code === "OS-PLUG-CAMR-0007" || /no camera/i.test(msg)) {
+          setError("Cihazda kullanılabilir kamera bulunamadı.");
+          return;
+        }
+        console.warn("Capacitor Camera error:", err);
+        setError(msg ? `Kamera açılamadı: ${msg}` : "Telefon kamerası açılamadı. Lütfen tekrar deneyin.");
+      }
+      return;
+    }
+
     if (nativeCameraInputRef.current) {
       nativeCameraInputRef.current.click();
     }
@@ -259,16 +381,20 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
     handleProcessImage(file);
   };
 
-  // Compress, preview, and send to OCR server
+  // Compress, preview, and send to OCR server with timeout & friendly network error handling
   const handleProcessImage = async (fileOrDataUrl: File | string) => {
     setLoading(true);
     setError(null);
+    setScanWarning(null);
     setSuccessResult(null);
-    setLoadingStep("Görsel taranmaya hazırlanıyor...");
+    setLoadingStep("Görsel sıkıştırılıyor ve hazırlanıyor...");
 
     try {
-      // 1. Client-side downscaling & compression
+      // 1. Client-side downscaling & compression (max 1024px, JPEG ~0.75)
       const { base64, mimeType } = await optimizeImageForOcr(fileOrDataUrl);
+      if (!base64 || !base64.includes(",") || base64.split(",")[1].length < 100) {
+        throw new Error("Görsel verisi boş olduğu için OCR işlemine gönderilemedi.");
+      }
       setSelectedImage(base64);
 
       setLoadingStep("Yapay zeka faturayı inceliyor...");
@@ -284,43 +410,133 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         // ignore
       }
 
-      // 3. Make OCR API call to server
-      const response = await fetch(getApiUrl("/api/scan-receipt"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: base64,
-          mimeType,
-          defaultType,
-          userApiKey,
-        }),
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || "Fatura taranırken sunucu yanıt veremedi.");
+      // 3. Build candidate OCR endpoints (same-origin first on Cloud Run; multi-endpoint fallback elsewhere)
+      const endpointPath = "/api/scan-receipt";
+      const primaryEndpoint = getApiUrl(endpointPath);
+      const candidateUrls: string[] = [primaryEndpoint];
+      if (typeof window !== "undefined" && !window.location.hostname.endsWith(".run.app")) {
+        for (const base of getBackendCandidateUrls()) {
+          const full = `${base}${endpointPath}`;
+          if (!candidateUrls.includes(full)) {
+            candidateUrls.push(full);
+          }
+        }
       }
 
-      const data = await response.json();
+      const payloadBody = JSON.stringify({
+        image: base64,
+        mimeType,
+        defaultType,
+        userApiKey,
+      });
+
+      let response: Response | null = null;
+      let data: any = null;
+      let lastNetworkError: any = null;
+      let hadTimeout = false;
+
+      for (const targetUrl of candidateUrls) {
+        const controller = new AbortController();
+        const requestTimeout = setTimeout(() => controller.abort(), 25000);
+        try {
+          const attemptRes = await fetch(targetUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: payloadBody,
+          });
+
+          const rawBody = await attemptRes.text();
+          let parsedJson: any = null;
+          if (rawBody) {
+            try {
+              parsedJson = JSON.parse(rawBody);
+            } catch {
+              parsedJson = null;
+            }
+          }
+
+          // If proxy/static host returned HTML instead of API JSON, try next candidate
+          if (!parsedJson && attemptRes.ok) {
+            lastNetworkError = new Error("NON_JSON_RESPONSE");
+            continue;
+          }
+
+          response = attemptRes;
+          data = parsedJson;
+          break;
+        } catch (fetchErr: any) {
+          if (fetchErr?.name === "AbortError") {
+            hadTimeout = true;
+          }
+          lastNetworkError = fetchErr;
+          continue;
+        } finally {
+          clearTimeout(requestTimeout);
+        }
+      }
+
+      if (!response) {
+        if (hadTimeout) {
+          throw new Error("Fatura analiz isteği zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
+        }
+        throw new Error(
+          "Fatura analiz sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin veya bilgileri elle girmek için 'Manuel Olarak Doldur' butonunu kullanın."
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+          (response.status === 413
+            ? "Görsel boyutu sunucu limitini aşıyor. Lütfen daha küçük veya net bir fotoğraf deneyin."
+            : `Fatura taranırken sunucu hatası oluştu (HTTP ${response.status}).`)
+        );
+      }
+
+      if (!data || typeof data !== "object") {
+        throw new Error("Sunucudan gelen OCR yanıtı geçerli JSON formatında okunamadı. Lütfen tekrar deneyin.");
+      }
 
       if (data.success) {
         setLoadingStep("Bilgiler ayrıştırıldı!");
+        const parsedAmount =
+          typeof data.amount === "number"
+            ? data.amount
+            : parseFloat(String(data.amount ?? "").replace(",", ".")) || 0;
+
         const result: ScannedReceiptResult = {
-          title: data.title || (defaultType === "debt" ? "Fatura" : "Alışveriş"),
-          amount: typeof data.amount === "number" ? data.amount : parseFloat(data.amount) || 0,
-          date: data.date || new Date().toISOString().split("T")[0],
-          categorySuggestion: data.categorySuggestion || (defaultType === "debt" ? "Fatura" : "Gıda / Market"),
+          title: typeof data.title === "string" && data.title.trim() ? data.title.trim() : (defaultType === "debt" ? "Fatura" : "Alışveriş"),
+          amount: Number.isFinite(parsedAmount) && parsedAmount >= 0 ? parsedAmount : 0,
+          date: typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date.trim()) ? data.date.trim() : new Date().toISOString().split("T")[0],
+          categorySuggestion: typeof data.categorySuggestion === "string" && data.categorySuggestion.trim() ? data.categorySuggestion.trim() : (defaultType === "debt" ? "Fatura" : "Gıda / Market"),
           type: data.type === "debt" ? "debt" : (data.type === "expense" ? "expense" : defaultType)
         };
+
+        if (typeof data.warning === "string" && data.warning.trim()) {
+          setScanWarning(data.warning.trim());
+        } else if (result.amount <= 0) {
+          setScanWarning("Toplam tutar görselden net okunamadı. Lütfen tutar alanını kontrol edip düzenleyin.");
+        }
+
         setSuccessResult(result);
       } else {
-        throw new Error(data.error || "Fatura üzerindeki bilgiler okunamadı.");
+        throw new Error(data.error || "Fatura üzerindeki bilgiler okunamadı. Lütfen daha net bir fotoğraf çekin.");
       }
     } catch (err: any) {
       console.error("Receipt scanning error:", err);
-      setError(
-        err?.message || "Belge okunurken bir sorun oluştu. Lütfen fotoğrafın net olduğundan emin olup tekrar deneyin."
-      );
+      const rawMsg = String(err?.message || "");
+      if (err?.name === "AbortError") {
+        setError("Fatura okuma isteği zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.");
+      } else if (/failed to fetch|networkerror|load failed|network request failed|fetch/i.test(rawMsg)) {
+        setError(
+          "Fatura analiz sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin veya bilgileri girmek için 'Manuel Olarak Doldur' butonunu kullanın."
+        );
+      } else {
+        setError(
+          rawMsg || "Belge okunurken bir sorun oluştu. Lütfen fotoğrafın net olduğundan emin olup tekrar deneyin."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -507,6 +723,13 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                 )}
               </div>
 
+              {scanWarning && (
+                <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2 text-amber-700 dark:text-amber-300 text-[11px] font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                  <span>{scanWarning}</span>
+                </div>
+              )}
+
               {/* Form Fields */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
                 <div>
@@ -591,6 +814,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                   onClick={() => {
                     setSelectedImage(null);
                     setSuccessResult(null);
+                    setScanWarning(null);
                     setError(null);
                   }}
                   className="py-2.5 px-3 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition cursor-pointer flex items-center gap-1"
@@ -636,9 +860,9 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                   <button
                     type="button"
                     onClick={() => setShowWebcamPreview(true)}
-                    className="w-full py-2 px-3 text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-900 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full py-3 px-4 text-xs font-bold text-slate-700 hover:text-indigo-700 dark:text-slate-200 dark:hover:text-white bg-white hover:bg-indigo-50/70 dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-300 hover:border-indigo-400 dark:border-slate-600 dark:hover:border-indigo-400 rounded-xl shadow-sm hover:shadow transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Monitor className="w-3.5 h-3.5" />
+                    <Monitor className="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
                     <span>Bilgisayar Web Kamerasını Kullan (Canlı Önizleme)</span>
                   </button>
                 ) : (

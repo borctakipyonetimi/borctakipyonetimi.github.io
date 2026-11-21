@@ -1469,49 +1469,82 @@ SANA SAĞLANAN GÜNCEL KULLANICI BÜTÇE VERİLERİ (${periodLabel} Dönemi):
 });
 
 
+function parseOcrAmount(rawAmount: unknown): number {
+  if (typeof rawAmount === "number") {
+    return Number.isFinite(rawAmount) && rawAmount >= 0 ? rawAmount : 0;
+  }
+  if (typeof rawAmount !== "string") return 0;
+  let cleaned = rawAmount.replace(/[^\d.,-]/g, "").trim();
+  if (!cleaned) return 0;
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    // Handle both "1.250,50" (TR) and "1,250.50" (US)
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (cleaned.includes(",")) {
+    cleaned = cleaned.replace(",", ".");
+  }
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) && num >= 0 ? num : 0;
+}
+
 app.post("/api/scan-receipt", async (req, res) => {
-  const { image, mimeType: userMimeType, defaultType = "expense", userApiKey } = req.body;
-  if (!image) {
-    return res.status(400).json({ success: false, error: "Lütfen taranacak fatura veya fiş görselini seçin." });
+  const { image, mimeType: userMimeType, defaultType = "expense", userApiKey } = req.body || {};
+  if (!image || typeof image !== "string" || !image.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: "Taranacak fatura veya fiş görseli bulunamadı. Lütfen fotoğraf çekin veya görsel seçin."
+    });
   }
 
   // Sanitize base64 and extract mimeType dynamically
-  let base64Data = image;
-  let detectedMimeType = userMimeType || "image/jpeg";
+  let base64Data = image.trim();
+  let detectedMimeType = typeof userMimeType === "string" && userMimeType.trim() ? userMimeType.trim() : "image/jpeg";
 
   if (base64Data.includes(",")) {
-    const parts = base64Data.split(",");
-    const match = parts[0].match(/data:(.*?);base64/);
-    if (match) {
-      detectedMimeType = match[1];
+    const commaIdx = base64Data.indexOf(",");
+    const header = base64Data.slice(0, commaIdx);
+    const match = header.match(/data:([^;]+);base64/i);
+    if (match && match[1]) {
+      detectedMimeType = match[1].trim();
     }
-    base64Data = parts[1];
+    base64Data = base64Data.slice(commaIdx + 1);
+  }
+
+  base64Data = base64Data.replace(/\s+/g, "");
+
+  if (!detectedMimeType.toLowerCase().startsWith("image/")) {
+    return res.status(400).json({
+      success: false,
+      error: "Gönderilen dosya geçerli bir görsel formatında değil (JPG, PNG veya WEBP olmalı)."
+    });
+  }
+
+  if (!base64Data || base64Data.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+    return res.status(400).json({
+      success: false,
+      error: "Görsel verisi boş veya bozuk görünüyor. Lütfen fotoğrafı net şekilde yeniden çekin."
+    });
   }
 
   const aiClient = getGeminiClient(userApiKey);
-  
+
   if (!aiClient) {
-    console.log("[Scan Receipt API] Gemini client unavailable. Providing draft template for manual confirmation.");
-    const todayStr = new Date().toISOString().split("T")[0];
-    return res.json({
-      success: true,
-      title: defaultType === "debt" ? "Fatura Ödemesi" : "Fiş / Alışveriş",
-      amount: 0,
-      date: todayStr,
-      categorySuggestion: defaultType === "debt" ? "Fatura" : "Gıda / Market",
-      type: defaultType,
-      isOffline: true,
-      message: "Yapay zeka anahtarı tanımlanmadığı için taslak açıldı. Bilgileri düzenleyebilirsiniz."
+    return res.status(503).json({
+      success: false,
+      error: "Fatura okuma (OCR) için Gemini API anahtarı yapılandırılmamış. Lütfen Ayarlar > Secrets panelinden API anahtarını kontrol edin."
     });
   }
 
   try {
-    const promptText = 
+    const promptText =
       "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
       "Lütfen belgeden şu bilgileri çıkar:\n" +
-      "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.).\n" +
-      "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Kuruşlu değerleri nokta ile yaz.\n" +
-      "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Eğer yıl yoksa 2026 olarak al).\n" +
+      "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
+      "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
+      "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Yıl eksikse 2026 al).\n" +
       "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Diğer').\n" +
       `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
       "Yalnızca geçerli bir JSON objesi döndür.";
@@ -1556,62 +1589,120 @@ app.post("/api/scan-receipt", async (req, res) => {
         },
         required: ["title", "amount"]
       },
-      temperature: 0.1,
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.LOW,
+      },
     };
 
     let response: any;
     try {
       response = await aiClient.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: "gemini-4-hydrogen",
         contents: { parts: contentParts },
         config: generateConfig,
       });
     } catch (primaryErr: any) {
-      console.warn("[Scan API] Primary gemini-3.8-flash returned:", primaryErr?.message || primaryErr?.status, "- Trying gemini-flash-latest...");
+      const errMsg = String(primaryErr?.message || "");
+      const status = primaryErr?.status || primaryErr?.code;
+      if (status === 400 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
+        throw primaryErr;
+      }
+      console.warn("[Scan API] Primary gemini-4-hydrogen returned:", errMsg || status, "- Trying gemini-3.1-flash-lite...");
       response = await aiClient.models.generateContent({
-        model: "gemini-flash-latest",
+        model: "gemini-3.1-flash-lite",
         contents: { parts: contentParts },
         config: generateConfig,
       });
     }
 
-    let rawText = response?.text || "{}";
-    rawText = rawText.replace(/```json\s*/gi, "").replace(/```\s*$/gi, "").trim();
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    const parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
-
-    let parsedAmount = typeof parsedData.amount === "number" ? parsedData.amount : parseFloat(parsedData.amount);
-    if (isNaN(parsedAmount) || parsedAmount < 0) {
-      parsedAmount = 0;
+    const rawResponseText = (response?.text ?? "").trim();
+    if (!rawResponseText) {
+      return res.status(502).json({
+        success: false,
+        error: "Yapay zeka servisinden boş yanıt döndü. Lütfen fotoğrafın net ve aydınlık olduğundan emin olup tekrar deneyin."
+      });
     }
 
-    let parsedDate = (parsedData.date || "").trim();
+    const cleanedText = rawResponseText
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    const jsonCandidate = jsonMatch ? jsonMatch[0] : cleanedText;
+
+    let parsedData: Record<string, any>;
+    try {
+      const parsed = JSON.parse(jsonCandidate);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid JSON root");
+      }
+      parsedData = parsed;
+    } catch (parseErr) {
+      console.error("[Scan Receipt JSON Parse Error]:", parseErr, "Raw:", rawResponseText.slice(0, 300));
+      return res.status(502).json({
+        success: false,
+        error: "Fatura verisi JSON formatında ayrıştırılamadı. Fotoğraf bulanık veya eksik olabilir; lütfen tekrar çekip deneyin."
+      });
+    }
+
+    const parsedAmount = parseOcrAmount(parsedData.amount);
+    const cleanTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
+
+    if (!cleanTitle && parsedAmount <= 0) {
+      return res.status(422).json({
+        success: false,
+        error: "Görselden mağaza/kurum adı ve toplam tutar okunamadı. Fiş net görünmüyor olabilir; daha aydınlık ortamda yeniden çekin."
+      });
+    }
+
+    const missingFields: string[] = [];
+    if (!cleanTitle) missingFields.push("Mağaza / kurum adı");
+    if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+
+    let parsedDate = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
       parsedDate = new Date().toISOString().split("T")[0];
     }
 
+    const cleanCategory =
+      typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim()
+        ? parsedData.categorySuggestion.trim()
+        : (defaultType === "debt" ? "Fatura" : "Gıda / Market");
+
     return res.json({
       success: true,
-      title: parsedData.title || (defaultType === "debt" ? "Fatura" : "Harcama Fişi"),
+      title: cleanTitle || (defaultType === "debt" ? "Fatura" : "Harcama Fişi"),
       amount: parsedAmount,
       date: parsedDate,
-      categorySuggestion: parsedData.categorySuggestion || (defaultType === "debt" ? "Fatura" : "Gıda / Market"),
-      type: parsedData.type === "debt" ? "debt" : "expense",
-      isOffline: false
+      categorySuggestion: cleanCategory,
+      type: parsedData.type === "debt" ? "debt" : (parsedData.type === "expense" ? "expense" : defaultType),
+      warning: missingFields.length > 0
+        ? `Şu bilgiler görselden net okunamadı: ${missingFields.join(", ")}. Lütfen kontrol edip manuel olarak tamamlayın.`
+        : undefined
     });
   } catch (error: any) {
-    console.error("[Scan Receipt API Error]:", error?.message || error);
-    const todayStr = new Date().toISOString().split("T")[0];
-    // Return friendly result with prefilled fields so user is not stuck
-    return res.json({
-      success: true,
-      title: defaultType === "debt" ? "Fatura" : "Fiş / Harcama",
-      amount: 0,
-      date: todayStr,
-      categorySuggestion: defaultType === "debt" ? "Fatura" : "Gıda / Market",
-      type: defaultType,
-      isOffline: true,
-      message: "Belge görseli alındı. Lütfen mağaza ve tutar bilgilerini kontrol ederek onaylayın."
+    const errMsg = String(error?.message || "");
+    const status = Number(error?.status || error?.code || 0);
+    console.error("[Scan Receipt API Error]:", errMsg || error);
+
+    if (status === 403 || status === 400 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
+      return res.status(status === 403 ? 403 : 400).json({
+        success: false,
+        error: "Gemini API anahtarı geçersiz veya yetkisiz. Lütfen Settings > Secrets panelinden API anahtarını kontrol edin."
+      });
+    }
+
+    if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(errMsg)) {
+      return res.status(429).json({
+        success: false,
+        error: "Yapay zeka OCR kullanım kotasına ulaşıldı. Lütfen kısa bir süre bekleyip tekrar deneyin."
+      });
+    }
+
+    return res.status(502).json({
+      success: false,
+      error: "Fatura görseli yapay zeka tarafından analiz edilemedi. İnternet bağlantınızı ve fotoğraf netliğini kontrol edip tekrar deneyin."
     });
   }
 });

@@ -116,15 +116,30 @@ public class MainActivity extends BridgeActivity {
                             public void run() {
                                 try {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                        java.util.List<String> needed = new java.util.ArrayList<>();
+                                        String[] resources = request.getResources();
+                                        if (resources != null) {
+                                            for (String res : resources) {
+                                                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(res) &&
+                                                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                                    needed.add(Manifest.permission.RECORD_AUDIO);
+                                                    needed.add(Manifest.permission.MODIFY_AUDIO_SETTINGS);
+                                                }
+                                                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(res) &&
+                                                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                                                    needed.add(Manifest.permission.CAMERA);
+                                                }
+                                            }
+                                        }
+                                        if (!needed.isEmpty()) {
                                             ActivityCompat.requestPermissions(
                                                 MainActivity.this,
-                                                new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS},
+                                                needed.toArray(new String[0]),
                                                 RECORD_AUDIO_REQUEST_CODE
                                             );
                                         }
                                     }
-                                    // Otomatik olarak WebView mikrofon ve ses kaynaklarına izin ver (grant)
+                                    // Otomatik olarak WebView kamera/mikrofon kaynaklarına izin ver (grant)
                                     request.grant(request.getResources());
                                 } catch (Exception e) {
                                     e.printStackTrace();
