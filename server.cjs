@@ -93,7 +93,8 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     service: "butcem-pro-backend",
     time: (/* @__PURE__ */ new Date()).toISOString(),
-    smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass)
+    smtpConfigured: !!(currentCustomSmtp?.user && currentCustomSmtp?.pass),
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim())
   });
 });
 app.get("/logo.png", (req, res) => {
@@ -1422,6 +1423,7 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!image || typeof image !== "string" || !image.trim()) {
     return res.status(400).json({
       success: false,
+      errorCode: "INVALID_IMAGE",
       error: "Taranacak fatura veya fi\u015F g\xF6rseli bulunamad\u0131. L\xFCtfen foto\u011Fraf \xE7ekin veya g\xF6rsel se\xE7in."
     });
   }
@@ -1440,12 +1442,14 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!detectedMimeType.toLowerCase().startsWith("image/")) {
     return res.status(400).json({
       success: false,
+      errorCode: "INVALID_MIME_TYPE",
       error: "G\xF6nderilen dosya ge\xE7erli bir g\xF6rsel format\u0131nda de\u011Fil (JPG, PNG veya WEBP olmal\u0131)."
     });
   }
   if (!base64Data || base64Data.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
     return res.status(400).json({
       success: false,
+      errorCode: "CORRUPT_IMAGE",
       error: "G\xF6rsel verisi bo\u015F veya bozuk g\xF6r\xFCn\xFCyor. L\xFCtfen foto\u011Fraf\u0131 net \u015Fekilde yeniden \xE7ekin."
     });
   }
@@ -1453,7 +1457,8 @@ app.post("/api/scan-receipt", async (req, res) => {
   if (!aiClient) {
     return res.status(503).json({
       success: false,
-      error: "Fatura okuma (OCR) i\xE7in Gemini API anahtar\u0131 yap\u0131land\u0131r\u0131lmam\u0131\u015F. L\xFCtfen Ayarlar > Secrets panelinden API anahtar\u0131n\u0131 kontrol edin."
+      errorCode: "MISSING_API_KEY",
+      error: "Fatura okuma (OCR) i\xE7in sunucuda GEMINI_API_KEY yap\u0131land\u0131r\u0131lmam\u0131\u015F. L\xFCtfen Ayarlar > Secrets panelinden API anahtar\u0131n\u0131 kontrol edin."
     });
   }
   try {
@@ -1478,7 +1483,7 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
         text: promptText
       }
     ];
-    const generateConfig = {
+    const baseSchemaConfig = {
       responseMimeType: "application/json",
       responseSchema: {
         type: import_genai.Type.OBJECT,
@@ -1505,30 +1510,46 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
           }
         },
         required: ["title", "amount"]
-      },
-      thinkingConfig: {
-        thinkingLevel: import_genai.ThinkingLevel.LOW
       }
     };
+    const runWithTimeout = (promise, timeoutMs, label) => Promise.race([
+      promise,
+      new Promise(
+        (_, reject) => setTimeout(() => reject(new Error(`TIMEOUT: ${label} exceeded ${timeoutMs}ms`)), timeoutMs)
+      )
+    ]);
     let response;
     try {
-      response = await aiClient.models.generateContent({
-        model: "gemini-4-hydrogen",
-        contents: { parts: contentParts },
-        config: generateConfig
-      });
+      response = await runWithTimeout(
+        aiClient.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: { parts: contentParts },
+          config: baseSchemaConfig
+        }),
+        22e3,
+        "gemini-3.1-flash-lite"
+      );
     } catch (primaryErr) {
       const errMsg = String(primaryErr?.message || "");
       const status = primaryErr?.status || primaryErr?.code;
       if (status === 400 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
         throw primaryErr;
       }
-      console.warn("[Scan API] Primary gemini-4-hydrogen returned:", errMsg || status, "- Trying gemini-3.1-flash-lite...");
-      response = await aiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: { parts: contentParts },
-        config: generateConfig
-      });
+      console.warn("[Scan API] Primary gemini-3.1-flash-lite returned:", errMsg || status, "- Trying gemini-4-hydrogen...");
+      response = await runWithTimeout(
+        aiClient.models.generateContent({
+          model: "gemini-4-hydrogen",
+          contents: { parts: contentParts },
+          config: {
+            ...baseSchemaConfig,
+            thinkingConfig: {
+              thinkingLevel: import_genai.ThinkingLevel.LOW
+            }
+          }
+        }),
+        15e3,
+        "gemini-4-hydrogen"
+      );
     }
     const rawResponseText = (response?.text ?? "").trim();
     if (!rawResponseText) {
@@ -1583,21 +1604,32 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     const errMsg = String(error?.message || "");
     const status = Number(error?.status || error?.code || 0);
     console.error("[Scan Receipt API Error]:", errMsg || error);
+    if (errMsg.startsWith("TIMEOUT:") || /timeout|deadline/i.test(errMsg)) {
+      return res.status(504).json({
+        success: false,
+        errorCode: "TIMEOUT",
+        error: "Fatura okuma servisi yan\u0131t vermekte gecikti. L\xFCtfen foto\u011Fraf boyutunu k\xFC\xE7\xFClt\xFCp tekrar deneyin veya 'Manuel Olarak Doldur' se\xE7ene\u011Fini kullan\u0131n."
+      });
+    }
     if (status === 403 || status === 400 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
       return res.status(status === 403 ? 403 : 400).json({
         success: false,
+        errorCode: "INVALID_API_KEY",
         error: "Gemini API anahtar\u0131 ge\xE7ersiz veya yetkisiz. L\xFCtfen Settings > Secrets panelinden API anahtar\u0131n\u0131 kontrol edin."
       });
     }
     if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(errMsg)) {
       return res.status(429).json({
         success: false,
+        errorCode: "QUOTA_EXCEEDED",
         error: "Yapay zeka OCR kullan\u0131m kotas\u0131na ula\u015F\u0131ld\u0131. L\xFCtfen k\u0131sa bir s\xFCre bekleyip tekrar deneyin."
       });
     }
     return res.status(502).json({
       success: false,
-      error: "Fatura g\xF6rseli yapay zeka taraf\u0131ndan analiz edilemedi. \u0130nternet ba\u011Flant\u0131n\u0131z\u0131 ve foto\u011Fraf netli\u011Fini kontrol edip tekrar deneyin."
+      errorCode: "UPSTREAM_ERROR",
+      error: "Fatura g\xF6rseli yapay zeka taraf\u0131ndan analiz edilemedi. \u0130nternet ba\u011Flant\u0131n\u0131z\u0131 ve foto\u011Fraf netli\u011Fini kontrol edip tekrar deneyin.",
+      detail: errMsg ? errMsg.slice(0, 180) : void 0
     });
   }
 });
