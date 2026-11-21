@@ -75,8 +75,7 @@ jobs:
 
       - name: Web Kodlarini Derle ve www Klasorunu Hazirla
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL || '' }}
-          VITE_GEMINI_API_KEY: ${{ vars.VITE_GEMINI_API_KEY || secrets.VITE_GEMINI_API_KEY || '' }}
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || vars.VITE_GEMINI_API_KEY || secrets.VITE_GEMINI_API_KEY || '' }}
         run: |
           # 1. Vite ile uretim kodlarini derle (dist klasorune bundle olusturur)
           npm run build || npx vite build

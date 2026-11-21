@@ -66,7 +66,7 @@ export function getBackendCandidateUrls(): string[] {
     }
   };
 
-  // 1. Custom configured server URL in localStorage
+  // 1. Optional custom configured server URL in localStorage
   if (typeof window !== "undefined") {
     try {
       pushUnique(localStorage.getItem("customServerUrl"));
@@ -75,35 +75,28 @@ export function getBackendCandidateUrls(): string[] {
     }
   }
 
-  // 2. Build-time configured public backend URL (VITE_API_BASE_URL / VITE_BACKEND_URL)
+  // 2. Optional build-time configured backend URL (if provided)
   pushUnique(getConfiguredEnvApiBaseUrl());
 
   // 3. Current origin only if we are NOT inside a static/Capacitor WebView bundle
   if (typeof window !== "undefined") {
-    const { protocol, origin, hostname } = window.location;
+    const { protocol, origin } = window.location;
     if (protocol.startsWith("http") && !isCapacitorOrStaticLocalOrigin()) {
       pushUnique(origin);
-      // On Cloud Run domain, use current origin only to avoid cross-subdomain cookie check redirects
-      if (hostname.endsWith(".run.app") && candidates.length === 1) {
-        return candidates;
-      }
     }
   }
-
-  // 4. Shared / Pre-deployed Cloud Run URL first (public if shared), then Dev URL
-  pushUnique(CLOUD_RUN_PRE_URL);
-  pushUnique(CLOUD_RUN_DEV_URL);
 
   return candidates;
 }
 
 /**
- * Resolves the absolute API URL for the backend based on environment.
+ * Resolves the API URL for the backend based on environment.
+ * Never falls back to external preview servers when no backend URL is configured.
  */
 export function getApiUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
 
-  // 1. Custom server URL from app settings
+  // 1. Optional custom server URL from app settings
   if (typeof window !== "undefined") {
     try {
       const savedServer = normalizeBaseUrl(localStorage.getItem("customServerUrl"));
@@ -115,33 +108,19 @@ export function getApiUrl(path: string): string {
     }
   }
 
-  // 2. Build-time backend URL (e.g. injected in Vite/Capacitor build via VITE_API_BASE_URL)
+  // 2. Optional build-time backend URL (only if explicitly configured)
   const envBase = getConfiguredEnvApiBaseUrl();
   if (envBase) {
     return `${envBase}${cleanPath}`;
   }
 
-  // 3. Current browser environment
-  if (typeof window !== "undefined") {
-    const { hostname } = window.location;
-
-    // Directly on *.run.app preview/hosted backend -> relative path is same-origin
-    if (hostname.endsWith(".run.app")) {
-      return cleanPath;
-    }
-
-    // Packaged APK, Cordova, Capacitor, GitHub Pages, or local static files -> use remote backend URL
-    if (isCapacitorOrStaticLocalOrigin()) {
-      return `${CLOUD_RUN_PRE_URL}${cleanPath}`;
-    }
-  }
-
+  // 3. Default to same-origin relative path (never send external server requests in APK/static builds)
   return cleanPath;
 }
 
 /**
  * Safely fetches JSON from an endpoint, handling non-JSON (HTML 404 / 500) responses gracefully
- * and providing automatic multi-endpoint fallback across all candidate backend servers.
+ * without calling external fallback servers when no server URL is configured.
  */
 export async function safeFetchJson<T = any>(
   pathOrUrl: string,
@@ -149,9 +128,17 @@ export async function safeFetchJson<T = any>(
   fallbackBaseUrl?: string
 ): Promise<T> {
   const cleanPath = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  const initialUrl = pathOrUrl.startsWith("http") ? pathOrUrl : getApiUrl(pathOrUrl);
+  const candidateUrls: string[] = [];
 
-  const candidateUrls: string[] = [initialUrl];
+  if (pathOrUrl.startsWith("http")) {
+    candidateUrls.push(pathOrUrl);
+  } else {
+    const initialUrl = getApiUrl(pathOrUrl);
+    if (initialUrl.startsWith("http") || !isCapacitorOrStaticLocalOrigin()) {
+      candidateUrls.push(initialUrl);
+    }
+  }
+
   if (fallbackBaseUrl) {
     const base = normalizeBaseUrl(fallbackBaseUrl);
     if (base) {
@@ -162,7 +149,7 @@ export async function safeFetchJson<T = any>(
     }
   }
 
-  // Append additional backend candidates when not running directly on *.run.app
+  // Append configured candidate backends (never external Cloud Run URLs)
   if (typeof window !== "undefined" && !window.location.hostname.endsWith(".run.app")) {
     for (const base of getBackendCandidateUrls()) {
       const full = `${base}${cleanPath}`;
