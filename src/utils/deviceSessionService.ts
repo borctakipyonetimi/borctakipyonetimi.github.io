@@ -255,12 +255,14 @@ export function startDeviceSessionWatcher(
   const unsubscribeSnapshot = onSnapshot(
     userDocRef,
     (docSnap) => {
+      if (isTerminated || !auth.currentUser) return;
       if (docSnap.exists()) {
         const data = docSnap.data();
         checkDeviceMatch(data.activeDeviceId, data.isPremium);
       }
     },
     (err) => {
+      if (isTerminated || !auth.currentUser) return;
       console.warn("[DeviceSession] Firestore onSnapshot izleme uyarısı:", err);
     }
   );

@@ -567,6 +567,11 @@ export default function App() {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [expandedNotifId, setExpandedNotifId] = useState<number | null>(null);
+  const unreadNotifsCount = useMemo(
+    () => notifications.filter((n) => !n.isRead).length,
+    [notifications]
+  );
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
   const [focusedDebtId, setFocusedDebtId] = useState<number | null>(null);
   const [focusedInstallmentId, setFocusedInstallmentId] = useState<number | null>(null);
@@ -1447,6 +1452,39 @@ export default function App() {
   const [firestoreErrorMessage, setFirestoreErrorMessage] = useState<string | null>(null);
   const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
 
+  const activeDbListenersCleanupRef = useRef<(() => void) | null>(null);
+  const sessionWatcherCleanupRef = useRef<(() => void) | null>(null);
+  const isAccountTerminatingRef = useRef<boolean>(false);
+
+  const isPermissionDeniedError = useCallback((err: unknown): boolean => {
+    const code = String((err as any)?.code || "").toLowerCase();
+    const msg = String((err as any)?.message || err || "").toLowerCase();
+    return (
+      code.includes("permission-denied") ||
+      code.includes("permission_denied") ||
+      msg.includes("permission_denied") ||
+      msg.includes("permission-denied") ||
+      msg.includes("permission denied") ||
+      msg.includes("missing or insufficient permissions")
+    );
+  }, []);
+
+  const cleanupAllDatabaseListeners = useCallback(() => {
+    if (activeDbListenersCleanupRef.current) {
+      try {
+        activeDbListenersCleanupRef.current();
+      } catch {}
+      activeDbListenersCleanupRef.current = null;
+    }
+    if (sessionWatcherCleanupRef.current) {
+      try {
+        sessionWatcherCleanupRef.current();
+      } catch {}
+      sessionWatcherCleanupRef.current = null;
+    }
+    setFirestoreErrorMessage(null);
+  }, []);
+
   // Smooth concurrent tab transition state & main scroll container ref
   const [isNavPending, startNavTransition] = useTransition();
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -2245,7 +2283,10 @@ export default function App() {
         const newId = prev.length > 0 ? Math.max(...prev.map((n) => n.id)) + 1 : 1;
         const newNotif: NotificationItem = {
           id: newId,
-          title: `📢 ${title}: ${body}`
+          title: `📢 ${title}: ${body}`,
+          message: body,
+          date: new Date().toISOString(),
+          isRead: false
         };
         const updated = [newNotif, ...prev];
         // Instantly save to localStorage to maintain absolute robustness
@@ -2939,6 +2980,7 @@ export default function App() {
         console.warn("Could not write guest status to localStorage:", e);
       }
 
+      isAccountTerminatingRef.current = false;
       setHasCompletedOnboarding(true);
       setUserLoggedIn(true);
       setIsGuestMode(true);
@@ -3033,6 +3075,7 @@ export default function App() {
     const isTestSuperAccount = cleanEmail === "info.borcodemetakip@gmail.com";
     const finalIsPremium = isTestSuperAccount ? true : (meta?.isPremium ?? false);
 
+    isAccountTerminatingRef.current = false;
     setCurrentUser(cleanEmail);
     localStorage.setItem("currentUser", cleanEmail);
 
@@ -3231,29 +3274,39 @@ export default function App() {
         sessionWatcherUnsub();
         sessionWatcherUnsub = null;
       }
+      if (sessionWatcherCleanupRef.current) {
+        try {
+          sessionWatcherCleanupRef.current();
+        } catch {}
+        sessionWatcherCleanupRef.current = null;
+      }
 
       const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
       const isGuestTrialSession = localStorage.getItem("is_guest_trial") === "true";
       const isUnregisteredGuestSession = localStorage.getItem("is_guest") === "true" && isLocallyLoggedIn;
 
       if (!isLocallyLoggedIn && !isGuestTrialSession) {
+        cleanupAllDatabaseListeners();
         setCurrentUser(null);
         setUserLoggedIn(false);
         return;
       }
 
       if (user && (isLocallyLoggedIn || isGuestTrialSession)) {
+        isAccountTerminatingRef.current = false;
         setShowOnboarding(false);
         setUserLoggedIn(true);
         setHasCompletedOnboarding(true);
         setIsGuestMode(isUnregisteredGuestSession);
         // Eşzamanlı tek cihaz koruması (Sadece isPremium: true olan hesaplar için)
         sessionWatcherUnsub = startDeviceSessionWatcher(user.uid, (reason) => {
+          cleanupAllDatabaseListeners();
           setSessionTerminatedReason(reason);
           setCurrentUser(null);
           setUserLoggedIn(false);
           setProviderLoginOpen(true);
         });
+        sessionWatcherCleanupRef.current = sessionWatcherUnsub;
 
         const rawEmail = user.email ? user.email.toLowerCase() : null;
         const emailOrUid = rawEmail || ((isGuestTrialSession || isUnregisteredGuestSession) ? "misafir@butcempro.app" : user.uid);
@@ -3409,6 +3462,7 @@ export default function App() {
             console.warn("Kullanıcı ayarları sorgulama uyarısı:", aErr);
           });
       } else {
+        cleanupAllDatabaseListeners();
         const isLocallyLoggedIn = localStorage.getItem("userLoggedIn") === "true";
         const isGuestTrialSession = localStorage.getItem("is_guest_trial") === "true";
         const isUnregisteredGuestSession = localStorage.getItem("is_guest") === "true" && isLocallyLoggedIn;
@@ -3443,8 +3497,12 @@ export default function App() {
     return () => {
       unsubscribe();
       if (sessionWatcherUnsub) {
-        sessionWatcherUnsub();
+        try {
+          sessionWatcherUnsub();
+        } catch {}
+        sessionWatcherUnsub = null;
       }
+      cleanupAllDatabaseListeners();
     };
   }, []);
 
@@ -3754,10 +3812,16 @@ export default function App() {
     };
 
     let unsubscribeSnapshot: (() => void) | null = null;
+    if (activeDbListenersCleanupRef.current) {
+      try {
+        activeDbListenersCleanupRef.current();
+      } catch {}
+      activeDbListenersCleanupRef.current = null;
+    }
 
     const loadData = async (targetUser?: any) => {
       const fbUser = targetUser || auth.currentUser;
-      if (fbUser) {
+      if (fbUser && currentUser && !isAccountTerminatingRef.current) {
         try {
           setIsOfflineMode(false);
           setFirestoreErrorMessage(null);
@@ -3854,15 +3918,33 @@ export default function App() {
             console.warn("Profil resmi okuma uyarısı:", imgErr);
           }
 
+          if (!active || isAccountTerminatingRef.current || !auth.currentUser || !currentUser) {
+            return;
+          }
+
           // Realtime Database canlı senkronizasyon dinleyicisi (onValue)
           try {
+            const profilIsimRef = ref(db, `kullanicilar/${fbUser.uid}/profil/isim`);
+            const profilResimRef = ref(db, `kullanicilar/${fbUser.uid}/profil/resim`);
+
             const rtdbUnsub = onValue(primaryVerilerRef, (snapshot) => {
-              if (snapshot.exists() && active) {
+              if (!active || isAccountTerminatingRef.current || !auth.currentUser || !currentUser) return;
+              if (snapshot.exists()) {
                 const val = snapshot.val();
                 applyDataPayload(val.veriler ? val.veriler : val);
                 setFirestoreErrorMessage(null);
               }
             }, (error: any) => {
+              if (
+                !active ||
+                isAccountTerminatingRef.current ||
+                !auth.currentUser ||
+                !currentUser ||
+                isPermissionDeniedError(error)
+              ) {
+                setFirestoreErrorMessage(null);
+                return;
+              }
               const snapCode = error?.code || "HATA";
               const snapMsg = error?.message || String(error);
               const fullSnapErr = `[${snapCode}] ${snapMsg}`;
@@ -3871,19 +3953,26 @@ export default function App() {
             });
 
             // Profil ismini canlı dinleyici ile izle
-            const profilUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/isim`), (pSnapshot) => {
-              if (pSnapshot.exists() && active) {
+            const profilUnsub = onValue(profilIsimRef, (pSnapshot) => {
+              if (!active || isAccountTerminatingRef.current || !auth.currentUser || !currentUser) return;
+              if (pSnapshot.exists()) {
                 const pName = String(pSnapshot.val() || "").trim();
                 if (pName) {
                   setUserProfileName(pName);
                   localStorage.setItem("user_profile_name", pName);
                 }
               }
+            }, (error: any) => {
+              if (isPermissionDeniedError(error) || isAccountTerminatingRef.current || !auth.currentUser) {
+                return;
+              }
+              console.warn("Profil isim dinleyici uyarısı:", error);
             });
 
             // Profil resmini canlı dinleyici ile izle
-            const profilResimUnsub = onValue(ref(db, `kullanicilar/${fbUser.uid}/profil/resim`), (imgSnapshot) => {
-              if (imgSnapshot.exists() && active) {
+            const profilResimUnsub = onValue(profilResimRef, (imgSnapshot) => {
+              if (!active || isAccountTerminatingRef.current || !auth.currentUser || !currentUser) return;
+              if (imgSnapshot.exists()) {
                 const imgData = String(imgSnapshot.val() || "").trim();
                 if (imgData) {
                   setUserAvatar(imgData);
@@ -3892,13 +3981,23 @@ export default function App() {
                   localStorage.setItem(`${spaceKey}_avatar`, imgData);
                 }
               }
+            }, (error: any) => {
+              if (isPermissionDeniedError(error) || isAccountTerminatingRef.current || !auth.currentUser) {
+                return;
+              }
+              console.warn("Profil resim dinleyici uyarısı:", error);
             });
 
-            unsubscribeSnapshot = () => {
-              rtdbUnsub();
-              profilUnsub();
-              profilResimUnsub();
+            const cleanupListeners = () => {
+              try { rtdbUnsub(); } catch {}
+              try { profilUnsub(); } catch {}
+              try { profilResimUnsub(); } catch {}
+              try { off(primaryVerilerRef); } catch {}
+              try { off(profilIsimRef); } catch {}
+              try { off(profilResimRef); } catch {}
             };
+            unsubscribeSnapshot = cleanupListeners;
+            activeDbListenersCleanupRef.current = cleanupListeners;
           } catch (snapErr: any) {
             const snapSetupCode = snapErr?.code || "HATA";
             const snapSetupMsg = snapErr?.message || String(snapErr);
@@ -3906,34 +4005,29 @@ export default function App() {
           }
 
         } catch (err: any) {
+          const isPermissionErr = isPermissionDeniedError(err);
+          const noActiveUser = isAccountTerminatingRef.current || !auth.currentUser || !currentUser;
+          if (!active || noActiveUser || isPermissionErr) {
+            if (active) {
+              loadFromLocalStorage();
+              setFirestoreErrorMessage(null);
+            }
+            return;
+          }
+
           const errCode = err?.code || "HATA";
           const errMsg = err?.message || String(err);
           const fullErrText = `[${errCode}] ${errMsg}`;
 
           console.error("Realtime Database yükleme hatası:", fullErrText, err);
 
-          if (active) {
-            loadFromLocalStorage();
-            setIsOfflineMode(true);
-            setFirestoreErrorMessage(`Database Bağlantı Hatası: ${fullErrText}`);
-            triggerToast(`Database Bağlantı Hatası: ${fullErrText}`, 6000);
-            
-            const isPermissionError = err && (
-              err.code === "permission-denied" || 
-              err.message?.toLowerCase().includes("permission") || 
-              err.message?.toLowerCase().includes("denied")
-            );
-            
-            if (isPermissionError) {
-              try {
-                handleDatabaseError(err, OperationType.GET, `kullanicilar/${fbUser.uid}/veriler`);
-              } catch (e) {
-                console.error("Permission error handled:", e);
-              }
-            }
-          }
+          loadFromLocalStorage();
+          setIsOfflineMode(true);
+          setFirestoreErrorMessage(`Database Bağlantı Hatası: ${fullErrText}`);
+          triggerToast(`Database Bağlantı Hatası: ${fullErrText}`, 6000);
         }
       } else {
+        cleanupAllDatabaseListeners();
         loadFromLocalStorage();
         setIsOfflineMode(false);
       }
@@ -3948,6 +4042,10 @@ export default function App() {
       active = false;
       if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
+        if (activeDbListenersCleanupRef.current === unsubscribeSnapshot) {
+          activeDbListenersCleanupRef.current = null;
+        }
+        unsubscribeSnapshot = null;
       }
     };
   }, [currentUser]);
@@ -4464,7 +4562,7 @@ export default function App() {
       }
       
       // 2. Firebase kullanıcısı varsa bulut senkronizasyonu yap
-      if (fbUser) {
+      if (fbUser && !isAccountTerminatingRef.current && auth.currentUser) {
         const rawPayload = {
           ...dataBag,
           email: cleanEmail || "",
@@ -4487,7 +4585,7 @@ export default function App() {
 
         // A) Firestore Senkronizasyonu (Zaman Aşımı Korumalı & Hata İzolasyonlu)
         try {
-          if (auth.currentUser) {
+          if (auth.currentUser && !isAccountTerminatingRef.current) {
             await withTimeout(
               setDoc(doc(firestore, "users", fbUser.uid), firestorePayload, { merge: true }),
               6000,
@@ -4501,17 +4599,19 @@ export default function App() {
 
         // B) Realtime Database Senkronizasyonu (Zaman Aşımı Korumalı)
         try {
-          await withTimeout(
-            Promise.all([
-              set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), rtdbPayload),
-              set(ref(db, `users/${fbUser.uid}/veriler`), rtdbPayload),
-              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed ?? 50),
-              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), Boolean(marqueePaused)),
-              set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeEnabled`), marqueeEnabled !== false)
-            ]),
-            5000,
-            "Realtime Database yanıt zaman aşımı"
-          );
+          if (auth.currentUser && !isAccountTerminatingRef.current) {
+            await withTimeout(
+              Promise.all([
+                set(ref(db, `kullanicilar/${fbUser.uid}/veriler`), rtdbPayload),
+                set(ref(db, `users/${fbUser.uid}/veriler`), rtdbPayload),
+                set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeSpeed`), marqueeSpeed ?? 50),
+                set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueePaused`), Boolean(marqueePaused)),
+                set(ref(db, `kullanicilar/${fbUser.uid}/ayarlar/marqueeEnabled`), marqueeEnabled !== false)
+              ]),
+              5000,
+              "Realtime Database yanıt zaman aşımı"
+            );
+          }
         } catch (rErr: any) {
           console.warn("⚠️ Realtime Database eşitleme uyarısı / zaman aşımı:", rErr?.message || rErr);
         }
@@ -4522,6 +4622,11 @@ export default function App() {
         triggerToast("Değişiklikler Kaydedildi");
       }
     } catch (err: any) {
+      if (isAccountTerminatingRef.current || !auth.currentUser || !currentUser || isPermissionDeniedError(err)) {
+        setFirestoreErrorMessage(null);
+        return;
+      }
+
       const errCode = err?.code || "HATA";
       const errMsg = err?.message || String(err);
       const fullErrText = `[${errCode}] ${errMsg}`;
@@ -4530,20 +4635,6 @@ export default function App() {
       setIsOfflineMode(true);
       setFirestoreErrorMessage(`Database Kayıt Hatası: ${fullErrText}`);
       triggerToast(`Bulut Kayıt Hatası: ${fullErrText}`, 6000);
-      
-      const isPermissionError = err && (
-        err.code === "permission-denied" || 
-        err.message?.toLowerCase().includes("permission") || 
-        err.message?.toLowerCase().includes("denied")
-      );
-      
-      if (isPermissionError && auth.currentUser) {
-        try {
-          handleDatabaseError(err, OperationType.WRITE, `kullanicilar/${auth.currentUser.uid}/veriler`);
-        } catch (e) {
-          console.error("Permission write error handled:", e);
-        }
-      }
     }
   };
 
@@ -5141,6 +5232,7 @@ export default function App() {
     const cleanNick = loginUsername.trim();
     if (currentUser !== cleanNick) {
       const proceedLogin = () => {
+        isAccountTerminatingRef.current = false;
         setCurrentUser(cleanNick);
         localStorage.setItem("currentUser", cleanNick);
         setLoginUsername("");
@@ -5168,6 +5260,8 @@ export default function App() {
       "Çıkış Yap",
       "Oturumunuz kapatılacaktır. Devam etmek istediğinize emin misiniz?",
       async () => {
+        isAccountTerminatingRef.current = true;
+        cleanupAllDatabaseListeners();
         try {
           await signOut(auth);
         } catch (err) {
@@ -5233,6 +5327,10 @@ export default function App() {
 
   // Google Play & GDPR: Hesap ve Tüm Verileri Kalıcı Olarak Silme Fonksiyonu
   const handleDeleteAccount = async () => {
+    isAccountTerminatingRef.current = true;
+    cleanupAllDatabaseListeners();
+    setFirestoreErrorMessage(null);
+
     try {
       const fbUser = auth.currentUser;
       const uid = fbUser?.uid;
@@ -5276,8 +5374,12 @@ export default function App() {
         await signOut(auth).catch(() => {});
       }
 
+      // Dinleyicileri ve hata durumunu bir kez daha kesin olarak temizle
+      cleanupAllDatabaseListeners();
+
       // 4. Yerel cihaz hafızasını (LocalStorage) tamamen temizle
       localStorage.removeItem("currentUser");
+      localStorage.setItem("userLoggedIn", "false");
       localStorage.removeItem("user_profile_name");
       localStorage.removeItem("user_profile_avatar");
       localStorage.removeItem("is_premium");
@@ -5309,10 +5411,12 @@ export default function App() {
       setUserProfileName("");
       setUserAvatar("");
       setCurrentUser(null);
+      setUserLoggedIn(false);
       setIsPremium(false);
       setIsTrialExpiredLocked(false);
       setIsUpgradeModalOpen(false);
       setTrialStatus(null);
+      setFirestoreErrorMessage(null);
       setDebts([]);
       setIncomes([]);
       setAlarms([]);
@@ -5327,6 +5431,9 @@ export default function App() {
       setProviderLoginOpen(true);
       triggerToast("Hesabınız ve tüm verileriniz kalıcı olarak silindi. 👋");
     } catch (err: any) {
+      if (auth.currentUser) {
+        isAccountTerminatingRef.current = false;
+      }
       console.error("Hesap ve veri silme hatası:", err);
       triggerToast(`Hata: ${err?.message || "Hesap silinemedi."}`);
       throw err;
@@ -5805,7 +5912,10 @@ export default function App() {
 
       const newNotif: NotificationItem = {
         id: Date.now(),
-        title: `${title} - ${message}`
+        title: `${title} - ${message}`,
+        message,
+        date: new Date().toISOString(),
+        isRead: false
       };
       setNotifications((prev) => [newNotif, ...prev]);
 
@@ -5821,7 +5931,10 @@ export default function App() {
 
       const newNotif: NotificationItem = {
         id: Date.now(),
-        title: `${title} - ${message}`
+        title: `${title} - ${message}`,
+        message,
+        date: new Date().toISOString(),
+        isRead: false
       };
       setNotifications((prev) => [newNotif, ...prev]);
 
@@ -6488,7 +6601,9 @@ export default function App() {
     const newNotifId = notifications.length > 0 ? Math.max(...notifications.map((n) => n.id)) + 1 : 1;
     const newNotif: NotificationItem = {
       id: newNotifId,
-      title: `⏰ Ödeme Hatırlatıcısı Kuruldu - ${titleString} (${dateString ? new Date(dateString).toLocaleDateString("tr-TR") : "Tarih Belirtilmedi"})`
+      title: `⏰ Ödeme Hatırlatıcısı Kuruldu - ${titleString} (${dateString ? new Date(dateString).toLocaleDateString("tr-TR") : "Tarih Belirtilmedi"})`,
+      date: dateString || new Date().toISOString(),
+      isRead: false
     };
     const updatedNotifs = [newNotif, ...notifications];
 
@@ -6679,6 +6794,22 @@ export default function App() {
     const updated = notifications.filter((n) => n.id !== id);
     setNotifications(updated);
     saveAllToUser(debts, incomes, alarms, updated, installmentDebts, payments, expenses, expenseCategories);
+  };
+
+  const handleMarkNotifAsRead = (id: number) => {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.isRead) return;
+    const updated = notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+    setNotifications(updated);
+    saveAllToUser(debts, incomes, alarms, updated, installmentDebts, payments, expenses, expenseCategories, true);
+  };
+
+  const handleMarkAllNotifsAsRead = () => {
+    if (notifications.every((n) => n.isRead)) return;
+    const updated = notifications.map((n) => ({ ...n, isRead: true }));
+    setNotifications(updated);
+    saveAllToUser(debts, incomes, alarms, updated, installmentDebts, payments, expenses, expenseCategories, true);
+    triggerToast("Tüm bildirimler okundu olarak işaretlendi.");
   };
 
   const handleClearNotifs = () => {
@@ -8667,13 +8798,13 @@ export default function App() {
             onClick={() => {
               handleNavClick("notifications");
             }}
-            title={`Bildirimler ve Alarmlar (${notifications.length})`}
+            title={`Bildirimler ve Alarmlar (${unreadNotifsCount} okunmamış)`}
             className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 active:scale-95 rounded-xl transition-all text-slate-700 dark:text-white flex items-center justify-center duration-300 cursor-pointer shadow-xs dark:shadow-inner relative shrink-0"
           >
             <Bell className="w-4 h-4 text-slate-600 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-white transition-colors" />
-            {notifications.length > 0 && (
+            {unreadNotifsCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[8px] font-black h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center ring-1 ring-slate-900 shadow-md">
-                {notifications.length}
+                {unreadNotifsCount}
               </span>
             )}
           </button>
@@ -8728,7 +8859,7 @@ export default function App() {
       </header>
 
       {/* Firestore Connection / Sync Error Banner with full error text and retry */}
-      {firestoreErrorMessage && (
+      {firestoreErrorMessage && !isAccountTerminatingRef.current && Boolean(auth.currentUser || currentUser) && (
         <div className="shrink-0 bg-rose-950/95 border-b border-rose-500/40 text-rose-100 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md animate-in fade-in z-20 relative">
           <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
             <div className="p-1.5 bg-rose-500/20 text-rose-300 rounded-lg shrink-0 mt-0.5 sm:mt-0">
@@ -8761,6 +8892,10 @@ export default function App() {
                     }
                   }
                 } catch (retryErr: any) {
+                  if (isAccountTerminatingRef.current || !auth.currentUser || !currentUser || isPermissionDeniedError(retryErr)) {
+                    setFirestoreErrorMessage(null);
+                    return;
+                  }
                   const retryCode = retryErr?.code || "HATA";
                   const retryMsg = retryErr?.message || String(retryErr);
                   const fullRetry = `[${retryCode}] ${retryMsg}`;
@@ -10150,13 +10285,13 @@ export default function App() {
               >
                 <Bell className="w-4 h-4" />
                 <span>Bildirimler & Alarmlar</span>
-                {(notifications.length + getUpcomingPayments().length) > 0 && (
+                {(unreadNotifsCount + getUpcomingPayments().length) > 0 && (
                   <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                     getUpcomingPayments().length > 0
                       ? "bg-amber-500 text-slate-950 animate-pulse"
                       : "bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
                   }`}>
-                    {notifications.length + getUpcomingPayments().length}
+                    {unreadNotifsCount + getUpcomingPayments().length}
                   </span>
                 )}
               </button>
@@ -10200,6 +10335,15 @@ export default function App() {
                       <Bell className="w-3.5 h-3.5" />
                       <span>{isAddingAlarmNew ? "Formu Kapat" : "🔔 Yeni Hatırlatma Ekle"}</span>
                     </button>
+                    {unreadNotifsCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllNotifsAsRead}
+                        className="px-3.5 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 text-xs font-black rounded-xl transition hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer active:scale-95 select-none"
+                      >
+                        Tümünü Okundu Yap
+                      </button>
+                    )}
                     {notifications.length > 0 && (
                       <button
                         type="button"
@@ -10222,13 +10366,6 @@ export default function App() {
                         : "Arka Plan Alarm Servisi: Bağlantı kuruluyor..."}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setNotifSectionTab("settings")}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>⚙️ Ayarlar & 10sn Test</span>
-                  </button>
                 </div>
 
                 {/* Premium Interactive Inline Alarm Ekleme Formu */}
@@ -10481,20 +10618,67 @@ export default function App() {
                               return true;
                             }).map((n) => {
                               const isSys = n.type === "system" || n.title.includes("Hoş Geldiniz") || n.title.includes("Veritabanı") || n.title.includes("Sistem") || n.title.includes("Yedek") || n.title.includes("Temizlendi") || n.title.includes("Test");
+                              const isRead = Boolean(n.isRead);
+                              const isExpanded = expandedNotifId === n.id;
+                              const detailBody = n.message || n.desc;
                               return (
                                 <div
                                   key={n.id}
-                                  className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-xs animate-fade-in shadow-2xs hover:border-slate-200 dark:hover:border-slate-700 transition"
+                                  onClick={() => {
+                                    handleMarkNotifAsRead(n.id);
+                                    setExpandedNotifId((prev) => (prev === n.id ? null : n.id));
+                                  }}
+                                  className={`p-3.5 rounded-2xl border flex flex-col gap-2 text-xs animate-fade-in shadow-2xs transition cursor-pointer ${
+                                    isRead
+                                      ? "bg-slate-50/70 dark:bg-slate-800/45 border-slate-100 dark:border-slate-800/70 opacity-80"
+                                      : "bg-white dark:bg-slate-800 border-indigo-200/80 dark:border-indigo-500/40 hover:border-indigo-300 dark:hover:border-indigo-400"
+                                  }`}
                                 >
-                                  <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                                    {isSys ? (
-                                      <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 font-mono text-[9px] font-black rounded uppercase">SİSTEM</span>
-                                    ) : (
-                                      <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-black rounded uppercase">ALARM</span>
-                                    )}
-                                    <span>💌 {n.title}</span>
-                                  </span>
-                                  <button onClick={() => handleDeleteNotif(n.id)} className="text-rose-500 font-black hover:underline px-2 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer">Sil</button>
+                                  <div className="flex justify-between items-center gap-2">
+                                    <span className={`flex items-center gap-2 min-w-0 ${isRead ? "font-medium text-slate-500 dark:text-slate-400" : "font-semibold text-slate-700 dark:text-slate-200"}`}>
+                                      {!isRead && (
+                                        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Okunmamış" />
+                                      )}
+                                      {isSys ? (
+                                        <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 font-mono text-[9px] font-black rounded uppercase shrink-0">SİSTEM</span>
+                                      ) : (
+                                        <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-black rounded uppercase shrink-0">ALARM</span>
+                                      )}
+                                      <span className="break-words">💌 {n.title}</span>
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      {!isRead ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkNotifAsRead(n.id)}
+                                          className="text-emerald-600 dark:text-emerald-400 font-black hover:underline px-2 py-1 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-xl transition cursor-pointer"
+                                        >
+                                          Okundu
+                                        </button>
+                                      ) : (
+                                        <span className="text-[10px] font-bold text-emerald-600/80 dark:text-emerald-400/80 px-1.5 py-0.5">
+                                          Okundu ✓
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteNotif(n.id)}
+                                        className="text-rose-500 font-black hover:underline px-2 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition cursor-pointer"
+                                      >
+                                        Sil
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {isExpanded && (detailBody || n.date) && (
+                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+                                      {detailBody && <p className="leading-relaxed">{detailBody}</p>}
+                                      {n.date && (
+                                        <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                                          {new Date(n.date).toLocaleString("tr-TR")}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}

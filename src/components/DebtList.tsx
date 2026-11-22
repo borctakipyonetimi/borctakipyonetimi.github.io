@@ -98,7 +98,7 @@ export const DebtList: React.FC<DebtListProps> = ({
   } = useFeatureAccess("debts", isPremium);
   const showAds = auth.shouldShowAds && !isPremium && !auth.isPremium && !auth.isTrialActive;
   const [activeTab, setActiveTab] = useState<"unpaid" | "paid">("unpaid");
-  const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("none");
+  const [sortBy, setSortBy] = useState<"none" | "amount_desc" | "amount_asc" | "due_date_asc" | "due_date_desc">("due_date_asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDebtIds, setSelectedDebtIds] = useState<number[]>([]);
@@ -767,17 +767,22 @@ export const DebtList: React.FC<DebtListProps> = ({
         if (sortBy === "amount_asc") {
           return a.amount - b.amount;
         }
-        if (sortBy === "due_date_asc") {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-        }
-        if (sortBy === "due_date_desc") {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+        if (sortBy === "due_date_asc" || sortBy === "due_date_desc") {
+          const getDueTime = (dateStr?: string): number | null => {
+            if (!dateStr || !dateStr.trim()) return null;
+            const parts = parseDateParts(dateStr);
+            if (parts) {
+              return new Date(parts.year, parts.month, parts.day).getTime();
+            }
+            const parsed = new Date(dateStr).getTime();
+            return Number.isFinite(parsed) ? parsed : null;
+          };
+          const timeA = getDueTime(a.dueDate);
+          const timeB = getDueTime(b.dueDate);
+          if (timeA === null && timeB === null) return 0;
+          if (timeA === null) return 1;
+          if (timeB === null) return -1;
+          return sortBy === "due_date_asc" ? timeA - timeB : timeB - timeA;
         }
         return 0;
       });
