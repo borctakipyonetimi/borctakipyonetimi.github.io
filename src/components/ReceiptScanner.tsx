@@ -163,18 +163,6 @@ function parseOcrAmount(rawAmount: unknown): number {
   return Number.isFinite(num) && num >= 0 ? num : 0;
 }
 
-function getBuildTimeGeminiKey(): string | undefined {
-  try {
-    const key = import.meta.env.VITE_GEMINI_API_KEY;
-    if (typeof key === "string" && key.trim().length > 5) {
-      return key.trim();
-    }
-  } catch {
-    // ignore
-  }
-  return undefined;
-}
-
 async function scanReceiptDirectlyWithGemini(params: {
   base64DataUrl: string;
   mimeType: string;
@@ -643,10 +631,8 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         // ignore
       }
 
-      const buildGeminiKey = getBuildTimeGeminiKey();
       const directKeysToTry: string[] = [];
-      if (buildGeminiKey) directKeysToTry.push(buildGeminiKey);
-      if (userApiKey && !directKeysToTry.includes(userApiKey)) directKeysToTry.push(userApiKey);
+      if (userApiKey) directKeysToTry.push(userApiKey);
 
       const isStaticOrApk = isCapacitorOrStaticLocalOrigin();
 
@@ -748,7 +734,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         }
       };
 
-      // 1. Always scan directly via Gemini API using VITE_GEMINI_API_KEY first (no external server required)
+      // 1. Scan directly via Gemini API if the user configured a personal key in settings
       if (await tryDirectGemini()) {
         return;
       }
