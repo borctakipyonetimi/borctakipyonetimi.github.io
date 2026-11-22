@@ -1453,7 +1453,11 @@ app.post("/api/scan-receipt", async (req, res) => {
       error: "G\xF6rsel verisi bo\u015F veya bozuk g\xF6r\xFCn\xFCyor. L\xFCtfen foto\u011Fraf\u0131 net \u015Fekilde yeniden \xE7ekin."
     });
   }
-  const aiClient = getGeminiClient(userApiKey);
+  const cleanUserKey = typeof userApiKey === "string" && userApiKey.trim().length > 5 ? userApiKey.trim() : void 0;
+  let aiClient = getGeminiClient(cleanUserKey);
+  if (!aiClient && cleanUserKey) {
+    aiClient = getGeminiClient();
+  }
   if (!aiClient) {
     return res.status(503).json({
       success: false,
@@ -1464,11 +1468,11 @@ app.post("/api/scan-receipt", async (req, res) => {
   try {
     const promptText = `Sen T\xFCrkiye'deki fi\u015F, fatura, adisyon, dekont ve makbuzlar\u0131 okuyan uzman bir yapay zeka OCR sistemisin. Ekteki g\xF6rsel bir fatura ya da harcama fi\u015Fidir.
 
-L\xFCtfen belgeden \u015Fu bilgileri \xE7\u0131kar:
-1. title: Ma\u011Faza, kurum, \u015Firket veya sat\u0131c\u0131 ad\u0131 (\xD6rn: 'B\u0130M', 'Migros', 'A101', 'Shell', 'Enerjisa', '\u0130SK\u0130', 'Turkcell', 'Eczane', vb.). Okunam\u0131yorsa bo\u015F string d\xF6nd\xFCr.
-2. amount: Belgedeki Genel Toplam / KDV Dahil \xD6denecek Tutar (sadece say\u0131sal de\u011Fer, \xF6rn: 185.50). Okunam\u0131yorsa 0 d\xF6nd\xFCr.
-3. date: Belge / Fatura / Fi\u015F tarihi (Format: YYYY-MM-DD olmal\u0131. Y\u0131l eksikse 2026 al).
-4. categorySuggestion: Harcaman\u0131n en uygun kategorisi (\xD6rn: 'G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Di\u011Fer').
+L\xFCtfen belgeden \u015Fu bilgileri eksiksiz \xE7\u0131kar:
+1. title: Fi\u015Fin/faturan\u0131n en \xFCst\xFCndeki veya sat\u0131c\u0131 k\u0131sm\u0131ndaki ma\u011Faza, firma, kurum veya sat\u0131c\u0131 ad\u0131 (\xD6rn: 'B\u0130M', 'Migros', 'A101', '\u015EOK', 'Shell', 'Enerjisa', '\u0130SK\u0130', '\u0130GDA\u015E', 'Turkcell', 'Vodafone', 'Eczane', vb.). Okunam\u0131yorsa bo\u015F string d\xF6nd\xFCr.
+2. amount: Belgedeki TOPLAM / GENEL TOPLAM / \xD6DENECEK TUTAR (KDV dahil son \xF6denen say\u0131sal tutar, \xF6rn: 185.50). Okunam\u0131yorsa 0 d\xF6nd\xFCr.
+3. date: Belge / Fatura / Fi\u015F tarihi (Format mutlaka YYYY-MM-DD olmal\u0131; \xF6rn: 22.11.2026 ise '2026-11-22' d\xF6nd\xFCr. Y\u0131l eksikse 2026 al).
+4. categorySuggestion: Harcaman\u0131n en uygun kategorisi (\xD6rn: 'G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Kredi Kart\u0131', 'Konut', 'Ara\xE7', 'E\u011Fitim', 'Di\u011Fer').
 5. type: Pe\u015Fin al\u0131\u015Fveri\u015F/fi\u015F ise 'expense', vadesi olan veya \xF6denecek fatura ise 'debt'. (Varsay\u0131lan: '${defaultType}').
 
 Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
@@ -1490,26 +1494,26 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
         properties: {
           title: {
             type: import_genai.Type.STRING,
-            description: "Sat\u0131c\u0131 veya kurum unvan\u0131"
+            description: "Sat\u0131c\u0131, ma\u011Faza veya kurum unvan\u0131"
           },
           amount: {
             type: import_genai.Type.NUMBER,
-            description: "KDV dahil \xF6denecek toplam tutar"
+            description: "KDV dahil \xF6denecek genel toplam tutar"
           },
           date: {
             type: import_genai.Type.STRING,
-            description: "Belge tarihi (YYYY-MM-DD)"
+            description: "Belge veya vade tarihi (YYYY-MM-DD)"
           },
           categorySuggestion: {
             type: import_genai.Type.STRING,
-            description: "\xD6nerilen b\xFCt\xE7e kategorisi"
+            description: "\xD6nerilen b\xFCt\xE7e veya bor\xE7 kategorisi"
           },
           type: {
             type: import_genai.Type.STRING,
             description: "'expense' veya 'debt'"
           }
         },
-        required: ["title", "amount"]
+        required: ["title", "amount", "date"]
       }
     };
     const runWithTimeout = (promise, timeoutMs, label) => Promise.race([
@@ -1519,37 +1523,40 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
       )
     ]);
     let response;
-    try {
-      response = await runWithTimeout(
-        aiClient.models.generateContent({
-          model: "gemini-3.1-flash-lite",
-          contents: { parts: contentParts },
-          config: baseSchemaConfig
-        }),
-        22e3,
-        "gemini-3.1-flash-lite"
-      );
-    } catch (primaryErr) {
-      const errMsg = String(primaryErr?.message || "");
-      const status = primaryErr?.status || primaryErr?.code;
-      if (status === 400 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
-        throw primaryErr;
-      }
-      console.warn("[Scan API] Primary gemini-3.1-flash-lite returned:", errMsg || status, "- Trying gemini-4-hydrogen...");
-      response = await runWithTimeout(
-        aiClient.models.generateContent({
-          model: "gemini-4-hydrogen",
-          contents: { parts: contentParts },
-          config: {
-            ...baseSchemaConfig,
-            thinkingConfig: {
-              thinkingLevel: import_genai.ThinkingLevel.LOW
-            }
+    let lastModelError = null;
+    const modelsToTry = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+    for (const modelName of modelsToTry) {
+      try {
+        const modelConfig = modelName === "gemini-4-hydrogen" ? {
+          ...baseSchemaConfig,
+          thinkingConfig: {
+            thinkingLevel: import_genai.ThinkingLevel.LOW
           }
-        }),
-        15e3,
-        "gemini-4-hydrogen"
-      );
+        } : baseSchemaConfig;
+        response = await runWithTimeout(
+          aiClient.models.generateContent({
+            model: modelName,
+            contents: [{ role: "user", parts: contentParts }],
+            config: modelConfig
+          }),
+          22e3,
+          modelName
+        );
+        if (response?.text) {
+          break;
+        }
+      } catch (modelErr) {
+        lastModelError = modelErr;
+        const errMsg = String(modelErr?.message || "");
+        const status = Number(modelErr?.status || modelErr?.code || 0);
+        console.warn(`[Scan API] Model ${modelName} failed (${status}):`, errMsg);
+        if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+          throw modelErr;
+        }
+      }
+    }
+    if (!response) {
+      throw lastModelError || new Error("T\xFCm Gemini OCR modelleri ba\u015Far\u0131s\u0131z oldu.");
     }
     const rawResponseText = (response?.text ?? "").trim();
     if (!rawResponseText) {
@@ -1586,8 +1593,17 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     const missingFields = [];
     if (!cleanTitle) missingFields.push("Ma\u011Faza / kurum ad\u0131");
     if (parsedAmount <= 0) missingFields.push("Toplam tutar");
-    let parsedDate = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+    let parsedDate = "";
+    const rawDateStr = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
+    const ymdMatch = rawDateStr.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    const dmyMatch = rawDateStr.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (ymdMatch) {
+      const [, y, m, d] = ymdMatch;
+      parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    } else if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    } else {
       parsedDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     }
     const cleanCategory = typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim() ? parsedData.categorySuggestion.trim() : defaultType === "debt" ? "Fatura" : "G\u0131da / Market";
@@ -1611,11 +1627,12 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
         error: "Fatura okuma servisi yan\u0131t vermekte gecikti. L\xFCtfen foto\u011Fraf boyutunu k\xFC\xE7\xFClt\xFCp tekrar deneyin veya 'Manuel Olarak Doldur' se\xE7ene\u011Fini kullan\u0131n."
       });
     }
-    if (status === 403 || status === 400 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
-      return res.status(status === 403 ? 403 : 400).json({
+    if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+      return res.status(status === 403 ? 403 : 401).json({
         success: false,
         errorCode: "INVALID_API_KEY",
-        error: "Gemini API anahtar\u0131 ge\xE7ersiz veya yetkisiz. L\xFCtfen Settings > Secrets panelinden API anahtar\u0131n\u0131 kontrol edin."
+        error: "Gemini API anahtar\u0131 ge\xE7ersiz veya yetkisiz. L\xFCtfen Settings > Secrets panelinden API anahtar\u0131n\u0131 kontrol edin.",
+        detail: errMsg ? errMsg.slice(0, 220) : void 0
       });
     }
     if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(errMsg)) {
