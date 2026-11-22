@@ -1533,7 +1533,12 @@ app.post("/api/scan-receipt", async (req, res) => {
     });
   }
 
-  const aiClient = getGeminiClient(userApiKey);
+  const cleanUserKey = typeof userApiKey === "string" && userApiKey.trim().length > 5 ? userApiKey.trim() : undefined;
+  let aiClient = getGeminiClient(cleanUserKey);
+
+  if (!aiClient && cleanUserKey) {
+    aiClient = getGeminiClient();
+  }
 
   if (!aiClient) {
     return res.status(503).json({
@@ -1546,11 +1551,11 @@ app.post("/api/scan-receipt", async (req, res) => {
   try {
     const promptText =
       "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
-      "Lütfen belgeden şu bilgileri çıkar:\n" +
-      "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
-      "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
-      "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Yıl eksikse 2026 al).\n" +
-      "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Diğer').\n" +
+      "Lütfen belgeden şu bilgileri eksiksiz çıkar:\n" +
+      "1. title: Fişin/faturanın en üstündeki veya satıcı kısmındaki mağaza, firma, kurum veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'ŞOK', 'Shell', 'Enerjisa', 'İSKİ', 'İGDAŞ', 'Turkcell', 'Vodafone', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
+      "2. amount: Belgedeki TOPLAM / GENEL TOPLAM / ÖDENECEK TUTAR (KDV dahil son ödenen sayısal tutar, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
+      "3. date: Belge / Fatura / Fiş tarihi (Format mutlaka YYYY-MM-DD olmalı; örn: 22.11.2026 ise '2026-11-22' döndür. Yıl eksikse 2026 al).\n" +
+      "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Kredi Kartı', 'Konut', 'Araç', 'Eğitim', 'Diğer').\n" +
       `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
       "Yalnızca geçerli bir JSON objesi döndür.";
 
@@ -1573,26 +1578,26 @@ app.post("/api/scan-receipt", async (req, res) => {
         properties: {
           title: {
             type: Type.STRING,
-            description: "Satıcı veya kurum unvanı"
+            description: "Satıcı, mağaza veya kurum unvanı"
           },
           amount: {
             type: Type.NUMBER,
-            description: "KDV dahil ödenecek toplam tutar"
+            description: "KDV dahil ödenecek genel toplam tutar"
           },
           date: {
             type: Type.STRING,
-            description: "Belge tarihi (YYYY-MM-DD)"
+            description: "Belge veya vade tarihi (YYYY-MM-DD)"
           },
           categorySuggestion: {
             type: Type.STRING,
-            description: "Önerilen bütçe kategorisi"
+            description: "Önerilen bütçe veya borç kategorisi"
           },
           type: {
             type: Type.STRING,
             description: "'expense' veya 'debt'"
           }
         },
-        required: ["title", "amount"]
+        required: ["title", "amount", "date"]
       }
     };
 
@@ -1605,37 +1610,46 @@ app.post("/api/scan-receipt", async (req, res) => {
       ]);
 
     let response: any;
-    try {
-      response = await runWithTimeout(
-        aiClient.models.generateContent({
-          model: "gemini-3.1-flash-lite",
-          contents: { parts: contentParts },
-          config: baseSchemaConfig,
-        }),
-        22000,
-        "gemini-3.1-flash-lite"
-      );
-    } catch (primaryErr: any) {
-      const errMsg = String(primaryErr?.message || "");
-      const status = primaryErr?.status || primaryErr?.code;
-      if (status === 400 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
-        throw primaryErr;
+    let lastModelError: any = null;
+    const modelsToTry = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+
+    for (const modelName of modelsToTry) {
+      try {
+        const modelConfig: any =
+          modelName === "gemini-4-hydrogen"
+            ? {
+                ...baseSchemaConfig,
+                thinkingConfig: {
+                  thinkingLevel: ThinkingLevel.LOW,
+                },
+              }
+            : baseSchemaConfig;
+
+        response = await runWithTimeout(
+          aiClient.models.generateContent({
+            model: modelName,
+            contents: [{ role: "user", parts: contentParts }],
+            config: modelConfig,
+          }),
+          22000,
+          modelName
+        );
+        if (response?.text) {
+          break;
+        }
+      } catch (modelErr: any) {
+        lastModelError = modelErr;
+        const errMsg = String(modelErr?.message || "");
+        const status = Number(modelErr?.status || modelErr?.code || 0);
+        console.warn(`[Scan API] Model ${modelName} failed (${status}):`, errMsg);
+        if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+          throw modelErr;
+        }
       }
-      console.warn("[Scan API] Primary gemini-3.1-flash-lite returned:", errMsg || status, "- Trying gemini-4-hydrogen...");
-      response = await runWithTimeout(
-        aiClient.models.generateContent({
-          model: "gemini-4-hydrogen",
-          contents: { parts: contentParts },
-          config: {
-            ...baseSchemaConfig,
-            thinkingConfig: {
-              thinkingLevel: ThinkingLevel.LOW,
-            },
-          },
-        }),
-        15000,
-        "gemini-4-hydrogen"
-      );
+    }
+
+    if (!response) {
+      throw lastModelError || new Error("Tüm Gemini OCR modelleri başarısız oldu.");
     }
 
     const rawResponseText = (response?.text ?? "").trim();
@@ -1683,8 +1697,17 @@ app.post("/api/scan-receipt", async (req, res) => {
     if (!cleanTitle) missingFields.push("Mağaza / kurum adı");
     if (parsedAmount <= 0) missingFields.push("Toplam tutar");
 
-    let parsedDate = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+    let parsedDate = "";
+    const rawDateStr = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
+    const ymdMatch = rawDateStr.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    const dmyMatch = rawDateStr.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (ymdMatch) {
+      const [, y, m, d] = ymdMatch;
+      parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    } else if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    } else {
       parsedDate = new Date().toISOString().split("T")[0];
     }
 
@@ -1717,11 +1740,12 @@ app.post("/api/scan-receipt", async (req, res) => {
       });
     }
 
-    if (status === 403 || status === 400 || /API_KEY_INVALID|PERMISSION_DENIED/i.test(errMsg)) {
-      return res.status(status === 403 ? 403 : 400).json({
+    if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+      return res.status(status === 403 ? 403 : 401).json({
         success: false,
         errorCode: "INVALID_API_KEY",
-        error: "Gemini API anahtarı geçersiz veya yetkisiz. Lütfen Settings > Secrets panelinden API anahtarını kontrol edin."
+        error: "Gemini API anahtarı geçersiz veya yetkisiz. Lütfen Settings > Secrets panelinden API anahtarını kontrol edin.",
+        detail: errMsg ? errMsg.slice(0, 220) : undefined
       });
     }
 

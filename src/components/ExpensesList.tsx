@@ -1144,14 +1144,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
   // AI OCR scanner state and callback
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const handleScanCompleted = (result: any) => {
-    setAmount(result.amount.toString());
-    setDescription(result.title);
-    if (result.date) {
+    const numericAmount = Number(result?.amount);
+    setExpModalTitle("Gider Ekle");
+    setExpenseId(undefined);
+    setAmount(Number.isFinite(numericAmount) && numericAmount > 0 ? String(numericAmount) : "");
+    setDescription(typeof result?.title === "string" ? result.title.trim() : "");
+    if (result?.date) {
       setDate(result.date);
     }
     // Fuzzy match suggested category
-    if (result.categorySuggestion) {
-      const suggested = result.categorySuggestion.toLowerCase();
+    if (result?.categorySuggestion) {
+      const suggested = String(result.categorySuggestion).toLowerCase();
       const match = expenseCategories.find(
         (c) =>
           c.name.toLowerCase().includes(suggested) ||

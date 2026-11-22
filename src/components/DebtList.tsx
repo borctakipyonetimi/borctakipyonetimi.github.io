@@ -162,26 +162,49 @@ export const DebtList: React.FC<DebtListProps> = ({
   // AI OCR scanner state and callback
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const handleScanCompleted = (result: any) => {
-    setName(result.title);
-    setAmount(result.amount.toString());
-    setPaid("0");
-    if (result.date) {
-      setDueDate(result.date);
-    }
-    // Suggest category
-    if (result.categorySuggestion) {
-      const suggested = result.categorySuggestion.toLowerCase();
-      const match = ["Kredi Kartı", "Konut", "Araç", "Sağlık", "Eğitim", "Diğer"].find(
-        (c) =>
-          c.toLowerCase().includes(suggested) ||
-          suggested.includes(c.toLowerCase())
-      );
-      if (match) {
-        setCategory(match);
+    const cleanTitle = typeof result?.title === "string" ? result.title.trim() : "";
+    const numericAmount = Number(result?.amount);
+    const formattedAmount =
+      Number.isFinite(numericAmount) && numericAmount > 0
+        ? formatNumberWithDots(String(Math.round(numericAmount)))
+        : "";
+
+    let mappedCategory = "Diğer";
+    if (result?.categorySuggestion) {
+      const suggested = String(result.categorySuggestion).toLowerCase();
+      if (/kredi|kart|banka/.test(suggested)) {
+        mappedCategory = "Kredi Kartı";
+      } else if (/konut|kira|aidat|ev/.test(suggested)) {
+        mappedCategory = "Konut";
+      } else if (/araç|akaryakıt|benzin|yakıt|otopark|ulaşım/.test(suggested)) {
+        mappedCategory = "Araç";
+      } else if (/sağlık|eczane|hastane|ilaç/.test(suggested)) {
+        mappedCategory = "Sağlık";
+      } else if (/eğitim|okul|kurs|üniversite|kitap/.test(suggested)) {
+        mappedCategory = "Eğitim";
       } else {
-        setCategory("Diğer");
+        const directMatch = ["Kredi Kartı", "Konut", "Araç", "Sağlık", "Eğitim", "Diğer"].find(
+          (c) => c.toLowerCase().includes(suggested) || suggested.includes(c.toLowerCase())
+        );
+        if (directMatch) {
+          mappedCategory = directMatch;
+        }
       }
     }
+
+    const detectedProvider = detectProviderFromName(cleanTitle, mappedCategory);
+
+    setModalTitle("Yeni Borç Ekle");
+    setDebtId(undefined);
+    setName(cleanTitle);
+    setAmount(formattedAmount);
+    setPaid("0");
+    setDueDate(typeof result?.date === "string" ? result.date.trim() : "");
+    setCategory(mappedCategory);
+    setProviderId(detectedProvider ? detectedProvider.id : undefined);
+    setIsInstallment(false);
+    setInstallmentCount("12");
+    setCreateAlarm(Boolean(result?.date && hasDebtsProAccess));
     setIsScannerOpen(false);
     setIsModalOpen(true);
   };

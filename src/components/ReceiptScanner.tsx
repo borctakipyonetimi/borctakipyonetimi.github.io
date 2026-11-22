@@ -24,6 +24,8 @@ import {
   CameraSource
 } from "@capacitor/camera";
 import {
+  CLOUD_RUN_PRE_URL,
+  getBackendCandidateUrls,
   isCapacitorOrStaticLocalOrigin
 } from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
@@ -62,7 +64,9 @@ async function optimizeImageForOcr(fileOrDataUrl: File | string): Promise<{ base
 
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (typeof fileOrDataUrl === "string" && /^https?:/i.test(fileOrDataUrl)) {
+      img.crossOrigin = "anonymous";
+    }
 
     img.onload = () => {
       try {
@@ -163,6 +167,19 @@ function parseOcrAmount(rawAmount: unknown): number {
   return Number.isFinite(num) && num >= 0 ? num : 0;
 }
 
+function normalizeOcrDate(rawDate: unknown): string {
+  const raw = typeof rawDate === "string" ? rawDate.trim() : "";
+  const ymd = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (ymd) {
+    return `${ymd[1]}-${ymd[2].padStart(2, "0")}-${ymd[3].padStart(2, "0")}`;
+  }
+  const dmy = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  }
+  return new Date().toISOString().split("T")[0];
+}
+
 async function scanReceiptDirectlyWithGemini(params: {
   base64DataUrl: string;
   mimeType: string;
@@ -189,15 +206,15 @@ async function scanReceiptDirectlyWithGemini(params: {
 
   const promptText =
     "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
-    "Lütfen belgeden şu bilgileri çıkar:\n" +
-    "1. title: Mağaza, kurum, şirket veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'Shell', 'Enerjisa', 'İSKİ', 'Turkcell', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
-    "2. amount: Belgedeki Genel Toplam / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
-    "3. date: Belge / Fatura / Fiş tarihi (Format: YYYY-MM-DD olmalı. Yıl eksikse 2026 al).\n" +
-    "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Diğer').\n" +
+    "Lütfen belgeden şu bilgileri eksiksiz çıkar:\n" +
+    "1. title: Fişin/faturanın üzerindeki mağaza, firma, kurum veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'ŞOK', 'Shell', 'Enerjisa', 'İSKİ', 'İGDAŞ', 'Turkcell', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
+    "2. amount: Belgedeki TOPLAM / GENEL TOPLAM / KDV Dahil Ödenecek Tutar (sadece sayısal değer, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
+    "3. date: Belge / Fatura / Fiş tarihi (Format mutlaka YYYY-MM-DD olmalı; örn: 22.11.2026 ise '2026-11-22' döndür. Yıl eksikse 2026 al).\n" +
+    "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Kredi Kartı', 'Konut', 'Araç', 'Eğitim', 'Diğer').\n" +
     `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
     "Yalnızca geçerli bir JSON objesi döndür.";
 
-  const modelsToTry = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
+  const modelsToTry = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
   let rawResponseText = "";
   let lastError: Error | null = null;
 
@@ -217,6 +234,7 @@ async function scanReceiptDirectlyWithGemini(params: {
         body: JSON.stringify({
           contents: [
             {
+              role: "user",
               parts: [
                 {
                   inline_data: {
@@ -239,7 +257,7 @@ async function scanReceiptDirectlyWithGemini(params: {
                 categorySuggestion: { type: "STRING" },
                 type: { type: "STRING" },
               },
-              required: ["title", "amount"],
+              required: ["title", "amount", "date"],
             },
           },
         }),
@@ -323,10 +341,7 @@ async function scanReceiptDirectlyWithGemini(params: {
   if (!cleanTitle) missingFields.push("Mağaza / kurum adı");
   if (parsedAmount <= 0) missingFields.push("Toplam tutar");
 
-  let parsedDate = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
-    parsedDate = new Date().toISOString().split("T")[0];
-  }
+  const parsedDate = normalizeOcrDate(parsedData.date);
 
   const cleanCategory =
     typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim()
@@ -666,11 +681,11 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         return false;
       };
 
-      const trySameOriginWebBackend = async (): Promise<boolean> => {
+      const tryBackendScan = async (endpointUrl: string, timeoutMs: number): Promise<boolean> => {
         const controller = new AbortController();
-        const requestTimeout = setTimeout(() => controller.abort(), 35000);
+        const requestTimeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const attemptRes = await fetch("/api/scan-receipt", {
+          const attemptRes = await fetch(endpointUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,
@@ -706,10 +721,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
                   ? "Fatura"
                   : "Alışveriş",
             amount: Number.isFinite(parsedAmount) && parsedAmount >= 0 ? parsedAmount : 0,
-            date:
-              typeof parsedJson.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsedJson.date.trim())
-                ? parsedJson.date.trim()
-                : new Date().toISOString().split("T")[0],
+            date: normalizeOcrDate(parsedJson.date),
             categorySuggestion:
               typeof parsedJson.categorySuggestion === "string" && parsedJson.categorySuggestion.trim()
                 ? parsedJson.categorySuggestion.trim()
@@ -739,9 +751,26 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         return;
       }
 
-      // 2. Only on non-static same-origin web environments (e.g. local Express preview), allow same-origin /api/scan-receipt
-      if (!isStaticOrApk && (await trySameOriginWebBackend())) {
-        return;
+      // 2. On Express web preview / custom backend environments, call /api/scan-receipt
+      const scanEndpoints: string[] = [];
+      if (!isStaticOrApk) {
+        scanEndpoints.push("/api/scan-receipt");
+      }
+      for (const base of getBackendCandidateUrls()) {
+        const full = `${base}/api/scan-receipt`;
+        if (!scanEndpoints.includes(full)) {
+          scanEndpoints.push(full);
+        }
+      }
+      if (!scanEndpoints.includes(`${CLOUD_RUN_PRE_URL}/api/scan-receipt`)) {
+        scanEndpoints.push(`${CLOUD_RUN_PRE_URL}/api/scan-receipt`);
+      }
+
+      for (const endpoint of scanEndpoints) {
+        const isSameOrigin = endpoint.startsWith("/");
+        if (await tryBackendScan(endpoint, isSameOrigin ? 35000 : 15000)) {
+          return;
+        }
       }
 
       // 3. On missing key, network error, or failed OCR attempt: seamlessly redirect to manual entry
