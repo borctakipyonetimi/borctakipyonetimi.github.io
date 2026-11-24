@@ -163,11 +163,38 @@ export const DebtList: React.FC<DebtListProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const handleScanCompleted = (result: any) => {
     const cleanTitle = typeof result?.title === "string" ? result.title.trim() : "";
-    const numericAmount = Number(result?.amount);
+
+    let numericAmount = 0;
+    if (typeof result?.amount === "number") {
+      numericAmount = Number.isFinite(result.amount) && result.amount > 0 ? result.amount : 0;
+    } else if (typeof result?.amount === "string") {
+      let cleaned = result.amount.replace(/[^\d.,-]/g, "").trim();
+      if (cleaned.includes(",") && cleaned.includes(".")) {
+        cleaned =
+          cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")
+            ? cleaned.replace(/\./g, "").replace(",", ".")
+            : cleaned.replace(/,/g, "");
+      } else if (cleaned.includes(",")) {
+        cleaned = cleaned.replace(",", ".");
+      }
+      const parsed = parseFloat(cleaned);
+      numericAmount = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+
     const formattedAmount =
-      Number.isFinite(numericAmount) && numericAmount > 0
-        ? formatNumberWithDots(String(Math.round(numericAmount)))
+      numericAmount > 0
+        ? formatNumberWithDots(String(Math.max(1, Math.round(numericAmount))))
         : "";
+
+    let normalizedDueDate = "";
+    const rawDate = typeof result?.date === "string" ? result.date.trim() : "";
+    const ymdMatch = rawDate.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    const dmyMatch = rawDate.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (ymdMatch) {
+      normalizedDueDate = `${ymdMatch[1]}-${ymdMatch[2].padStart(2, "0")}-${ymdMatch[3].padStart(2, "0")}`;
+    } else if (dmyMatch) {
+      normalizedDueDate = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+    }
 
     let mappedCategory = "Diğer";
     if (result?.categorySuggestion) {
@@ -199,12 +226,12 @@ export const DebtList: React.FC<DebtListProps> = ({
     setName(cleanTitle);
     setAmount(formattedAmount);
     setPaid("0");
-    setDueDate(typeof result?.date === "string" ? result.date.trim() : "");
+    setDueDate(normalizedDueDate);
     setCategory(mappedCategory);
     setProviderId(detectedProvider ? detectedProvider.id : undefined);
     setIsInstallment(false);
     setInstallmentCount("12");
-    setCreateAlarm(Boolean(result?.date && hasDebtsProAccess));
+    setCreateAlarm(Boolean(normalizedDueDate && hasDebtsProAccess));
     setIsScannerOpen(false);
     setIsModalOpen(true);
   };

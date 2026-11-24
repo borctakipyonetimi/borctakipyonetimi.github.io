@@ -189,7 +189,8 @@ import {
   cancelAllDebtAndInstallmentNotifications,
   scheduleSpecialDayNotifications,
   checkAndTriggerTodaySpecialDayNotification,
-  getTodaySpecialDay
+  getTodaySpecialDay,
+  getLocalDateString
 } from "./utils/notificationScheduler";
 
 // Capacitor resmi OneSignal başlatma motoru (Web ortamında güvenle bekletilir, Android/iOS cihazda çalışır)
@@ -1844,7 +1845,7 @@ export default function App() {
     if (typeof window !== "undefined") {
       const todaySd = getTodaySpecialDay();
       if (!todaySd) return false;
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getLocalDateString();
       return localStorage.getItem(`special_banner_dismissed_${todayStr}_${todaySd.id}`) !== "true";
     }
     return false;
@@ -1992,6 +1993,7 @@ export default function App() {
         rescheduleAllNotifications(debtsRef.current || debts || [], installmentDebtsRef.current || installmentDebts || [], {
           frequency: pushFrequency
         }).catch(() => {});
+        scheduleSpecialDayNotifications().catch(() => {});
         try {
           sendSystemNotification(
             "Anlık Bildirimler Aktif!", 
@@ -2022,6 +2024,7 @@ export default function App() {
         
         if (permission === "granted") {
           triggerToast("Telefon Bildirim İzni Verildi 🔔");
+          scheduleSpecialDayNotifications().catch(() => {});
           try {
             sendSystemNotification(
               "Anlık Bildirimler Aktif!", 
@@ -2141,8 +2144,37 @@ export default function App() {
 
     // Eğer mesaj özel bir bayram/resmi gün kutlamasıysa veya body zaten özel formatlanmışsa doğrudan kullan
     const isSpecialGreeting = Boolean(
-      (title && (title.includes("Bayram") || title.includes("Cumhuriyet") || title.includes("Kutlu Olsun") || title.includes("Atatürk") || title.includes("Yılbaşı") || title.includes("1 Mayıs") || title.includes("15 Temmuz") || title.includes("30 Ağustos"))) ||
-      (body && (body.includes("Bayram") || body.includes("Atatürk") || body.includes("Cumhuriyet") || body.includes("Kutlu Olsun") || body.includes("Mutlu Yıllar") || body.includes("Bütçem Pro ailesi")))
+      (title && (
+        title.includes("Bayram") ||
+        title.includes("Cumhuriyet") ||
+        title.includes("Kutlu Olsun") ||
+        title.includes("Atatürk") ||
+        title.includes("10 Kasım") ||
+        title.includes("Anıyoruz") ||
+        title.includes("Öğretmenler") ||
+        title.includes("Çanakkale") ||
+        title.includes("Şehitleri") ||
+        title.includes("Kadınlar") ||
+        title.includes("Mübarek") ||
+        title.includes("Yılbaşı") ||
+        title.includes("Mutlu Yıllar") ||
+        title.includes("1 Mayıs") ||
+        title.includes("15 Temmuz") ||
+        title.includes("30 Ağustos") ||
+        title.includes("23 Nisan") ||
+        title.includes("19 Mayıs")
+      )) ||
+      (body && (
+        body.includes("Bayram") ||
+        body.includes("Atatürk") ||
+        body.includes("Cumhuriyet") ||
+        body.includes("Kutlu Olsun") ||
+        body.includes("Öğretmenler") ||
+        body.includes("Mübarek") ||
+        body.includes("Anıyoruz") ||
+        body.includes("Mutlu Yıllar") ||
+        body.includes("Bütçem Pro ailesi")
+      ))
     );
 
     const isAlreadyFormatted = isSpecialGreeting || Boolean(
@@ -2280,13 +2312,17 @@ export default function App() {
     // 4. Record to "Bildirim Paneli" feed if requested
     if (persist) {
       setNotifications((prev) => {
+        if (isSpecialGreeting && prev.some((n) => n.title === title || n.title.includes(title))) {
+          return prev;
+        }
         const newId = prev.length > 0 ? Math.max(...prev.map((n) => n.id)) + 1 : 1;
         const newNotif: NotificationItem = {
           id: newId,
-          title: `📢 ${title}: ${body}`,
+          title: isSpecialGreeting ? title : `📢 ${title}: ${body}`,
           message: body,
           date: new Date().toISOString(),
-          isRead: false
+          isRead: false,
+          ...(isSpecialGreeting ? { type: "system" as const } : {})
         };
         const updated = [newNotif, ...prev];
         // Instantly save to localStorage to maintain absolute robustness
@@ -2320,7 +2356,7 @@ export default function App() {
     setToastMessage("");
   };
 
-  // Önemli Günler ve Resmi/Dini Bayramlar (29 Ekim Cumhuriyet Bayramı vb.) Otomatik Bildirim ve Tebrik Sistemi
+  // Önemli Günler ve Resmi/Dini Bayramlar (10 Kasım, 24 Kasım Öğretmenler Günü, 29 Ekim vb.) Otomatik Bildirim ve Tebrik Sistemi
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -2329,9 +2365,17 @@ export default function App() {
         const todaySd = getTodaySpecialDay();
         setActiveSpecialDay(todaySd);
 
-        checkAndTriggerTodaySpecialDayNotification((title, body, id) => {
-          sendSystemNotification(title, body, false, id);
-          triggerToast(`🇹🇷 ${title}`, 5000);
+        if (todaySd) {
+          const todayStr = getLocalDateString();
+          const isDismissed = localStorage.getItem(`special_banner_dismissed_${todayStr}_${todaySd.id}`) === "true";
+          setShowSpecialDayBanner(!isDismissed);
+        } else {
+          setShowSpecialDayBanner(false);
+        }
+
+        checkAndTriggerTodaySpecialDayNotification((title, body, id, sd) => {
+          sendSystemNotification(title, body, true, id);
+          triggerToast(`${sd?.emoji || "🇹🇷"} ${title}`, 5000);
           try {
             confetti({
               particleCount: 60,
@@ -2345,13 +2389,22 @@ export default function App() {
       }
     };
 
-    // Açılışta 1.5 saniye sonra kontrol et
+    // Açılışta hemen ve ardından 1.5 saniye sonra kontrol et
+    runSpecialDayCheck();
     const initialTimer = setTimeout(runSpecialDayCheck, 1500);
 
     // Her 30 dakikada bir arka plan kontrolü yap
     const intervalTimer = setInterval(runSpecialDayCheck, 30 * 60 * 1000);
 
-    // Tüm özel gün alarmlarını OS kuyruğuna planla (allowWhileIdle / Exact Alarm)
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        runSpecialDayCheck();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+
+    // Tüm özel gün alarmlarını OS kuyruğuna planla (allowWhileIdle / Exact Alarm fallback)
     scheduleSpecialDayNotifications().catch((err) => {
       console.warn("[App.tsx] scheduleSpecialDayNotifications hatası:", err);
     });
@@ -2359,6 +2412,8 @@ export default function App() {
     return () => {
       clearTimeout(initialTimer);
       clearInterval(intervalTimer);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
     };
   }, []);
 
@@ -2485,7 +2540,13 @@ export default function App() {
 
       // Android 8.0+ Bildirim kanalını başlat ve Capacitor bildirim izinlerini kontrol et
       initCapacitorNotificationChannel().catch(() => {});
-      requestCapacitorNotificationPermission().catch(() => {});
+      requestCapacitorNotificationPermission()
+        .then((granted) => {
+          if (granted) {
+            scheduleSpecialDayNotifications().catch(() => {});
+          }
+        })
+        .catch(() => {});
       setupCapacitorNotificationListeners((notification) => {
         if (notification?.title) {
           triggerToast(`🔔 Bildirim: ${notification.title}`);
@@ -10090,7 +10151,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 setShowSpecialDayBanner(false);
-                const todayStr = new Date().toISOString().slice(0, 10);
+                const todayStr = getLocalDateString();
                 localStorage.setItem(`special_banner_dismissed_${todayStr}_${activeSpecialDay.id}`, "true");
               }}
               className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition shrink-0 cursor-pointer"

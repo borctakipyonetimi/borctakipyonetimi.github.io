@@ -34,6 +34,7 @@ import {
   scheduleSpecialDayNotifications,
   getTodaySpecialDay,
   checkAndTriggerTodaySpecialDayNotification,
+  getLocalDateString,
   SPECIAL_DAYS,
   type SpecialDay
 } from "./specialDays";
@@ -1093,6 +1094,7 @@ export {
   SPECIAL_DAYS,
   SpecialDay,
   getTodaySpecialDay,
+  getLocalDateString,
   scheduleSpecialDayNotifications,
   checkAndTriggerTodaySpecialDayNotification
 };

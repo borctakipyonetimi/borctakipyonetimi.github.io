@@ -1550,13 +1550,19 @@ app.post("/api/scan-receipt", async (req, res) => {
 
   try {
     const promptText =
-      "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin. Ekteki görsel bir fatura ya da harcama fişidir.\n\n" +
-      "Lütfen belgeden şu bilgileri eksiksiz çıkar:\n" +
-      "1. title: Fişin/faturanın en üstündeki veya satıcı kısmındaki mağaza, firma, kurum veya satıcı adı (Örn: 'BİM', 'Migros', 'A101', 'ŞOK', 'Shell', 'Enerjisa', 'İSKİ', 'İGDAŞ', 'Turkcell', 'Vodafone', 'Eczane', vb.). Okunamıyorsa boş string döndür.\n" +
-      "2. amount: Belgedeki TOPLAM / GENEL TOPLAM / ÖDENECEK TUTAR (KDV dahil son ödenen sayısal tutar, örn: 185.50). Okunamıyorsa 0 döndür.\n" +
-      "3. date: Belge / Fatura / Fiş tarihi (Format mutlaka YYYY-MM-DD olmalı; örn: 22.11.2026 ise '2026-11-22' döndür. Yıl eksikse 2026 al).\n" +
-      "4. categorySuggestion: Harcamanın en uygun kategorisi (Örn: 'Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Kredi Kartı', 'Konut', 'Araç', 'Eğitim', 'Diğer').\n" +
-      `5. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
+      "Sen Türkiye'deki fiş, fatura, adisyon, dekont ve makbuzları okuyan uzman bir yapay zeka OCR sistemisin.\n\n" +
+      "KESİN KURAL: Yalnızca ekteki görselde GERÇEKTEN GÖRDÜĞÜN ve OKUYABİLDİĞİN metinleri ve rakamları çıkar. Asla varsayım yapma veya örnek bilgi uydurma. Görsel boşsa, tek renkse, ilgisiz bir fotoğraf ise veya üzerindeki yazılar okunamayacak kadar bulanıksa `isReadableReceipt: false`, `title: \"\"`, `amount: 0`, `date: \"\"` döndür.\n\n" +
+      "Görsel okunabilir bir fiş/fatura ise şu alanları JSON olarak döndür:\n" +
+      "1. isReadableReceipt: Görsel gerçekten okunabilir bir fiş, fatura, makbuz veya dekont ise true; boş veya okunaksız ise false.\n" +
+      "2. title: Belgedeki satıcı, mağaza, banka veya kurumun gerçek unvanı. Okunamıyorsa boş string \"\" döndür.\n" +
+      "3. amount: Belgedeki ödenecek nihai toplam tutar (TOPLAM, GENEL TOPLAM, ÖDENECEK TUTAR, SON ÖDEME TUTARI; KDV dahil son tutarı nokta ondalık ayıracı ile döndür, örn: 1450.75). Okunamıyorsa 0 döndür.\n" +
+      `4. date: ${
+        defaultType === "debt"
+          ? "Belgede 'Son Ödeme Tarihi', 'Vade Tarihi' veya 'SKT' varsa öncelikle o tarihi; yoksa 'Fatura Tarihi' / belge tarihini"
+          : "Belgenin üzerindeki fiş/fatura/işlem tarihini"
+      } mutlaka YYYY-MM-DD formatında döndür. Belgede hiç tarih yoksa boş string \"\" döndür.\n` +
+      "5. categorySuggestion: En uygun kategori ('Gıda / Market', 'Fatura', 'Ulaşım', 'Akaryakıt', 'Sağlık', 'Giyim', 'Yemek', 'Kredi Kartı', 'Konut', 'Araç', 'Eğitim', 'Diğer').\n" +
+      `6. type: Peşin alışveriş/fiş ise 'expense', vadesi olan veya ödenecek fatura ise 'debt'. (Varsayılan: '${defaultType}').\n\n` +
       "Yalnızca geçerli bir JSON objesi döndür.";
 
     const contentParts = [
@@ -1576,17 +1582,21 @@ app.post("/api/scan-receipt", async (req, res) => {
       responseSchema: {
         type: Type.OBJECT,
         properties: {
+          isReadableReceipt: {
+            type: Type.BOOLEAN,
+            description: "Görsel okunabilir bir fiş veya fatura içeriyorsa true, boş/okunaksız/ilgisiz ise false"
+          },
           title: {
             type: Type.STRING,
-            description: "Satıcı, mağaza veya kurum unvanı"
+            description: "Satıcı, mağaza veya kurum unvanı (okunamıyorsa boş string)"
           },
           amount: {
             type: Type.NUMBER,
-            description: "KDV dahil ödenecek genel toplam tutar"
+            description: "KDV dahil ödenecek genel toplam tutar (okunamıyorsa 0)"
           },
           date: {
             type: Type.STRING,
-            description: "Belge veya vade tarihi (YYYY-MM-DD)"
+            description: "Vade/SKT veya belge tarihi (YYYY-MM-DD, yoksa boş string)"
           },
           categorySuggestion: {
             type: Type.STRING,
@@ -1597,7 +1607,7 @@ app.post("/api/scan-receipt", async (req, res) => {
             description: "'expense' veya 'debt'"
           }
         },
-        required: ["title", "amount", "date"]
+        required: ["isReadableReceipt", "title", "amount", "date"]
       }
     };
 
@@ -1609,41 +1619,51 @@ app.post("/api/scan-receipt", async (req, res) => {
         ),
       ]);
 
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
     let response: any;
     let lastModelError: any = null;
     const modelsToTry = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+    const retryDelaysMs = [0, 800];
 
-    for (const modelName of modelsToTry) {
-      try {
-        const modelConfig: any =
-          modelName === "gemini-4-hydrogen"
-            ? {
-                ...baseSchemaConfig,
-                thinkingConfig: {
-                  thinkingLevel: ThinkingLevel.LOW,
-                },
-              }
-            : baseSchemaConfig;
+    outerLoop:
+    for (let attemptIdx = 0; attemptIdx < retryDelaysMs.length; attemptIdx++) {
+      if (retryDelaysMs[attemptIdx] > 0) {
+        await sleep(retryDelaysMs[attemptIdx]);
+      }
 
-        response = await runWithTimeout(
-          aiClient.models.generateContent({
-            model: modelName,
-            contents: [{ role: "user", parts: contentParts }],
-            config: modelConfig,
-          }),
-          22000,
-          modelName
-        );
-        if (response?.text) {
-          break;
-        }
-      } catch (modelErr: any) {
-        lastModelError = modelErr;
-        const errMsg = String(modelErr?.message || "");
-        const status = Number(modelErr?.status || modelErr?.code || 0);
-        console.warn(`[Scan API] Model ${modelName} failed (${status}):`, errMsg);
-        if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
-          throw modelErr;
+      for (const modelName of modelsToTry) {
+        try {
+          const modelConfig: any =
+            modelName === "gemini-4-hydrogen"
+              ? {
+                  ...baseSchemaConfig,
+                  thinkingConfig: {
+                    thinkingLevel: ThinkingLevel.LOW,
+                  },
+                }
+              : baseSchemaConfig;
+
+          response = await runWithTimeout(
+            aiClient.models.generateContent({
+              model: modelName,
+              contents: { parts: contentParts },
+              config: modelConfig,
+            }),
+            20000,
+            modelName
+          );
+          if (response?.text) {
+            break outerLoop;
+          }
+        } catch (modelErr: any) {
+          lastModelError = modelErr;
+          const errMsg = String(modelErr?.message || "");
+          const status = Number(modelErr?.status || modelErr?.code || 0);
+          console.warn(`[Scan API] Model ${modelName} (deneme ${attemptIdx + 1}) hata (${status}):`, errMsg);
+          if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+            throw modelErr;
+          }
         }
       }
     }
@@ -1656,6 +1676,7 @@ app.post("/api/scan-receipt", async (req, res) => {
     if (!rawResponseText) {
       return res.status(502).json({
         success: false,
+        errorCode: "EMPTY_RESPONSE",
         error: "Yapay zeka servisinden boş yanıt döndü. Lütfen fotoğrafın net ve aydınlık olduğundan emin olup tekrar deneyin."
       });
     }
@@ -1679,23 +1700,28 @@ app.post("/api/scan-receipt", async (req, res) => {
       console.error("[Scan Receipt JSON Parse Error]:", parseErr, "Raw:", rawResponseText.slice(0, 300));
       return res.status(502).json({
         success: false,
+        errorCode: "JSON_PARSE_ERROR",
         error: "Fatura verisi JSON formatında ayrıştırılamadı. Fotoğraf bulanık veya eksik olabilir; lütfen tekrar çekip deneyin."
       });
     }
 
-    const parsedAmount = parseOcrAmount(parsedData.amount);
-    const cleanTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
-
-    if (!cleanTitle && parsedAmount <= 0) {
+    if (parsedData.isReadableReceipt === false) {
       return res.status(422).json({
         success: false,
-        error: "Görselden mağaza/kurum adı ve toplam tutar okunamadı. Fiş net görünmüyor olabilir; daha aydınlık ortamda yeniden çekin."
+        errorCode: "EMPTY_OCR_RESULT",
+        error: "Görselde okunabilir bir fiş veya fatura tespit edilemedi. Lütfen fişin tamamını aydınlık ve net şekilde çekip tekrar deneyin.",
+        readStatus: {
+          hasTitle: false,
+          hasAmount: false,
+          hasDate: false
+        }
       });
     }
 
-    const missingFields: string[] = [];
-    if (!cleanTitle) missingFields.push("Mağaza / kurum adı");
-    if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+    const parsedAmount = parseOcrAmount(parsedData.amount);
+    const rawTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
+    const isGenericTitle = /^(fatura|fiş|fis|harcama|alışveriş|alisveris|bilinmiyor|yok|none|null|n\/a|-)$/i.test(rawTitle);
+    const cleanTitle = isGenericTitle ? "" : rawTitle;
 
     let parsedDate = "";
     const rawDateStr = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
@@ -1707,9 +1733,25 @@ app.post("/api/scan-receipt", async (req, res) => {
     } else if (dmyMatch) {
       const [, d, m, y] = dmyMatch;
       parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    } else {
-      parsedDate = new Date().toISOString().split("T")[0];
     }
+
+    if (!cleanTitle && parsedAmount <= 0) {
+      return res.status(422).json({
+        success: false,
+        errorCode: "EMPTY_OCR_RESULT",
+        error: "Görselden firma/kurum adı ve toplam tutar bilgisi çıkarılamadı. Fotoğraf bulanık, düşük ışıklı veya yazılar kadraj dışında olabilir; lütfen daha net bir fotoğraf çekin.",
+        readStatus: {
+          hasTitle: false,
+          hasAmount: false,
+          hasDate: Boolean(parsedDate)
+        }
+      });
+    }
+
+    const missingFields: string[] = [];
+    if (!cleanTitle) missingFields.push("Firma / kurum adı");
+    if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+    if (!parsedDate) missingFields.push("Vade / belge tarihi");
 
     const cleanCategory =
       typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim()
@@ -1718,13 +1760,18 @@ app.post("/api/scan-receipt", async (req, res) => {
 
     return res.json({
       success: true,
-      title: cleanTitle || (defaultType === "debt" ? "Fatura" : "Harcama Fişi"),
+      title: cleanTitle,
       amount: parsedAmount,
       date: parsedDate,
       categorySuggestion: cleanCategory,
       type: parsedData.type === "debt" ? "debt" : (parsedData.type === "expense" ? "expense" : defaultType),
+      readStatus: {
+        hasTitle: Boolean(cleanTitle),
+        hasAmount: parsedAmount > 0,
+        hasDate: Boolean(parsedDate)
+      },
       warning: missingFields.length > 0
-        ? `Şu bilgiler görselden net okunamadı: ${missingFields.join(", ")}. Lütfen kontrol edip manuel olarak tamamlayın.`
+        ? `Görselden şu alan(lar) net okunamadı ve boş döndü: ${missingFields.join(", ")}. Lütfen kontrol edip manuel olarak tamamlayın.`
         : undefined
     });
   } catch (error: any) {
@@ -1736,7 +1783,7 @@ app.post("/api/scan-receipt", async (req, res) => {
       return res.status(504).json({
         success: false,
         errorCode: "TIMEOUT",
-        error: "Fatura okuma servisi yanıt vermekte gecikti. Lütfen fotoğraf boyutunu küçültüp tekrar deneyin veya 'Manuel Olarak Doldur' seçeneğini kullanın."
+        error: "Fatura okuma servisi yanıt vermekte gecikti. Lütfen tekrar deneyin veya 'Manuel Olarak Doldur' seçeneğini kullanın."
       });
     }
 
@@ -1757,11 +1804,19 @@ app.post("/api/scan-receipt", async (req, res) => {
       });
     }
 
+    if (status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(errMsg)) {
+      return res.status(503).json({
+        success: false,
+        errorCode: "MODEL_BUSY",
+        error: "Gemini OCR servisi şu anda yoğun olduğu için yanıt veremedi. Lütfen birkaç saniye sonra 'Tekrar Dene' butonuna basın."
+      });
+    }
+
     return res.status(502).json({
       success: false,
       errorCode: "UPSTREAM_ERROR",
       error: "Fatura görseli yapay zeka tarafından analiz edilemedi. İnternet bağlantınızı ve fotoğraf netliğini kontrol edip tekrar deneyin.",
-      detail: errMsg ? errMsg.slice(0, 180) : undefined
+      detail: errMsg ? errMsg.slice(0, 220) : undefined
     });
   }
 });
