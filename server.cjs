@@ -1466,14 +1466,17 @@ app.post("/api/scan-receipt", async (req, res) => {
     });
   }
   try {
-    const promptText = `Sen T\xFCrkiye'deki fi\u015F, fatura, adisyon, dekont ve makbuzlar\u0131 okuyan uzman bir yapay zeka OCR sistemisin. Ekteki g\xF6rsel bir fatura ya da harcama fi\u015Fidir.
+    const promptText = `Sen T\xFCrkiye'deki fi\u015F, fatura, adisyon, dekont ve makbuzlar\u0131 okuyan uzman bir yapay zeka OCR sistemisin.
 
-L\xFCtfen belgeden \u015Fu bilgileri eksiksiz \xE7\u0131kar:
-1. title: Fi\u015Fin/faturan\u0131n en \xFCst\xFCndeki veya sat\u0131c\u0131 k\u0131sm\u0131ndaki ma\u011Faza, firma, kurum veya sat\u0131c\u0131 ad\u0131 (\xD6rn: 'B\u0130M', 'Migros', 'A101', '\u015EOK', 'Shell', 'Enerjisa', '\u0130SK\u0130', '\u0130GDA\u015E', 'Turkcell', 'Vodafone', 'Eczane', vb.). Okunam\u0131yorsa bo\u015F string d\xF6nd\xFCr.
-2. amount: Belgedeki TOPLAM / GENEL TOPLAM / \xD6DENECEK TUTAR (KDV dahil son \xF6denen say\u0131sal tutar, \xF6rn: 185.50). Okunam\u0131yorsa 0 d\xF6nd\xFCr.
-3. date: Belge / Fatura / Fi\u015F tarihi (Format mutlaka YYYY-MM-DD olmal\u0131; \xF6rn: 22.11.2026 ise '2026-11-22' d\xF6nd\xFCr. Y\u0131l eksikse 2026 al).
-4. categorySuggestion: Harcaman\u0131n en uygun kategorisi (\xD6rn: 'G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Kredi Kart\u0131', 'Konut', 'Ara\xE7', 'E\u011Fitim', 'Di\u011Fer').
-5. type: Pe\u015Fin al\u0131\u015Fveri\u015F/fi\u015F ise 'expense', vadesi olan veya \xF6denecek fatura ise 'debt'. (Varsay\u0131lan: '${defaultType}').
+KES\u0130N KURAL: Yaln\u0131zca ekteki g\xF6rselde GER\xC7EKTEN G\xD6RD\xDC\u011E\xDCN ve OKUYAB\u0130LD\u0130\u011E\u0130N metinleri ve rakamlar\u0131 \xE7\u0131kar. Asla varsay\u0131m yapma veya \xF6rnek bilgi uydurma. G\xF6rsel bo\u015Fsa, tek renkse, ilgisiz bir foto\u011Fraf ise veya \xFCzerindeki yaz\u0131lar okunamayacak kadar bulan\u0131ksa \`isReadableReceipt: false\`, \`title: ""\`, \`amount: 0\`, \`date: ""\` d\xF6nd\xFCr.
+
+G\xF6rsel okunabilir bir fi\u015F/fatura ise \u015Fu alanlar\u0131 JSON olarak d\xF6nd\xFCr:
+1. isReadableReceipt: G\xF6rsel ger\xE7ekten okunabilir bir fi\u015F, fatura, makbuz veya dekont ise true; bo\u015F veya okunaks\u0131z ise false.
+2. title: Belgedeki sat\u0131c\u0131, ma\u011Faza, banka veya kurumun ger\xE7ek unvan\u0131. Okunam\u0131yorsa bo\u015F string "" d\xF6nd\xFCr.
+3. amount: Belgedeki \xF6denecek nihai toplam tutar (TOPLAM, GENEL TOPLAM, \xD6DENECEK TUTAR, SON \xD6DEME TUTARI; KDV dahil son tutar\u0131 nokta ondal\u0131k ay\u0131rac\u0131 ile d\xF6nd\xFCr, \xF6rn: 1450.75). Okunam\u0131yorsa 0 d\xF6nd\xFCr.
+4. date: ${defaultType === "debt" ? "Belgede 'Son \xD6deme Tarihi', 'Vade Tarihi' veya 'SKT' varsa \xF6ncelikle o tarihi; yoksa 'Fatura Tarihi' / belge tarihini" : "Belgenin \xFCzerindeki fi\u015F/fatura/i\u015Flem tarihini"} mutlaka YYYY-MM-DD format\u0131nda d\xF6nd\xFCr. Belgede hi\xE7 tarih yoksa bo\u015F string "" d\xF6nd\xFCr.
+5. categorySuggestion: En uygun kategori ('G\u0131da / Market', 'Fatura', 'Ula\u015F\u0131m', 'Akaryak\u0131t', 'Sa\u011Fl\u0131k', 'Giyim', 'Yemek', 'Kredi Kart\u0131', 'Konut', 'Ara\xE7', 'E\u011Fitim', 'Di\u011Fer').
+6. type: Pe\u015Fin al\u0131\u015Fveri\u015F/fi\u015F ise 'expense', vadesi olan veya \xF6denecek fatura ise 'debt'. (Varsay\u0131lan: '${defaultType}').
 
 Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     const contentParts = [
@@ -1492,17 +1495,21 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
       responseSchema: {
         type: import_genai.Type.OBJECT,
         properties: {
+          isReadableReceipt: {
+            type: import_genai.Type.BOOLEAN,
+            description: "G\xF6rsel okunabilir bir fi\u015F veya fatura i\xE7eriyorsa true, bo\u015F/okunaks\u0131z/ilgisiz ise false"
+          },
           title: {
             type: import_genai.Type.STRING,
-            description: "Sat\u0131c\u0131, ma\u011Faza veya kurum unvan\u0131"
+            description: "Sat\u0131c\u0131, ma\u011Faza veya kurum unvan\u0131 (okunam\u0131yorsa bo\u015F string)"
           },
           amount: {
             type: import_genai.Type.NUMBER,
-            description: "KDV dahil \xF6denecek genel toplam tutar"
+            description: "KDV dahil \xF6denecek genel toplam tutar (okunam\u0131yorsa 0)"
           },
           date: {
             type: import_genai.Type.STRING,
-            description: "Belge veya vade tarihi (YYYY-MM-DD)"
+            description: "Vade/SKT veya belge tarihi (YYYY-MM-DD, yoksa bo\u015F string)"
           },
           categorySuggestion: {
             type: import_genai.Type.STRING,
@@ -1513,7 +1520,7 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
             description: "'expense' veya 'debt'"
           }
         },
-        required: ["title", "amount", "date"]
+        required: ["isReadableReceipt", "title", "amount", "date"]
       }
     };
     const runWithTimeout = (promise, timeoutMs, label) => Promise.race([
@@ -1522,39 +1529,47 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
         (_, reject) => setTimeout(() => reject(new Error(`TIMEOUT: ${label} exceeded ${timeoutMs}ms`)), timeoutMs)
       )
     ]);
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     let response;
     let lastModelError = null;
     const modelsToTry = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
-    for (const modelName of modelsToTry) {
-      try {
-        const modelConfig = modelName === "gemini-4-hydrogen" ? {
-          ...baseSchemaConfig,
-          thinkingConfig: {
-            thinkingLevel: import_genai.ThinkingLevel.LOW
-          }
-        } : baseSchemaConfig;
-        response = await runWithTimeout(
-          aiClient.models.generateContent({
-            model: modelName,
-            contents: [{ role: "user", parts: contentParts }],
-            config: modelConfig
-          }),
-          22e3,
-          modelName
-        );
-        if (response?.text) {
-          break;
+    const retryDelaysMs = [0, 800];
+    outerLoop:
+      for (let attemptIdx = 0; attemptIdx < retryDelaysMs.length; attemptIdx++) {
+        if (retryDelaysMs[attemptIdx] > 0) {
+          await sleep(retryDelaysMs[attemptIdx]);
         }
-      } catch (modelErr) {
-        lastModelError = modelErr;
-        const errMsg = String(modelErr?.message || "");
-        const status = Number(modelErr?.status || modelErr?.code || 0);
-        console.warn(`[Scan API] Model ${modelName} failed (${status}):`, errMsg);
-        if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
-          throw modelErr;
+        for (const modelName of modelsToTry) {
+          try {
+            const modelConfig = modelName === "gemini-4-hydrogen" ? {
+              ...baseSchemaConfig,
+              thinkingConfig: {
+                thinkingLevel: import_genai.ThinkingLevel.LOW
+              }
+            } : baseSchemaConfig;
+            response = await runWithTimeout(
+              aiClient.models.generateContent({
+                model: modelName,
+                contents: { parts: contentParts },
+                config: modelConfig
+              }),
+              2e4,
+              modelName
+            );
+            if (response?.text) {
+              break outerLoop;
+            }
+          } catch (modelErr) {
+            lastModelError = modelErr;
+            const errMsg = String(modelErr?.message || "");
+            const status = Number(modelErr?.status || modelErr?.code || 0);
+            console.warn(`[Scan API] Model ${modelName} (deneme ${attemptIdx + 1}) hata (${status}):`, errMsg);
+            if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
+              throw modelErr;
+            }
+          }
         }
       }
-    }
     if (!response) {
       throw lastModelError || new Error("T\xFCm Gemini OCR modelleri ba\u015Far\u0131s\u0131z oldu.");
     }
@@ -1562,6 +1577,7 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     if (!rawResponseText) {
       return res.status(502).json({
         success: false,
+        errorCode: "EMPTY_RESPONSE",
         error: "Yapay zeka servisinden bo\u015F yan\u0131t d\xF6nd\xFC. L\xFCtfen foto\u011Fraf\u0131n net ve ayd\u0131nl\u0131k oldu\u011Fundan emin olup tekrar deneyin."
       });
     }
@@ -1579,20 +1595,26 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
       console.error("[Scan Receipt JSON Parse Error]:", parseErr, "Raw:", rawResponseText.slice(0, 300));
       return res.status(502).json({
         success: false,
+        errorCode: "JSON_PARSE_ERROR",
         error: "Fatura verisi JSON format\u0131nda ayr\u0131\u015Ft\u0131r\u0131lamad\u0131. Foto\u011Fraf bulan\u0131k veya eksik olabilir; l\xFCtfen tekrar \xE7ekip deneyin."
       });
     }
-    const parsedAmount = parseOcrAmount(parsedData.amount);
-    const cleanTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
-    if (!cleanTitle && parsedAmount <= 0) {
+    if (parsedData.isReadableReceipt === false) {
       return res.status(422).json({
         success: false,
-        error: "G\xF6rselden ma\u011Faza/kurum ad\u0131 ve toplam tutar okunamad\u0131. Fi\u015F net g\xF6r\xFCnm\xFCyor olabilir; daha ayd\u0131nl\u0131k ortamda yeniden \xE7ekin."
+        errorCode: "EMPTY_OCR_RESULT",
+        error: "G\xF6rselde okunabilir bir fi\u015F veya fatura tespit edilemedi. L\xFCtfen fi\u015Fin tamam\u0131n\u0131 ayd\u0131nl\u0131k ve net \u015Fekilde \xE7ekip tekrar deneyin.",
+        readStatus: {
+          hasTitle: false,
+          hasAmount: false,
+          hasDate: false
+        }
       });
     }
-    const missingFields = [];
-    if (!cleanTitle) missingFields.push("Ma\u011Faza / kurum ad\u0131");
-    if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+    const parsedAmount = parseOcrAmount(parsedData.amount);
+    const rawTitle = typeof parsedData.title === "string" ? parsedData.title.trim() : "";
+    const isGenericTitle = /^(fatura|fiş|fis|harcama|alışveriş|alisveris|bilinmiyor|yok|none|null|n\/a|-)$/i.test(rawTitle);
+    const cleanTitle = isGenericTitle ? "" : rawTitle;
     let parsedDate = "";
     const rawDateStr = typeof parsedData.date === "string" ? parsedData.date.trim() : "";
     const ymdMatch = rawDateStr.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
@@ -1603,18 +1625,37 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
     } else if (dmyMatch) {
       const [, d, m, y] = dmyMatch;
       parsedDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    } else {
-      parsedDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     }
+    if (!cleanTitle && parsedAmount <= 0) {
+      return res.status(422).json({
+        success: false,
+        errorCode: "EMPTY_OCR_RESULT",
+        error: "G\xF6rselden firma/kurum ad\u0131 ve toplam tutar bilgisi \xE7\u0131kar\u0131lamad\u0131. Foto\u011Fraf bulan\u0131k, d\xFC\u015F\xFCk \u0131\u015F\u0131kl\u0131 veya yaz\u0131lar kadraj d\u0131\u015F\u0131nda olabilir; l\xFCtfen daha net bir foto\u011Fraf \xE7ekin.",
+        readStatus: {
+          hasTitle: false,
+          hasAmount: false,
+          hasDate: Boolean(parsedDate)
+        }
+      });
+    }
+    const missingFields = [];
+    if (!cleanTitle) missingFields.push("Firma / kurum ad\u0131");
+    if (parsedAmount <= 0) missingFields.push("Toplam tutar");
+    if (!parsedDate) missingFields.push("Vade / belge tarihi");
     const cleanCategory = typeof parsedData.categorySuggestion === "string" && parsedData.categorySuggestion.trim() ? parsedData.categorySuggestion.trim() : defaultType === "debt" ? "Fatura" : "G\u0131da / Market";
     return res.json({
       success: true,
-      title: cleanTitle || (defaultType === "debt" ? "Fatura" : "Harcama Fi\u015Fi"),
+      title: cleanTitle,
       amount: parsedAmount,
       date: parsedDate,
       categorySuggestion: cleanCategory,
       type: parsedData.type === "debt" ? "debt" : parsedData.type === "expense" ? "expense" : defaultType,
-      warning: missingFields.length > 0 ? `\u015Eu bilgiler g\xF6rselden net okunamad\u0131: ${missingFields.join(", ")}. L\xFCtfen kontrol edip manuel olarak tamamlay\u0131n.` : void 0
+      readStatus: {
+        hasTitle: Boolean(cleanTitle),
+        hasAmount: parsedAmount > 0,
+        hasDate: Boolean(parsedDate)
+      },
+      warning: missingFields.length > 0 ? `G\xF6rselden \u015Fu alan(lar) net okunamad\u0131 ve bo\u015F d\xF6nd\xFC: ${missingFields.join(", ")}. L\xFCtfen kontrol edip manuel olarak tamamlay\u0131n.` : void 0
     });
   } catch (error) {
     const errMsg = String(error?.message || "");
@@ -1624,7 +1665,7 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
       return res.status(504).json({
         success: false,
         errorCode: "TIMEOUT",
-        error: "Fatura okuma servisi yan\u0131t vermekte gecikti. L\xFCtfen foto\u011Fraf boyutunu k\xFC\xE7\xFClt\xFCp tekrar deneyin veya 'Manuel Olarak Doldur' se\xE7ene\u011Fini kullan\u0131n."
+        error: "Fatura okuma servisi yan\u0131t vermekte gecikti. L\xFCtfen tekrar deneyin veya 'Manuel Olarak Doldur' se\xE7ene\u011Fini kullan\u0131n."
       });
     }
     if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(errMsg)) {
@@ -1642,11 +1683,18 @@ Yaln\u0131zca ge\xE7erli bir JSON objesi d\xF6nd\xFCr.`;
         error: "Yapay zeka OCR kullan\u0131m kotas\u0131na ula\u015F\u0131ld\u0131. L\xFCtfen k\u0131sa bir s\xFCre bekleyip tekrar deneyin."
       });
     }
+    if (status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(errMsg)) {
+      return res.status(503).json({
+        success: false,
+        errorCode: "MODEL_BUSY",
+        error: "Gemini OCR servisi \u015Fu anda yo\u011Fun oldu\u011Fu i\xE7in yan\u0131t veremedi. L\xFCtfen birka\xE7 saniye sonra 'Tekrar Dene' butonuna bas\u0131n."
+      });
+    }
     return res.status(502).json({
       success: false,
       errorCode: "UPSTREAM_ERROR",
       error: "Fatura g\xF6rseli yapay zeka taraf\u0131ndan analiz edilemedi. \u0130nternet ba\u011Flant\u0131n\u0131z\u0131 ve foto\u011Fraf netli\u011Fini kontrol edip tekrar deneyin.",
-      detail: errMsg ? errMsg.slice(0, 180) : void 0
+      detail: errMsg ? errMsg.slice(0, 220) : void 0
     });
   }
 });
