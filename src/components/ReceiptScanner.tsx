@@ -23,10 +23,7 @@ import {
   CameraResultType,
   CameraSource
 } from "@capacitor/camera";
-import {
-  getBackendCandidateUrls,
-  isCapacitorOrStaticLocalOrigin
-} from "../utils/api";
+import { isCapacitorOrStaticLocalOrigin } from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
 
 export interface ScannedReceiptResult {
@@ -286,11 +283,20 @@ async function scanReceiptDirectlyWithGemini(params: {
         }
 
         if (!res.ok) {
-          if (res.status === 400 || res.status === 401 || res.status === 403) {
+          const apiErrMsg = String(jsonBody?.error?.message || "");
+          if (
+            res.status === 401 ||
+            res.status === 403 ||
+            (res.status === 400 && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(apiErrMsg))
+          ) {
             throw new Error(`INVALID_API_KEY_${res.status}`);
           }
-          lastError = new Error(`HTTP_${res.status}`);
-          if (res.status === 404 || res.status === 429 || res.status >= 500) {
+          lastError = new Error(
+            res.status === 400 && apiErrMsg
+              ? `API_BAD_REQUEST:${apiErrMsg}`
+              : `HTTP_${res.status}`
+          );
+          if (res.status === 400 || res.status === 404 || res.status === 429 || res.status >= 500) {
             continue;
           }
           throw lastError;
@@ -315,6 +321,8 @@ async function scanReceiptDirectlyWithGemini(params: {
         }
         if (err?.name === "AbortError") {
           lastError = new Error("TIMEOUT");
+        } else if (/Failed to fetch|NetworkError|Load failed/i.test(String(lastError.message))) {
+          lastError = new Error("NETWORK_ERROR");
         }
       } finally {
         clearTimeout(timeoutId);
@@ -667,15 +675,33 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         // ignore
       }
 
+      let envGeminiKey: string | undefined = undefined;
+      try {
+        const rawEnvKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
+        if (
+          typeof rawEnvKey === "string" &&
+          rawEnvKey.trim().length > 5 &&
+          !/^(MY_GEMINI_API_KEY|YOUR_.*|placeholder|undefined|null)$/i.test(rawEnvKey.trim())
+        ) {
+          envGeminiKey = rawEnvKey.trim();
+        }
+      } catch {
+        // ignore
+      }
+
       const directKeysToTry: string[] = [];
       if (userApiKey) directKeysToTry.push(userApiKey);
+      if (envGeminiKey && !directKeysToTry.includes(envGeminiKey)) {
+        directKeysToTry.push(envGeminiKey);
+      }
 
       const isStaticOrApk = isCapacitorOrStaticLocalOrigin();
       let diagnosticError: string | null = null;
+      let directErrorCode: string = "";
 
       const formatDirectOcrError = (code: string): string => {
         if (code.startsWith("INVALID_API_KEY")) {
-          return "Gemini API anahtarı geçersiz veya yetkisiz görünüyor. Lütfen anahtarınızı kontrol edin.";
+          return "Gemini API anahtarı geçersiz veya yetkisiz görünüyor. Lütfen VITE_GEMINI_API_KEY veya kişisel API anahtarınızı kontrol edin.";
         }
         if (code === "EMPTY_OCR_RESULT" || code === "UNREADABLE_RECEIPT") {
           return "Görselden firma/kurum adı ve toplam tutar bilgisi çıkarılamadı. Fotoğraf bulanık veya düşük ışıklı olabilir; lütfen daha net bir fotoğraf çekin.";
@@ -683,8 +709,20 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         if (code === "TIMEOUT") {
           return "Fatura okuma isteği zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.";
         }
+        if (code === "HTTP_503") {
+          return "Gemini OCR servisi şu anda yoğun olduğu için yanıt veremedi. Lütfen birkaç saniye sonra 'Tekrar Dene' butonuna basın.";
+        }
+        if (code === "HTTP_429") {
+          return "Gemini API kullanım/kota sınırına ulaşıldı. Lütfen kısa bir süre sonra tekrar deneyin.";
+        }
+        if (code === "NETWORK_ERROR") {
+          return "Gemini API'ye bağlanılamadı. Lütfen cihazınızın internet bağlantısını kontrol edip tekrar deneyin.";
+        }
         if (code === "JSON_PARSE_ERROR" || code === "EMPTY_RESPONSE") {
           return "Yapay zeka yanıtı beklenen fatura formatında okunamadı. Lütfen daha net bir fotoğrafla tekrar deneyin.";
+        }
+        if (code.startsWith("API_BAD_REQUEST:")) {
+          return `Gemini API görsel isteğini işleyemedi: ${code.slice("API_BAD_REQUEST:".length)}`;
         }
         return "Gemini görsel okuma isteği tamamlanamadı. Lütfen tekrar deneyin.";
       };
@@ -716,7 +754,11 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
             });
             return true;
           } catch (err: any) {
-            diagnosticError = formatDirectOcrError(String(err?.message || ""));
+            directErrorCode = String(err?.message || "");
+            diagnosticError = formatDirectOcrError(directErrorCode);
+            if (directErrorCode === "EMPTY_OCR_RESULT" || directErrorCode === "UNREADABLE_RECEIPT") {
+              return false;
+            }
           }
         }
         return false;
@@ -752,9 +794,9 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
             if (parsedJson?.error && typeof parsedJson.error === "string") {
               diagnosticError = parsedJson.error;
             } else if (attemptRes.status === 404 || attemptRes.status === 405 || !parsedJson) {
-              diagnosticError = "Fatura okuma sunucu uç noktasına (/api/scan-receipt) ulaşılamadı.";
+              diagnosticError = "Fatura okuma servisine ulaşılamadı.";
             } else {
-              diagnosticError = `Fatura okuma sunucusu hata döndürdü (HTTP ${attemptRes.status}).`;
+              diagnosticError = `Fatura okuma servisi hata döndürdü (HTTP ${attemptRes.status}).`;
             }
             return false;
           }
@@ -801,7 +843,7 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
           if (err?.name === "AbortError") {
             diagnosticError = "Fatura analiz isteği zaman aşımına uğradı. Lütfen tekrar deneyin.";
           } else {
-            diagnosticError = "Fatura analiz sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin.";
+            diagnosticError = "Fatura analiz servisine bağlanılamadı. İnternet bağlantınızı kontrol edin.";
           }
           return false;
         } finally {
@@ -809,25 +851,18 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
         }
       };
 
-      // 1. Scan directly via Gemini API if the user configured a personal key in settings
+      // 1. Scan directly via Gemini API using user key or build-time VITE_GEMINI_API_KEY (no external server required)
       if (await tryDirectGemini()) {
         return;
       }
 
-      // 2. Call /api/scan-receipt on same-origin Express backend or configured backend URL
-      const scanEndpoints: string[] = [];
-      if (!isStaticOrApk) {
-        scanEndpoints.push("/api/scan-receipt");
-      }
-      for (const base of getBackendCandidateUrls()) {
-        const full = `${base}/api/scan-receipt`;
-        if (!scanEndpoints.includes(full)) {
-          scanEndpoints.push(full);
-        }
-      }
-
-      for (const endpoint of scanEndpoints) {
-        if (await tryBackendScan(endpoint, 45000)) {
+      // 2. On live Node/Express web sessions (not static/APK), fall back to same-origin /api/scan-receipt if direct scan was unreadable-free
+      if (
+        !isStaticOrApk &&
+        directErrorCode !== "EMPTY_OCR_RESULT" &&
+        directErrorCode !== "UNREADABLE_RECEIPT"
+      ) {
+        if (await tryBackendScan("/api/scan-receipt", 45000)) {
           return;
         }
       }
@@ -835,8 +870,8 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
       // 3. Do NOT silently open an empty form! Explain why OCR returned empty/failed and let the user retry or choose manual fill.
       const finalErrorMsg =
         diagnosticError ||
-        (scanEndpoints.length === 0
-          ? "Bu ortamda (statik sayfa/APK) bağlı bir fatura okuma sunucusu bulunamadı. Sunucu adresi bağlı değilse fiş görseli analiz edilemez; 'Manuel Olarak Doldur' ile devam edebilirsiniz."
+        (directKeysToTry.length === 0
+          ? "Doğrudan Gemini API ile fiş okumak için Gemini API anahtarı bulunamadı. Derlemede VITE_GEMINI_API_KEY tanımlı olduğundan veya AI Asistan ayarlarından kişisel API anahtarınızı kaydettiğinizden emin olun."
           : "Fiş görseli okunamadı veya boş sonuç döndü. Lütfen daha net bir fotoğrafla tekrar deneyin.");
       setError(finalErrorMsg);
     } catch (err: any) {
