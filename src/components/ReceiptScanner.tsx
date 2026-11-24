@@ -14,7 +14,10 @@ import {
   X,
   ScanLine,
   ChevronDown,
-  Monitor
+  Monitor,
+  Key,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -25,6 +28,14 @@ import {
 } from "@capacitor/camera";
 import { isCapacitorOrStaticLocalOrigin } from "../utils/api";
 import { saveImageToGalleryWithCustomName } from "../utils/fileDownloadHelper";
+import {
+  GEMINI_KEY_UPDATED_EVENT,
+  clearGeminiApiKey,
+  getBuildGeminiApiKey,
+  getStoredGeminiApiKey,
+  hasAnyGeminiApiKey,
+  saveGeminiApiKey
+} from "../utils/geminiKeyStorage";
 
 export interface ScannedReceiptResult {
   title: string;
@@ -402,6 +413,11 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   const [successResult, setSuccessResult] = useState<ScannedReceiptResult | null>(null);
   const [showWebcamPreview, setShowWebcamPreview] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(() => getStoredGeminiApiKey());
+  const [showApiKeyValue, setShowApiKeyValue] = useState(false);
+  const [hasConfiguredKey, setHasConfiguredKey] = useState(() => hasAnyGeminiApiKey());
+  const [showApiKeyPanel, setShowApiKeyPanel] = useState(() => !hasAnyGeminiApiKey());
+  const [apiKeySaveMsg, setApiKeySaveMsg] = useState<string | null>(null);
 
   // Hidden file inputs always mounted at root
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -410,6 +426,17 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
   // Live webcam elements
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    const syncKeyState = () => {
+      setApiKeyInput(getStoredGeminiApiKey());
+      setHasConfiguredKey(hasAnyGeminiApiKey());
+    };
+    window.addEventListener(GEMINI_KEY_UPDATED_EVENT, syncKeyState);
+    return () => {
+      window.removeEventListener(GEMINI_KEY_UPDATED_EVENT, syncKeyState);
+    };
+  }, []);
 
   // Clean up webcam stream on unmount or toggle
   useEffect(() => {
@@ -665,29 +692,8 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
     setLoadingStep("Yapay zeka faturayı inceliyor...");
 
     try {
-      let userApiKey: string | undefined = undefined;
-      try {
-        const savedKey = localStorage.getItem("user_gemini_api_key");
-        if (savedKey && savedKey.trim().length > 5) {
-          userApiKey = savedKey.trim();
-        }
-      } catch {
-        // ignore
-      }
-
-      let envGeminiKey: string | undefined = undefined;
-      try {
-        const rawEnvKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
-        if (
-          typeof rawEnvKey === "string" &&
-          rawEnvKey.trim().length > 5 &&
-          !/^(MY_GEMINI_API_KEY|YOUR_.*|placeholder|undefined|null)$/i.test(rawEnvKey.trim())
-        ) {
-          envGeminiKey = rawEnvKey.trim();
-        }
-      } catch {
-        // ignore
-      }
+      const userApiKey = getStoredGeminiApiKey() || undefined;
+      const envGeminiKey = getBuildGeminiApiKey() || undefined;
 
       const directKeysToTry: string[] = [];
       if (userApiKey) directKeysToTry.push(userApiKey);
@@ -1292,6 +1298,104 @@ export default function ReceiptScanner({ onScanCompleted, onClose, defaultType =
             </div>
           )}
 
+        </div>
+
+        {/* Compact Gemini API Key Bar & Short Explanation */}
+        <div className="bg-slate-50/90 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <Key className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 truncate">
+                Gemini API Anahtarı
+              </span>
+              <span
+                className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shrink-0 ${
+                  hasConfiguredKey
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {hasConfiguredKey ? "Aktif" : "Gerekli"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowApiKeyPanel((prev) => !prev)}
+              className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer shrink-0"
+            >
+              <span>{showApiKeyPanel ? "Gizle" : "Düzenle"}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showApiKeyPanel ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+
+          {showApiKeyPanel && (
+            <div className="space-y-2 pt-1 border-t border-slate-200/70 dark:border-slate-800/80">
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-snug">
+                Fiş ve faturaları yapay zeka ile okuyabilmek için kendi Google Gemini API anahtarınızın girilmesi gerekir.
+              </p>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1 min-w-0">
+                  <input
+                    type={showApiKeyValue ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => {
+                      setApiKeyInput(e.target.value);
+                      setApiKeySaveMsg(null);
+                    }}
+                    placeholder="AIzaSy... Gemini API anahtarınız"
+                    className="w-full pl-2.5 pr-8 py-1.5 text-[11px] bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyValue((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    title={showApiKeyValue ? "Gizle" : "Göster"}
+                  >
+                    {showApiKeyValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const saved = saveGeminiApiKey(apiKeyInput);
+                    setHasConfiguredKey(hasAnyGeminiApiKey());
+                    if (saved) {
+                      setApiKeySaveMsg("API anahtarı kaydedildi.");
+                      if (error && /API anahtarı|tanımlı değil|bulunamadı/i.test(error)) {
+                        setError(null);
+                      }
+                    } else {
+                      setApiKeySaveMsg("Kayıtlı anahtar temizlendi.");
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-xl transition cursor-pointer shrink-0"
+                >
+                  Kaydet
+                </button>
+                {getStoredGeminiApiKey() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearGeminiApiKey();
+                      setApiKeyInput("");
+                      setHasConfiguredKey(hasAnyGeminiApiKey());
+                      setApiKeySaveMsg("Kayıtlı anahtar silindi.");
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-200 text-[11px] font-bold rounded-xl transition cursor-pointer shrink-0"
+                  >
+                    Sil
+                  </button>
+                )}
+              </div>
+              {apiKeySaveMsg && (
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  ✓ {apiKeySaveMsg}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Info footer disclaimer */}

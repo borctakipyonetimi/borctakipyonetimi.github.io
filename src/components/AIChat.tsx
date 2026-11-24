@@ -17,7 +17,10 @@ import {
   Zap, 
   ArrowRight,
   TrendingDown,
-  Crown
+  Crown,
+  Key,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Debt, Income, Expense, InstallmentDebt, FinancialStats } from "../types";
@@ -31,6 +34,13 @@ import {
   getTemporaryPassTimeRemaining,
   getTemporaryPassDaysRemaining
 } from "../utils/rewardedAdService";
+import {
+  GEMINI_KEY_UPDATED_EVENT,
+  clearGeminiApiKey,
+  getStoredGeminiApiKey,
+  hasAnyGeminiApiKey,
+  saveGeminiApiKey
+} from "../utils/geminiKeyStorage";
 
 interface ChatMessage {
   sender: "user" | "bot";
@@ -311,9 +321,12 @@ export const AIChat: React.FC<AIChatProps> = ({
   ]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(() => localStorage.getItem("user_gemini_api_key") || "");
+  const [apiKeyInput, setApiKeyInput] = useState(() => getStoredGeminiApiKey());
   const [showApiKeyField, setShowApiKeyField] = useState(false);
-  const [isApiKeySaved, setIsApiKeySaved] = useState(() => !!localStorage.getItem("user_gemini_api_key"));
+  const [showApiKeyValue, setShowApiKeyValue] = useState(false);
+  const [isApiKeySaved, setIsApiKeySaved] = useState(() => Boolean(getStoredGeminiApiKey()));
+  const [hasAnyApiKey, setHasAnyApiKey] = useState(() => hasAnyGeminiApiKey());
+  const apiKeySettingsRef = useRef<HTMLDivElement>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [effectiveIsPremium, setEffectiveIsPremium] = useState<boolean>(() => {
     if (typeof isPremium === "boolean") return isPremium && Boolean(auth?.isPremium ?? true);
@@ -334,6 +347,19 @@ export const AIChat: React.FC<AIChatProps> = ({
       (typeof isTrialActiveProp === "boolean" ? isTrialActiveProp : auth.isTrialActive) &&
       effectiveTrialDays > 0
   );
+
+  useEffect(() => {
+    const syncKeyState = () => {
+      const stored = getStoredGeminiApiKey();
+      setApiKeyInput(stored);
+      setIsApiKeySaved(Boolean(stored));
+      setHasAnyApiKey(hasAnyGeminiApiKey());
+    };
+    window.addEventListener(GEMINI_KEY_UPDATED_EVENT, syncKeyState);
+    return () => {
+      window.removeEventListener(GEMINI_KEY_UPDATED_EVENT, syncKeyState);
+    };
+  }, []);
 
   useEffect(() => {
     const isPaidFromAuth = Boolean(auth.isPremium);
@@ -1407,6 +1433,30 @@ ${installmentDetailsStr}`;
         )}
       </div>
 
+      {/* Compact Gemini API Key Explanation Notice when not yet configured */}
+      {!hasAnyApiKey && (
+        <div className="px-3.5 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Key className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-200 leading-snug">
+              Yapay zekâ asistanı ve fiş tarama için kendi Gemini API anahtarınızın girilmesi gerekir.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowApiKeyField(true);
+              setTimeout(() => {
+                apiKeySettingsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 80);
+            }}
+            className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] rounded-xl shrink-0 cursor-pointer transition"
+          >
+            API Anahtarı Gir
+          </button>
+        </div>
+      )}
+
       {/* Main Chat Conversation Container (Positioned ABOVE Live Rates) */}
       <div className="relative border border-slate-200/80 dark:border-indigo-500/25 bg-white dark:bg-[#070c1d] rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-2xl dark:shadow-indigo-950/40 overflow-hidden flex flex-col w-full mx-auto">
         
@@ -1644,7 +1694,7 @@ ${installmentDetailsStr}`;
       <LiveMarketCenterWidget onAskAI={(prompt) => handleSend(prompt)} />
 
       {/* Advanced Gemini API Key / Engine Settings Drawer */}
-      <div className="overflow-hidden bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xs">
+      <div ref={apiKeySettingsRef} className="overflow-hidden bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xs">
         <button
           onClick={() => setShowApiKeyField(!showApiKeyField)}
           className="w-full flex items-center justify-between gap-3 text-left cursor-pointer focus:outline-none"
@@ -1658,7 +1708,7 @@ ${installmentDetailsStr}`;
                 Yapay Zekâ Motor Ayarları
               </span>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                Özel Gemini API anahtarı veya model ayarlarını yapılandırın
+                Gemini API anahtarı girerek fiş tarama ve AI özelliklerini etkinleştirin
               </p>
             </div>
           </div>
@@ -1677,30 +1727,55 @@ ${installmentDetailsStr}`;
               className="overflow-hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-3"
             >
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
-                Bütçem Pro varsayılan olarak sunucu taraflı <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">Gemini 3.7 Flash</strong> motoru ile çalışır. Dilerseniz kendi Google AI Studio API anahtarınızı bağlayabilirsiniz.
+                Fiş tarama ve yapay zekâ destekli analizlerin doğrudan çalışabilmesi için Google AI Studio üzerinden alacağınız kendi <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">Gemini API anahtarınızı</strong> girmeniz gerekir.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-2 items-stretch max-w-lg">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => {
-                    setApiKeyInput(e.target.value);
-                    setIsApiKeySaved(false);
-                  }}
-                  placeholder="AIzaSy... API anahtarınızı yapıştırın"
-                  className="flex-1 px-3.5 py-2 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
-                />
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKeyValue ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => {
+                      setApiKeyInput(e.target.value);
+                      setIsApiKeySaved(false);
+                    }}
+                    placeholder="AIzaSy... API anahtarınızı yapıştırın"
+                    className="w-full pl-3.5 pr-9 py-2 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyValue((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    title={showApiKeyValue ? "Gizle" : "Göster"}
+                  >
+                    {showApiKeyValue ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
-                    localStorage.setItem("user_gemini_api_key", apiKeyInput);
-                    setIsApiKeySaved(true);
+                    const saved = saveGeminiApiKey(apiKeyInput);
+                    setIsApiKeySaved(Boolean(saved));
+                    setHasAnyApiKey(hasAnyGeminiApiKey());
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 font-bold text-xs text-white rounded-xl shadow-xs transition cursor-pointer shrink-0"
                 >
                   Kaydet 💾
                 </button>
+                {isApiKeySaved && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearGeminiApiKey();
+                      setApiKeyInput("");
+                      setIsApiKeySaved(false);
+                      setHasAnyApiKey(hasAnyGeminiApiKey());
+                    }}
+                    className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 font-bold text-xs text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer shrink-0"
+                  >
+                    Sil
+                  </button>
+                )}
               </div>
               
               {isApiKeySaved && (

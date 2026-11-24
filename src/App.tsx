@@ -104,8 +104,16 @@ import {
   Folder,
   ClipboardList,
   Save,
-  FileJson
+  FileJson,
+  Key
 } from "lucide-react";
+import {
+  GEMINI_KEY_UPDATED_EVENT,
+  clearGeminiApiKey,
+  getStoredGeminiApiKey,
+  hasAnyGeminiApiKey,
+  saveGeminiApiKey
+} from "./utils/geminiKeyStorage";
 import {
   Debt,
   Income,
@@ -333,8 +341,25 @@ export default function App() {
     finance: false,
     pro_tools: false,
     backup: false,
-    settings_support: false
+    settings_support: false,
+    gemini_api: false
   });
+
+  const [sidebarGeminiKeyInput, setSidebarGeminiKeyInput] = useState(() => getStoredGeminiApiKey());
+  const [showSidebarGeminiKey, setShowSidebarGeminiKey] = useState(false);
+  const [hasSidebarGeminiKey, setHasSidebarGeminiKey] = useState(() => hasAnyGeminiApiKey());
+  const [sidebarGeminiKeyMsg, setSidebarGeminiKeyMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncSidebarGeminiKey = () => {
+      setSidebarGeminiKeyInput(getStoredGeminiApiKey());
+      setHasSidebarGeminiKey(hasAnyGeminiApiKey());
+    };
+    window.addEventListener(GEMINI_KEY_UPDATED_EVENT, syncSidebarGeminiKey);
+    return () => {
+      window.removeEventListener(GEMINI_KEY_UPDATED_EVENT, syncSidebarGeminiKey);
+    };
+  }, []);
 
   const toggleCategory = useCallback((categoryId: string) => {
     setOpenCategories((prev) => ({
@@ -9998,6 +10023,114 @@ export default function App() {
                       <Trash2 className="w-3.5 h-3.5 shrink-0" />
                       <span>TÜM VERİLERİ SIFIRLA</span>
                     </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Accordion Category: Gemini API Anahtarı (En Alt Kısım) */}
+            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900/70 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => toggleCategory("gemini_api")}
+                className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors cursor-pointer select-none ${
+                  openCategories.gemini_api
+                    ? "bg-indigo-50/80 dark:bg-indigo-950/30 text-indigo-950 dark:text-indigo-200"
+                    : "hover:bg-slate-50/90 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    openCategories.gemini_api
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
+                  }`}>
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black tracking-tight truncate">Gemini API Anahtarı</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                      hasSidebarGeminiKey
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                    }`}
+                  >
+                    {hasSidebarGeminiKey ? "Aktif" : "Gerekli"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      openCategories.gemini_api ? "rotate-180 text-indigo-600 dark:text-indigo-400" : "text-slate-400"
+                    }`}
+                  />
+                </div>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {openCategories.gemini_api && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18, ease: "easeInOut" }}
+                    className="overflow-hidden p-2.5 space-y-2 border-t border-slate-200/60 dark:border-slate-800/70 bg-slate-50/40 dark:bg-slate-950/20"
+                  >
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                      Fiş & fatura tarama ve yapay zekâ asistanı için kendi Gemini API anahtarınızın girilmesi gerekir.
+                    </p>
+                    <div className="relative">
+                      <input
+                        type={showSidebarGeminiKey ? "text" : "password"}
+                        value={sidebarGeminiKeyInput}
+                        onChange={(e) => {
+                          setSidebarGeminiKeyInput(e.target.value);
+                          setSidebarGeminiKeyMsg(null);
+                        }}
+                        placeholder="AIzaSy... API anahtarınız"
+                        className="w-full pl-2.5 pr-8 py-1.5 text-[11px] bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSidebarGeminiKey((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                        title={showSidebarGeminiKey ? "Gizle" : "Göster"}
+                      >
+                        {showSidebarGeminiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const saved = saveGeminiApiKey(sidebarGeminiKeyInput);
+                          setHasSidebarGeminiKey(hasAnyGeminiApiKey());
+                          setSidebarGeminiKeyMsg(saved ? "✓ API anahtarı kaydedildi." : "Kayıtlı anahtar temizlendi.");
+                        }}
+                        className="flex-1 py-1.5 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10.5px] font-bold transition cursor-pointer"
+                      >
+                        Kaydet
+                      </button>
+                      {getStoredGeminiApiKey() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearGeminiApiKey();
+                            setSidebarGeminiKeyInput("");
+                            setHasSidebarGeminiKey(hasAnyGeminiApiKey());
+                            setSidebarGeminiKeyMsg("Kayıtlı anahtar silindi.");
+                          }}
+                          className="py-1.5 px-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-xl text-[10.5px] font-bold transition cursor-pointer"
+                        >
+                          Sil
+                        </button>
+                      )}
+                    </div>
+                    {sidebarGeminiKeyMsg && (
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        {sidebarGeminiKeyMsg}
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
