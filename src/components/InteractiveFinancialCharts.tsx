@@ -94,6 +94,17 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
 
+  const toSafeNumber = (val: unknown): number => {
+    if (typeof val === "number") return Number.isFinite(val) ? val : 0;
+    if (typeof val === "string") {
+      const cleaned = val.trim().replace(/\s+/g, "");
+      if (!cleaned) return 0;
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : 0;
+    }
+    return 0;
+  };
+
   // 1. Filtered data slices based on selected time range
   const { filteredIncomes, filteredExpenses, filteredDebts, filteredInstallments } = useMemo(() => {
     if (timeRange === "all_time") {
@@ -124,18 +135,10 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
         return parts.year === currentYear && parts.month === currentMonth;
       });
 
-      // Active debts with payments or remaining this month
-      const dbt = debts.filter((d) => {
-        if (!d.dueDate) return true;
-        const parts = parseDateParts(d.dueDate);
-        if (!parts) return true;
-        return parts.year === currentYear && parts.month === currentMonth;
-      });
-
       return {
         filteredIncomes: inc,
         filteredExpenses: exp,
-        filteredDebts: dbt.length > 0 ? dbt : debts,
+        filteredDebts: debts,
         filteredInstallments: installmentDebts,
       };
     }
@@ -166,29 +169,29 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
 
   // Totals calculations
   const totalIncome = useMemo(
-    () => filteredIncomes.reduce((acc, item) => acc + (Number(item.amount) || 0), 0),
+    () => filteredIncomes.reduce((acc, item) => acc + toSafeNumber(item.amount), 0),
     [filteredIncomes]
   );
 
   const totalExpense = useMemo(
-    () => filteredExpenses.reduce((acc, item) => acc + (Number(item.amount) || 0), 0),
+    () => filteredExpenses.reduce((acc, item) => acc + toSafeNumber(item.amount), 0),
     [filteredExpenses]
   );
 
   const totalDebtRemaining = useMemo(() => {
     return filteredDebts.reduce((acc, item) => {
-      const paid = Number(item.paid) || 0;
-      const total = Number(item.amount) || 0;
+      const paid = toSafeNumber(item.paid);
+      const total = toSafeNumber(item.amount);
       return acc + Math.max(0, total - paid);
     }, 0);
   }, [filteredDebts]);
 
   const totalInstallmentLoad = useMemo(() => {
     return filteredInstallments.reduce((acc, item) => {
-      const paidCount = Number(item.paidInstallmentCount) || 0;
-      const totalCount = Number(item.installmentCount) || 1;
-      const totalAmt = Number(item.totalAmount) || 0;
-      const perMonth = totalCount > 0 ? totalAmt / totalCount : 0;
+      const paidCount = toSafeNumber(item.paidInstallmentCount);
+      const totalCount = Math.max(1, toSafeNumber(item.installmentCount) || 1);
+      const totalAmt = toSafeNumber(item.totalAmount);
+      const perMonth = totalAmt / totalCount;
       const remainingCount = Math.max(0, totalCount - paidCount);
       return acc + remainingCount * perMonth;
     }, 0);
@@ -288,22 +291,21 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
     }
 
     if (activeCategory === "debts") {
-      // Debts breakdown (remaining vs paid for each top debt)
+      // Debts breakdown (all remaining unpaid debts)
       const sortedDebts = [...filteredDebts]
-        .map((d) => {
-          const total = Number(d.amount) || 0;
-          const paid = Number(d.paid) || 0;
+        .map((d, idx) => {
+          const total = toSafeNumber(d.amount);
+          const paid = toSafeNumber(d.paid);
           const remaining = Math.max(0, total - paid);
           return {
-            id: String(d.id),
+            id: d.id !== undefined && d.id !== null ? `debt-${String(d.id)}-${idx}` : `debt-${idx}`,
             label: d.name || (language === "tr" ? "İsimsiz Borç" : "Unnamed Debt"),
             value: remaining,
             secondaryValue: paid,
           };
         })
-        .filter((d) => d.value > 0 || (d.secondaryValue || 0) > 0)
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8); // Top 8 debts
+        .filter((d) => d.value > 0)
+        .sort((a, b) => b.value - a.value);
 
       const sum = sortedDebts.reduce((s, it) => s + it.value, 0);
       return sortedDebts.map((d, idx) => ({
@@ -314,24 +316,23 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
     }
 
     if (activeCategory === "installments") {
-      // Installments breakdown
+      // Installments breakdown (all active installments)
       const sorted = [...filteredInstallments]
-        .map((inst) => {
-          const paidCount = Number(inst.paidInstallmentCount) || 0;
-          const totalCount = Number(inst.installmentCount) || 1;
-          const totalAmt = Number(inst.totalAmount) || 0;
-          const monthly = totalCount > 0 ? totalAmt / totalCount : 0;
+        .map((inst, idx) => {
+          const paidCount = toSafeNumber(inst.paidInstallmentCount);
+          const totalCount = Math.max(1, toSafeNumber(inst.installmentCount) || 1);
+          const totalAmt = toSafeNumber(inst.totalAmount);
+          const monthly = totalAmt / totalCount;
           const remaining = Math.max(0, totalCount - paidCount) * monthly;
           return {
-            id: String(inst.id),
+            id: inst.id !== undefined && inst.id !== null ? `inst-${String(inst.id)}-${idx}` : `inst-${idx}`,
             label: inst.name || (language === "tr" ? "İsimsiz Taksit" : "Unnamed Installment"),
             value: remaining,
-            count: totalCount - paidCount,
+            count: Math.max(0, totalCount - paidCount),
           };
         })
         .filter((i) => i.value > 0)
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8);
+        .sort((a, b) => b.value - a.value);
 
       const sum = sorted.reduce((s, it) => s + it.value, 0);
       return sorted.map((it, idx) => ({
@@ -398,7 +399,7 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
 
     const xScale = d3
       .scalePoint<string>()
-      .domain(chartData.map((d) => d.label))
+      .domain(chartData.map((d) => d.id))
       .range([paddingX, width - paddingX]);
 
     const maxVal = d3.max(chartData, (d) => d.value) || 1;
@@ -408,7 +409,7 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
       .range([height - paddingY, paddingY]);
 
     const points = chartData.map((d) => ({
-      x: xScale(d.label) || paddingX,
+      x: xScale(d.id) || paddingX,
       y: yScale(d.value),
       item: d,
     }));
@@ -950,16 +951,20 @@ export const InteractiveFinancialCharts: React.FC<InteractiveFinancialChartsProp
                               className="transition-all duration-200"
                             />
                             {/* Bottom Label */}
-                            <text
-                              x={pt.x}
-                              y={lineChartConfig.height - 6}
-                              textAnchor="middle"
-                              className="text-[9px] font-bold fill-slate-400 dark:fill-slate-500"
-                            >
-                              {pt.item.label.length > 8
-                                ? pt.item.label.slice(0, 7) + ".."
-                                : pt.item.label}
-                            </text>
+                            {(lineChartConfig.points.length <= 8 ||
+                              idx % Math.ceil(lineChartConfig.points.length / 7) === 0 ||
+                              idx === lineChartConfig.points.length - 1) && (
+                              <text
+                                x={pt.x}
+                                y={lineChartConfig.height - 6}
+                                textAnchor="middle"
+                                className="text-[9px] font-bold fill-slate-400 dark:fill-slate-500"
+                              >
+                                {pt.item.label.length > 8
+                                  ? pt.item.label.slice(0, 7) + ".."
+                                  : pt.item.label}
+                              </text>
+                            )}
                           </g>
                         );
                       })}

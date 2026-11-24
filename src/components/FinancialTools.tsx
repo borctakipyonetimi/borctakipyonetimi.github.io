@@ -306,9 +306,10 @@ export function FinancialTools({
       if (inst.id !== undefined && inst.id !== null) {
         if (seenIds.has(inst.id)) return false;
         seenIds.add(inst.id);
+        return true;
       }
       const normName = inst.name.trim().toLowerCase();
-      const key = `${normName}_${safeNumber(inst.totalAmount)}_${safeNumber(inst.installmentCount)}`;
+      const key = `${normName}_${safeNumber(inst.totalAmount)}_${safeNumber(inst.installmentCount)}_${inst.firstDueDate || ""}`;
       if (seenKeys.has(key)) return false;
       seenKeys.add(key);
       return true;
@@ -335,9 +336,11 @@ export function FinancialTools({
         );
         if (matchInst) return false;
       }
-      const key = `${normName}_${safeNumber(d.amount)}_${(d.category || "").toLowerCase()}`;
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
+      if (d.id === undefined || d.id === null) {
+        const key = `${normName}_${safeNumber(d.amount)}_${(d.category || "").toLowerCase()}_${d.dueDate || ""}`;
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+      }
       return true;
     });
   }, [debts, cleanInstallments]);
