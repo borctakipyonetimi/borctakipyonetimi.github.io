@@ -179,6 +179,17 @@ if (fs.existsSync(manifestPath)) {
     }
   }
 
+  // Ensure AdMob Native Ad Validator overlay is disabled on test native ads
+  if (!content.includes('com.google.android.gms.ads.flag.NATIVE_AD_DEBUGGER_ENABLED')) {
+    const validatorMetaBlock = `
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.NATIVE_AD_DEBUGGER_ENABLED"
+            android:value="false" />`;
+    if (content.includes('</application>')) {
+      content = content.replace('</application>', validatorMetaBlock + '\n    </application>');
+    }
+  }
+
   // Remove any legacy widget receivers if present
   content = content.replace(/\s*<!--[\s\S]*?Widget[\s\S]*?-->/g, '');
   content = content.replace(/\s*<receiver[\s\S]*?(?:BudgetWidgetProvider|QuickSummaryWidgetProvider)[\s\S]*?<\/receiver>/g, '');

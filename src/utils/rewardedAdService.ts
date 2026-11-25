@@ -270,10 +270,8 @@ export async function initNativeAdMobSdk(): Promise<boolean> {
 
   initPromise = (async () => {
     try {
-      console.log("[AdMob Native] Initializing Mobile Ads SDK for testing...");
-      await AdMob.initialize({
-        initializeForTesting: true,
-      });
+      console.log("[AdMob Native] Initializing Mobile Ads SDK...");
+      await AdMob.initialize();
       isAdMobSdkInitialized = true;
       console.log("[AdMob Native] Mobile Ads SDK initialized successfully.");
       return true;
@@ -383,19 +381,41 @@ export async function hideNativeBannerAd(): Promise<void> {
 // NATIVE ADMOB FEED MANAGER (Real Google AdMob Native Test Ads for Inline Cards)
 // ============================================================================
 
-const NATIVE_AD_THEME_STYLE = {
-  backgroundColor: "#0f172a",
-  borderColor: "#1e293b",
-  borderWidth: 1,
-  cornerRadius: 16,
-  headlineColor: "#f8fafc",
-  headlineFontSize: 15,
-  bodyColor: "#cbd5e1",
-  bodyFontSize: 12,
-  callToActionBackgroundColor: "#f59e0b",
-  callToActionTextColor: "#0f172a",
-  callToActionFontSize: 13,
-};
+function getNativeAdThemeStyle() {
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark");
+
+  if (isDark) {
+    return {
+      backgroundColor: "#1e293b",
+      borderColor: "#334155",
+      borderWidth: 1,
+      cornerRadius: 16,
+      headlineColor: "#f8fafc",
+      headlineFontSize: 15,
+      bodyColor: "#cbd5e1",
+      bodyFontSize: 12,
+      callToActionBackgroundColor: "#f59e0b",
+      callToActionTextColor: "#0f172a",
+      callToActionFontSize: 13,
+    };
+  }
+
+  return {
+    backgroundColor: "#ffffff",
+    borderColor: "#cbd5e1",
+    borderWidth: 1,
+    cornerRadius: 16,
+    headlineColor: "#0f172a",
+    headlineFontSize: 15,
+    bodyColor: "#475569",
+    bodyFontSize: 12,
+    callToActionBackgroundColor: "#4f46e5",
+    callToActionTextColor: "#ffffff",
+    callToActionFontSize: 13,
+  };
+}
 
 let inlineNativeFeed: NativeAdFeed | null = null;
 let inlineFeedCreatePromise: Promise<NativeAdFeed | null> | null = null;
@@ -413,8 +433,8 @@ export async function acquireInlineNativeFeed(): Promise<NativeAdFeed | null> {
         template: NativeAdTemplate.Medium,
         isTesting: true,
         adId: ADMOB_CONFIG.NATIVE_ID,
-        style: NATIVE_AD_THEME_STYLE,
-        androidScrollSnapshot: Capacitor.getPlatform() === "android",
+        style: getNativeAdThemeStyle(),
+        androidScrollSnapshot: false,
       });
       inlineNativeFeed = feed;
       return feed;

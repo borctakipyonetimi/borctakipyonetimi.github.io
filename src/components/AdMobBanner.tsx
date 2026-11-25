@@ -414,23 +414,27 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       <div
         aria-label="Google AdMob Test Banner"
         data-admob-unit={ADMOB_CONFIG.BANNER_ID}
-        className={`w-full bg-[#0f172a] border-t border-slate-800/80 transition-all duration-200 ${className}`}
+        className={`w-full bg-transparent border-t border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 ${className}`}
         style={{ height: `${Math.max(54, nativeBannerHeight)}px` }}
       />
     );
   }
 
-  // Native Inline Cards: Measured NativeUIProjection Slot (>=144x300px)
+  // Native Inline Cards: Measured NativeUIProjection Slot (>=144x300px, 336px keeps MediaView >=120dp on scaled fonts)
   if (isNative) {
     return (
-      <div className={`w-full flex flex-col items-center overflow-hidden my-2 space-y-1.5 ${className}`}>
+      <div className={`w-full flex flex-col items-center overflow-visible my-2 space-y-1.5 relative z-10 ${className}`}>
         <div
           ref={nativeSlotRef}
           aria-label="Google AdMob Native Test Ad"
           data-admob-unit={ADMOB_CONFIG.NATIVE_ID}
           data-admob-slot={nativeSlotKey}
-          style={{ width: "100%", height: "304px", minHeight: "304px" }}
-          className="w-full rounded-2xl bg-[#0f172a] border border-slate-800/80 overflow-hidden"
+          style={{ width: "100%", height: "336px", minHeight: "336px" }}
+          className={`w-full rounded-2xl overflow-visible transition-colors duration-200 ${
+            adLoaded
+              ? "bg-transparent border border-transparent"
+              : "bg-white/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 animate-pulse"
+          }`}
         />
         {adLoaded && onUpgradeClick && (
           <div className="flex justify-end w-full pr-2">
@@ -451,9 +455,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   if (isRectangle) {
     return (
       <div
-        className={`w-full flex flex-col items-center justify-center rounded-2xl transition-all duration-300 ${
+        className={`w-full flex flex-col items-center justify-center rounded-2xl transition-all duration-300 relative ${
           adLoaded
-            ? "bg-[#0f172a]/95 border border-slate-800 p-1 min-h-[260px] overflow-hidden"
+            ? "bg-white/95 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/70 p-2 min-h-[266px] overflow-visible z-10 shadow-sm"
             : "h-0 overflow-visible pointer-events-none"
         } ${className}`}
       >
@@ -464,9 +468,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           style={
             adLoaded
               ? { width: "300px", height: "250px", maxWidth: "100%" }
-              : { width: "300px", height: "250px", position: "fixed", left: "-9999px", top: "0", opacity: 0 }
+              : { width: "300px", height: "250px", position: "absolute", left: "0", top: "0", opacity: 0, pointerEvents: "none" }
           }
-          className="flex items-center justify-center overflow-hidden rounded-xl"
+          className="flex items-center justify-center overflow-visible rounded-xl relative z-10"
         />
       </div>
     );
@@ -476,9 +480,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   if (placement === "bottom-dock") {
     return (
       <div
-        className={`w-full flex items-center justify-center bg-[#0f172a]/95 backdrop-blur-md transition-all duration-300 ${
+        className={`w-full flex items-center justify-center transition-all duration-300 relative ${
           adLoaded
-            ? "border-t border-slate-700/60 px-2 py-1 min-h-[58px] overflow-hidden"
+            ? "bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-700/60 px-2 py-1 min-h-[58px] overflow-visible z-10"
             : "h-0 border-t-0 overflow-visible pointer-events-none"
         } ${className}`}
       >
@@ -489,9 +493,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           style={
             adLoaded
               ? { width: "320px", height: "50px" }
-              : { width: "320px", height: "50px", position: "fixed", left: "-9999px", top: "0", opacity: 0 }
+              : { width: "320px", height: "50px", position: "absolute", left: "0", top: "0", opacity: 0, pointerEvents: "none" }
           }
-          className="flex items-center justify-center overflow-hidden"
+          className="flex items-center justify-center overflow-visible relative z-10"
         />
       </div>
     );
@@ -500,8 +504,8 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   // Web Inline GPT Banner Slot
   return (
     <div
-      className={`w-full flex flex-col items-center transition-all duration-300 ${
-        adLoaded ? "my-2 space-y-1.5 overflow-hidden" : "h-0 overflow-visible pointer-events-none"
+      className={`w-full flex flex-col items-center transition-all duration-300 relative ${
+        adLoaded ? "my-2 space-y-1.5 overflow-visible z-10" : "h-0 overflow-visible pointer-events-none"
       } ${className}`}
     >
       <div
@@ -511,9 +515,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         style={
           adLoaded
             ? { width: "320px", height: "50px" }
-            : { width: "320px", height: "50px", position: "fixed", left: "-9999px", top: "0", opacity: 0 }
+            : { width: "320px", height: "50px", position: "absolute", left: "0", top: "0", opacity: 0, pointerEvents: "none" }
         }
-        className="flex items-center justify-center overflow-hidden rounded-xl"
+        className="flex items-center justify-center overflow-visible rounded-xl relative z-10"
       />
       {adLoaded && onUpgradeClick && (
         <div className="flex justify-end w-full pr-2">
