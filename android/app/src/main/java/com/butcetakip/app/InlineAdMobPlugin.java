@@ -33,6 +33,7 @@ public class InlineAdMobPlugin extends Plugin {
 
     private static class InlineSlot {
         final String slotKey;
+        final String sessionId;
         final FrameLayout container;
         final AdView adView;
         final int adWidthDp;
@@ -50,8 +51,9 @@ public class InlineAdMobPlugin extends Plugin {
         double clipH = 0;
         double viewportW = 0;
 
-        InlineSlot(String slotKey, FrameLayout container, AdView adView, int adWidthDp, int adHeightDp) {
+        InlineSlot(String slotKey, String sessionId, FrameLayout container, AdView adView, int adWidthDp, int adHeightDp) {
             this.slotKey = slotKey;
+            this.sessionId = sessionId;
             this.container = container;
             this.adView = adView;
             this.adWidthDp = adWidthDp;
@@ -61,6 +63,7 @@ public class InlineAdMobPlugin extends Plugin {
 
     private final Map<String, InlineSlot> slots = new HashMap<>();
     private boolean paused = false;
+    private String currentSessionId = "";
 
     private ViewGroup resolveOverlayParent() {
         Bridge bridge = getBridge();
@@ -86,6 +89,46 @@ public class InlineAdMobPlugin extends Plugin {
         }
     }
 
+    private void destroyAllSlotsInternal() {
+        Iterator<String> it = slots.keySet().iterator();
+        while (it.hasNext()) {
+            String key = it.next();
+            InlineSlot slot = slots.get(key);
+            it.remove();
+            if (slot != null) {
+                try {
+                    slot.adView.pause();
+                    ViewGroup parent = (ViewGroup) slot.container.getParent();
+                    if (parent != null) {
+                        parent.removeView(slot.container);
+                    }
+                    slot.adView.destroy();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    @PluginMethod
+    public void beginSession(final PluginCall call) {
+        final String sessionId = call.getString("sessionId", "");
+        runOnUi(() -> {
+            currentSessionId = sessionId != null ? sessionId : "";
+            paused = false;
+            destroyAllSlotsInternal();
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void clearAllSlots(final PluginCall call) {
+        runOnUi(() -> {
+            paused = false;
+            destroyAllSlotsInternal();
+            call.resolve();
+        });
+    }
+
     @PluginMethod
     public void loadSlot(final PluginCall call) {
         final String slotKey = call.getString("slotKey");
@@ -93,12 +136,17 @@ public class InlineAdMobPlugin extends Plugin {
             call.reject("slotKey must not be empty");
             return;
         }
+        final String sessionId = call.getString("sessionId", "");
         final String adId = call.getString("adId", DEFAULT_TEST_BANNER_ID);
         final String requestedSize = call.getString("adSize", "MEDIUM_RECTANGLE");
         final int maxWidthDp = call.getInt("maxWidthDp", 300);
 
         runOnUi(() -> {
             try {
+                if (sessionId != null && !sessionId.isEmpty() && !currentSessionId.isEmpty() && !sessionId.equals(currentSessionId)) {
+                    call.resolve();
+                    return;
+                }
                 Context context = getContext();
                 if (context == null) {
                     call.reject("Android context unavailable");
@@ -159,13 +207,17 @@ public class InlineAdMobPlugin extends Plugin {
                 }
                 parent.addView(container, parentParams);
 
-                final InlineSlot slot = new InlineSlot(slotKey, container, adView, widthDp, heightDp);
+                final InlineSlot slot = new InlineSlot(slotKey, sessionId != null ? sessionId : "", container, adView, widthDp, heightDp);
                 slots.put(slotKey, slot);
 
                 adView.setAdListener(new AdListener() {
                     @Override
                     public void onAdLoaded() {
                         if (slots.get(slotKey) != slot) return;
+                        if (!slot.sessionId.isEmpty() && !currentSessionId.isEmpty() && !slot.sessionId.equals(currentSessionId)) {
+                            destroySlotInternal(slotKey);
+                            return;
+                        }
                         slot.loaded = true;
                         applyPlacementInternal(slot);
                         JSObject data = new JSObject();
@@ -203,6 +255,7 @@ public class InlineAdMobPlugin extends Plugin {
             call.resolve();
             return;
         }
+        final String sessionId = call.getString("sessionId", "");
         final boolean visible = Boolean.TRUE.equals(call.getBoolean("visible", false));
         final double rectX = call.getDouble("rectX", 0.0);
         final double rectY = call.getDouble("rectY", 0.0);
@@ -217,6 +270,10 @@ public class InlineAdMobPlugin extends Plugin {
         runOnUi(() -> {
             InlineSlot slot = slots.get(slotKey);
             if (slot == null) return;
+            if (sessionId != null && !sessionId.isEmpty() && !currentSessionId.isEmpty() && !sessionId.equals(currentSessionId)) {
+                destroySlotInternal(slotKey);
+                return;
+            }
             slot.hasPlacement = true;
             slot.visible = visible;
             slot.rectX = rectX;
@@ -235,6 +292,13 @@ public class InlineAdMobPlugin extends Plugin {
 
     private void applyPlacementInternal(InlineSlot slot) {
         if (slot == null) return;
+        if (!slot.sessionId.isEmpty() && !currentSessionId.isEmpty() && !slot.sessionId.equals(currentSessionId)) {
+            if (slot.container.getVisibility() != View.GONE) {
+                slot.container.setVisibility(View.GONE);
+                slot.adView.pause();
+            }
+            return;
+        }
         if (!slot.loaded) {
             return;
         }
@@ -347,24 +411,7 @@ public class InlineAdMobPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        runOnUi(() -> {
-            Iterator<String> it = slots.keySet().iterator();
-            while (it.hasNext()) {
-                String key = it.next();
-                InlineSlot slot = slots.get(key);
-                it.remove();
-                if (slot != null) {
-                    try {
-                        ViewGroup parent = (ViewGroup) slot.container.getParent();
-                        if (parent != null) {
-                            parent.removeView(slot.container);
-                        }
-                        slot.adView.destroy();
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        });
+        runOnUi(this::destroyAllSlotsInternal);
         super.handleOnDestroy();
     }
 }

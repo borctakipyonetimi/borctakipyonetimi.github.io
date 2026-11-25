@@ -20,9 +20,13 @@ import {
   isUserAdFree,
   acquireInlineNativeFeed,
   initNativeAdMobSdk,
-  InlineAdMob
+  InlineAdMob,
+  ensureNativeAdsBootReset,
+  getCurrentInlineAdSessionId
 } from "../utils/rewardedAdService";
 import { useAuth } from "../context/AuthContext";
+
+let inlineSlotSeqCounter = 0;
 
 interface AdMobBannerProps {
   unitType?: "banner" | "native" | "interstitial" | "rectangle";
@@ -51,8 +55,12 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   const isNative = Capacitor.isNativePlatform();
   const rawReactId = useId();
   const cleanReactId = rawReactId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const inlineSlotInstanceRef = useRef<number>(0);
+  if (!inlineSlotInstanceRef.current) {
+    inlineSlotInstanceRef.current = ++inlineSlotSeqCounter;
+  }
   const slotDivId = `butcem-gpt-${cleanReactId}`;
-  const nativeSlotKey = `inline_${cleanReactId}`;
+  const nativeSlotKey = `inline_${cleanReactId}_${inlineSlotInstanceRef.current}`;
 
   const slotContainerRef = useRef<HTMLDivElement | null>(null);
   const nativeSlotRef = useRef<HTMLDivElement | null>(null);
@@ -171,6 +179,8 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           );
           listeners.push(failedHandle);
 
+          await ensureNativeAdsBootReset();
+          if (!isMounted || isUserAdFree()) return;
           await triggerShowBanner();
         } catch (nativeErr) {
           console.warn("[AdMob Native Banner] setup error:", nativeErr);
@@ -202,9 +212,11 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       let isLoaded = false;
       let isPaused = false;
       let rafId: number | null = null;
+      let mountSettleTimer: ReturnType<typeof setTimeout> | null = null;
       let settleTimer: ReturnType<typeof setTimeout> | null = null;
       let failTimer: ReturnType<typeof setTimeout> | null = null;
       let lastSignature = "";
+      let activeSessionId = "";
       const listeners: PluginListenerHandle[] = [];
 
       setAdLoaded(false);
@@ -215,12 +227,14 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         if (!isMounted) return;
 
         const slotEl = nativeSlotRef.current;
-        if (!isLoaded || isPaused || document.hidden || isUserAdFree() || !slotEl || !slotEl.isConnected) {
+        const sessionStale = Boolean(activeSessionId && activeSessionId !== getCurrentInlineAdSessionId());
+        if (!isLoaded || isPaused || sessionStale || document.hidden || isUserAdFree() || !slotEl || !slotEl.isConnected) {
           const sig = "hidden";
           if (lastSignature !== sig) {
             lastSignature = sig;
             InlineAdMob.updateSlot({
               slotKey: nativeSlotKey,
+              sessionId: activeSessionId,
               visible: false,
               rectX: 0,
               rectY: 0,
@@ -236,13 +250,21 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           return;
         }
 
+        const cs = window.getComputedStyle(slotEl);
         const rect = slotEl.getBoundingClientRect();
-        if (rect.width < 50 || rect.height < 50) {
+        if (
+          cs.display === "none" ||
+          cs.visibility === "hidden" ||
+          parseFloat(cs.opacity || "1") <= 0.05 ||
+          rect.width < 50 ||
+          rect.height < 50
+        ) {
           const sig = "hidden";
           if (lastSignature !== sig) {
             lastSignature = sig;
             InlineAdMob.updateSlot({
               slotKey: nativeSlotKey,
+              sessionId: activeSessionId,
               visible: false,
               rectX: 0,
               rectY: 0,
@@ -272,7 +294,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         const clipW = Math.max(0, clipRight - clipX);
         const clipH = Math.max(0, clipBottom - clipY);
 
-        let visible = clipW >= 50 && clipH >= 24;
+        let visible = clipW >= 50 && clipH >= 36;
         if (visible) {
           const cx = clipX + clipW / 2;
           const cy = clipY + clipH / 2;
@@ -291,6 +313,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
         InlineAdMob.updateSlot({
           slotKey: nativeSlotKey,
+          sessionId: activeSessionId,
           visible,
           rectX: rect.left,
           rectY: rect.top,
@@ -328,6 +351,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         try {
           const loadedHandle = await InlineAdMob.addListener("inlineAdLoaded", (ev: any) => {
             if (!isMounted || ev?.slotKey !== nativeSlotKey) return;
+            if (activeSessionId && activeSessionId !== getCurrentInlineAdSessionId()) return;
             if (failTimer) {
               clearTimeout(failTimer);
               failTimer = null;
@@ -375,12 +399,25 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             }
           }, 350);
 
+          await ensureNativeAdsBootReset();
           await initNativeAdMobSdk();
           if (!isMounted || isUserAdFree()) return;
 
+          // Wait briefly for tab/scroll transitions and parent session cleanup to settle before loading
+          await new Promise<void>((resolve) => {
+            mountSettleTimer = setTimeout(() => {
+              mountSettleTimer = null;
+              resolve();
+            }, 220);
+          });
+
+          if (!isMounted || isUserAdFree() || !nativeSlotRef.current?.isConnected) return;
+
+          activeSessionId = getCurrentInlineAdSessionId();
           const containerWidth = nativeSlotRef.current?.parentElement?.clientWidth || window.innerWidth - 32;
           await InlineAdMob.loadSlot({
             slotKey: nativeSlotKey,
+            sessionId: activeSessionId,
             adId: ADMOB_CONFIG.BANNER_ID,
             adSize: "MEDIUM_RECTANGLE",
             maxWidthDp: Math.max(300, Math.floor(containerWidth))
@@ -406,6 +443,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       return () => {
         isMounted = false;
         if (rafId !== null) cancelAnimationFrame(rafId);
+        if (mountSettleTimer) clearTimeout(mountSettleTimer);
         if (settleTimer) clearTimeout(settleTimer);
         if (failTimer) clearTimeout(failTimer);
         if (safetyInterval) clearInterval(safetyInterval);

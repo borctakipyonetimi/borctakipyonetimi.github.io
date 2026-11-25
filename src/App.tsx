@@ -147,7 +147,7 @@ import { ContactsDebtPanel } from "./components/ContactsDebtPanel";
 import { FinancialTools } from "./components/FinancialTools";
 import { AdMobBanner } from "./components/AdMobBanner";
 import { RewardedAdModal } from "./components/RewardedAdModal";
-import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd, pauseInlineNativeFeed, resumeInlineNativeFeed } from "./utils/rewardedAdService";
+import { isPassActive, isTemporaryPassActive, getTemporaryPassDaysRemaining, getRemainingPassTimeFormatted, RewardedFeatureType, showNativeInterstitialAd, hideNativeBannerAd, pauseInlineNativeFeed, resumeInlineNativeFeed, clearAllInlineAdsAndBanners } from "./utils/rewardedAdService";
 import { FloatingQuickAdd } from "./components/FloatingQuickAdd";
 import { PublicLanding } from "./components/PublicLanding";
 import { PublicBlog } from "./components/PublicBlog";
@@ -7124,8 +7124,10 @@ export default function App() {
       localStorage.setItem(`${spaceKey}_contacts_transactions`, JSON.stringify(rawContactTxs));
       
       triggerToast("Veri Yedek Dosyası Başarıyla İçe Aktarıldı... Sayfa Güncelleniyor! 📊");
-      
+      clearAllInlineAdsAndBanners().catch(() => {});
+
       setTimeout(() => {
+        clearAllInlineAdsAndBanners().catch(() => {});
         window.location.reload();
       }, 1500);
       return true;
@@ -8244,6 +8246,8 @@ export default function App() {
   }, [activeTab, sidebarCategories]);
 
   const wasSidebarOpenRef = useRef(false);
+  const isSidebarOpenRef = useRef(isSidebarOpen);
+  isSidebarOpenRef.current = isSidebarOpen;
   useEffect(() => {
     if (hasProAccess) {
       wasSidebarOpenRef.current = isSidebarOpen;
@@ -8262,6 +8266,32 @@ export default function App() {
     }
     wasSidebarOpenRef.current = isSidebarOpen;
   }, [isSidebarOpen, hasProAccess]);
+
+  // Menü/sekme geçişlerinde eski AdMob banner ve kutu reklamlarını hemen temizle;
+  // yeni ekran hazır olduğunda (ve sidebar kapalıysa) alt banner'ı yeniden göster.
+  const prevTabForAdsRef = useRef<string>(activeTab);
+  useEffect(() => {
+    if (prevTabForAdsRef.current === activeTab) {
+      return;
+    }
+    prevTabForAdsRef.current = activeTab;
+    scrollPageToTop();
+    clearAllInlineAdsAndBanners().catch(() => {});
+
+    if (hasProAccess) return;
+
+    const restoreTimer = setTimeout(() => {
+      if (!isSidebarOpenRef.current && typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("admob_native_banner_sync", { detail: { action: "restore" } })
+        );
+      }
+    }, 260);
+
+    return () => {
+      clearTimeout(restoreTimer);
+    };
+  }, [activeTab, hasProAccess]);
 
   const guestNavClickCountRef = useRef(0);
 
@@ -8870,6 +8900,7 @@ export default function App() {
           <button
             onClick={() => {
               triggerToast("Uygulama Yenileniyor... 🔄");
+              clearAllInlineAdsAndBanners().catch(() => {});
               setTimeout(() => {
                 window.location.reload();
               }, 350);

@@ -16,14 +16,18 @@ import {
 } from "@capacitor-community/admob";
 
 export interface InlineAdMobPluginInterface {
+  beginSession(options: { sessionId: string }): Promise<void>;
+  clearAllSlots(): Promise<void>;
   loadSlot(options: {
     slotKey: string;
+    sessionId?: string;
     adId?: string;
     adSize?: "MEDIUM_RECTANGLE" | "LARGE_BANNER" | "BANNER";
     maxWidthDp?: number;
   }): Promise<void>;
   updateSlot(options: {
     slotKey: string;
+    sessionId?: string;
     visible: boolean;
     rectX: number;
     rectY: number;
@@ -269,6 +273,84 @@ let initPromise: Promise<boolean> | null = null;
 let isNativeBannerActive = false;
 let currentNativeBannerKey: string | null = null;
 let nativeBannerPromise: Promise<boolean> | null = null;
+let bannerGeneration = 0;
+
+function createInlineSessionId(): string {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+let currentInlineSessionId: string = createInlineSessionId();
+let bootResetPromise: Promise<void> | null = null;
+
+export function getCurrentInlineAdSessionId(): string {
+  return currentInlineSessionId;
+}
+
+/**
+ * Ensures any leftover native inline/banner overlays from a previous WebView session
+ * (e.g., after window.location.reload()) are destroyed once on page boot before new ads mount.
+ */
+export function ensureNativeAdsBootReset(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    return Promise.resolve();
+  }
+  if (bootResetPromise) {
+    return bootResetPromise;
+  }
+  bootResetPromise = (async () => {
+    try {
+      await Promise.allSettled([
+        Capacitor.getPlatform() === "android"
+          ? InlineAdMob.beginSession({ sessionId: currentInlineSessionId })
+          : Promise.resolve(),
+        AdMob.removeBanner().catch(() => AdMob.hideBanner().catch(() => {})),
+      ]);
+      isNativeBannerActive = false;
+      currentNativeBannerKey = null;
+    } catch {
+      // Safe ignore on web/unsupported environments
+    }
+  })();
+  return bootResetPromise;
+}
+
+export async function beginFreshInlineAdSession(): Promise<string> {
+  currentInlineSessionId = createInlineSessionId();
+  const nextSession = currentInlineSessionId;
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+    try {
+      await InlineAdMob.beginSession({ sessionId: nextSession });
+    } catch {
+      // Safe ignore
+    }
+  }
+  return nextSession;
+}
+
+export async function clearAllInlineAdsAndBanners(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  await Promise.allSettled([
+    beginFreshInlineAdSession(),
+    hideNativeBannerAd(),
+  ]);
+}
+
+if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+  void ensureNativeAdsBootReset();
+
+  const cleanupOnWebViewLeave = () => {
+    bannerGeneration += 1;
+    isNativeBannerActive = false;
+    currentNativeBannerKey = null;
+    if (Capacitor.getPlatform() === "android") {
+      InlineAdMob.clearAllSlots().catch(() => {});
+    }
+    AdMob.removeBanner().catch(() => AdMob.hideBanner().catch(() => {}));
+  };
+
+  window.addEventListener("beforeunload", cleanupOnWebViewLeave);
+  window.addEventListener("pagehide", cleanupOnWebViewLeave);
+}
 
 // ============================================================================
 // DIRECT AD RETURN HELPERS (NO EXTRA TRANSITION CURTAINS OR DELAYED LOCKS)
@@ -355,9 +437,19 @@ export async function showNativeBannerAd(options?: {
     }
   }
 
+  const myGeneration = ++bannerGeneration;
+
   nativeBannerPromise = (async () => {
     try {
+      await ensureNativeAdsBootReset();
+      if (myGeneration !== bannerGeneration || isUserAdFree()) {
+        return false;
+      }
+
       await initNativeAdMobSdk();
+      if (myGeneration !== bannerGeneration || isUserAdFree()) {
+        return false;
+      }
 
       if (isNativeBannerActive && (currentNativeBannerKey !== targetKey || options?.force)) {
         try {
@@ -369,6 +461,10 @@ export async function showNativeBannerAd(options?: {
         currentNativeBannerKey = null;
       }
 
+      if (myGeneration !== bannerGeneration || isUserAdFree()) {
+        return false;
+      }
+
       await AdMob.showBanner({
         adId: ADMOB_CONFIG.BANNER_ID,
         adSize: targetSize,
@@ -376,6 +472,13 @@ export async function showNativeBannerAd(options?: {
         margin: targetMargin,
         isTesting: options?.isTesting !== false,
       });
+
+      if (myGeneration !== bannerGeneration || isUserAdFree()) {
+        await AdMob.removeBanner().catch(() => AdMob.hideBanner().catch(() => {}));
+        isNativeBannerActive = false;
+        currentNativeBannerKey = null;
+        return false;
+      }
 
       isNativeBannerActive = true;
       currentNativeBannerKey = targetKey;
@@ -400,6 +503,7 @@ export async function showNativeBannerAd(options?: {
 export async function hideNativeBannerAd(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
+    bannerGeneration += 1;
     isNativeBannerActive = false;
     currentNativeBannerKey = null;
     await AdMob.removeBanner().catch(() => AdMob.hideBanner());
