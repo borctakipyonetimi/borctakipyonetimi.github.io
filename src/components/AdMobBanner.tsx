@@ -18,7 +18,9 @@ import {
   showNativeBannerAd,
   hideNativeBannerAd,
   isUserAdFree,
-  acquireInlineNativeFeed
+  acquireInlineNativeFeed,
+  initNativeAdMobSdk,
+  InlineAdMob
 } from "../utils/rewardedAdService";
 import { useAuth } from "../context/AuthContext";
 
@@ -84,6 +86,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   const isTrialActive = Boolean(auth?.isTrialActive);
   const shouldHideAds = isPremium || isTrialActive || localAdFree || !active;
   const isRectangle = unitType === "rectangle";
+  const isAndroidNative = isNative && Capacitor.getPlatform() === "android";
 
   useEffect(() => {
     if (shouldHideAds) {
@@ -91,6 +94,9 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       setAdUnfilled(false);
       if (isNative && placement === "bottom-dock") {
         hideNativeBannerAd().catch(() => {});
+      }
+      if (isAndroidNative && placement !== "bottom-dock") {
+        InlineAdMob.removeSlot({ slotKey: nativeSlotKey }).catch(() => {});
       }
       return;
     }
@@ -190,8 +196,236 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       };
     }
 
-    // 2. NATIVE ANDROID / iOS: INLINE NATIVE AD FEED
-    // Uses real Google AdMob Native Test Ad (ca-app-pub-3940256099942544/2247696110) projected onto the DOM box.
+    // 2A. ANDROID NATIVE INLINE ADVIEW (Reliable Google AdMob 300x250 Medium Rectangle)
+    if (isAndroidNative) {
+      let isMounted = true;
+      let isLoaded = false;
+      let isPaused = false;
+      let rafId: number | null = null;
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      let failTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastSignature = "";
+      const listeners: PluginListenerHandle[] = [];
+
+      setAdLoaded(false);
+      setAdUnfilled(false);
+
+      const syncPlacement = () => {
+        rafId = null;
+        if (!isMounted) return;
+
+        const slotEl = nativeSlotRef.current;
+        if (!isLoaded || isPaused || document.hidden || isUserAdFree() || !slotEl || !slotEl.isConnected) {
+          const sig = "hidden";
+          if (lastSignature !== sig) {
+            lastSignature = sig;
+            InlineAdMob.updateSlot({
+              slotKey: nativeSlotKey,
+              visible: false,
+              rectX: 0,
+              rectY: 0,
+              rectW: 0,
+              rectH: 0,
+              clipX: 0,
+              clipY: 0,
+              clipW: 0,
+              clipH: 0,
+              viewportW: window.innerWidth || 0
+            }).catch(() => {});
+          }
+          return;
+        }
+
+        const rect = slotEl.getBoundingClientRect();
+        if (rect.width < 50 || rect.height < 50) {
+          const sig = "hidden";
+          if (lastSignature !== sig) {
+            lastSignature = sig;
+            InlineAdMob.updateSlot({
+              slotKey: nativeSlotKey,
+              visible: false,
+              rectX: 0,
+              rectY: 0,
+              rectW: 0,
+              rectH: 0,
+              clipX: 0,
+              clipY: 0,
+              clipW: 0,
+              clipH: 0,
+              viewportW: window.innerWidth || 0
+            }).catch(() => {});
+          }
+          return;
+        }
+
+        const scrollContainer = document.getElementById("app-main-scroll-container");
+        const scRect = scrollContainer ? scrollContainer.getBoundingClientRect() : null;
+        const vpLeft = scRect ? Math.max(0, scRect.left) : 0;
+        const vpTop = scRect ? Math.max(0, scRect.top) : 0;
+        const vpRight = scRect ? Math.min(window.innerWidth, scRect.right) : window.innerWidth;
+        const vpBottom = scRect ? Math.min(window.innerHeight, scRect.bottom) : window.innerHeight;
+
+        const clipX = Math.max(rect.left, vpLeft);
+        const clipY = Math.max(rect.top, vpTop);
+        const clipRight = Math.min(rect.right, vpRight);
+        const clipBottom = Math.min(rect.bottom, vpBottom);
+        const clipW = Math.max(0, clipRight - clipX);
+        const clipH = Math.max(0, clipBottom - clipY);
+
+        let visible = clipW >= 50 && clipH >= 24;
+        if (visible) {
+          const cx = clipX + clipW / 2;
+          const cy = clipY + clipH / 2;
+          const topEl = document.elementFromPoint(cx, cy);
+          if (!topEl || (topEl !== slotEl && !slotEl.contains(topEl))) {
+            visible = false;
+          }
+        }
+
+        const sig = visible
+          ? `1|${Math.round(rect.left)}|${Math.round(rect.top)}|${Math.round(rect.width)}|${Math.round(rect.height)}|${Math.round(clipX)}|${Math.round(clipY)}|${Math.round(clipW)}|${Math.round(clipH)}|${Math.round(window.innerWidth)}`
+          : "hidden";
+
+        if (sig === lastSignature) return;
+        lastSignature = sig;
+
+        InlineAdMob.updateSlot({
+          slotKey: nativeSlotKey,
+          visible,
+          rectX: rect.left,
+          rectY: rect.top,
+          rectW: rect.width,
+          rectH: rect.height,
+          clipX,
+          clipY,
+          clipW,
+          clipH,
+          viewportW: window.innerWidth || 0
+        }).catch(() => {});
+      };
+
+      const scheduleSync = () => {
+        if (!isMounted || rafId !== null) return;
+        rafId = requestAnimationFrame(syncPlacement);
+      };
+
+      const handlePause = () => {
+        isPaused = true;
+        scheduleSync();
+      };
+
+      const handleResume = () => {
+        isPaused = false;
+        lastSignature = "";
+        scheduleSync();
+      };
+
+      const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleSync) : null;
+      const bodyObserver = typeof MutationObserver !== "undefined" ? new MutationObserver(scheduleSync) : null;
+      let safetyInterval: ReturnType<typeof setInterval> | null = null;
+
+      const mountAndroidInlineAd = async () => {
+        try {
+          const loadedHandle = await InlineAdMob.addListener("inlineAdLoaded", (ev: any) => {
+            if (!isMounted || ev?.slotKey !== nativeSlotKey) return;
+            if (failTimer) {
+              clearTimeout(failTimer);
+              failTimer = null;
+            }
+            isLoaded = true;
+            lastSignature = "";
+            setAdLoaded(true);
+            setAdUnfilled(false);
+            scheduleSync();
+            settleTimer = setTimeout(() => {
+              lastSignature = "";
+              scheduleSync();
+            }, 250);
+          });
+          listeners.push(loadedHandle);
+
+          const failedHandle = await InlineAdMob.addListener("inlineAdFailed", (ev: any) => {
+            if (!isMounted || ev?.slotKey !== nativeSlotKey) return;
+            if (failTimer) {
+              clearTimeout(failTimer);
+              failTimer = null;
+            }
+            isLoaded = false;
+            setAdLoaded(false);
+            setAdUnfilled(true);
+          });
+          listeners.push(failedHandle);
+
+          if (!isMounted) return;
+
+          document.addEventListener("scroll", scheduleSync, { capture: true, passive: true });
+          document.addEventListener("visibilitychange", scheduleSync);
+          window.addEventListener("resize", scheduleSync, { passive: true });
+          window.addEventListener("admob_inline_pause", handlePause);
+          window.addEventListener("admob_inline_resume", handleResume);
+          if (resizeObserver && nativeSlotRef.current) {
+            resizeObserver.observe(nativeSlotRef.current);
+          }
+          if (bodyObserver && document.body) {
+            bodyObserver.observe(document.body, { childList: true });
+          }
+          safetyInterval = setInterval(() => {
+            if (isMounted && isLoaded && !isPaused && !document.hidden) {
+              scheduleSync();
+            }
+          }, 350);
+
+          await initNativeAdMobSdk();
+          if (!isMounted || isUserAdFree()) return;
+
+          const containerWidth = nativeSlotRef.current?.parentElement?.clientWidth || window.innerWidth - 32;
+          await InlineAdMob.loadSlot({
+            slotKey: nativeSlotKey,
+            adId: ADMOB_CONFIG.BANNER_ID,
+            adSize: "MEDIUM_RECTANGLE",
+            maxWidthDp: Math.max(300, Math.floor(containerWidth))
+          });
+
+          failTimer = setTimeout(() => {
+            if (isMounted && !isLoaded) {
+              setAdUnfilled(true);
+              InlineAdMob.removeSlot({ slotKey: nativeSlotKey }).catch(() => {});
+            }
+          }, 9000);
+        } catch (err) {
+          console.warn("[InlineAdMob] Android mount warning:", err);
+          if (isMounted) {
+            setAdLoaded(false);
+            setAdUnfilled(true);
+          }
+        }
+      };
+
+      mountAndroidInlineAd();
+
+      return () => {
+        isMounted = false;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        if (settleTimer) clearTimeout(settleTimer);
+        if (failTimer) clearTimeout(failTimer);
+        if (safetyInterval) clearInterval(safetyInterval);
+        resizeObserver?.disconnect();
+        bodyObserver?.disconnect();
+        document.removeEventListener("scroll", scheduleSync, { capture: true });
+        document.removeEventListener("visibilitychange", scheduleSync);
+        window.removeEventListener("resize", scheduleSync);
+        window.removeEventListener("admob_inline_pause", handlePause);
+        window.removeEventListener("admob_inline_resume", handleResume);
+        for (const handle of listeners) {
+          try {
+            handle.remove();
+          } catch {}
+        }
+        InlineAdMob.removeSlot({ slotKey: nativeSlotKey }).catch(() => {});
+      };
+    }
+
+    // 2B. iOS NATIVE: INLINE NATIVE AD FEED
     if (isNative) {
       let isMounted = true;
       let attachedFeed: any = null;
@@ -399,7 +633,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         }
       } catch {}
     };
-  }, [shouldHideAds, isNative, unitType, placement, isRectangle, slotDivId, nativeSlotKey]);
+  }, [shouldHideAds, isNative, isAndroidNative, unitType, placement, isRectangle, slotDivId, nativeSlotKey]);
 
   // KESİN KURAL: Premium ve aktif 7 günlük deneme kullanıcılarına HİÇBİR reklam gösterilmez
   if (shouldHideAds) return null;
@@ -420,7 +654,42 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Native Inline Cards: Measured NativeUIProjection Slot (>=144x300px, 336px keeps MediaView >=120dp on scaled fonts)
+  // Android Native Inline Cards: Reliable 300x250 Google AdView projected onto the DOM card
+  if (isAndroidNative) {
+    return (
+      <div className={`w-full flex flex-col items-center overflow-visible my-2 space-y-1.5 relative z-10 ${className}`}>
+        <div
+          className={`w-full flex items-center justify-center rounded-2xl transition-all duration-300 ${
+            adLoaded
+              ? "bg-white/95 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/70 p-2 min-h-[268px] shadow-sm"
+              : "bg-white/60 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50 p-2 min-h-[268px] animate-pulse"
+          }`}
+        >
+          <div
+            ref={nativeSlotRef}
+            aria-label="Google AdMob Test Ad"
+            data-admob-unit={ADMOB_CONFIG.BANNER_ID}
+            data-admob-slot={nativeSlotKey}
+            style={{ width: "300px", maxWidth: "100%", height: "250px" }}
+            className="rounded-xl overflow-hidden flex items-center justify-center bg-white/95 dark:bg-slate-900/30"
+          />
+        </div>
+        {adLoaded && onUpgradeClick && (
+          <div className="flex justify-end w-full pr-2">
+            <button
+              type="button"
+              onClick={onUpgradeClick}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 text-[9px] font-black rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1 uppercase tracking-tight"
+            >
+              {upgradeLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // iOS Native Inline Cards: Measured NativeUIProjection Slot
   if (isNative) {
     return (
       <div className={`w-full flex flex-col items-center overflow-visible my-2 space-y-1.5 relative z-10 ${className}`}>

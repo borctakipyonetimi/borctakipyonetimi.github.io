@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import {
   AdMob,
   BannerAdPosition,
@@ -14,6 +14,37 @@ import {
   NativeAdFeed,
   NativeAdTemplate
 } from "@capacitor-community/admob";
+
+export interface InlineAdMobPluginInterface {
+  loadSlot(options: {
+    slotKey: string;
+    adId?: string;
+    adSize?: "MEDIUM_RECTANGLE" | "LARGE_BANNER" | "BANNER";
+    maxWidthDp?: number;
+  }): Promise<void>;
+  updateSlot(options: {
+    slotKey: string;
+    visible: boolean;
+    rectX: number;
+    rectY: number;
+    rectW: number;
+    rectH: number;
+    clipX: number;
+    clipY: number;
+    clipW: number;
+    clipH: number;
+    viewportW: number;
+  }): Promise<void>;
+  removeSlot(options: { slotKey: string }): Promise<void>;
+  pauseAll(): Promise<void>;
+  resumeAll(): Promise<void>;
+  addListener(
+    eventName: "inlineAdLoaded" | "inlineAdFailed",
+    listenerFunc: (event: any) => void
+  ): Promise<PluginListenerHandle>;
+}
+
+export const InlineAdMob = registerPlugin<InlineAdMobPluginInterface>("InlineAdMob");
 
 // Official Google AdMob Test Identifiers configured for Bütçem Pro Testing & Development
 export const ADMOB_CONFIG = {
@@ -450,24 +481,49 @@ export async function acquireInlineNativeFeed(): Promise<NativeAdFeed | null> {
 }
 
 export async function pauseInlineNativeFeed(): Promise<void> {
-  if (!Capacitor.isNativePlatform() || !inlineNativeFeed) return;
+  if (!Capacitor.isNativePlatform()) return;
   try {
-    await inlineNativeFeed.pause();
+    await InlineAdMob.pauseAll();
   } catch {
-    // Safe ignore if feed already paused or destroyed
+    // Safe ignore
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("admob_inline_pause"));
+  }
+  if (inlineNativeFeed) {
+    try {
+      await inlineNativeFeed.pause();
+    } catch {
+      // Safe ignore if feed already paused or destroyed
+    }
   }
 }
 
 export function resumeInlineNativeFeed(): void {
-  if (!Capacitor.isNativePlatform() || !inlineNativeFeed || isUserAdFree()) return;
+  if (!Capacitor.isNativePlatform() || isUserAdFree()) return;
   try {
-    inlineNativeFeed.resume();
+    void InlineAdMob.resumeAll().catch(() => {});
   } catch {
     // Safe ignore
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("admob_inline_resume"));
+  }
+  if (inlineNativeFeed) {
+    try {
+      inlineNativeFeed.resume();
+    } catch {
+      // Safe ignore
+    }
   }
 }
 
 export async function destroyAllNativeFeeds(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await InlineAdMob.pauseAll();
+    } catch {}
+  }
   const feed = inlineNativeFeed;
   inlineNativeFeed = null;
   if (feed) {
