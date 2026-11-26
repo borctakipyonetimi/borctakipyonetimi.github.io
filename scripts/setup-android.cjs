@@ -243,6 +243,7 @@ public class InlineAdMobPlugin extends Plugin {
         boolean loaded = false;
         boolean hasPlacement = false;
         boolean visible = false;
+        boolean scrollPaused = false;
         double rectX = 0;
         double rectY = 0;
         double rectW = 0;
@@ -384,11 +385,8 @@ public class InlineAdMobPlugin extends Plugin {
                 FrameLayout container = new FrameLayout(context);
                 container.setClipChildren(true);
                 container.setClipToPadding(true);
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Color.WHITE);
-                bg.setCornerRadius(12f * density);
-                container.setBackground(bg);
-                container.setVisibility(View.INVISIBLE);
+                container.setBackgroundColor(Color.TRANSPARENT);
+                container.setVisibility(View.GONE);
                 container.setAlpha(0f);
 
                 AdView adView = new AdView(context);
@@ -451,6 +449,26 @@ public class InlineAdMobPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setScrollPaused(final PluginCall call) {
+        final boolean scrolling = Boolean.TRUE.equals(call.getBoolean("scrolling", false));
+        runOnUi(() -> {
+            for (InlineSlot slot : slots.values()) {
+                slot.scrollPaused = scrolling;
+                if (scrolling) {
+                    slot.container.setAlpha(0f);
+                    if (slot.container.getVisibility() != View.GONE) {
+                        slot.container.setVisibility(View.GONE);
+                        slot.adView.pause();
+                    }
+                } else {
+                    applyPlacementInternal(slot);
+                }
+            }
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void updateSlot(final PluginCall call) {
         final String slotKey = call.getString("slotKey");
         if (slotKey == null || slotKey.trim().isEmpty()) {
@@ -459,6 +477,7 @@ public class InlineAdMobPlugin extends Plugin {
         }
         final String sessionId = call.getString("sessionId", "");
         final boolean visible = Boolean.TRUE.equals(call.getBoolean("visible", false));
+        final boolean resumeScroll = Boolean.TRUE.equals(call.getBoolean("resumeScroll", false));
         final double rectX = call.getDouble("rectX", 0.0);
         final double rectY = call.getDouble("rectY", 0.0);
         final double rectW = call.getDouble("rectW", 0.0);
@@ -475,6 +494,9 @@ public class InlineAdMobPlugin extends Plugin {
             if (sessionId != null && !sessionId.isEmpty() && !currentSessionId.isEmpty() && !sessionId.equals(currentSessionId)) {
                 destroySlotInternal(slotKey);
                 return;
+            }
+            if (resumeScroll) {
+                slot.scrollPaused = false;
             }
             slot.hasPlacement = true;
             slot.visible = visible;
@@ -495,6 +517,7 @@ public class InlineAdMobPlugin extends Plugin {
     private void applyPlacementInternal(InlineSlot slot) {
         if (slot == null) return;
         if (!slot.sessionId.isEmpty() && !currentSessionId.isEmpty() && !slot.sessionId.equals(currentSessionId)) {
+            slot.container.setAlpha(0f);
             if (slot.container.getVisibility() != View.GONE) {
                 slot.container.setVisibility(View.GONE);
                 slot.adView.pause();
@@ -504,7 +527,8 @@ public class InlineAdMobPlugin extends Plugin {
         if (!slot.loaded) {
             return;
         }
-        if (paused || !slot.hasPlacement || !slot.visible || slot.clipW <= 0 || slot.clipH <= 0) {
+        if (paused || slot.scrollPaused || !slot.hasPlacement || !slot.visible || slot.clipW <= 0 || slot.clipH <= 0) {
+            slot.container.setAlpha(0f);
             if (slot.container.getVisibility() != View.GONE) {
                 slot.container.setVisibility(View.GONE);
                 slot.adView.pause();
@@ -524,6 +548,20 @@ public class InlineAdMobPlugin extends Plugin {
             ? (float) webView.getWidth() / (float) slot.viewportW
             : density;
 
+        ViewGroup parent = (slot.container.getParent() instanceof ViewGroup)
+            ? (ViewGroup) slot.container.getParent()
+            : resolveOverlayParent();
+        float originX = webView.getX();
+        float originY = webView.getY();
+        if (parent != null) {
+            int[] webLoc = new int[2];
+            int[] parentLoc = new int[2];
+            webView.getLocationInWindow(webLoc);
+            parent.getLocationInWindow(parentLoc);
+            originX = webLoc[0] - parentLoc[0];
+            originY = webLoc[1] - parentLoc[1];
+        }
+
         int clipXPx = Math.round((float) slot.clipX * scale);
         int clipYPx = Math.round((float) slot.clipY * scale);
         int clipWPx = Math.max(1, Math.round((float) slot.clipW * scale));
@@ -541,10 +579,11 @@ public class InlineAdMobPlugin extends Plugin {
             lp.width = clipWPx;
             lp.height = clipHPx;
             slot.container.setLayoutParams(lp);
+            slot.container.requestLayout();
         }
 
-        slot.container.setTranslationX(webView.getX() + clipXPx);
-        slot.container.setTranslationY(webView.getY() + clipYPx);
+        slot.container.setTranslationX(originX + clipXPx);
+        slot.container.setTranslationY(originY + clipYPx);
         slot.adView.setTranslationX((rectXPx - clipXPx) + centerOffsetX);
         slot.adView.setTranslationY((rectYPx - clipYPx) + centerOffsetY);
 

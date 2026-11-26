@@ -18,6 +18,7 @@ import {
 export interface InlineAdMobPluginInterface {
   beginSession(options: { sessionId: string }): Promise<void>;
   clearAllSlots(): Promise<void>;
+  setScrollPaused(options: { scrolling: boolean }): Promise<void>;
   loadSlot(options: {
     slotKey: string;
     sessionId?: string;
@@ -29,6 +30,7 @@ export interface InlineAdMobPluginInterface {
     slotKey: string;
     sessionId?: string;
     visible: boolean;
+    resumeScroll?: boolean;
     rectX: number;
     rectY: number;
     rectW: number;

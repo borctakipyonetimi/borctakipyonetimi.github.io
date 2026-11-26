@@ -211,16 +211,44 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       let isMounted = true;
       let isLoaded = false;
       let isPaused = false;
+      let isScrolling = false;
+      let scrollPauseSent = false;
       let rafId: number | null = null;
+      let scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
       let mountSettleTimer: ReturnType<typeof setTimeout> | null = null;
       let settleTimer: ReturnType<typeof setTimeout> | null = null;
       let failTimer: ReturnType<typeof setTimeout> | null = null;
       let lastSignature = "";
       let activeSessionId = "";
+      let touchStartY = 0;
+      let touchScrollTop = 0;
       const listeners: PluginListenerHandle[] = [];
 
       setAdLoaded(false);
       setAdUnfilled(false);
+
+      const sendHiddenUpdate = () => {
+        if (!activeSessionId) return;
+        const sig = "hidden";
+        if (lastSignature === sig && !scrollPauseSent) return;
+        lastSignature = sig;
+        scrollPauseSent = false;
+        InlineAdMob.updateSlot({
+          slotKey: nativeSlotKey,
+          sessionId: activeSessionId,
+          visible: false,
+          resumeScroll: true,
+          rectX: 0,
+          rectY: 0,
+          rectW: 0,
+          rectH: 0,
+          clipX: 0,
+          clipY: 0,
+          clipW: 0,
+          clipH: 0,
+          viewportW: window.innerWidth || 0
+        }).catch(() => {});
+      };
 
       const syncPlacement = () => {
         rafId = null;
@@ -228,25 +256,8 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
         const slotEl = nativeSlotRef.current;
         const sessionStale = Boolean(activeSessionId && activeSessionId !== getCurrentInlineAdSessionId());
-        if (!isLoaded || isPaused || sessionStale || document.hidden || isUserAdFree() || !slotEl || !slotEl.isConnected) {
-          const sig = "hidden";
-          if (lastSignature !== sig) {
-            lastSignature = sig;
-            InlineAdMob.updateSlot({
-              slotKey: nativeSlotKey,
-              sessionId: activeSessionId,
-              visible: false,
-              rectX: 0,
-              rectY: 0,
-              rectW: 0,
-              rectH: 0,
-              clipX: 0,
-              clipY: 0,
-              clipW: 0,
-              clipH: 0,
-              viewportW: window.innerWidth || 0
-            }).catch(() => {});
-          }
+        if (!isLoaded || isPaused || isScrolling || sessionStale || document.hidden || isUserAdFree() || !slotEl || !slotEl.isConnected) {
+          sendHiddenUpdate();
           return;
         }
 
@@ -259,24 +270,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           rect.width < 50 ||
           rect.height < 50
         ) {
-          const sig = "hidden";
-          if (lastSignature !== sig) {
-            lastSignature = sig;
-            InlineAdMob.updateSlot({
-              slotKey: nativeSlotKey,
-              sessionId: activeSessionId,
-              visible: false,
-              rectX: 0,
-              rectY: 0,
-              rectW: 0,
-              rectH: 0,
-              clipX: 0,
-              clipY: 0,
-              clipW: 0,
-              clipH: 0,
-              viewportW: window.innerWidth || 0
-            }).catch(() => {});
-          }
+          sendHiddenUpdate();
           return;
         }
 
@@ -294,12 +288,20 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         const clipW = Math.max(0, clipRight - clipX);
         const clipH = Math.max(0, clipBottom - clipY);
 
-        let visible = clipW >= 50 && clipH >= 36;
+        // Require most of the 300x250 slot to be cleanly inside the scroll container to prevent awkward sliver clipping
+        const minVisibleW = Math.min(rect.width * 0.75, 220);
+        const minVisibleH = Math.min(rect.height * 0.65, 160);
+        let visible = clipW >= minVisibleW && clipH >= minVisibleH;
         if (visible) {
           const cx = clipX + clipW / 2;
           const cy = clipY + clipH / 2;
-          const topEl = document.elementFromPoint(cx, cy);
-          if (!topEl || (topEl !== slotEl && !slotEl.contains(topEl))) {
+          const topY = Math.min(cy, clipY + 14);
+          const botY = Math.max(cy, clipBottom - 14);
+          const centerEl = document.elementFromPoint(cx, cy);
+          const topEdgeEl = document.elementFromPoint(cx, topY);
+          const botEdgeEl = document.elementFromPoint(cx, botY);
+          const isOwn = (el: Element | null) => Boolean(el && (el === slotEl || slotEl.contains(el)));
+          if (!isOwn(centerEl) || !isOwn(topEdgeEl) || !isOwn(botEdgeEl)) {
             visible = false;
           }
         }
@@ -308,13 +310,15 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
           ? `1|${Math.round(rect.left)}|${Math.round(rect.top)}|${Math.round(rect.width)}|${Math.round(rect.height)}|${Math.round(clipX)}|${Math.round(clipY)}|${Math.round(clipW)}|${Math.round(clipH)}|${Math.round(window.innerWidth)}`
           : "hidden";
 
-        if (sig === lastSignature) return;
+        if (sig === lastSignature && !scrollPauseSent) return;
         lastSignature = sig;
+        scrollPauseSent = false;
 
         InlineAdMob.updateSlot({
           slotKey: nativeSlotKey,
           sessionId: activeSessionId,
           visible,
+          resumeScroll: true,
           rectX: rect.left,
           rectY: rect.top,
           rectW: rect.width,
@@ -328,17 +332,76 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       };
 
       const scheduleSync = () => {
-        if (!isMounted || rafId !== null) return;
+        if (!isMounted || isScrolling || rafId !== null) return;
         rafId = requestAnimationFrame(syncPlacement);
+      };
+
+      const isRelevantScrollTarget = (target: EventTarget | null): boolean => {
+        if (!target || target === document || target === window || target === document.documentElement || target === document.body) {
+          return true;
+        }
+        if (target instanceof Element) {
+          if (target.id === "app-main-scroll-container") return true;
+          if (nativeSlotRef.current && target.contains(nativeSlotRef.current)) return true;
+        }
+        return false;
+      };
+
+      const beginScrollHide = (ev?: Event) => {
+        if (!isMounted || !isLoaded) return;
+        if (ev?.type === "scroll" && !isRelevantScrollTarget(ev.target)) {
+          return;
+        }
+        isScrolling = true;
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        if (!scrollPauseSent) {
+          scrollPauseSent = true;
+          lastSignature = "hidden";
+          InlineAdMob.setScrollPaused({ scrolling: true }).catch(() => {});
+        }
+        if (scrollIdleTimer) {
+          clearTimeout(scrollIdleTimer);
+        }
+        scrollIdleTimer = setTimeout(() => {
+          scrollIdleTimer = null;
+          if (!isMounted) return;
+          isScrolling = false;
+          lastSignature = "";
+          scheduleSync();
+        }, 190);
+      };
+
+      const handleTouchStart = (ev: TouchEvent) => {
+        touchStartY = ev.touches?.[0]?.clientY ?? 0;
+        const sc = document.getElementById("app-main-scroll-container");
+        touchScrollTop = sc ? sc.scrollTop : window.scrollY;
+      };
+
+      const handleTouchMove = (ev: TouchEvent) => {
+        const currentY = ev.touches?.[0]?.clientY ?? touchStartY;
+        const sc = document.getElementById("app-main-scroll-container");
+        const currentScrollTop = sc ? sc.scrollTop : window.scrollY;
+        if (Math.abs(currentScrollTop - touchScrollTop) > 1 || Math.abs(currentY - touchStartY) > 6) {
+          beginScrollHide();
+        }
       };
 
       const handlePause = () => {
         isPaused = true;
-        scheduleSync();
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        sendHiddenUpdate();
       };
 
       const handleResume = () => {
         isPaused = false;
+        isScrolling = false;
+        scrollPauseSent = false;
         lastSignature = "";
         scheduleSync();
       };
@@ -360,8 +423,13 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             lastSignature = "";
             setAdLoaded(true);
             setAdUnfilled(false);
-            scheduleSync();
+            requestAnimationFrame(() => {
+              if (!isMounted) return;
+              lastSignature = "";
+              scheduleSync();
+            });
             settleTimer = setTimeout(() => {
+              if (!isMounted) return;
               lastSignature = "";
               scheduleSync();
             }, 250);
@@ -382,19 +450,25 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
           if (!isMounted) return;
 
-          document.addEventListener("scroll", scheduleSync, { capture: true, passive: true });
+          document.addEventListener("scroll", beginScrollHide, { capture: true, passive: true });
+          document.addEventListener("wheel", beginScrollHide, { capture: true, passive: true });
+          document.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+          document.addEventListener("touchmove", handleTouchMove, { capture: true, passive: true });
           document.addEventListener("visibilitychange", scheduleSync);
           window.addEventListener("resize", scheduleSync, { passive: true });
           window.addEventListener("admob_inline_pause", handlePause);
           window.addEventListener("admob_inline_resume", handleResume);
           if (resizeObserver && nativeSlotRef.current) {
             resizeObserver.observe(nativeSlotRef.current);
+            if (nativeSlotRef.current.parentElement) {
+              resizeObserver.observe(nativeSlotRef.current.parentElement);
+            }
           }
           if (bodyObserver && document.body) {
             bodyObserver.observe(document.body, { childList: true });
           }
           safetyInterval = setInterval(() => {
-            if (isMounted && isLoaded && !isPaused && !document.hidden) {
+            if (isMounted && isLoaded && !isPaused && !isScrolling && !document.hidden) {
               scheduleSync();
             }
           }, 350);
@@ -443,13 +517,17 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       return () => {
         isMounted = false;
         if (rafId !== null) cancelAnimationFrame(rafId);
+        if (scrollIdleTimer) clearTimeout(scrollIdleTimer);
         if (mountSettleTimer) clearTimeout(mountSettleTimer);
         if (settleTimer) clearTimeout(settleTimer);
         if (failTimer) clearTimeout(failTimer);
         if (safetyInterval) clearInterval(safetyInterval);
         resizeObserver?.disconnect();
         bodyObserver?.disconnect();
-        document.removeEventListener("scroll", scheduleSync, { capture: true });
+        document.removeEventListener("scroll", beginScrollHide, { capture: true });
+        document.removeEventListener("wheel", beginScrollHide, { capture: true });
+        document.removeEventListener("touchstart", handleTouchStart, { capture: true });
+        document.removeEventListener("touchmove", handleTouchMove, { capture: true });
         document.removeEventListener("visibilitychange", scheduleSync);
         window.removeEventListener("resize", scheduleSync);
         window.removeEventListener("admob_inline_pause", handlePause);
@@ -692,15 +770,17 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     );
   }
 
-  // Android Native Inline Cards: Reliable 300x250 Google AdView projected onto the DOM card
+  // Android Native Inline Cards: Reliable 300x250 Google AdView projected onto transparent DOM slot (no dark empty box)
   if (isAndroidNative) {
     return (
-      <div className={`w-full flex flex-col items-center overflow-visible my-2 space-y-1.5 relative z-10 ${className}`}>
+      <div
+        className={`w-full flex flex-col items-center relative z-10 ${
+          adLoaded ? "my-2 space-y-1.5 overflow-visible" : "h-0 overflow-hidden m-0 p-0 pointer-events-none"
+        } ${className}`}
+      >
         <div
-          className={`w-full flex items-center justify-center rounded-2xl transition-all duration-300 ${
-            adLoaded
-              ? "bg-white/95 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/70 p-2 min-h-[268px] shadow-sm"
-              : "bg-white/60 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50 p-2 min-h-[268px] animate-pulse"
+          className={`w-full flex items-center justify-center bg-transparent border-0 shadow-none p-0 ${
+            adLoaded ? "min-h-[250px]" : "h-0 overflow-hidden"
           }`}
         >
           <div
@@ -709,7 +789,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             data-admob-unit={ADMOB_CONFIG.BANNER_ID}
             data-admob-slot={nativeSlotKey}
             style={{ width: "300px", maxWidth: "100%", height: "250px" }}
-            className="rounded-xl overflow-hidden flex items-center justify-center bg-white/95 dark:bg-slate-900/30"
+            className="flex items-center justify-center bg-transparent"
           />
         </div>
         {adLoaded && onUpgradeClick && (
